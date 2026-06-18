@@ -1,0 +1,1733 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitor de Cumplimiento — Cerezo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --sidebar:#1f2733;--sidebar-w:64px;
+  --bg:#f5f6f8;--white:#ffffff;--cream:#fbfaf7;
+  --border:#e7eaef;--txt:#1f2530;--muted:#7c8696;
+  --blue:#2563eb;--blue-soft:#dbeafe;
+  --red:#dc2626;--red-soft:#fee2e2;
+  --orange:#ea580c;--orange-soft:#ffedd5;
+  --teal:#0d9488;--teal-soft:#d5f5f1;
+  --green:#16a34a;--green-soft:#dcfce7;
+  --amber:#d97706;--amber-soft:#fef3c7;
+  --radius:14px;--radius-sm:9px;
+  --shadow:0 1px 14px rgba(31,37,48,.06);
+  --rowline:#f0f3f7;--soft:#f8fafc;
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--txt);display:flex}
+
+/* SIDEBAR */
+nav.sidebar{width:var(--sidebar-w);background:var(--sidebar);display:flex;flex-direction:column;
+  align-items:center;padding:18px 0;gap:6px;flex-shrink:0;z-index:50}
+nav.sidebar .logo{width:38px;height:38px;border-radius:11px;
+  background:linear-gradient(135deg,var(--blue),var(--teal));display:flex;align-items:center;
+  justify-content:center;font-size:17px;margin-bottom:14px}
+.nav-item{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+  color:#9aa4b3;cursor:pointer;transition:all .15s;font-size:17px}
+.nav-item:hover{background:rgba(255,255,255,.08);color:#fff}
+.nav-item.active{background:rgba(37,99,235,.22);color:#7fb0ff}
+.nav-sep{flex:1}
+
+/* MAIN */
+.main-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.topbar{padding:14px 24px;display:flex;align-items:center;gap:14px;background:var(--white);
+  border-bottom:1px solid var(--border);flex-shrink:0}
+.topbar-title h1{font-size:20px;font-weight:800;letter-spacing:-.02em;color:var(--txt)}
+.topbar-title h1 b{color:var(--blue)}
+.topbar-title p{font-size:12px;color:var(--muted);margin-top:1px}
+.topbar-gap{flex:1}
+.live-pill{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;
+  background:var(--teal-soft);font-size:11px;font-weight:700;color:var(--teal)}
+.dot-live{width:7px;height:7px;border-radius:50%;background:var(--teal);animation:pulse 1.8s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(13,148,136,.5)}50%{box-shadow:0 0 0 5px rgba(13,148,136,0)}}
+
+.content{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:16px}
+
+/* IMPORT / DATA STRIP */
+.data-strip{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--white);
+  border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow)}
+.data-strip .stat{display:flex;flex-direction:column;gap:1px;padding-right:16px;border-right:1px solid var(--border)}
+.data-strip .stat:last-of-type{border-right:none}
+.data-strip .stat b{font-size:18px;font-weight:800;color:var(--blue)}
+.data-strip .stat span{font-size:10.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:var(--radius-sm);
+  font-size:12.5px;font-weight:700;cursor:pointer;border:1px solid transparent;transition:all .15s;white-space:nowrap}
+.btn:active{transform:translateY(1px)}
+.btn-blue{background:var(--blue);color:#fff}.btn-blue:hover{background:#1d4ed8}
+.btn-teal{background:var(--teal);color:#fff}.btn-teal:hover{background:#0b7d72}
+.btn-orange{background:var(--orange);color:#fff}.btn-orange:hover{background:#c2410c}
+.btn-ghost{background:var(--white);color:var(--txt);border-color:var(--border)}.btn-ghost:hover{border-color:var(--blue);color:var(--blue)}
+.btn-red{background:var(--white);color:var(--red);border-color:var(--red-soft)}.btn-red:hover{background:var(--red-soft)}
+.btn[disabled]{opacity:.45;cursor:not-allowed;transform:none}
+.staged-chip{display:inline-flex;align-items:center;gap:8px;background:var(--amber-soft);
+  border:1px solid #fcd34d;border-radius:var(--radius-sm);padding:7px 12px;font-size:12px;font-weight:700;color:var(--amber)}
+.staged-chip .x{cursor:pointer;color:var(--red);font-weight:800}
+#file-input{display:none}
+.prog{height:3px;background:var(--border);border-radius:2px;overflow:hidden;display:none}
+.prog>div{height:100%;width:0;background:linear-gradient(90deg,var(--blue),var(--teal));transition:width .3s}
+
+/* FILTERS */
+.filters{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;background:var(--white);
+  border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow)}
+.fg{display:flex;flex-direction:column;gap:5px}
+.fg label{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.fg select,.fg input{padding:8px 11px;border-radius:var(--radius-sm);border:1px solid var(--border);
+  background:var(--white);font-size:12.5px;color:var(--txt);font-family:inherit;min-width:130px}
+.fg select:focus,.fg input:focus{outline:2px solid var(--blue);border-color:var(--blue)}
+.quick-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+.qbtn{padding:7px 13px;border-radius:20px;border:1px solid var(--border);background:var(--white);
+  color:var(--muted);cursor:pointer;font-size:11.5px;font-weight:700;transition:all .15s}
+.qbtn:hover{border-color:var(--blue);color:var(--blue)}
+.qbtn.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.filters-spacer{flex:1}
+#rec-count{font-size:11px;color:var(--muted);font-weight:600}
+
+/* SECTION LABEL */
+.slbl{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:800;color:var(--txt);
+  text-transform:uppercase;letter-spacing:.04em}
+.slbl .dot{width:9px;height:9px;border-radius:3px;flex-shrink:0}
+
+/* KPI GRID */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:13px}
+.kpi-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);
+  padding:15px 16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.kpi-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px}
+.kpi-card.k-blue::before{background:var(--blue)}
+.kpi-card.k-teal::before{background:var(--teal)}
+.kpi-card.k-orange::before{background:var(--orange)}
+.kpi-card.k-red::before{background:var(--red)}
+.kpi-card.k-green::before{background:var(--green)}
+.kpi-top{display:flex;align-items:center;justify-content:space-between}
+.kpi-lbl{font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.kpi-ico{font-size:16px}
+.kpi-val{font-size:28px;font-weight:800;letter-spacing:-.02em;margin-top:7px;color:var(--txt)}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:3px;display:flex;align-items:center;gap:5px}
+.delta{font-weight:800;font-size:11px}
+.delta.up{color:var(--blue)}      /* positivo = azul */
+.delta.down{color:var(--red)}     /* negativo = rojo */
+.delta.flat{color:var(--muted)}
+
+/* KPI CONFIG MODAL */
+.kpi-cfg-overlay{position:fixed;inset:0;background:rgba(31,37,48,.5);display:none;align-items:center;justify-content:center;z-index:300;padding:20px}
+.kpi-cfg-overlay.show{display:flex}
+.kpi-cfg-modal{background:var(--white);border-radius:18px;width:100%;max-width:520px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.kpi-cfg-hdr{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.kpi-cfg-hdr h3{font-size:15px;font-weight:800;flex:1}
+.kpi-cfg-body{overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:8px}
+.kpi-cfg-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);cursor:pointer;transition:all .15s;user-select:none}
+.kpi-cfg-item:hover{border-color:var(--blue);background:var(--blue-soft)}
+.kpi-cfg-item.checked{border-color:var(--blue);background:#eff6ff}
+.kpi-cfg-item input[type=checkbox]{width:15px;height:15px;accent-color:var(--blue);cursor:pointer;flex-shrink:0}
+.kpi-cfg-ico{font-size:17px;width:24px;text-align:center;flex-shrink:0}
+.kpi-cfg-txt{flex:1;font-size:12.5px;font-weight:700;color:var(--txt)}
+.kpi-cfg-sub{font-size:10.5px;color:var(--muted);font-weight:500}
+.kpi-cfg-ftr{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end}
+.kpi-cfg-sep{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:4px 0 2px;border-bottom:1px solid var(--rowline);margin-bottom:4px}
+.kpi-gear-btn{background:none;border:1px solid var(--border);border-radius:7px;padding:3px 8px;font-size:12px;cursor:pointer;color:var(--muted);transition:all .15s;margin-left:auto}
+.kpi-gear-btn:hover{border-color:var(--blue);color:var(--blue)}
+
+/* TASK INSIGHT */
+.insight-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}
+.insight-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow)}
+.insight-card-hdr{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--rowline)}
+.insight-card-hdr .ico{font-size:15px}
+.insight-card-hdr .ttl{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.insight-row{display:flex;align-items:center;gap:9px;padding:5px 0;border-bottom:1px solid var(--rowline)}
+.insight-row:last-child{border-bottom:none}
+.insight-rank{width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;color:#fff;flex-shrink:0}
+.insight-name{font-size:11.5px;color:var(--txt);font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.insight-chip{font-size:10px;font-weight:800;border-radius:5px;padding:2px 7px;flex-shrink:0}
+.insight-empty{font-size:12px;color:var(--muted);text-align:center;padding:20px 0}
+@media(max-width:760px){.insight-grid{grid-template-columns:1fr}}
+
+/* CARDS / CHARTS */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);
+  padding:16px;box-shadow:var(--shadow)}
+.card-hdr{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.card-title{font-size:13.5px;font-weight:800;color:var(--txt);display:flex;align-items:center;gap:7px}
+.ct-dot{width:9px;height:9px;border-radius:3px}
+.card-note{margin-left:auto;font-size:11px;font-weight:700;color:var(--muted)}
+.chart-wrap{position:relative;height:215px}
+
+/* RANKING */
+.rank-item{display:flex;align-items:center;gap:11px;padding:8px 0;border-bottom:1px solid var(--rowline)}
+.rank-item:last-child{border-bottom:none}
+.rank-num{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:800;color:#fff;flex-shrink:0}
+.rank-name{font-size:12.5px;font-weight:700;color:var(--txt);flex:1;min-width:0}
+.rank-name small{display:block;font-size:10px;color:var(--muted);font-weight:600}
+.rank-bar-wrap{display:flex;align-items:center;gap:8px;width:150px}
+.rank-bg{flex:1;height:8px;background:var(--rowline);border-radius:4px;overflow:hidden}
+.rank-fill{height:100%;border-radius:4px;transition:width .6s ease}
+.rank-pct{font-size:12px;font-weight:800;width:42px;text-align:right}
+
+/* DONUT LEGEND */
+.donut-legend{display:flex;flex-direction:column;gap:9px}
+.legend-item{display:flex;align-items:center;gap:8px;font-size:12px}
+.legend-dot{width:11px;height:11px;border-radius:3px}
+.legend-lbl{color:var(--txt);font-weight:600}
+.legend-val{margin-left:auto;font-weight:800;color:var(--txt)}
+
+/* TABLES */
+.tbl-scroll{overflow-x:auto}
+table.dt{width:100%;border-collapse:collapse;min-width:640px}
+table.dt thead th{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
+  padding:10px 12px;text-align:left;background:var(--soft);border-bottom:2px solid var(--border);
+  white-space:nowrap;color:var(--muted)}
+table.dt thead th.c{text-align:center}
+table.dt tbody td{padding:9px 12px;border-bottom:1px solid var(--rowline);font-size:12px;
+  color:var(--txt);white-space:nowrap}
+table.dt tbody tr:hover{background:var(--soft)}
+table.dt tbody tr:last-child td{border-bottom:none}
+.tname{font-weight:700;color:var(--txt)}
+.tsub{font-size:10px;color:var(--muted)}
+.cell-c{text-align:center}
+.neg{color:var(--red);font-weight:800}
+.pos{color:var(--blue);font-weight:800}
+.badge{border-radius:6px;padding:3px 9px;font-size:10px;font-weight:800;white-space:nowrap;display:inline-block}
+.b-green{background:var(--green-soft);color:#166534}
+.b-red{background:var(--red-soft);color:#991b1b}
+.b-blue{background:var(--blue-soft);color:#1e40af}
+.b-orange{background:var(--orange-soft);color:#9a3412;border:1px solid #fed7aa}
+.b-gray{background:#f1f3f7;color:#475569}
+.rank-pill{display:inline-flex;align-items:center;justify-content:center;width:23px;height:23px;
+  border-radius:7px;font-size:10px;font-weight:800;color:#fff}
+.icon-btn{border:1px solid var(--border);background:var(--white);border-radius:7px;width:30px;height:28px;
+  cursor:pointer;font-size:13px;color:var(--muted);transition:all .15s}
+.icon-btn:hover{border-color:var(--blue);color:var(--blue)}
+
+/* EMPTY */
+.empty{padding:34px;text-align:center;color:var(--muted);font-size:13px}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(31,37,48,.5);display:none;align-items:center;
+  justify-content:center;z-index:200;padding:20px}
+.modal-overlay.show{display:flex}
+.modal{background:var(--white);border-radius:18px;max-width:880px;width:100%;max-height:88vh;
+  display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal-hdr{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.modal-hdr h2{font-size:17px;font-weight:800;color:var(--txt)}
+.modal-hdr h2 b{color:var(--orange)}
+.modal-close{margin-left:auto;border:none;background:var(--soft);width:32px;height:32px;border-radius:9px;
+  cursor:pointer;font-size:15px;color:var(--muted)}
+.modal-close:hover{background:var(--red-soft);color:var(--red)}
+.modal-body{padding:20px 22px;overflow-y:auto}
+.modal-foot{padding:14px 22px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+
+/* FORM */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-field{display:flex;flex-direction:column;gap:5px}
+.form-field.full{grid-column:1/-1}
+.form-field label{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.form-field input,.form-field select,.form-field textarea{padding:9px 11px;border-radius:var(--radius-sm);
+  border:1px solid var(--border);font-size:13px;font-family:inherit;color:var(--txt);background:var(--white)}
+.form-field input:focus,.form-field select:focus,.form-field textarea:focus{outline:2px solid var(--blue);border-color:var(--blue)}
+
+/* store group block (pendientes por sucursal) */
+.store-block{border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px;overflow:hidden}
+.store-block-hdr{display:flex;align-items:center;gap:10px;padding:11px 15px;background:var(--soft);border-bottom:1px solid var(--border)}
+.store-block-hdr .sname{font-size:13.5px;font-weight:800;color:var(--txt)}
+.store-block-hdr .scount{margin-left:auto;font-size:12px;font-weight:800;color:var(--red)}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--txt);color:#fff;
+  padding:11px 20px;border-radius:11px;font-size:13px;font-weight:600;z-index:400;opacity:0;
+  transition:opacity .25s,transform .25s;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
+
+@media(max-width:760px){
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+  .grid2{grid-template-columns:1fr}
+  .form-grid{grid-template-columns:1fr}
+}
+@media(max-width:520px){
+  nav.sidebar{width:52px}
+  .content{padding:14px}
+  .fg select,.fg input{min-width:110px}
+}
+#png-stage{position:fixed;left:-99999px;top:0}
+</style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="logo">📊</div>
+  <div class="nav-item active" id="nav-dash" title="Dashboard" onclick="setView('dash')">⊞</div>
+  <div class="nav-item" id="nav-tareas" title="Tareas (editar)" onclick="setView('tareas')">📝</div>
+  <div class="nav-item" id="nav-pend" title="Pendientes por sucursal" onclick="openPendientes()">🏬</div>
+  <div class="nav-sep"></div>
+  <div class="nav-item" title="Reiniciar datos guardados" onclick="confirmWipe()">🗑️</div>
+</nav>
+
+<div class="main-area">
+  <div class="topbar">
+    <div class="topbar-title">
+      <h1>Monitor de <b>Cumplimiento</b></h1>
+      <p>Grupo Cerezo · auditorías y tareas por sucursal — datos guardados localmente</p>
+    </div>
+    <div class="topbar-gap"></div>
+    <div class="live-pill"><span class="dot-live"></span>Guardado local</div>
+  </div>
+
+  <div class="content">
+
+    <!-- DATA / IMPORT STRIP -->
+    <div class="data-strip">
+      <div class="stat"><b id="ds-aud">0</b><span>Auditorías</span></div>
+      <div class="stat"><b id="ds-tar">0</b><span>Tareas</span></div>
+      <div class="stat"><b id="ds-pend">0</b><span>Pendientes</span></div>
+      <div class="filters-spacer"></div>
+      <span id="staged-box"></span>
+      <button class="btn btn-ghost" onclick="document.getElementById('file-input').click()">📂 Cargar Excel</button>
+      <button class="btn btn-blue" id="btn-generar" onclick="generarImport()" disabled>⚙ Generar / Combinar</button>
+      <input type="file" id="file-input" accept=".xlsx,.xls" multiple onchange="stageFiles(this.files)">
+    </div>
+    <div class="prog" id="prog"><div></div></div>
+
+    <!-- FILTERS -->
+    <div class="filters">
+      <div class="fg"><label>Razón</label><select id="f-razon" onchange="onFilter()"></select></div>
+      <div class="fg"><label>Centro</label><select id="f-centro" onchange="onFilter()"></select></div>
+      <div class="fg"><label>Sucursal / Tienda</label><select id="f-tienda" onchange="onFilter()"></select></div>
+      <div class="fg"><label>Tipo de tarea</label>
+        <select id="f-tipo" onchange="onFilter()">
+          <option value="ALL">Todas</option>
+          <option value="ol">Orden y Limpieza</option>
+          <option value="col">Auditoría Colaboración</option>
+        </select>
+      </div>
+      <div class="fg"><label>Desde</label><input type="date" id="f-desde" onchange="onFilter('manual')"></div>
+      <div class="fg"><label>Hasta</label><input type="date" id="f-hasta" onchange="onFilter('manual')"></div>
+      <div class="fg">
+        <label>Tendencia agrupar por</label>
+        <select id="f-gran" onchange="onFilter()">
+          <option value="month">Mes</option>
+          <option value="quarter">Trimestre</option>
+          <option value="half">Medio año</option>
+          <option value="year">Año completo</option>
+        </select>
+      </div>
+      <div class="fg" style="gap:7px">
+        <label>Rango rápido</label>
+        <div class="quick-row" id="quick-row">
+          <button class="qbtn active" data-q="all" onclick="setQuick('all',this)">Todo</button>
+          <button class="qbtn" data-q="month" onclick="setQuick('month',this)">Mes</button>
+          <button class="qbtn" data-q="quarter" onclick="setQuick('quarter',this)">Trimestre</button>
+          <button class="qbtn" data-q="half" onclick="setQuick('half',this)">Medio año</button>
+          <button class="qbtn" data-q="year" onclick="setQuick('year',this)">Año</button>
+        </div>
+      </div>
+      <div class="filters-spacer"></div>
+      <span id="rec-count"></span>
+    </div>
+
+    <!-- ===================== VIEW: DASHBOARD ===================== -->
+    <div id="view-dash" style="display:flex;flex-direction:column;gap:16px">
+
+      <div class="slbl"><span class="dot" style="background:var(--blue)"></span>KPIs de Tendencia
+        <button class="kpi-gear-btn" onclick="openKpiCfg()" title="Configurar KPIs">⚙️ Configurar</button>
+      </div>
+      <div class="kpi-grid" id="kpi-row"></div>
+
+      <!-- KPI CONFIG MODAL -->
+      <div class="kpi-cfg-overlay" id="kpi-cfg-overlay" onclick="if(event.target===this)closeKpiCfg()">
+        <div class="kpi-cfg-modal">
+          <div class="kpi-cfg-hdr">
+            <span style="font-size:18px">⚙️</span>
+            <h3>Configurar KPIs visibles</h3>
+            <button class="btn btn-ghost" style="padding:5px 10px;font-size:12px" onclick="closeKpiCfg()">✕</button>
+          </div>
+          <div class="kpi-cfg-body" id="kpi-cfg-body"></div>
+          <div class="kpi-cfg-ftr">
+            <button class="btn btn-ghost" onclick="kpiCfgSelectAll(false)">Deseleccionar todo</button>
+            <button class="btn btn-ghost" onclick="kpiCfgSelectAll(true)">Seleccionar todo</button>
+            <button class="btn btn-blue" onclick="saveKpiCfg()">Guardar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="slbl"><span class="dot" style="background:var(--orange)"></span>Análisis de Tareas</div>
+      <div class="insight-grid" id="insight-row"></div>
+
+      <div class="grid2">
+        <div class="card">
+          <div class="card-hdr"><div class="card-title"><span class="ct-dot" style="background:var(--blue)"></span>Tendencia de % cumplimiento</div>
+            <span class="card-note" id="trend-note"></span></div>
+          <div class="chart-wrap"><canvas id="chart-trend"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-hdr"><div class="card-title"><span class="ct-dot" style="background:var(--teal)"></span>Resueltas vs Pendientes por período</div></div>
+          <div class="chart-wrap"><canvas id="chart-respend"></canvas></div>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <div class="card-hdr"><div class="card-title"><span class="ct-dot" style="background:var(--orange)"></span>% Cumplimiento por centro</div></div>
+          <div class="chart-wrap"><canvas id="chart-centro"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-hdr"><div class="card-title"><span class="ct-dot" style="background:var(--teal)"></span>Distribución de estado de tareas</div></div>
+          <div style="display:flex;align-items:center;justify-content:center;gap:24px;height:215px">
+            <div style="position:relative;width:165px;height:165px;flex-shrink:0"><canvas id="chart-donut"></canvas></div>
+            <div class="donut-legend" id="donut-legend"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <div class="card-hdr"><div class="card-title"><span class="ct-dot" style="background:var(--red)"></span>Sucursales con menor cumplimiento</div></div>
+          <div id="rank-list"></div>
+        </div>
+        <div class="card">
+          <div class="card-hdr"><div class="card-title"><span class="ct-dot" style="background:var(--orange)"></span>Sucursales con más pendientes</div></div>
+          <div id="pend-rank"></div>
+        </div>
+      </div>
+
+      <div class="slbl"><span class="dot" style="background:var(--orange)"></span>Tareas pendientes por vencer
+        <span style="font-weight:600;font-size:10px;color:var(--muted);text-transform:none;margin-left:6px">🔴 vencida · 🟠 ≤7 días · 🔵 en plazo</span></div>
+      <div class="card" id="venc-card">
+        <div class="tbl-scroll" id="venc-table"></div>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-teal" onclick="downloadDashboardPNG()">🖼️ Descargar PNG (Resumen)</button>
+        <button class="btn btn-orange" onclick="openPendientes()">🏬 Tareas pendientes por sucursal</button>
+        <button class="btn btn-ghost" onclick="exportCSV()">⬇ CSV de tareas filtradas</button>
+        <button class="btn btn-blue" onclick="openPptModal()" style="margin-left:auto">📊 Generar PowerPoint</button>
+      </div>
+
+      <!-- PPT MODAL -->
+      <div class="kpi-cfg-overlay" id="ppt-overlay" onclick="if(event.target===this)closePptModal()">
+        <div class="kpi-cfg-modal" style="max-width:480px">
+          <div class="kpi-cfg-hdr">
+            <span style="font-size:18px">📊</span>
+            <h3>Generar presentación PowerPoint</h3>
+            <button class="btn btn-ghost" style="padding:5px 10px;font-size:12px" onclick="closePptModal()">✕</button>
+          </div>
+          <div class="kpi-cfg-body" style="padding:16px 20px;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <label style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Título</label>
+              <input type="text" id="ppt-titulo" value="Reporte de Cumplimiento" style="padding:8px 11px;border-radius:9px;border:1px solid var(--border);font-size:13px;font-family:inherit">
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <label style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Empresa</label>
+              <input type="text" id="ppt-empresa" value="Grupo Kuroda" style="padding:8px 11px;border-radius:9px;border:1px solid var(--border);font-size:13px;font-family:inherit">
+            </div>
+            <p style="font-size:11.5px;color:var(--muted);line-height:1.5">La presentación incluirá: <b>Portada · KPIs de Tendencia · Análisis de Tareas · Distribución de Estado · Sucursales con menor cumplimiento · Sucursales con más pendientes</b> — basados en los filtros activos.</p>
+          </div>
+          <div class="kpi-cfg-ftr">
+            <button class="btn btn-ghost" onclick="closePptModal()">Cancelar</button>
+            <button class="btn btn-blue" onclick="generatePpt()">📊 Descargar PowerPoint</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== VIEW: TAREAS (editable) ===================== -->
+    <div id="view-tareas" style="display:none;flex-direction:column;gap:14px">
+      <div class="slbl"><span class="dot" style="background:var(--blue)"></span>Gestión de tareas
+        <span style="font-weight:600;font-size:10px;color:var(--muted);text-transform:none;margin-left:6px">edita estado y fechas · se guarda automáticamente</span></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-blue" onclick="openEdit(null)">➕ Agregar tarea</button>
+        <button class="btn btn-teal" onclick="downloadTareasPNG()">🖼️ PNG de tareas filtradas</button>
+        <span id="tareas-count" style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600;align-self:center"></span>
+      </div>
+      <div class="card" style="padding:8px 10px">
+        <div class="tbl-scroll" id="tareas-table"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="png-stage"></div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-hdr"><h2 id="modal-title"></h2><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-foot" id="modal-foot" style="display:none"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script id="seed-data" type="application/json">{"auditorias": [{"razon": "KNO", "centro": "KN15", "tienda": "VALLE DE GUADALUPE", "fecha": "2026-03-26T17:35:00", "mes": "MARZO", "pctCumpl": 0.74, "tareas": 5, "pendientes": 0, "resueltas": 5, "pctResuelto": 1, "clase": "AUDITORIAS DE COLABORACION"}, {"razon": "KNO", "centro": "KN01", "tienda": "EXPRESS", "fecha": "2026-04-25T09:16:00", "mes": "ABRIL", "pctCumpl": 0.69, "tareas": 5, "pendientes": 2, "resueltas": 3, "pctResuelto": 0.6, "clase": "AUDITORIAS DE COLABORACION"}, {"razon": "KNO", "centro": "KN05", "tienda": "MEXICALI MENUDEO", "fecha": "2026-04-30T16:24:00", "mes": "ABRIL", "pctCumpl": 0.69, "tareas": 1, "pendientes": 1, "resueltas": 0, "pctResuelto": 0, "clase": "AUDITORIAS DE COLABORACION"}, {"razon": "KNO", "centro": "KN16", "tienda": "CEDIS TECATE", "fecha": "2026-05-06T19:46:00", "mes": "ABRIL", "pctCumpl": 0.5, "tareas": 2, "pendientes": 2, "resueltas": 0, "pctResuelto": 0, "clase": "AUDITORIAS DE COLABORACION"}, {"razon": "KNO", "centro": "KN03", "tienda": "ENSENADA MAYOREO Y MENUDEO", "fecha": "2026-06-02T09:04:00", "mes": "MAYO", "pctCumpl": 0.61, "tareas": 6, "pendientes": 6, "resueltas": 0, "pctResuelto": 0, "clase": "AUDITORIAS DE COLABORACION"}, {"razon": "KNO", "centro": "KN18", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "fecha": "2026-06-02T22:21:00", "mes": "MAYO", "pctCumpl": 0.61, "tareas": 10, "pendientes": 10, "resueltas": 0, "pctResuelto": 0, "clase": "AUDITORIAS DE COLABORACION"}, {"razon": "KNO", "centro": "KN04", "tienda": "ENSENADA MAYOREO Y MENUDEO", "fecha": "2026-04-28T15:06:00", "mes": "MARZO", "pctCumpl": 0.44, "tareas": 14, "pendientes": 1, "resueltas": 13, "pctResuelto": 0.93, "clase": "AUDITORIA ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN15", "tienda": "VALLE DE GUADALUPE", "fecha": "2026-03-18T13:11:00", "mes": "MARZO", "pctCumpl": 0.6957, "tareas": 7, "pendientes": 0, "resueltas": 7, "pctResuelto": 1, "clase": "AUDITORIA ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN18", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "fecha": "2026-03-27T17:15:00", "mes": "MARZO", "pctCumpl": 0.44, "tareas": 14, "pendientes": 5, "resueltas": 9, "pctResuelto": 0.64, "clase": "AUDITORIA ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN01", "tienda": "EXPRESS", "fecha": "2026-04-20T15:43:00", "mes": "ABRIL", "pctCumpl": 0.64, "tareas": 9, "pendientes": 3, "resueltas": 6, "pctResuelto": 0.67, "clase": "AUDITORIA ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN05", "tienda": "MEXICALI MENUDEO", "fecha": "2026-04-21T12:17:00", "mes": "ABRIL", "pctCumpl": 0.56, "tareas": 11, "pendientes": 2, "resueltas": 9, "pctResuelto": 0.82, "clase": "AUDITORIA ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN00", "tienda": "20 DE NOVIEMBRE", "fecha": "2026-04-28T15:06:00", "mes": "ABRIL", "pctCumpl": 0.68, "tareas": 8, "pendientes": 0, "resueltas": 8, "pctResuelto": 1, "clase": "AUDITORIA ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN07", "tienda": "PEÑASCO", "fecha": "2026-05-13T17:49:00", "mes": "MAYO", "pctCumpl": 0.72, "tareas": 7, "pendientes": 7, "resueltas": 0, "pctResuelto": 0, "clase": "AUDITORIA ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN03", "tienda": "ENSENADA MAYOREO Y MENUDEO", "fecha": "2026-05-22T10:44:00", "mes": "MAYO", "pctCumpl": 0.6087, "tareas": 8, "pendientes": 8, "resueltas": 0, "pctResuelto": 0, "clase": "AUDITORIA ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN14", "tienda": "PROYECTOS TIJUANA", "fecha": "2026-06-13T09:13:00", "mes": "JUNIO", "pctCumpl": 0.76, "tareas": 6, "pendientes": 6, "resueltas": 0, "pctResuelto": 0, "clase": "AUDITORIA ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN17", "tienda": "ROSARITO", "fecha": "2026-06-13T11:45:00", "mes": "JUNIO", "pctCumpl": 0.92, "tareas": 2, "pendientes": 2, "resueltas": 0, "pctResuelto": 0, "clase": "AUDITORIA ORDEN Y LIMPIEZA"}], "tareas": [{"razon": "KNO", "centro": "KN03", "id": 10360221, "fechaCreacion": "2026-03-10T10:20:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Almacen", "areaRev": "Auditorios", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material de construcción en almacen.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-03-30T10:16:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN03", "id": 10360220, "fechaCreacion": "2026-03-10T10:20:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Almacen", "areaRev": "Auditorios", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Artículos generales en desuso (limpieza, decoración).", "estado": "Resuelta Atrasada", "fechaTerm": "2026-03-30T10:16:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN03", "id": 10360219, "fechaCreacion": "2026-03-10T10:20:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Almacen", "areaRev": "Auditorios", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Basura en almacen (Rafia, sinchos, cartones, etc.).", "estado": "Resuelta Atrasada", "fechaTerm": "2026-03-30T10:16:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN03", "id": 10360218, "fechaCreacion": "2026-03-10T10:20:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Almacen", "areaRev": "Auditorios", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Acumulación de tarimas o cartón.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-03-30T10:16:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN03", "id": 10360217, "fechaCreacion": "2026-03-10T10:20:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Gerente de Tienda", "areaRev": "Auditorios", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Documentos de archivo de almacen con anguedad.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-03-30T10:16:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN03", "id": 10360216, "fechaCreacion": "2026-03-10T10:20:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Gerente de Tienda", "areaRev": "Auditorios", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Humedad.", "estado": "Abierta atrasada", "fechaTerm": "2026-03-30T10:16:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN03", "id": 10360215, "fechaCreacion": "2026-03-10T10:20:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Gerente de Tienda", "areaRev": "Auditorios", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Expositores en desuso o descompuesto.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-03-30T10:16:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN03", "id": 10360214, "fechaCreacion": "2026-03-10T10:20:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Almacen", "areaRev": "Auditorios", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material obstruyendo pasillos.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-03-30T10:16:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN03", "id": 10360213, "fechaCreacion": "2026-03-10T10:20:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Almacen", "areaRev": "Auditorios", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Devoluciones (garantías) de proveedor pendiente de procesar.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-03-30T10:16:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN03", "id": 10360212, "fechaCreacion": "2026-03-10T10:20:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Almacen", "areaRev": "Auditorios", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Área para merma.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-03-30T10:16:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN03", "id": 10360211, "fechaCreacion": "2026-03-10T10:20:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Almacen", "areaRev": "Auditorios", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Merma validada pendiente de tirar.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-03-30T10:16:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN03", "id": 10360210, "fechaCreacion": "2026-03-10T10:20:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Almacen", "areaRev": "Auditorios", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Merma no reportada en la Mesa de Servicio.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-03-30T10:16:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN03", "id": 10360209, "fechaCreacion": "2026-03-10T10:20:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Almacen", "areaRev": "Auditorios", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material revuelto.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-03-30T10:16:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN15", "id": 10444768, "fechaCreacion": "2026-03-18T13:11:00", "tienda": "VALLE DE GUADALUPE", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Articulos generales en desuso (limpieza, decoracion).", "estado": "Resuelta", "fechaTerm": "2026-04-07T13:11:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN15", "id": 10444767, "fechaCreacion": "2026-03-18T13:11:00", "tienda": "VALLE DE GUADALUPE", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Exhibidores en desuso o descompuesto.", "estado": "Resuelta", "fechaTerm": "2026-04-07T13:11:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN15", "id": 10444766, "fechaCreacion": "2026-03-18T13:11:00", "tienda": "VALLE DE GUADALUPE", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Accesos al almacén controlados.", "estado": "Resuelta", "fechaTerm": "2026-04-07T13:11:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN15", "id": 10444765, "fechaCreacion": "2026-03-18T13:11:00", "tienda": "VALLE DE GUADALUPE", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Area para merma.", "estado": "Resuelta", "fechaTerm": "2026-04-07T13:11:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN15", "id": 10444764, "fechaCreacion": "2026-03-18T13:11:00", "tienda": "VALLE DE GUADALUPE", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Merma validada pendiente de tirar.", "estado": "Resuelta", "fechaTerm": "2026-04-07T13:11:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN15", "id": 10444763, "fechaCreacion": "2026-03-18T13:11:00", "tienda": "VALLE DE GUADALUPE", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Merma no reportada en la Mesa de Servicio.", "estado": "Resuelta", "fechaTerm": "2026-04-07T13:11:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN15", "id": 10444762, "fechaCreacion": "2026-03-18T13:11:00", "tienda": "VALLE DE GUADALUPE", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material fuera de ubicación.", "estado": "Resuelta", "fechaTerm": "2026-04-07T13:11:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN18", "id": 10555136, "fechaCreacion": "2026-03-27T17:15:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material mal acomodado o estibado.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-04-16T17:15:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN18", "id": 10555137, "fechaCreacion": "2026-03-27T17:15:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material fuera de ubicación.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-04-16T17:15:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN18", "id": 10555138, "fechaCreacion": "2026-03-27T17:15:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material revuelto.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-04-16T17:15:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN18", "id": 10555139, "fechaCreacion": "2026-03-27T17:15:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Merma no reportada en la Mesa de Servicio.", "estado": "Abierta atrasada", "fechaTerm": "2026-04-16T17:15:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN18", "id": 10555140, "fechaCreacion": "2026-03-27T17:15:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Merma validada pendiente de tirar.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-04-16T17:15:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN18", "id": 10555141, "fechaCreacion": "2026-03-27T17:15:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Area para merma.", "estado": "Abierta atrasada", "fechaTerm": "2026-04-16T17:15:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN18", "id": 10555142, "fechaCreacion": "2026-03-27T17:15:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Devoluciones (garantías) de proveedor pendiente de procesar.", "estado": "Abierta atrasada", "fechaTerm": "2026-04-16T17:15:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN18", "id": 10555143, "fechaCreacion": "2026-03-27T17:15:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material dañado apto para venta no enviado a saldos.", "estado": "Abierta atrasada", "fechaTerm": "2026-04-16T17:15:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN18", "id": 10555144, "fechaCreacion": "2026-03-27T17:15:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material obstruyendo pasillos.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-04-16T17:15:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN18", "id": 10555145, "fechaCreacion": "2026-03-27T17:15:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Accesos al almacén controlados.", "estado": "Resuelta", "fechaTerm": "2026-04-16T17:15:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN18", "id": 10555146, "fechaCreacion": "2026-03-27T17:15:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Exhibidores en desuso o descompuesto.", "estado": "Abierta atrasada", "fechaTerm": "2026-04-16T17:15:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN18", "id": 10555147, "fechaCreacion": "2026-03-27T17:15:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Acumulacion de tarimas o cartón.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-04-16T17:15:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN18", "id": 10555148, "fechaCreacion": "2026-03-27T17:15:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Basura en almacen (Rafia, sinchos, cartones, etc.).", "estado": "Resuelta", "fechaTerm": "2026-04-16T17:15:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN18", "id": 10555149, "fechaCreacion": "2026-03-27T17:15:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material de constuccion en almacen.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-04-16T17:15:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN01", "id": 10813387, "fechaCreacion": "2026-04-20T15:43:00", "tienda": "EXPRESS", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Articulos generales en desuso (limpieza, decoracion).", "estado": "Resuelta Atrasada", "fechaTerm": "2026-05-10T15:42:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN01", "id": 10813386, "fechaCreacion": "2026-04-20T15:43:00", "tienda": "EXPRESS", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Basura en almacen (Rafia, sinchos, cartones, etc.).", "estado": "Resuelta Atrasada", "fechaTerm": "2026-05-10T15:42:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN01", "id": 10813385, "fechaCreacion": "2026-04-20T15:43:00", "tienda": "EXPRESS", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Acumulacion de tarimas o cartón.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-05-10T15:42:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN01", "id": 10813384, "fechaCreacion": "2026-04-20T15:43:00", "tienda": "EXPRESS", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Muestras de proveedores sin utilizar.", "estado": "Abierta atrasada", "fechaTerm": "2026-05-10T15:42:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN01", "id": 10813383, "fechaCreacion": "2026-04-20T15:43:00", "tienda": "EXPRESS", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material dañado apto para venta no enviado a saldos.", "estado": "Abierta atrasada", "fechaTerm": "2026-05-10T15:42:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN01", "id": 10813382, "fechaCreacion": "2026-04-20T15:43:00", "tienda": "EXPRESS", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Area para merma.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-05-10T15:42:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN01", "id": 10813381, "fechaCreacion": "2026-04-20T15:43:00", "tienda": "EXPRESS", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Merma validada pendiente de tirar.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-05-10T15:42:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN01", "id": 10813380, "fechaCreacion": "2026-04-20T15:43:00", "tienda": "EXPRESS", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Merma no reportada en la Mesa de Servicio.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-05-10T15:42:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN01", "id": 10813379, "fechaCreacion": "2026-04-20T15:43:00", "tienda": "EXPRESS", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material fuera de ubicación.", "estado": "Abierta atrasada", "fechaTerm": "2026-05-10T15:42:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN05", "id": 10826845, "fechaCreacion": "2026-04-21T12:17:00", "tienda": "MEXICALI MENUDEO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material mal acomodado o estibado.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-05-11T12:17:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN05", "id": 10826846, "fechaCreacion": "2026-04-21T12:17:00", "tienda": "MEXICALI MENUDEO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material fuera de ubicación.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-05-11T12:17:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN05", "id": 10826847, "fechaCreacion": "2026-04-21T12:17:00", "tienda": "MEXICALI MENUDEO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material revuelto.", "estado": "Abierta atrasada", "fechaTerm": "2026-05-11T12:17:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN05", "id": 10826848, "fechaCreacion": "2026-04-21T12:17:00", "tienda": "MEXICALI MENUDEO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Merma no reportada en la Mesa de Servicio.", "estado": "Resuelta", "fechaTerm": "2026-05-11T12:17:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN05", "id": 10826849, "fechaCreacion": "2026-04-21T12:17:00", "tienda": "MEXICALI MENUDEO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Area para merma.", "estado": "Resuelta", "fechaTerm": "2026-05-11T12:17:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN05", "id": 10826850, "fechaCreacion": "2026-04-21T12:17:00", "tienda": "MEXICALI MENUDEO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Devoluciones (garantías) de proveedor pendiente de procesar.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-05-11T12:17:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN05", "id": 10826851, "fechaCreacion": "2026-04-21T12:18:00", "tienda": "MEXICALI MENUDEO", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material dañado apto para venta no enviado a saldos.", "estado": "Abierta atrasada", "fechaTerm": "2026-05-11T12:17:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN05", "id": 10826852, "fechaCreacion": "2026-04-21T12:18:00", "tienda": "MEXICALI MENUDEO", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Exhibidores en desuso o descompuesto.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-05-11T12:17:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN05", "id": 10826853, "fechaCreacion": "2026-04-21T12:18:00", "tienda": "MEXICALI MENUDEO", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Mobiliario y equipo en desuso o descompuesto.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-05-11T12:17:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN05", "id": 10826854, "fechaCreacion": "2026-04-21T12:18:00", "tienda": "MEXICALI MENUDEO", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Equipo de computo en desuso o descompueto.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-05-11T12:17:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN05", "id": 10826855, "fechaCreacion": "2026-04-21T12:18:00", "tienda": "MEXICALI MENUDEO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Basura en almacen (Rafia, sinchos, cartones, etc.).", "estado": "Resuelta", "fechaTerm": "2026-05-11T12:17:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN00", "id": 10923013, "fechaCreacion": "2026-04-28T15:06:00", "tienda": "20 DE NOV MENUDEO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material de constuccion en almacen.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-05-18T15:03:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN00", "id": 10923012, "fechaCreacion": "2026-04-28T15:06:00", "tienda": "20 DE NOV MENUDEO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Articulos generales en desuso (limpieza, decoracion).", "estado": "Resuelta Atrasada", "fechaTerm": "2026-05-18T15:03:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN00", "id": 10923011, "fechaCreacion": "2026-04-28T15:06:00", "tienda": "20 DE NOV MENUDEO", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Documentos de archivo de almacen con anguedad.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-05-18T15:03:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN00", "id": 10923010, "fechaCreacion": "2026-04-28T15:06:00", "tienda": "20 DE NOV MENUDEO", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material dañado apto para venta no enviado a saldos.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-05-18T15:03:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN00", "id": 10923009, "fechaCreacion": "2026-04-28T15:06:00", "tienda": "20 DE NOV MENUDEO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Devoluciones (garantías) de proveedor pendiente de procesar.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-05-18T15:03:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN00", "id": 10923008, "fechaCreacion": "2026-04-28T15:06:00", "tienda": "20 DE NOV MENUDEO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Merma no reportada en la Mesa de Servicio.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-05-18T15:03:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN00", "id": 10923006, "fechaCreacion": "2026-04-28T15:06:00", "tienda": "20 DE NOV MENUDEO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material revuelto.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-05-18T15:03:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN00", "id": 10923005, "fechaCreacion": "2026-04-28T15:06:00", "tienda": "20 DE NOV MENUDEO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material fuera de ubicación.", "estado": "Resuelta Atrasada", "fechaTerm": "2026-05-18T15:03:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN07", "id": 11121046, "fechaCreacion": "2026-05-13T17:49:00", "tienda": "PEÑASCO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material mal acomodado o estibado.", "estado": "Abierta atrasada", "fechaTerm": "2026-06-02T17:49:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN07", "id": 11121047, "fechaCreacion": "2026-05-13T17:49:00", "tienda": "PEÑASCO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material fuera de ubicación.", "estado": "Abierta atrasada", "fechaTerm": "2026-06-02T17:49:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN07", "id": 11121048, "fechaCreacion": "2026-05-13T17:49:00", "tienda": "PEÑASCO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Merma no reportada en la Mesa de Servicio.", "estado": "Abierta atrasada", "fechaTerm": "2026-06-02T17:49:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN07", "id": 11121049, "fechaCreacion": "2026-05-13T17:49:00", "tienda": "PEÑASCO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Merma validada pendiente de tirar.", "estado": "Abierta atrasada", "fechaTerm": "2026-06-02T17:49:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN07", "id": 11121050, "fechaCreacion": "2026-05-13T17:49:00", "tienda": "PEÑASCO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Area para merma.", "estado": "Abierta atrasada", "fechaTerm": "2026-06-02T17:49:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN07", "id": 11121051, "fechaCreacion": "2026-05-13T17:49:00", "tienda": "PEÑASCO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Devoluciones (garantías) de proveedor pendiente de procesar.", "estado": "Abierta atrasada", "fechaTerm": "2026-06-02T17:49:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN07", "id": 11121052, "fechaCreacion": "2026-05-13T17:49:00", "tienda": "PEÑASCO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Accesos al almacén controlados.", "estado": "Abierta atrasada", "fechaTerm": "2026-06-02T17:49:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN03", "id": 11262808, "fechaCreacion": "2026-05-22T10:44:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Articulos generales en desuso (limpieza, decoracion).", "estado": "Abierta atrasada", "fechaTerm": "2026-06-11T10:44:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN03", "id": 11262807, "fechaCreacion": "2026-05-22T10:44:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Basura en almacen (Rafia, sinchos, cartones, etc.).", "estado": "Abierta atrasada", "fechaTerm": "2026-06-11T10:44:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN03", "id": 11262805, "fechaCreacion": "2026-05-22T10:44:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Accesos al almacén controlados.", "estado": "Abierta atrasada", "fechaTerm": "2026-06-11T10:44:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN03", "id": 11262804, "fechaCreacion": "2026-05-22T10:44:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Muestras de proveedores sin utilizar.", "estado": "Abierta atrasada", "fechaTerm": "2026-06-11T10:44:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN03", "id": 11262803, "fechaCreacion": "2026-05-22T10:44:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material dañado apto para venta no enviado a saldos.", "estado": "Abierta atrasada", "fechaTerm": "2026-06-11T10:44:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN03", "id": 11262802, "fechaCreacion": "2026-05-22T10:44:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Devoluciones (garantías) de proveedor pendiente de procesar.", "estado": "Abierta atrasada", "fechaTerm": "2026-06-11T10:44:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN03", "id": 11262801, "fechaCreacion": "2026-05-22T10:44:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Merma no reportada en la Mesa de Servicio.", "estado": "Abierta atrasada", "fechaTerm": "2026-06-11T10:44:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN03", "id": 11262800, "fechaCreacion": "2026-05-22T10:44:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material revuelto.", "estado": "Abierta atrasada", "fechaTerm": "2026-06-11T10:44:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN14", "id": 11626548, "fechaCreacion": "2026-06-13T11:45:00", "tienda": "PROYECTOS TIJUANA", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Basura en almacen (Rafia, sinchos, cartones, etc.).", "estado": "Resuelta", "fechaTerm": "2026-07-03T11:45:00", "fechaCumpl": "2026-07-18T11:45:00", "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN14", "id": 11626547, "fechaCreacion": "2026-06-13T11:45:00", "tienda": "PROYECTOS TIJUANA", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Acumulacion de tarimas o cartón.", "estado": "Resuelta", "fechaTerm": "2026-07-03T11:45:00", "fechaCumpl": "2026-07-18T11:45:00", "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN14", "id": 11626546, "fechaCreacion": "2026-06-13T11:45:00", "tienda": "PROYECTOS TIJUANA", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Documentos de archivo de almacen con anguedad.", "estado": "Abierta", "fechaTerm": "2026-07-03T11:45:00", "fechaCumpl": "2026-07-18T11:45:00", "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN14", "id": 11626545, "fechaCreacion": "2026-06-13T11:45:00", "tienda": "PROYECTOS TIJUANA", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material obstruyendo pasillos.", "estado": "Resuelta", "fechaTerm": "2026-07-03T11:45:00", "fechaCumpl": "2026-07-18T11:45:00", "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN14", "id": 11626544, "fechaCreacion": "2026-06-13T11:45:00", "tienda": "PROYECTOS TIJUANA", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Muestras de proveedores sin utilizar.", "estado": "Abierta", "fechaTerm": "2026-07-03T11:45:00", "fechaCumpl": "2026-07-18T11:45:00", "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN14", "id": 11626543, "fechaCreacion": "2026-06-13T11:45:00", "tienda": "PROYECTOS TIJUANA", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material fuera de ubicación.", "estado": "Resuelta", "fechaTerm": "2026-07-03T11:45:00", "fechaCumpl": "2026-07-18T11:45:00", "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN17", "id": 11625164, "fechaCreacion": "2026-06-13T09:13:00", "tienda": "ROSARITO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Merma validada pendiente de tirar.", "estado": "Abierta", "fechaTerm": "2026-07-03T09:13:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN17", "id": 11625163, "fechaCreacion": "2026-06-13T09:13:00", "tienda": "ROSARITO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "AUDITORÍA DE ORDEN Y LIMPIEZA v02", "nombre": "Material revuelto.", "estado": "Abierta", "fechaTerm": "2026-07-03T09:13:00", "fechaCumpl": null, "tipoTarea": "TAREAS ORDEN Y LIMPIEZA"}, {"razon": "KNO", "centro": "KN15", "id": 10542992, "fechaCreacion": "2026-03-26T17:37:00", "tienda": "VALLE DE GUADALUPE", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "Licencia, póliza de seguro y tarjeta de circulación (Vigentes)", "nombre": "", "estado": "Resuelta", "fechaTerm": "2026-04-07T15:30:00", "fechaCumpl": "2026-04-06T00:00:00", "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN15", "id": 10542970, "fechaCreacion": "2026-03-26T17:35:00", "tienda": "VALLE DE GUADALUPE", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "Cliente firma el Picking o tablet de recibido", "nombre": "", "estado": "Resuelta", "fechaTerm": "2026-04-07T15:30:00", "fechaCumpl": "2026-04-07T00:00:00", "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN15", "id": 10542960, "fechaCreacion": "2026-03-26T17:33:00", "tienda": "VALLE DE GUADALUPE", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "Picking pendientes de contabilizar (VL06G)", "nombre": "", "estado": "Resuelta", "fechaTerm": "2026-04-07T15:30:00", "fechaCumpl": "2026-04-08T00:00:00", "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN15", "id": 10542950, "fechaCreacion": "2026-03-26T17:31:00", "tienda": "VALLE DE GUADALUPE", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "Picking JUSTIFICADOS (ZVA05VTAS).", "nombre": "", "estado": "Resuelta", "fechaTerm": "2026-04-07T15:00:00", "fechaCumpl": "2026-04-09T00:00:00", "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN15", "id": 10542923, "fechaCreacion": "2026-03-26T17:29:00", "tienda": "VALLE DE GUADALUPE", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "Órdenes de compra con antigüedad mayor a un mes.", "nombre": "", "estado": "Resuelta", "fechaTerm": "2026-04-14T15:00:00", "fechaCumpl": "2026-04-10T00:00:00", "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN01", "id": 10892095, "fechaCreacion": "2026-04-25T09:18:00", "tienda": "EXPRESS", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "Picking pendientes de contabilizar (VL06P)", "nombre": "", "estado": "Resuelta Atrasada", "fechaTerm": "2026-05-09T11:00:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN01", "id": 10892088, "fechaCreacion": "2026-04-25T09:16:00", "tienda": "EXPRESS", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "Picking JUSTIFICADOS (ZVA05VTAS).", "nombre": "", "estado": "Resuelta Atrasada", "fechaTerm": "2026-05-09T11:00:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN01", "id": 10892078, "fechaCreacion": "2026-04-25T09:14:00", "tienda": "EXPRESS", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "Consumos internos.", "nombre": "", "estado": "Resuelta Atrasada", "fechaTerm": "2026-05-09T11:00:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN01", "id": 10892075, "fechaCreacion": "2026-04-25T09:11:00", "tienda": "EXPRESS", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "Órdenes de compra con antigüedad mayor a un mes.", "nombre": "", "estado": "Abierta atrasada", "fechaTerm": "2026-05-09T11:00:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN01", "id": 10892062, "fechaCreacion": "2026-04-25T09:07:00", "tienda": "EXPRESS", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "Tienen mercancía en resguardo mayor a 30 días.", "nombre": "", "estado": "Abierta atrasada", "fechaTerm": "2026-05-09T11:00:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN05", "id": 10956094, "fechaCreacion": "2026-04-30T16:24:00", "tienda": "MEXICALI MENUDEO", "areaResp": "Administración de almacenes", "areaRev": "Auditoria", "actividad": "AUDITORIA ABR 2026 - PICKINGS SAP ECC", "nombre": "", "estado": "Abierta atrasada", "fechaTerm": "2026-05-07T18:00:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN16", "id": 11027894, "fechaCreacion": "2026-05-06T19:59:00", "tienda": "CEDIS TECATE", "areaResp": "Administración de almacenes", "areaRev": "Auditoria", "actividad": "Licencia, póliza de seguro y tarjeta de circulación (Vigentes)", "nombre": "", "estado": "Abierta atrasada", "fechaTerm": "2026-05-20T21:30:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN16", "id": 11027869, "fechaCreacion": "2026-05-06T19:46:00", "tienda": "CEDIS TECATE", "areaResp": "Administración de almacenes", "areaRev": "Auditoria", "actividad": "Órdenes de compra con antigüedad mayor a un mes.", "nombre": "", "estado": "Abierta atrasada", "fechaTerm": "2026-05-20T21:30:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN03", "id": 11430012, "fechaCreacion": "2026-06-02T09:07:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Administración de almacenes", "areaRev": "Auditoria", "actividad": "Solicitud de pedido pendiente de realizar en sistema.", "nombre": "", "estado": "Abierta atrasada", "fechaTerm": "2026-06-09T11:00:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN03", "id": 11429979, "fechaCreacion": "2026-06-02T09:04:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Administración de almacenes", "areaRev": "Auditoria", "actividad": "Cliente firma el Picking o tablet de recibido", "nombre": "", "estado": "Abierta atrasada", "fechaTerm": "2026-06-09T11:00:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN03", "id": 11429956, "fechaCreacion": "2026-06-02T09:02:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Administración de almacenes", "areaRev": "Auditoria", "actividad": "Picking JUSTIFICADOS (ZVA05VTAS, VL06P,VLG)", "nombre": "", "estado": "Abierta atrasada", "fechaTerm": "2026-06-09T11:30:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN03", "id": 11429911, "fechaCreacion": "2026-06-02T08:54:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Administración de almacenes", "areaRev": "Auditoria", "actividad": "Material pendiente de salida.", "nombre": "", "estado": "Abierta atrasada", "fechaTerm": "2026-06-09T10:30:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN03", "id": 11429900, "fechaCreacion": "2026-06-02T08:51:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Administración de almacenes", "areaRev": "Auditoria", "actividad": "Con salida en tienda suministradora pendientes de entradas.", "nombre": "", "estado": "Abierta atrasada", "fechaTerm": "2026-06-09T10:30:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN03", "id": 11429860, "fechaCreacion": "2026-06-02T08:45:00", "tienda": "ENSENADA MAYOREO Y MENUDEO", "areaResp": "Almacen", "areaRev": "Auditoria", "actividad": "Salidas pendientes de contabilizar del Centro de Resguardo.", "nombre": "", "estado": "Abierta atrasada", "fechaTerm": "2026-06-09T10:30:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN18", "id": 11436551, "fechaCreacion": "2026-06-02T21:36:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "AUDITORIA MAY 2026- ARQUEO PUNTO DE VENTA", "nombre": "", "estado": "Abierta atrasada", "fechaTerm": "2026-06-04T18:00:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN18", "id": 11436554, "fechaCreacion": "2026-06-02T21:37:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "AUDITORIA MAY 2026- ARQUEO PUNTO DE VENTA", "nombre": "", "estado": "Abierta atrasada", "fechaTerm": "2026-06-04T18:30:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN18", "id": 11436577, "fechaCreacion": "2026-06-02T21:57:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "AUDITORIA MAY 2026- FONDO REVOLVENTE", "nombre": "", "estado": "Abierta atrasada", "fechaTerm": "2026-06-08T18:30:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN18", "id": 11436582, "fechaCreacion": "2026-06-02T22:07:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Administración de almacenes", "areaRev": "Auditoria", "actividad": "AUDITORIA MAY 2026- MERCANCIA EN RESGUARDO", "nombre": "", "estado": "Abierta atrasada", "fechaTerm": "2026-06-10T23:30:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN18", "id": 11437330, "fechaCreacion": "2026-06-02T22:14:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Administración de almacenes", "areaRev": "Auditoria", "actividad": "AUDITORIA MEY 2026- TRASPASOS SOLICITADOS", "nombre": "", "estado": "Abierta atrasada", "fechaTerm": "2026-06-10T00:00:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN18", "id": 11437331, "fechaCreacion": "2026-06-02T22:21:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Administración de almacenes", "areaRev": "Auditoria", "actividad": "AUDITORIA MAY 2026- TRASPASOS SUMINISTRADOS", "nombre": "", "estado": "Abierta atrasada", "fechaTerm": "2026-06-10T18:00:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN18", "id": 11438079, "fechaCreacion": "2026-06-02T22:25:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Gerente de Tienda", "areaRev": "Auditoria", "actividad": "AUDITORIA MAY 2026- PEDIDOS A PROVEEDOR", "nombre": "", "estado": "Abierta atrasada", "fechaTerm": "2026-06-10T18:00:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN18", "id": 11438084, "fechaCreacion": "2026-06-02T22:56:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Administración de almacenes", "areaRev": "Auditoria", "actividad": "AUDITORIA MAY 2026- PICKINGS", "nombre": "", "estado": "Abierta", "fechaTerm": "2026-06-24T18:30:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN18", "id": 11438087, "fechaCreacion": "2026-06-02T23:06:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Administración de almacenes", "areaRev": "Auditoria", "actividad": "AUDITORIA MAY 2026- PEDIDOS A PROVEEDOR", "nombre": "", "estado": "Abierta atrasada", "fechaTerm": "2026-06-05T18:00:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}, {"razon": "KNO", "centro": "KN18", "id": 11438088, "fechaCreacion": "2026-06-02T23:10:00", "tienda": "MEXICALI PEDREGAL Y MAYOREO", "areaResp": "Administración de almacenes", "areaRev": "Auditoria", "actividad": "AUDITORIA MAY 2026- PICKINGS SAP ECC", "nombre": "", "estado": "Abierta", "fechaTerm": "2026-06-24T18:00:00", "fechaCumpl": null, "tipoTarea": "TAREAS AUDITORIA COL"}]}</script>
+<script>
+/* ════════════════════════════════════════════════════════════════════
+   ESTADO GLOBAL
+════════════════════════════════════════════════════════════════════ */
+const LS_KEY='cbh_cerezo_store_v1';
+let STORE={auditorias:[],tareas:[]};      // datos persistidos
+let STAGED={auditorias:[],tareas:[],files:[]}; // buffer de importación
+let VIEW='dash';
+let charts={};
+const MESES=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+/* ════════════════════════════════════════════════════════════════════
+   PERSISTENCIA (localStorage — acumula entre sesiones)
+════════════════════════════════════════════════════════════════════ */
+function saveStore(){
+  try{localStorage.setItem(LS_KEY,JSON.stringify(STORE));}
+  catch(e){toast('⚠ No se pudo guardar: '+e.message);}
+}
+function loadStore(){
+  try{
+    const raw=localStorage.getItem(LS_KEY);
+    if(raw){STORE=JSON.parse(raw);if(!STORE.auditorias)STORE.auditorias=[];if(!STORE.tareas)STORE.tareas=[];return true;}
+  }catch(e){}
+  return false;
+}
+function confirmWipe(){
+  openConfirm('🗑️ Borrar datos guardados',
+    `Se eliminarán <b>${STORE.tareas.length} tareas</b> y <b>${STORE.auditorias.length} auditorías</b> guardadas en este navegador. Esta acción no se puede deshacer.`,
+    'Borrar todo','btn-red',()=>{
+      STORE={auditorias:[],tareas:[]};saveStore();closeModal();refreshAll();toast('Datos borrados');
+    });
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   UTILIDADES DE FECHA
+════════════════════════════════════════════════════════════════════ */
+function parseDate(v){
+  if(v===null||v===undefined||v==='')return null;
+  if(v instanceof Date)return isNaN(v)?null:v;
+  if(typeof v==='number'&&isFinite(v))return new Date(Math.round((v-25569)*86400*1000));
+  const s=String(v).trim();
+  if(/^\d+(\.\d+)?$/.test(s))return new Date(Math.round((parseFloat(s)-25569)*86400*1000));
+  const d=new Date(s);return isNaN(d)?null:d;
+}
+function toISO(d){return d?d.toISOString():null;}
+function fromISO(s){return s?new Date(s):null;}
+function fmtDate(d){return d?d.toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}):'—';}
+function fmtInput(d){if(!d)return'';const z=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`;}
+function pctStr(v){return Math.round((v||0)*100)+'%';}
+const daysBetween=(a,b)=>Math.floor((a-b)/86400000);
+
+// etiqueta del bucket de tendencia según granularidad
+function bucketKey(d,gran){
+  if(!d)return null;
+  const y=d.getFullYear(),m=d.getMonth();
+  if(gran==='year')return {k:`${y}`,sort:y*100,lbl:`${y}`};
+  if(gran==='half'){const h=m<6?1:2;return {k:`${y}-H${h}`,sort:y*100+h,lbl:`${h==1?'1er':'2do'} sem. ${y}`};}
+  if(gran==='quarter'){const q=Math.floor(m/3)+1;return {k:`${y}-T${q}`,sort:y*100+q,lbl:`T${q} ${y}`};}
+  return {k:`${y}-${m}`,sort:y*100+m,lbl:`${MESES[m]} ${y}`};
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   PARSEO DE EXCEL (detección por encabezado, tolerante a variaciones)
+════════════════════════════════════════════════════════════════════ */
+function norm(s){return String(s||'').toLowerCase().replace(/\s+/g,' ').replace(/[áàä]/g,'a').replace(/[éèë]/g,'e').replace(/[íìï]/g,'i').replace(/[óòö]/g,'o').replace(/[úùü]/g,'u').trim();}
+function findCol(headers,keys){
+  for(let i=0;i<headers.length;i++){const h=norm(headers[i]);
+    if(keys.some(k=>h.includes(k)))return i;}
+  return -1;
+}
+function tipoNorm(t){
+  const n=norm(t);
+  if(n.includes('orden')||n.includes('limpieza'))return 'ol';
+  if(n.includes('col')||n.includes('colab')||n.includes('auditoria col'))return 'col';
+  return n.includes('orden')?'ol':'col';
+}
+function parseWorkbook(buf){
+  const wb=XLSX.read(buf,{type:'array',cellDates:true});
+  const out={auditorias:[],tareas:[]};
+  wb.SheetNames.forEach(sn=>{
+    const raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:'',raw:false,cellDates:true});
+    if(raw.length<2)return;
+    // localizar fila de encabezado (la que tenga "razon" o "id" o "tienda")
+    let hi=0;
+    for(let i=0;i<Math.min(6,raw.length);i++){
+      const joined=raw[i].map(norm).join('|');
+      if(joined.includes('razon')||joined.includes('tienda')||joined.includes('centro')||joined.includes('nombre de tarea')){hi=i;break;}
+    }
+    const H=raw[hi];
+    const idxId=findCol(H,['id ','id']);
+    const idxNombreTarea=findCol(H,['nombre de tarea','nombre tarea']);
+    const idxTipoTarea=findCol(H,['tipo tarea','tipo de tarea']);
+    const idxEstado=findCol(H,['estado']);
+    const idxPctCumpl=findCol(H,['porcentaje cumplimiento','porcentaje de cumplimiento','% cumplimiento']);
+    const idxClase=findCol(H,['clase']);
+
+    // ¿Es hoja de TAREAS? (tiene ID + nombre de tarea/estado)
+    const esTareas=(idxId>=0 && (idxNombreTarea>=0||idxTipoTarea>=0||idxEstado>=0) && idxPctCumpl<0);
+    // ¿Es hoja de CONTROL/auditorías? (tiene % cumplimiento + clase, sin ID de tarea)
+    const esControl=(idxPctCumpl>=0 || idxClase>=0) && idxNombreTarea<0;
+
+    if(esTareas){
+      const c={razon:findCol(H,['razon']),centro:findCol(H,['centro']),id:idxId,
+        fechaCre:findCol(H,['fecha de creacion','fecha creacion']),
+        tienda:findCol(H,['tienda']),areaResp:findCol(H,['area de responsabilidad','responsabilidad']),
+        areaRev:findCol(H,['area revisora','revisora']),act:findCol(H,['actividad']),
+        nombre:idxNombreTarea,estado:idxEstado,
+        term:findCol(H,['fecha de termino','fecha termino']),
+        cumpl:findCol(H,['fecha de cumplimiento','fecha cumplimiento']),tipo:idxTipoTarea};
+      for(let i=hi+1;i<raw.length;i++){
+        const r=raw[i];const idv=r[c.id];
+        if(idv===''||idv===undefined||idv===null)continue;
+        if(norm(idv)==='id')continue;
+        const num=String(idv).replace(/\D/g,'');
+        if(!num)continue;
+        out.tareas.push({
+          razon:String(r[c.razon]||'').trim(),centro:String(r[c.centro]||'').trim(),
+          id:isNaN(Number(idv))?String(idv).trim():Number(num),
+          fechaCreacion:toISO(parseDate(r[c.fechaCre])),
+          tienda:String(r[c.tienda]||'').trim(),
+          areaResp:String(r[c.areaResp]||'').trim(),areaRev:String(r[c.areaRev]||'').trim(),
+          actividad:String(r[c.act]||'').trim(),nombre:String(r[c.nombre]||'').trim(),
+          estado:String(r[c.estado]||'').replace(/\u00a0/g,' ').trim(),
+          fechaTerm:toISO(parseDate(r[c.term])),fechaCumpl:toISO(parseDate(r[c.cumpl])),
+          tipoTarea:String(r[c.tipo]||'').trim()
+        });
+      }
+    }else if(esControl){
+      const c={razon:findCol(H,['razon']),centro:findCol(H,['centro']),tienda:findCol(H,['tienda']),
+        fecha:findCol(H,['fecha de creacion','fecha creacion']),mes:findCol(H,['mes auditoria','mes']),
+        pct:idxPctCumpl,tareas:findCol(H,['tareas']),
+        pend:findCol(H,['pendientes']),res:findCol(H,['resueltos','resueltas']),
+        pctRes:findCol(H,['porcentaje resuelto','% resuelto']),clase:idxClase};
+      for(let i=hi+1;i<raw.length;i++){
+        const r=raw[i];const tienda=String(r[c.tienda]||'').trim();
+        const razon=String(r[c.razon]||'').trim();
+        if(!tienda&&!razon)continue;
+        const f=parseDate(r[c.fecha]);
+        out.auditorias.push({
+          razon,centro:String(r[c.centro]||'').trim(),tienda,
+          fecha:toISO(f),mes:String(r[c.mes]||'').trim(),
+          pctCumpl:parseFloat(String(r[c.pct]).replace('%',''))||0,
+          tareas:parseInt(r[c.tareas])||0,pendientes:parseInt(r[c.pend])||0,
+          resueltas:parseInt(r[c.res])||0,pctResuelto:parseFloat(String(r[c.pctRes]).replace('%',''))||0,
+          clase:String(r[c.clase]||'').trim()
+        });
+      }
+    }
+  });
+  // normalizar pctCumpl/pctResuelto a fracción (si vienen como 74 -> 0.74)
+  out.auditorias.forEach(a=>{if(a.pctCumpl>1.5)a.pctCumpl/=100;if(a.pctResuelto>1.5)a.pctResuelto/=100;});
+  return out;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   IMPORTAR (carga -> staging -> generar/combinar con dedupe por ID)
+════════════════════════════════════════════════════════════════════ */
+function stageFiles(fileList){
+  const files=[...fileList];if(!files.length)return;
+  const prog=document.getElementById('prog'),fill=prog.firstElementChild;
+  prog.style.display='block';fill.style.width='20%';
+  let done=0;
+  files.forEach(file=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{
+        const parsed=parseWorkbook(e.target.result);
+        STAGED.auditorias.push(...parsed.auditorias);
+        STAGED.tareas.push(...parsed.tareas);
+        STAGED.files.push(file.name);
+      }catch(err){toast('⚠ Error en '+file.name+': '+err.message);}
+      done++;fill.style.width=(20+done/files.length*70)+'%';
+      if(done===files.length){
+        fill.style.width='100%';setTimeout(()=>{prog.style.display='none';fill.style.width='0'},400);
+        renderStaged();
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+  document.getElementById('file-input').value='';
+}
+function renderStaged(){
+  const box=document.getElementById('staged-box');
+  const n=STAGED.tareas.length+STAGED.auditorias.length;
+  if(!n){box.innerHTML='';document.getElementById('btn-generar').disabled=true;return;}
+  box.innerHTML=`<span class="staged-chip">📥 En cola: ${STAGED.tareas.length} tareas · ${STAGED.auditorias.length} auditorías
+    <span class="x" onclick="clearStaged()" title="Descartar cola">✕</span></span>`;
+  document.getElementById('btn-generar').disabled=false;
+}
+function clearStaged(){STAGED={auditorias:[],tareas:[],files:[]};renderStaged();}
+
+function audKey(a){return [norm(a.razon),norm(a.centro),norm(a.tienda),a.fecha||'',norm(a.clase)].join('|');}
+
+function generarImport(){
+  if(!STAGED.tareas.length&&!STAGED.auditorias.length){toast('No hay datos en cola para generar');return;}
+  // detectar duplicados de TAREAS por ID
+  const existIds=new Set(STORE.tareas.map(t=>String(t.id)));
+  const dupTareas=STAGED.tareas.filter(t=>existIds.has(String(t.id)));
+  // detectar duplicados de AUDITORÍAS por clave compuesta
+  const existAud=new Set(STORE.auditorias.map(audKey));
+  const dupAud=STAGED.auditorias.filter(a=>existAud.has(audKey(a)));
+
+  if(dupTareas.length||dupAud.length){
+    askDuplicates(dupTareas,dupAud);
+  }else{
+    commitImport('replace'); // sin duplicados, simplemente añade
+  }
+}
+
+function askDuplicates(dupTareas,dupAud){
+  const list=dupTareas.slice(0,12).map(t=>`<tr><td><b>${t.id}</b></td><td>${t.tienda}</td><td class="tsub">${(t.nombre||'').slice(0,46)}</td></tr>`).join('');
+  const moreT=dupTareas.length>12?`<div class="tsub" style="padding:6px 12px">…y ${dupTareas.length-12} más</div>`:'';
+  const html=`
+    <p style="font-size:13.5px;color:var(--txt);margin-bottom:14px">
+      Se encontraron registros que ya existen en los datos guardados.
+      Decide qué hacer con los <b>IDs duplicados</b>:</p>
+    <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:16px">
+      <div class="stat" style="border:none"><b style="color:var(--orange);font-size:22px">${dupTareas.length}</b>
+        <span style="font-size:11px;color:var(--muted)">tareas con ID repetido</span></div>
+      <div class="stat" style="border:none"><b style="color:var(--orange);font-size:22px">${dupAud.length}</b>
+        <span style="font-size:11px;color:var(--muted)">auditorías repetidas</span></div>
+    </div>
+    ${dupTareas.length?`<div class="tbl-scroll"><table class="dt" style="min-width:0">
+      <thead><tr><th>ID</th><th>Sucursal</th><th>Tarea</th></tr></thead><tbody>${list}</tbody></table></div>${moreT}`:''}
+    <p style="font-size:12px;color:var(--muted);margin-top:14px">
+      <b style="color:var(--blue)">Reemplazar</b>: los nuevos pisan a los existentes ·
+      <b style="color:var(--orange)">Omitir</b>: se conservan los actuales y se ignoran los repetidos.
+      Los registros <b>nuevos (sin duplicar)</b> siempre se agregan.</p>`;
+  openModal('🔀 IDs duplicados — ¿qué hacemos?',html,[
+    {label:'Omitir duplicados',cls:'btn-orange',fn:()=>commitImport('skip')},
+    {label:'Reemplazar duplicados',cls:'btn-blue',fn:()=>commitImport('replace')}
+  ]);
+  document.querySelector('#modal-title b')&&(document.querySelector('#modal-title b').style.color='var(--orange)');
+}
+
+function commitImport(mode){
+  // TAREAS
+  const byId=new Map(STORE.tareas.map(t=>[String(t.id),t]));
+  let added=0,replaced=0,skipped=0;
+  STAGED.tareas.forEach(t=>{
+    const k=String(t.id);
+    if(byId.has(k)){
+      if(mode==='replace'){byId.set(k,t);replaced++;}else{skipped++;}
+    }else{byId.set(k,t);added++;}
+  });
+  STORE.tareas=[...byId.values()];
+  // AUDITORÍAS
+  const byKey=new Map(STORE.auditorias.map(a=>[audKey(a),a]));
+  STAGED.auditorias.forEach(a=>{
+    const k=audKey(a);
+    if(byKey.has(k)){if(mode==='replace')byKey.set(k,a);}else{byKey.set(k,a);}
+  });
+  STORE.auditorias=[...byKey.values()];
+  saveStore();clearStaged();closeModal();refreshAll();
+  toast(`✓ Combinado: ${added} nuevas · ${replaced} reemplazadas · ${skipped} omitidas`);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   FILTROS
+════════════════════════════════════════════════════════════════════ */
+function uniq(arr){return [...new Set(arr.filter(Boolean))].sort();}
+function fillFilters(){
+  const allT=STORE.tareas, allA=STORE.auditorias;
+  const razones=uniq([...allT.map(t=>t.razon),...allA.map(a=>a.razon)]);
+  const fr=document.getElementById('f-razon');
+  fr.innerHTML='<option value="ALL">Todas</option>'+razones.map(r=>`<option>${r}</option>`).join('');
+  fillCentroTienda();
+}
+function fillCentroTienda(){
+  const razon=document.getElementById('f-razon').value;
+  const filtA=STORE.tareas.filter(t=>razon==='ALL'||t.razon===razon);
+  const filtAud=STORE.auditorias.filter(a=>razon==='ALL'||a.razon===razon);
+  const centros=uniq([...filtA.map(t=>t.centro),...filtAud.map(a=>a.centro)]);
+  const tiendas=uniq([...filtA.map(t=>t.tienda),...filtAud.map(a=>a.tienda)]);
+  const fc=document.getElementById('f-centro'),ft=document.getElementById('f-tienda');
+  const cv=fc.value, tv=ft.value;
+  fc.innerHTML='<option value="ALL">Todos</option>'+centros.map(c=>`<option>${c}</option>`).join('');
+  ft.innerHTML='<option value="ALL">Todas</option>'+tiendas.map(t=>`<option>${t}</option>`).join('');
+  if([...fc.options].some(o=>o.value===cv))fc.value=cv;
+  if([...ft.options].some(o=>o.value===tv))ft.value=tv;
+}
+function setQuick(q,el){
+  document.querySelectorAll('#quick-row .qbtn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  const today=new Date(),y=today.getFullYear(),m=today.getMonth();
+  let desde=null,hasta=new Date(y,m+1,0);
+  if(q==='all'){desde=null;hasta=null;}
+  else if(q==='month')desde=new Date(y,m,1);
+  else if(q==='quarter'){const qs=Math.floor(m/3)*3;desde=new Date(y,qs,1);hasta=new Date(y,qs+3,0);}
+  else if(q==='half'){const hs=m<6?0:6;desde=new Date(y,hs,1);hasta=new Date(y,hs+6,0);}
+  else if(q==='year'){desde=new Date(y,0,1);hasta=new Date(y,11,31);}
+  document.getElementById('f-desde').value=fmtInput(desde);
+  document.getElementById('f-hasta').value=fmtInput(hasta);
+  // sincroniza granularidad con el rango elegido
+  const g=document.getElementById('f-gran');
+  if(q==='month')g.value='month';else if(q==='quarter')g.value='quarter';
+  else if(q==='half')g.value='half';else if(q==='year')g.value='year';
+  render();
+}
+function onFilter(src){
+  if(src==='manual')document.querySelectorAll('#quick-row .qbtn').forEach(b=>b.classList.remove('active'));
+  fillCentroTienda();render();
+}
+function getFilterState(){
+  return{
+    razon:document.getElementById('f-razon').value,
+    centro:document.getElementById('f-centro').value,
+    tienda:document.getElementById('f-tienda').value,
+    tipo:document.getElementById('f-tipo').value,
+    desde:document.getElementById('f-desde').value?new Date(document.getElementById('f-desde').value+'T00:00:00'):null,
+    hasta:document.getElementById('f-hasta').value?new Date(document.getElementById('f-hasta').value+'T23:59:59'):null,
+    gran:document.getElementById('f-gran').value
+  };
+}
+function matchTipo(t,tipo){
+  if(tipo==='ALL')return true;
+  return tipoNorm(t.tipoTarea)===tipo;
+}
+function inRange(d,f){
+  if(!d)return (!f.desde&&!f.hasta);
+  if(f.desde&&d<f.desde)return false;
+  if(f.hasta&&d>f.hasta)return false;
+  return true;
+}
+function filteredTareas(){
+  const f=getFilterState();
+  return STORE.tareas.filter(t=>{
+    if(f.razon!=='ALL'&&t.razon!==f.razon)return false;
+    if(f.centro!=='ALL'&&t.centro!==f.centro)return false;
+    if(f.tienda!=='ALL'&&t.tienda!==f.tienda)return false;
+    if(!matchTipo(t,f.tipo))return false;
+    if(f.desde||f.hasta){if(!inRange(fromISO(t.fechaCreacion),f))return false;}
+    return true;
+  });
+}
+function filteredAuditorias(){
+  const f=getFilterState();
+  return STORE.auditorias.filter(a=>{
+    if(f.razon!=='ALL'&&a.razon!==f.razon)return false;
+    if(f.centro!=='ALL'&&a.centro!==f.centro)return false;
+    if(f.tienda!=='ALL'&&a.tienda!==f.tienda)return false;
+    if(f.desde||f.hasta){if(!inRange(fromISO(a.fecha),f))return false;}
+    return true;
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   CLASIFICACIÓN DE TAREAS
+════════════════════════════════════════════════════════════════════ */
+function esPendiente(t){return norm(t.estado).includes('abierta');}
+function esResuelta(t){return norm(t.estado).includes('resuelta');}
+function diasVenc(t){ // días hasta fechaTerm (negativo = vencida)
+  const ft=fromISO(t.fechaTerm);if(!ft)return null;
+  return daysBetween(ft,new Date());
+}
+function estadoBadge(estado){
+  const n=norm(estado);
+  if(n.includes('resuelta')&&n.includes('atrasad'))return `<span class="badge b-orange">Resuelta atrasada</span>`;
+  if(n.includes('resuelta'))return `<span class="badge b-green">✓ Resuelta</span>`;
+  if(n.includes('abierta')&&n.includes('atrasad'))return `<span class="badge b-red">🔴 Abierta atrasada</span>`;
+  if(n.includes('abierta'))return `<span class="badge b-blue">Abierta</span>`;
+  return `<span class="badge b-gray">${estado||'—'}</span>`;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   RENDER PRINCIPAL
+════════════════════════════════════════════════════════════════════ */
+function refreshAll(){
+  document.getElementById('ds-aud').textContent=STORE.auditorias.length;
+  document.getElementById('ds-tar').textContent=STORE.tareas.length;
+  document.getElementById('ds-pend').textContent=STORE.tareas.filter(esPendiente).length;
+  fillFilters();render();
+}
+function render(){
+  const tareas=filteredTareas(), aud=filteredAuditorias();
+  document.getElementById('rec-count').textContent=`${tareas.length} tarea(s) · ${aud.length} auditoría(s)`;
+  if(VIEW==='dash')renderDashboard(tareas,aud);
+  else renderTareasView(tareas);
+}
+
+function renderDashboard(tareas,aud){
+  renderKPIs(tareas,aud);
+  renderTareasInsight(tareas);
+  renderTrend(aud);
+  renderResPend(tareas);
+  renderCentro(aud);
+  renderDonut(tareas);
+  renderRanking(aud);
+  renderPendRank(tareas);
+  renderVencTable(tareas);
+}
+
+function renderTareasInsight(tareas){
+  const nameOf=t=>(t.nombre&&t.nombre.trim())||(t.actividad&&t.actividad.trim())||'Sin nombre';
+
+  // --- MÁS REPETIDAS ---
+  const freq={};
+  tareas.forEach(t=>{const k=nameOf(t);freq[k]=(freq[k]||0)+1;});
+  const topFreq=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,6);
+
+  // --- DATOS BASE POR NOMBRE ---
+  const byName={};
+  tareas.forEach(t=>{
+    const k=nameOf(t);
+    if(!byName[k])byName[k]={total:0,bad:0,good:0};
+    byName[k].total++;
+    const n=norm(t.estado);
+    if(n.includes('abierta')&&n.includes('atrasad'))byName[k].bad++;
+    else if(n.includes('resuelta')&&!n.includes('atrasad'))byName[k].good++;
+  });
+
+  // --- PEOR: mayor frecuencia en lista de tareas ---
+  const peor=Object.entries(byName).sort((a,b)=>b[1].total-a[1].total).slice(0,6);
+  // --- MEJOR: menor frecuencia en lista de tareas ---
+  const mejor=Object.entries(byName).sort((a,b)=>a[1].total-b[1].total).slice(0,6);
+
+  const rankColors=['#2563eb','#0d9488','#ea580c','#7c3aed','#dc2626','#d97706'];
+
+  function freqRows(arr){
+    if(!arr.length)return`<div class="insight-empty">Sin datos</div>`;
+    return arr.map(([name,cnt],i)=>`
+      <div class="insight-row">
+        <span class="insight-rank" style="background:${rankColors[i]}">${i+1}</span>
+        <span class="insight-name" title="${name}">${name}</span>
+        <span class="insight-chip" style="background:${rankColors[i]}18;color:${rankColors[i]}">${cnt}x</span>
+      </div>`).join('');
+  }
+
+  function simpleRows(arr,col,colPale){
+    if(!arr.length)return`<div class="insight-empty">Sin datos</div>`;
+    return arr.map(([k,d],i)=>`
+      <div class="insight-row">
+        <span class="insight-rank" style="background:${col}">${i+1}</span>
+        <span class="insight-name" title="${k}">${k}</span>
+        <span class="insight-chip" style="background:${colPale};color:${col}">${d.total}x</span>
+      </div>`).join('');
+  }
+
+  document.getElementById('insight-row').innerHTML=`
+    <div class="insight-card">
+      <div class="insight-card-hdr"><span class="ico">🔁</span><span class="ttl">Tareas más frecuentes</span></div>
+      ${freqRows(topFreq)}
+    </div>
+    <div class="insight-card">
+      <div class="insight-card-hdr"><span class="ico">🔴</span><span class="ttl">Peor calificadas</span><span style="font-size:9.5px;color:var(--muted);margin-left:auto;font-weight:600">mayor frecuencia</span></div>
+      ${simpleRows(peor,'#dc2626','#fee2e2')}
+    </div>
+    <div class="insight-card">
+      <div class="insight-card-hdr"><span class="ico">✅</span><span class="ttl">Mejor calificadas</span><span style="font-size:9.5px;color:var(--muted);margin-left:auto;font-weight:600">menor frecuencia</span></div>
+      ${simpleRows(mejor,'#16a34a','#dcfce7')}
+    </div>`;
+}
+
+function renderKPIs(tareas,aud){
+  const avgCumpl=aud.length?aud.reduce((a,r)=>a+r.pctCumpl,0)/aud.length:0;
+  const total=tareas.length;
+  const res=tareas.filter(esResuelta).length;
+  const pend=tareas.filter(esPendiente).length;
+  const vencidas=tareas.filter(t=>esPendiente(t)&&diasVenc(t)!==null&&diasVenc(t)<0).length;
+  const pctRes=total?res/total:0;
+
+  // delta de tendencia: comparar último bucket vs anterior (% cumplimiento)
+  const f=getFilterState();
+  const buckets={};
+  aud.forEach(a=>{const d=fromISO(a.fecha);const b=bucketKey(d,f.gran);if(b){(buckets[b.k]=buckets[b.k]||{sort:b.sort,s:0,n:0});buckets[b.k].s+=a.pctCumpl;buckets[b.k].n++;}});
+  const ord=Object.values(buckets).sort((a,b)=>a.sort-b.sort);
+  let delta=null;
+  if(ord.length>=2){const cur=ord[ord.length-1].s/ord[ord.length-1].n,prev=ord[ord.length-2].s/ord[ord.length-2].n;delta=(cur-prev)*100;}
+
+  const deltaHtml=delta===null?`<span class="delta flat">— sin tendencia</span>`:
+    delta>=0?`<span class="delta up">▲ +${delta.toFixed(1)} pts</span> vs período previo`:
+    `<span class="delta down">▼ ${delta.toFixed(1)} pts</span> vs período previo`;
+
+  // distribución de estados (mismos conteos que el donut)
+  const resOk=tareas.filter(t=>esResuelta(t)&&!norm(t.estado).includes('atrasad')).length;
+  const resAtr=tareas.filter(t=>esResuelta(t)&&norm(t.estado).includes('atrasad')).length;
+  const abOk=tareas.filter(t=>esPendiente(t)&&!norm(t.estado).includes('atrasad')).length;
+  const abAtr=tareas.filter(t=>esPendiente(t)&&norm(t.estado).includes('atrasad')).length;
+
+  const kpis=[
+    {c:'k-blue',ico:'📊',lbl:'Cumplimiento prom.',val:Math.round(avgCumpl*100)+'%',sub:deltaHtml},
+    {c:'k-teal',ico:'📋',lbl:'Tareas en período',val:total,sub:`${aud.length} auditorías`},
+    {c:'k-green',ico:'✅',lbl:'Resueltas',val:res,sub:pctStr(pctRes)+' del total'},
+    {c:'k-orange',ico:'⏳',lbl:'Pendientes',val:pend,sub:total?pctStr(pend/total)+' sin cerrar':'—'},
+    {c:'k-red',ico:'🚨',lbl:'Pend. vencidas',val:vencidas,sub:'fuera de fecha de término'},
+    {c:'k-teal',ico:'🎯',lbl:'% Resolución',val:Math.round(pctRes*100)+'%',sub:'tareas cerradas'},
+    {c:'k-blue',ico:'🏬',lbl:'Sucursales',val:uniq(tareas.map(t=>t.tienda)).length,sub:'con tareas en período'},
+    {c:'k-orange',ico:'📈',lbl:'Cumpl. ponderado',val:Math.round((aud.reduce((a,r)=>a+r.pctCumpl*(r.tareas||1),0)/(aud.reduce((a,r)=>a+(r.tareas||1),0)||1))*100)+'%',sub:'por nº de tareas'},
+    {c:'k-green',ico:'🟢',lbl:'Resueltas a tiempo',val:resOk,sub:total?pctStr(resOk/total)+' del total':'—'},
+    {c:'k-orange',ico:'🟠',lbl:'Resueltas atrasadas',val:resAtr,sub:total?pctStr(resAtr/total)+' del total':'—'},
+    {c:'k-blue',ico:'🔵',lbl:'Abiertas en plazo',val:abOk,sub:total?pctStr(abOk/total)+' del total':'—'},
+    {c:'k-red',ico:'🔴',lbl:'Abiertas atrasadas',val:abAtr,sub:total?pctStr(abAtr/total)+' del total':'—'},
+  ];
+  // render only selected KPIs
+  const sel=loadKpiSelection()||[];
+  const visible=kpis.filter(k=>sel.includes(k.lbl));
+  document.getElementById('kpi-row').innerHTML=(visible.length?visible:kpis).map(k=>`
+    <div class="kpi-card ${k.c}">
+      <div class="kpi-top"><div class="kpi-lbl">${k.lbl}</div><div class="kpi-ico">${k.ico}</div></div>
+      <div class="kpi-val">${k.val}</div>
+      <div class="kpi-sub">${k.sub}</div>
+    </div>`).join('');
+  // store catalog for the config modal
+  window._kpiCatalog=kpis;
+}
+
+/* ══════════════════ KPI CONFIG ══════════════════ */
+const KPI_CFG_KEY='cerezo_kpi_selection';
+function loadKpiSelection(){
+  try{const v=localStorage.getItem(KPI_CFG_KEY);return v?JSON.parse(v):null;}catch{return null;}
+}
+function saveKpiCfgToStorage(labels){
+  try{localStorage.setItem(KPI_CFG_KEY,JSON.stringify(labels));}catch{}
+}
+function openKpiCfg(){
+  const catalog=window._kpiCatalog||[];
+  const sel=loadKpiSelection()||catalog.map(k=>k.lbl);
+  const body=document.getElementById('kpi-cfg-body');
+  // group by category
+  const groups=[
+    {lbl:'Cumplimiento',keys:['Cumplimiento prom.','Cumpl. ponderado','% Resolución']},
+    {lbl:'Volumen de tareas',keys:['Tareas en período','Resueltas','Pendientes','Pend. vencidas','Sucursales']},
+    {lbl:'Distribución de estado',keys:['Resueltas a tiempo','Resueltas atrasadas','Abiertas en plazo','Abiertas atrasadas']},
+  ];
+  let html='';
+  groups.forEach(g=>{
+    html+=`<div class="kpi-cfg-sep">${g.lbl}</div>`;
+    g.keys.forEach(key=>{
+      const kpi=catalog.find(k=>k.lbl===key);
+      if(!kpi)return;
+      const chk=sel.includes(key);
+      html+=`<label class="kpi-cfg-item${chk?' checked':''}" onclick="toggleKpiItem(this)">
+        <input type="checkbox" ${chk?'checked':''} data-key="${key}" onclick="event.stopPropagation()">
+        <span class="kpi-cfg-ico">${kpi.ico}</span>
+        <div><div class="kpi-cfg-txt">${key}</div></div>
+      </label>`;
+    });
+  });
+  body.innerHTML=html;
+  document.getElementById('kpi-cfg-overlay').classList.add('show');
+}
+function closeKpiCfg(){document.getElementById('kpi-cfg-overlay').classList.remove('show');}
+function toggleKpiItem(el){
+  const cb=el.querySelector('input');
+  cb.checked=!cb.checked;
+  el.classList.toggle('checked',cb.checked);
+}
+function kpiCfgSelectAll(v){
+  document.querySelectorAll('#kpi-cfg-body input[type=checkbox]').forEach(cb=>{
+    cb.checked=v;cb.closest('.kpi-cfg-item').classList.toggle('checked',v);
+  });
+}
+function saveKpiCfg(){
+  const selected=[...document.querySelectorAll('#kpi-cfg-body input[type=checkbox]')]
+    .filter(cb=>cb.checked).map(cb=>cb.dataset.key);
+  saveKpiCfgToStorage(selected.length?selected:(window._kpiCatalog||[]).map(k=>k.lbl));
+  closeKpiCfg();
+  render();
+}
+
+function destroyChart(id){if(charts[id]){charts[id].destroy();charts[id]=null;}}
+
+function renderTrend(aud){
+  const f=getFilterState();
+  const buckets={};
+  aud.forEach(a=>{const d=fromISO(a.fecha);const b=bucketKey(d,f.gran);if(!b)return;
+    if(!buckets[b.k])buckets[b.k]={lbl:b.lbl,sort:b.sort,s:0,n:0,res:0,pen:0};
+    buckets[b.k].s+=a.pctCumpl;buckets[b.k].n++;});
+  const ord=Object.values(buckets).sort((a,b)=>a.sort-b.sort);
+  const labels=ord.map(b=>b.lbl);
+  const data=ord.map(b=>Math.round(b.s/b.n*100));
+  document.getElementById('trend-note').textContent=ord.length?`${ord.length} período(s)`:'';
+  destroyChart('trend');
+  const ctx=document.getElementById('chart-trend');
+  if(!labels.length){ctx.parentElement.innerHTML='<div class="empty">Sin auditorías en el rango seleccionado.</div>';return;}
+  if(!document.getElementById('chart-trend')){document.querySelector('#view-dash .chart-wrap').innerHTML='<canvas id="chart-trend"></canvas>';}
+  charts.trend=new Chart(ctx,{type:'line',
+    data:{labels,datasets:[{data,borderColor:'#2563eb',backgroundColor:'rgba(37,99,235,.12)',
+      fill:true,tension:.35,pointRadius:5,pointBackgroundColor:'#2563eb',borderWidth:2.5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c=>c.raw+'% cumplimiento'}}},
+      scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%',font:{size:10}},grid:{color:'#f0f3f7'}},
+        x:{ticks:{font:{size:10}},grid:{display:false}}}}});
+}
+
+function renderResPend(tareas){
+  const f=getFilterState();
+  const buckets={};
+  tareas.forEach(t=>{const d=fromISO(t.fechaCreacion);const b=bucketKey(d,f.gran);if(!b)return;
+    if(!buckets[b.k])buckets[b.k]={lbl:b.lbl,sort:b.sort,res:0,pen:0};
+    if(esResuelta(t))buckets[b.k].res++;else if(esPendiente(t))buckets[b.k].pen++;});
+  const ord=Object.values(buckets).sort((a,b)=>a.sort-b.sort);
+  const labels=ord.map(b=>b.lbl);
+  destroyChart('respend');
+  const ctx=document.getElementById('chart-respend');
+  if(!labels.length){ctx.parentElement.innerHTML='<div class="empty">Sin tareas en el rango seleccionado.</div>';return;}
+  charts.respend=new Chart(ctx,{type:'bar',
+    data:{labels,datasets:[
+      {label:'Resueltas',data:ord.map(b=>b.res),backgroundColor:'#16a34a',borderRadius:5,stack:'a'},
+      {label:'Pendientes',data:ord.map(b=>b.pen),backgroundColor:'#dc2626',borderRadius:5,stack:'a'}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:true,position:'top',labels:{font:{size:10},boxWidth:12,padding:8}}},
+      scales:{x:{stacked:true,ticks:{font:{size:10}},grid:{display:false}},
+        y:{stacked:true,beginAtZero:true,ticks:{font:{size:10},stepSize:1},grid:{color:'#f0f3f7'}}}}});
+}
+
+function renderCentro(aud){
+  const byC={};
+  aud.forEach(a=>{const k=a.centro||a.tienda||'—';if(!byC[k])byC[k]={s:0,n:0};byC[k].s+=a.pctCumpl;byC[k].n++;});
+  const ent=Object.entries(byC).map(([k,d])=>({k,v:Math.round(d.s/d.n*100)})).sort((a,b)=>b.v-a.v);
+  destroyChart('centro');
+  const ctx=document.getElementById('chart-centro');
+  if(!ent.length){ctx.parentElement.innerHTML='<div class="empty">Sin datos.</div>';return;}
+  charts.centro=new Chart(ctx,{type:'bar',
+    data:{labels:ent.map(e=>e.k),datasets:[{data:ent.map(e=>e.v),
+      backgroundColor:ent.map(e=>e.v>=70?'#16a34a':e.v>=50?'#d97706':'#dc2626'),borderRadius:6}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c=>c.raw+'% cumplimiento'}}},
+      scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%',font:{size:10}},grid:{color:'#f0f3f7'}},
+        x:{ticks:{font:{size:9}},grid:{display:false}}}}});
+}
+
+function renderDonut(tareas){
+  const resOk=tareas.filter(t=>esResuelta(t)&&!norm(t.estado).includes('atrasad')).length;
+  const resAtr=tareas.filter(t=>esResuelta(t)&&norm(t.estado).includes('atrasad')).length;
+  const abAtr=tareas.filter(t=>esPendiente(t)&&norm(t.estado).includes('atrasad')).length;
+  const ab=tareas.filter(t=>esPendiente(t)&&!norm(t.estado).includes('atrasad')).length;
+  const segs=[['Resueltas a tiempo','#16a34a',resOk],['Resueltas atrasadas','#ea580c',resAtr],
+    ['Abiertas en plazo','#2563eb',ab],['Abiertas atrasadas','#dc2626',abAtr]];
+  destroyChart('donut');
+  const ctx=document.getElementById('chart-donut');
+  charts.donut=new Chart(ctx,{type:'doughnut',
+    data:{labels:segs.map(s=>s[0]),datasets:[{data:segs.map(s=>s[2]),
+      backgroundColor:segs.map(s=>s[1]),borderWidth:3,borderColor:'#fff'}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'68%',
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.label}: ${c.raw}`}}}}});
+  document.getElementById('donut-legend').innerHTML=segs.map(s=>
+    `<div class="legend-item"><span class="legend-dot" style="background:${s[1]}"></span>
+      <span class="legend-lbl">${s[0]}</span><span class="legend-val">${s[2]}</span></div>`).join('');
+}
+
+function renderRanking(aud){
+  const byS={};
+  aud.forEach(a=>{const k=a.tienda||a.centro;if(!byS[k])byS[k]={s:0,n:0,centro:a.centro};byS[k].s+=a.pctCumpl;byS[k].n++;});
+  const arr=Object.entries(byS).map(([t,d])=>({t,centro:d.centro,v:d.s/d.n})).sort((a,b)=>a.v-b.v).slice(0,7);
+  const el=document.getElementById('rank-list');
+  if(!arr.length){el.innerHTML='<div class="empty">Sin auditorías.</div>';return;}
+  el.innerHTML=arr.map((s,i)=>{
+    const pct=Math.round(s.v*100);const c=pct>=70?'#16a34a':pct>=50?'#d97706':'#dc2626';
+    return `<div class="rank-item">
+      <div class="rank-num" style="background:${c}">${i+1}</div>
+      <div class="rank-name">${s.t}<small>${s.centro||''}</small></div>
+      <div class="rank-bar-wrap"><div class="rank-bg"><div class="rank-fill" style="width:${pct}%;background:${c}"></div></div>
+        <span class="rank-pct" style="color:${c}">${pct}%</span></div></div>`;
+  }).join('');
+}
+
+function renderPendRank(tareas){
+  const byS={};
+  tareas.filter(esPendiente).forEach(t=>{const k=t.tienda;byS[k]=(byS[k]||0)+1;});
+  const max=Math.max(1,...Object.values(byS));
+  const arr=Object.entries(byS).map(([t,n])=>({t,n})).sort((a,b)=>b.n-a.n).slice(0,7);
+  const el=document.getElementById('pend-rank');
+  if(!arr.length){el.innerHTML='<div class="empty">✅ Sin tareas pendientes en el período.</div>';return;}
+  el.innerHTML=arr.map((s,i)=>`<div class="rank-item">
+    <div class="rank-num" style="background:#ea580c">${i+1}</div>
+    <div class="rank-name">${s.t}</div>
+    <div class="rank-bar-wrap"><div class="rank-bg"><div class="rank-fill" style="width:${s.n/max*100}%;background:#ea580c"></div></div>
+      <span class="rank-pct" style="color:#ea580c">${s.n}</span></div></div>`).join('');
+}
+
+function vencInfo(t){
+  const dv=diasVenc(t);
+  if(dv===null)return{txt:'Sin fecha',cls:'b-gray',color:'#94a3b8',ord:9999};
+  if(dv<0)return{txt:`Vencida ${Math.abs(dv)}d`,cls:'b-red',color:'#dc2626',ord:dv};
+  if(dv<=7)return{txt:`${dv}d restantes`,cls:'b-orange',color:'#ea580c',ord:dv};
+  return{txt:`${dv}d restantes`,cls:'b-blue',color:'#2563eb',ord:dv};
+}
+function renderVencTable(tareas){
+  const pend=tareas.filter(esPendiente).map(t=>({t,v:vencInfo(t)})).sort((a,b)=>a.v.ord-b.v.ord).slice(0,25);
+  const el=document.getElementById('venc-table');
+  if(!pend.length){el.innerHTML='<div class="empty">✅ No hay tareas pendientes para el filtro actual.</div>';return;}
+  el.innerHTML=`<table class="dt">
+    <thead><tr><th>#</th><th>Tarea</th><th>Sucursal</th><th>Área</th><th>Tipo</th><th>F. Término</th><th class="c">Vencimiento</th></tr></thead>
+    <tbody>${pend.map(({t,v},i)=>`<tr>
+      <td><span class="rank-pill" style="background:${v.color}">${i+1}</span></td>
+      <td><div class="tname" style="max-width:320px;overflow:hidden;text-overflow:ellipsis">${t.nombre}</div></td>
+      <td class="tname">${t.tienda}<div class="tsub">${t.centro}</div></td>
+      <td class="tsub">${t.areaResp}</td>
+      <td><span class="badge b-gray">${tipoNorm(t.tipoTarea)==='ol'?'O&L':'Colab.'}</span></td>
+      <td class="tsub">${fmtDate(fromISO(t.fechaTerm))}</td>
+      <td class="cell-c"><span class="badge ${v.cls}">${v.txt}</span></td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   VISTA TAREAS (editable)
+════════════════════════════════════════════════════════════════════ */
+function renderTareasView(tareas){
+  document.getElementById('tareas-count').textContent=`${tareas.length} tarea(s)`;
+  const el=document.getElementById('tareas-table');
+  if(!tareas.length){el.innerHTML='<div class="empty">Sin tareas para el filtro actual.</div>';return;}
+  const sorted=[...tareas].sort((a,b)=>(fromISO(b.fechaCreacion)||0)-(fromISO(a.fechaCreacion)||0));
+  el.innerHTML=`<table class="dt" style="min-width:880px">
+    <thead><tr><th>ID</th><th>Tarea</th><th>Sucursal</th><th>Área</th><th>Tipo</th><th>Estado</th><th>F. Término</th><th>F. Cumplim.</th><th class="c">Editar</th></tr></thead>
+    <tbody>${sorted.map(t=>`<tr>
+      <td><b>${t.id}</b></td>
+      <td><div class="tname" style="max-width:280px;overflow:hidden;text-overflow:ellipsis" title="${(t.nombre||'').replace(/"/g,'&quot;')}">${t.nombre}</div><div class="tsub">${t.actividad||''}</div></td>
+      <td class="tname">${t.tienda}<div class="tsub">${t.centro}</div></td>
+      <td class="tsub">${t.areaResp}</td>
+      <td><span class="badge b-gray">${tipoNorm(t.tipoTarea)==='ol'?'O&L':'Colab.'}</span></td>
+      <td>${estadoBadge(t.estado)}</td>
+      <td class="tsub">${fmtDate(fromISO(t.fechaTerm))}</td>
+      <td class="tsub">${fmtDate(fromISO(t.fechaCumpl))}</td>
+      <td class="cell-c"><button class="icon-btn" onclick="openEdit('${String(t.id).replace(/'/g,'')}')">✎</button></td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+const ESTADOS=['Abierta','Abierta atrasada','Resuelta','Resuelta Atrasada'];
+function openEdit(id){
+  const t=id?STORE.tareas.find(x=>String(x.id)===String(id)):null;
+  const isNew=!t;
+  const v=t||{id:'',razon:'KNO',centro:'',tienda:'',areaResp:'',areaRev:'',actividad:'',nombre:'',
+    estado:'Abierta',fechaCreacion:toISO(new Date()),fechaTerm:null,fechaCumpl:null,tipoTarea:'TAREAS ORDEN Y LIMPIEZA'};
+  const html=`
+    <div class="form-grid">
+      <div class="form-field"><label>ID</label><input id="e-id" value="${v.id}" ${isNew?'':'readonly'} placeholder="ID único"></div>
+      <div class="form-field"><label>Tipo de tarea</label>
+        <select id="e-tipo">
+          <option value="TAREAS ORDEN Y LIMPIEZA" ${tipoNorm(v.tipoTarea)==='ol'?'selected':''}>Orden y Limpieza</option>
+          <option value="TAREAS AUDITORIA COL" ${tipoNorm(v.tipoTarea)==='col'?'selected':''}>Auditoría Colaboración</option>
+        </select></div>
+      <div class="form-field full"><label>Nombre de tarea</label><textarea id="e-nombre" rows="2">${v.nombre||''}</textarea></div>
+      <div class="form-field"><label>Razón</label><input id="e-razon" value="${v.razon||''}"></div>
+      <div class="form-field"><label>Centro</label><input id="e-centro" value="${v.centro||''}"></div>
+      <div class="form-field"><label>Sucursal / Tienda</label><input id="e-tienda" value="${v.tienda||''}"></div>
+      <div class="form-field"><label>Área de responsabilidad</label><input id="e-areaResp" value="${v.areaResp||''}"></div>
+      <div class="form-field"><label>Área revisora</label><input id="e-areaRev" value="${v.areaRev||''}"></div>
+      <div class="form-field"><label>Actividad</label><input id="e-act" value="${v.actividad||''}"></div>
+      <div class="form-field"><label>Estado</label>
+        <select id="e-estado">${ESTADOS.map(s=>`<option ${norm(s)===norm(v.estado)?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="form-field"><label>Fecha de creación</label><input type="date" id="e-fcre" value="${fmtInput(fromISO(v.fechaCreacion))}"></div>
+      <div class="form-field"><label>Fecha de término</label><input type="date" id="e-fterm" value="${fmtInput(fromISO(v.fechaTerm))}"></div>
+      <div class="form-field"><label>Fecha de cumplimiento</label><input type="date" id="e-fcumpl" value="${fmtInput(fromISO(v.fechaCumpl))}"></div>
+    </div>`;
+  const foot=[{label:'Cancelar',cls:'btn-ghost',fn:closeModal}];
+  if(!isNew)foot.push({label:'Eliminar',cls:'btn-red',fn:()=>deleteTask(v.id)});
+  foot.push({label:isNew?'Crear tarea':'Guardar cambios',cls:'btn-blue',fn:()=>saveTask(isNew)});
+  openModal(isNew?'➕ Nueva tarea':`✎ Editar tarea <b>#${v.id}</b>`,html,foot);
+}
+function dval(id){const e=document.getElementById(id);return e?e.value.trim():'';}
+function ddate(id){const v=dval(id);return v?toISO(new Date(v+'T12:00:00')):null;}
+function saveTask(isNew){
+  const id=dval('e-id');
+  if(!id){toast('⚠ El ID es obligatorio');return;}
+  if(!dval('e-nombre')){toast('⚠ El nombre de tarea es obligatorio');return;}
+  if(isNew&&STORE.tareas.some(t=>String(t.id)===id)){toast('⚠ Ya existe una tarea con ese ID');return;}
+  const rec={
+    id:isNaN(Number(id))?id:Number(id),
+    razon:dval('e-razon'),centro:dval('e-centro'),tienda:dval('e-tienda'),
+    areaResp:dval('e-areaResp'),areaRev:dval('e-areaRev'),actividad:dval('e-act'),
+    nombre:dval('e-nombre'),estado:dval('e-estado'),tipoTarea:dval('e-tipo'),
+    fechaCreacion:ddate('e-fcre'),fechaTerm:ddate('e-fterm'),fechaCumpl:ddate('e-fcumpl')
+  };
+  const idx=STORE.tareas.findIndex(t=>String(t.id)===id);
+  if(idx>=0)STORE.tareas[idx]={...STORE.tareas[idx],...rec};else STORE.tareas.push(rec);
+  saveStore();closeModal();refreshAll();toast(isNew?'✓ Tarea creada':'✓ Tarea actualizada');
+}
+function deleteTask(id){
+  STORE.tareas=STORE.tareas.filter(t=>String(t.id)!==String(id));
+  saveStore();closeModal();refreshAll();toast('Tarea eliminada');
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   PENDIENTES POR SUCURSAL (modal + PNG)
+════════════════════════════════════════════════════════════════════ */
+function pendientesPorSucursalHTML(){
+  const tareas=filteredTareas().filter(esPendiente);
+  if(!tareas.length)return '<div class="empty">✅ No hay tareas pendientes con el filtro actual.</div>';
+  const byS={};
+  tareas.forEach(t=>{(byS[t.tienda]=byS[t.tienda]||[]).push(t);});
+  const stores=Object.entries(byS).sort((a,b)=>b[1].length-a[1].length);
+  return stores.map(([tienda,list])=>{
+    list.sort((a,b)=>vencInfo(a).ord-vencInfo(b).ord);
+    const centro=list[0].centro||'';
+    return `<div class="store-block">
+      <div class="store-block-hdr"><span class="sname">🏬 ${tienda}</span>
+        <span class="tsub">${centro}</span><span class="scount">${list.length} pendiente(s)</span></div>
+      <div class="tbl-scroll"><table class="dt" style="min-width:0">
+        <thead><tr><th>ID</th><th>Tarea</th><th>Área</th><th>Tipo</th><th>Estado</th><th>F. Término</th><th class="c">Vencimiento</th></tr></thead>
+        <tbody>${list.map(t=>{const v=vencInfo(t);return `<tr>
+          <td><b>${t.id}</b></td>
+          <td><div class="tname" style="max-width:300px;overflow:hidden;text-overflow:ellipsis">${t.nombre}</div></td>
+          <td class="tsub">${t.areaResp}</td>
+          <td><span class="badge b-gray">${tipoNorm(t.tipoTarea)==='ol'?'O&L':'Colab.'}</span></td>
+          <td>${estadoBadge(t.estado)}</td>
+          <td class="tsub">${fmtDate(fromISO(t.fechaTerm))}</td>
+          <td class="cell-c"><span class="badge ${v.cls}">${v.txt}</span></td>
+        </tr>`;}).join('')}</tbody></table></div></div>`;
+  }).join('');
+}
+function openPendientes(){
+  const html=`<div id="pend-content">${pendientesPorSucursalHTML()}</div>`;
+  openModal('🏬 Tareas pendientes por sucursal',html,[
+    {label:'🖼️ Descargar PNG',cls:'btn-teal',fn:()=>downloadPendientesPNG()},
+    {label:'Cerrar',cls:'btn-ghost',fn:closeModal}
+  ]);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   EXPORTACIÓN PNG (siempre activa)  ·  render off-screen ancho completo
+════════════════════════════════════════════════════════════════════ */
+const PNG_CSS=`
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Inter','Segoe UI',sans-serif}
+  body{background:#fff;color:#1f2530}
+  .wrap{background:#fff;padding:30px 34px;display:inline-block;min-width:920px}
+  .hd{border-bottom:2px solid #e7eaef;padding-bottom:14px;margin-bottom:20px}
+  .hd h2{font-size:19px;font-weight:800;color:#1f2530}.hd h2 b{color:#2563eb}
+  .hd p{font-size:12px;color:#7c8696;margin-top:3px}
+  .sec{margin-bottom:26px}
+  .sec-t{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#7c8696;
+    border-bottom:1.5px solid #e7eaef;padding-bottom:7px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .sdot{width:9px;height:9px;border-radius:3px;display:inline-block}
+  table{border-collapse:collapse;width:max-content;min-width:100%}
+  thead th{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;padding:9px 13px;
+    text-align:left;background:#f8fafc;border-bottom:2px solid #e7eaef;white-space:nowrap;color:#7c8696}
+  thead th.c{text-align:center}
+  tbody td{padding:8px 13px;border-bottom:1px solid #f0f3f7;font-size:12px;white-space:nowrap;color:#1f2530}
+  .tname{font-weight:700}.tsub{font-size:10px;color:#7c8696}.cell-c{text-align:center}
+  .badge{border-radius:6px;padding:3px 9px;font-size:10px;font-weight:800;white-space:nowrap;display:inline-block}
+  .b-green{background:#dcfce7;color:#166534}.b-red{background:#fee2e2;color:#991b1b}
+  .b-blue{background:#dbeafe;color:#1e40af}.b-orange{background:#ffedd5;color:#9a3412;border:1px solid #fed7aa}.b-gray{background:#f1f3f7;color:#475569}
+  .rank-pill{display:inline-flex;align-items:center;justify-content:center;width:23px;height:23px;border-radius:7px;font-size:10px;font-weight:800;color:#fff}
+  .store-block{border:1px solid #e7eaef;border-radius:12px;margin-bottom:14px;overflow:hidden}
+  .store-block-hdr{display:flex;align-items:center;gap:10px;padding:11px 15px;background:#f8fafc;border-bottom:1px solid #e7eaef}
+  .store-block-hdr .sname{font-size:13.5px;font-weight:800}.store-block-hdr .scount{margin-left:auto;font-size:12px;font-weight:800;color:#dc2626}
+  .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:8px}
+  .kpi-b{border:1px solid #e7eaef;border-radius:12px;padding:13px 15px;border-left:4px solid #2563eb}
+  .kpi-b .l{font-size:10px;font-weight:700;text-transform:uppercase;color:#7c8696;letter-spacing:.04em}
+  .kpi-b .v{font-size:24px;font-weight:800;margin-top:5px}
+  .kpi-b .s{font-size:10.5px;color:#7c8696;margin-top:2px}
+  .ft{margin-top:16px;padding-top:11px;border-top:1px solid #e7eaef;font-size:10px;color:#94a3b8;text-align:right}
+  .empty{padding:30px;text-align:center;color:#7c8696;font-size:13px}
+`;
+async function renderPNG(innerHTML,filename,btnEl){
+  if(btnEl){btnEl.disabled=true;}
+  toast('Generando imagen…');
+  const iframe=document.createElement('iframe');
+  iframe.style.cssText='position:fixed;left:-99999px;top:0;border:none;visibility:hidden';
+  document.body.appendChild(iframe);
+  const doc=iframe.contentDocument;
+  doc.open();
+  doc.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${PNG_CSS}</style></head>
+    <body><div class="wrap" id="cap">${innerHTML}</div></body></html>`);
+  doc.close();
+  await new Promise(r=>setTimeout(r,260));
+  try{
+    const cap=doc.getElementById('cap');
+    const w=cap.scrollWidth,h=cap.scrollHeight;
+    iframe.style.width=w+'px';iframe.style.height=h+'px';
+    await new Promise(r=>setTimeout(r,80));
+    const canvas=await html2canvas(cap,{scale:2.4,backgroundColor:'#ffffff',logging:false,
+      width:w,height:h,windowWidth:w,windowHeight:h});
+    const a=document.createElement('a');
+    a.download=filename;a.href=canvas.toDataURL('image/png',1.0);a.click();
+    toast('✓ PNG descargado');
+  }catch(err){toast('⚠ Error al generar PNG: '+err.message);}
+  finally{document.body.removeChild(iframe);if(btnEl)btnEl.disabled=false;}
+}
+function pngHeader(title){
+  const f=getFilterState();
+  const today=new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'long',year:'numeric'});
+  const parts=[];
+  if(f.razon!=='ALL')parts.push('Razón: '+f.razon);
+  if(f.centro!=='ALL')parts.push('Centro: '+f.centro);
+  if(f.tienda!=='ALL')parts.push('Sucursal: '+f.tienda);
+  if(f.desde||f.hasta)parts.push(`Rango: ${f.desde?fmtDate(f.desde):'inicio'} → ${f.hasta?fmtDate(f.hasta):'hoy'}`);
+  return `<div class="hd"><h2>${title}</h2><p>${parts.join(' · ')||'Todos los datos'} · Generado el ${today}</p></div>`;
+}
+function downloadPendientesPNG(){
+  renderPNG(pngHeader('🏬 Tareas pendientes por sucursal')+
+    `<div class="sec"><div class="sec-t"><span class="sdot" style="background:#ea580c"></span>Detalle por sucursal</div>${pendientesPorSucursalHTML()}</div>`+
+    `<div class="ft">📊 Monitor de Cumplimiento — Grupo Cerezo</div>`,
+    `pendientes_por_sucursal_${new Date().toISOString().slice(0,10)}.png`);
+}
+function downloadTareasPNG(){
+  const tareas=filteredTareas();
+  const inner=document.getElementById('tareas-table').innerHTML;
+  renderPNG(pngHeader('📝 Tareas filtradas')+
+    `<div class="sec"><div class="sec-t"><span class="sdot" style="background:#2563eb"></span>${tareas.length} tarea(s)</div>${inner}</div>`+
+    `<div class="ft">📊 Monitor de Cumplimiento — Grupo Cerezo</div>`,
+    `tareas_${new Date().toISOString().slice(0,10)}.png`);
+}
+function downloadDashboardPNG(){
+  const tareas=filteredTareas(),aud=filteredAuditorias();
+  const avgCumpl=aud.length?Math.round(aud.reduce((a,r)=>a+r.pctCumpl,0)/aud.length*100):0;
+  const res=tareas.filter(esResuelta).length,pend=tareas.filter(esPendiente).length;
+  const venc=tareas.filter(t=>esPendiente(t)&&diasVenc(t)!==null&&diasVenc(t)<0).length;
+  const kpiHTML=`<div class="kpi-row">
+    <div class="kpi-b" style="border-left-color:#2563eb"><div class="l">Cumplimiento prom.</div><div class="v">${avgCumpl}%</div><div class="s">${aud.length} auditorías</div></div>
+    <div class="kpi-b" style="border-left-color:#0d9488"><div class="l">Tareas</div><div class="v">${tareas.length}</div><div class="s">en período</div></div>
+    <div class="kpi-b" style="border-left-color:#16a34a"><div class="l">Resueltas</div><div class="v">${res}</div><div class="s">${tareas.length?Math.round(res/tareas.length*100):0}%</div></div>
+    <div class="kpi-b" style="border-left-color:#dc2626"><div class="l">Pendientes</div><div class="v">${pend}</div><div class="s">${venc} vencidas</div></div>
+  </div>`;
+  // ranking de sucursales menor cumplimiento
+  const byS={};aud.forEach(a=>{const k=a.tienda;if(!byS[k])byS[k]={s:0,n:0,c:a.centro};byS[k].s+=a.pctCumpl;byS[k].n++;});
+  const rk=Object.entries(byS).map(([t,d])=>({t,c:d.c,v:Math.round(d.s/d.n*100)})).sort((a,b)=>a.v-b.v).slice(0,10);
+  const rankHTML=rk.length?`<table><thead><tr><th>#</th><th>Sucursal</th><th>Centro</th><th class="c">% Cumplimiento</th></tr></thead>
+    <tbody>${rk.map((s,i)=>{const c=s.v>=70?'#16a34a':s.v>=50?'#d97706':'#dc2626';
+      return `<tr><td><span class="rank-pill" style="background:${c}">${i+1}</span></td>
+      <td class="tname">${s.t}</td><td class="tsub">${s.c||''}</td>
+      <td class="cell-c"><span class="badge" style="background:${c}22;color:${c}">${s.v}%</span></td></tr>`;}).join('')}</tbody></table>`:'<div class="empty">Sin auditorías.</div>';
+  // pendientes
+  const pendHTML=pendientesPorSucursalHTML();
+  renderPNG(pngHeader('📊 Resumen de cumplimiento')+
+    `<div class="sec"><div class="sec-t"><span class="sdot" style="background:#2563eb"></span>Indicadores</div>${kpiHTML}</div>`+
+    `<div class="sec"><div class="sec-t"><span class="sdot" style="background:#dc2626"></span>Sucursales por nivel de cumplimiento</div>${rankHTML}</div>`+
+    `<div class="sec"><div class="sec-t"><span class="sdot" style="background:#ea580c"></span>Tareas pendientes por sucursal</div>${pendHTML}</div>`+
+    `<div class="ft">📊 Monitor de Cumplimiento — Grupo Cerezo</div>`,
+    `resumen_cumplimiento_${new Date().toISOString().slice(0,10)}.png`,
+    event&&event.target?event.target.closest('button'):null);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   CSV
+════════════════════════════════════════════════════════════════════ */
+function exportCSV(){
+  const rows=filteredTareas();
+  if(!rows.length){toast('Sin tareas para exportar');return;}
+  const cols=['id','razon','centro','tienda','areaResp','areaRev','actividad','nombre','estado','fechaCreacion','fechaTerm','fechaCumpl','tipoTarea'];
+  const head=cols.join(',')+'\n';
+  const body=rows.map(r=>cols.map(c=>{
+    let v=r[c]; if((c==='fechaCreacion'||c==='fechaTerm'||c==='fechaCumpl'))v=v?fmtDate(fromISO(v)):'';
+    return `"${String(v??'').replace(/"/g,'""')}"`;}).join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+head+body],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='tareas_cerezo.csv';a.click();toast('✓ CSV descargado');
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   MODAL / TOAST / VISTAS
+════════════════════════════════════════════════════════════════════ */
+function openModal(title,html,footBtns){
+  document.getElementById('modal-title').innerHTML=title;
+  document.getElementById('modal-body').innerHTML=html;
+  const foot=document.getElementById('modal-foot');
+  if(footBtns&&footBtns.length){
+    foot.style.display='flex';foot.innerHTML='';
+    footBtns.forEach(b=>{const el=document.createElement('button');el.className='btn '+b.cls;el.textContent=b.label;el.onclick=b.fn;foot.appendChild(el);});
+  }else foot.style.display='none';
+  document.getElementById('modal-overlay').classList.add('show');
+}
+function openConfirm(title,html,okLabel,okCls,okFn){
+  openModal(title,`<p style="font-size:13.5px;color:var(--txt);line-height:1.55">${html}</p>`,
+    [{label:'Cancelar',cls:'btn-ghost',fn:closeModal},{label:okLabel,cls:okCls,fn:okFn}]);
+}
+function closeModal(e){
+  if(e&&e.type==='click'&&e.target!==e.currentTarget)return;
+  document.getElementById('modal-overlay').classList.remove('show');
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+let toastT;
+function toast(msg){
+  const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
+  clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2600);
+}
+function setView(v){
+  VIEW=v;
+  document.getElementById('view-dash').style.display=v==='dash'?'flex':'none';
+  document.getElementById('view-tareas').style.display=v==='tareas'?'flex':'none';
+  document.getElementById('nav-dash').classList.toggle('active',v==='dash');
+  document.getElementById('nav-tareas').classList.toggle('active',v==='tareas');
+  render();
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   ARRANQUE  (carga datos guardados o semilla del Excel)
+════════════════════════════════════════════════════════════════════ */
+(function init(){
+  const had=loadStore();
+  if(!had||(!STORE.tareas.length&&!STORE.auditorias.length)){
+    try{
+      const seed=JSON.parse(document.getElementById('seed-data').textContent);
+      STORE.auditorias=seed.auditorias||[];STORE.tareas=seed.tareas||[];
+      saveStore();
+    }catch(e){}
+  }
+  refreshAll();
+})();
+/* ════════════════════════════════════════════════════════════════════
+   GENERADOR POWERPOINT
+════════════════════════════════════════════════════════════════════ */
+function openPptModal(){document.getElementById('ppt-overlay').classList.add('show');}
+function closePptModal(){document.getElementById('ppt-overlay').classList.remove('show');}
+
+function generatePpt(){
+  if(typeof PptxGenJS==='undefined'){toast('⚠ PptxGenJS no cargado');return;}
+  var titulo=document.getElementById('ppt-titulo').value||'Reporte de Cumplimiento';
+  var empresa=document.getElementById('ppt-empresa').value||'Grupo Kuroda';
+  var today=new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'long',year:'numeric'});
+
+  /* ── datos idénticos al generador ── */
+  var tareas=filteredTareas();
+  var aud=filteredAuditorias();
+  var total=tareas.length||1;
+  var avgCumpl=aud.length?aud.reduce(function(a,r){return a+r.pctCumpl;},0)/aud.length:0;
+  var res=tareas.filter(esResuelta).length;
+  var pend=tareas.filter(esPendiente).length;
+  var vencidas=tareas.filter(function(t){return esPendiente(t)&&diasVenc(t)!==null&&diasVenc(t)<0;}).length;
+  var pctRes=res/total;
+  var resOk=tareas.filter(function(t){return esResuelta(t)&&!norm(t.estado).includes('atrasad');}).length;
+  var resAtr=tareas.filter(function(t){return esResuelta(t)&&norm(t.estado).includes('atrasad');}).length;
+  var abOk=tareas.filter(function(t){return esPendiente(t)&&!norm(t.estado).includes('atrasad');}).length;
+  var abAtr=tareas.filter(function(t){return esPendiente(t)&&norm(t.estado).includes('atrasad');}).length;
+  var sucursales=uniq(tareas.map(function(t){return t.tienda;})).length;
+  var cumplPond=Math.round((aud.reduce(function(a,r){return a+r.pctCumpl*(r.tareas||1);},0)/(aud.reduce(function(a,r){return a+(r.tareas||1);},0)||1))*100);
+  function pp(n){return Math.round((n||0)/total*100)+'%';}
+
+  /* ── paleta corporativa (mismos colores que el generador) ── */
+  var BLU='2563EB', TEA='0D9488', GRN='16A34A', ORG='EA580C',
+      RED='DC2626', AMB='D97706', NAV='0F172A', SLT='334155',
+      MUT='94A3B8', WHT='FFFFFF', OFF='F8FAFC', LIN='E2E8F0',
+      PBLU='DBEAFE', PTEA='CCFBF1', PGRN='DCFCE7',
+      PORG='FFEDD5', PRED='FEE2E2', PAMB='FEF3C7';
+  var W=10, H=5.625;
+
+  var pptx=new PptxGenJS();
+  pptx.layout='LAYOUT_WIDE';
+  pptx.title=titulo; pptx.company=empresa;
+
+  /* ── helper: slide con barra superior de color y pie ── */
+  function mkSlide(ac, tag){
+    var s=pptx.addSlide();
+    s.background={color:WHT};
+    s.addShape(pptx.ShapeType.rect,{x:0,y:0,w:W,h:.055,fill:{color:ac},line:{color:ac}});
+    s.addShape(pptx.ShapeType.rect,{x:0,y:H-.28,w:W,h:.28,fill:{color:OFF},line:{color:OFF}});
+    s.addShape(pptx.ShapeType.rect,{x:0,y:H-.28,w:W,h:.012,fill:{color:LIN},line:{color:LIN}});
+    s.addText(empresa.toUpperCase(),{x:.35,y:H-.25,w:5,h:.2,fontSize:7,bold:true,color:MUT,charSpacing:2,valign:'middle'});
+    s.addText(today,{x:5,y:H-.25,w:4.65,h:.2,fontSize:7,color:MUT,align:'right',valign:'middle'});
+    if(tag) s.addText(tag.toUpperCase(),{x:.35,y:.09,w:9.3,h:.2,fontSize:7.5,bold:true,color:ac,charSpacing:2.5,valign:'middle'});
+    return s;
+  }
+
+  /* ── helper: KPI card ── */
+  function kCard(s,x,y,w,h,val,lbl,sub,ac,bg){
+    s.addShape(pptx.ShapeType.rect,{x:x,y:y,w:w,h:h,fill:{color:bg},line:{color:LIN,pt:.6}});
+    s.addShape(pptx.ShapeType.rect,{x:x,y:y,w:w,h:.028,fill:{color:ac},line:{color:ac}});
+    s.addText(String(val),{x:x+.1,y:y+.08,w:w-.18,h:h*.5,fontSize:26,bold:true,color:ac,align:'left',valign:'bottom'});
+    s.addText(lbl,{x:x+.1,y:y+h*.54,w:w-.18,h:.26,fontSize:7.5,bold:true,color:NAV});
+    s.addText(sub,{x:x+.1,y:y+h*.76,w:w-.18,h:.2,fontSize:7,color:MUT});
+  }
+
+  /* ══════════ PORTADA ══════════ */
+  (function(){
+    var s=pptx.addSlide();
+    s.background={color:NAV};
+    /* franja azul izq */
+    s.addShape(pptx.ShapeType.rect,{x:0,y:0,w:.22,h:H,fill:{color:BLU},line:{color:BLU}});
+    /* panel blanco der */
+    s.addShape(pptx.ShapeType.rect,{x:4.0,y:0,w:6.0,h:H,fill:{color:WHT},line:{color:WHT}});
+    s.addShape(pptx.ShapeType.rect,{x:4.0,y:0,w:6.0,h:.055,fill:{color:BLU},line:{color:BLU}});
+    /* logo */
+    s.addShape(pptx.ShapeType.rect,{x:.45,y:.35,w:.9,h:.9,fill:{color:BLU},line:{color:'3D6BDC',pt:.8}});
+    s.addText('📊',{x:.45,y:.35,w:.9,h:.9,fontSize:24,align:'center',valign:'middle'});
+    /* empresa */
+    s.addText(empresa,{x:.42,y:1.45,w:3.3,h:.34,fontSize:11,bold:true,color:'7FB3FF'});
+    /* línea dorada */
+    s.addShape(pptx.ShapeType.rect,{x:.42,y:1.86,w:2.8,h:.038,fill:{color:'C9A84C'},line:{color:'C9A84C'}});
+    /* título */
+    s.addText(titulo,{x:.42,y:2.02,w:3.3,h:1.3,fontSize:22,bold:true,color:WHT,fontFace:'Calibri',lineSpacingMultiple:1.2,valign:'top'});
+    /* fecha */
+    s.addText(today,{x:.42,y:3.5,w:3.3,h:.28,fontSize:10,color:'7FB3FF'});
+    /* métricas resumen */
+    var mets=[{l:'Auditorías',v:aud.length,c:BLU},{l:'Tareas',v:tareas.length,c:TEA},{l:'Cumplimiento',v:Math.round(avgCumpl*100)+'%',c:GRN}];
+    mets.forEach(function(m,i){
+      var mx=4.2+i*1.87;
+      s.addShape(pptx.ShapeType.rect,{x:mx,y:1.1,w:1.72,h:1.1,fill:{color:OFF},line:{color:LIN,pt:.7}});
+      s.addShape(pptx.ShapeType.rect,{x:mx,y:1.1,w:1.72,h:.032,fill:{color:m.c},line:{color:m.c}});
+      s.addText(String(m.v),{x:mx,y:1.14,w:1.72,h:.68,fontSize:30,bold:true,color:m.c,align:'center',valign:'middle'});
+      s.addText(m.l,{x:mx,y:1.84,w:1.72,h:.28,fontSize:8,color:MUT,align:'center',bold:true});
+    });
+    /* índice */
+    var secs=['KPIs de Tendencia','Análisis de Tareas','Distribución de Estado','Sucursales con Menor Cumplimiento','Sucursales con más Pendientes'];
+    s.addText('CONTENIDO',{x:4.2,y:2.6,w:5.5,h:.22,fontSize:7.5,bold:true,color:MUT,charSpacing:2.5});
+    s.addShape(pptx.ShapeType.rect,{x:4.2,y:2.84,w:5.5,h:.012,fill:{color:LIN},line:{color:LIN}});
+    secs.forEach(function(sec,i){
+      var sy=2.92+i*.42;
+      s.addShape(pptx.ShapeType.rect,{x:4.2,y:sy+.1,w:.05,h:.05,fill:{color:BLU},line:{color:BLU}});
+      s.addText(sec,{x:4.34,y:sy,w:5.22,h:.3,fontSize:10,color:NAV,valign:'middle'});
+    });
+    s.addText('INFORME CONFIDENCIAL',{x:.42,y:H-.38,w:3.2,h:.26,fontSize:7,color:'4B6FA0',bold:true,charSpacing:1.5});
+  })();
+
+  /* ══════════ 1. KPIs DE TENDENCIA ══════════ */
+  (function(){
+    var s=mkSlide(BLU,'KPIs de Tendencia');
+    s.addText('KPIs de Tendencia',{x:.35,y:.34,w:9.3,h:.42,fontSize:17,bold:true,color:NAV});
+    var kpis=[
+      {v:Math.round(avgCumpl*100)+'%', l:'Cumplimiento prom.',   su:'promedio de auditorías',       ac:BLU, bg:PBLU},
+      {v:tareas.length,                l:'Tareas en período',     su:aud.length+' auditorías',        ac:TEA, bg:PTEA},
+      {v:res,                          l:'Resueltas',             su:pp(res)+' del total',             ac:GRN, bg:PGRN},
+      {v:pend,                         l:'Pendientes',            su:pp(pend)+' sin cerrar',           ac:ORG, bg:PORG},
+      {v:vencidas,                     l:'Pend. vencidas',        su:'fuera de fecha de término',      ac:RED, bg:PRED},
+      {v:Math.round(pctRes*100)+'%',   l:'% Resolución',          su:'tareas cerradas',               ac:TEA, bg:PTEA},
+      {v:sucursales,                   l:'Sucursales',            su:'con tareas en período',           ac:BLU, bg:PBLU},
+      {v:cumplPond+'%',                l:'Cumpl. ponderado',      su:'por nº de tareas',              ac:ORG, bg:PORG},
+      {v:resOk,                        l:'Resueltas a tiempo',    su:pp(resOk)+' del total',           ac:GRN, bg:PGRN},
+      {v:resAtr,                       l:'Resueltas atrasadas',   su:pp(resAtr)+' del total',          ac:AMB, bg:PAMB},
+      {v:abOk,                         l:'Abiertas en plazo',     su:pp(abOk)+' del total',            ac:BLU, bg:PBLU},
+      {v:abAtr,                        l:'Abiertas atrasadas',    su:pp(abAtr)+' del total',           ac:RED, bg:PRED}
+    ];
+    var cols=4, cw=2.25, ch=1.22, gx=.065, gy=.06, sx=.35, sy=.86;
+    kpis.forEach(function(k,i){
+      kCard(s, sx+(i%cols)*(cw+gx), sy+Math.floor(i/cols)*(ch+gy), cw, ch, k.v, k.l, k.su, k.ac, k.bg);
+    });
+  })();
+
+  /* ══════════ 2. ANÁLISIS DE TAREAS ══════════ */
+  (function(){
+    var s=mkSlide(AMB,'Análisis de Tareas');
+    s.addText('Análisis de Tareas',{x:.35,y:.34,w:9.3,h:.42,fontSize:17,bold:true,color:NAV});
+    var nameOf=function(t){return (t.nombre&&t.nombre.trim())||(t.actividad&&t.actividad.trim())||'Sin nombre';};
+    var freq={};
+    tareas.forEach(function(t){var k=nameOf(t);freq[k]=(freq[k]||0)+1;});
+    var topFreq=Object.entries(freq).sort(function(a,b){return b[1]-a[1];}).slice(0,6);
+    var byName={};
+    tareas.forEach(function(t){
+      var k=nameOf(t); if(!byName[k])byName[k]={total:0,bad:0,good:0};
+      byName[k].total++;
+      var n=norm(t.estado);
+      if(n.includes('abierta')&&n.includes('atrasad'))byName[k].bad++;
+      else if(n.includes('resuelta')&&!n.includes('atrasad'))byName[k].good++;
+    });
+    var peor=Object.entries(byName).sort(function(a,b){return b[1].total-a[1].total;}).slice(0,6);
+    var mejor=Object.entries(byName).sort(function(a,b){return a[1].total-b[1].total;}).slice(0,6);
+    var rk=[BLU,TEA,ORG,'7C3AED',RED,AMB];
+    var cols3=[
+      {lbl:'🔁 Tareas más frecuentes',ac:BLU,items:topFreq,vf:function(e){return e[1]+'x';},tc:BLU},
+      {lbl:'🔴 Peor calificadas',     ac:RED,items:peor,   vf:function(e){return e[1].total+'x';},tc:RED},
+      {lbl:'✅ Mejor calificadas',    ac:GRN,items:mejor,  vf:function(e){return e[1].total+'x';},tc:GRN}
+    ];
+    var colW=3.0, rh=.55, sy=.86;
+    cols3.forEach(function(col,ci){
+      var cx=.32+ci*(colW+.09);
+      s.addShape(pptx.ShapeType.rect,{x:cx,y:sy,w:colW,h:.3,fill:{color:col.ac},line:{color:col.ac}});
+      s.addText(col.lbl,{x:cx+.1,y:sy,w:colW-.14,h:.3,fontSize:8.5,bold:true,color:WHT,valign:'middle'});
+      col.items.forEach(function(e,i){
+        var ry=sy+.3+i*rh;
+        s.addShape(pptx.ShapeType.rect,{x:cx,y:ry,w:colW,h:rh-.04,fill:{color:i%2===0?WHT:OFF},line:{color:LIN,pt:.4}});
+        /* badge blanco con borde */
+        s.addShape(pptx.ShapeType.rect,{x:cx+.07,y:ry+.1,w:.24,h:.24,fill:{color:WHT},line:{color:rk[i],pt:.8}});
+        s.addText(String(i+1),{x:cx+.07,y:ry+.1,w:.24,h:.24,fontSize:8,bold:true,color:rk[i],align:'center',valign:'middle'});
+        s.addText(String(e[0]).slice(0,34),{x:cx+.37,y:ry+.08,w:colW-.5,h:.22,fontSize:8,color:NAV,bold:i===0});
+        s.addText(col.vf(e),{x:cx+.37,y:ry+.31,w:colW-.5,h:.18,fontSize:7.5,color:col.tc,bold:true});
+      });
+    });
+  })();
+
+  /* ══════════ 3. DISTRIBUCIÓN DONUT ══════════ */
+  (function(){
+    var s=mkSlide(TEA,'Distribución de Estado de Tareas');
+    s.addText('Distribución de Estado de Tareas',{x:.35,y:.34,w:9.3,h:.42,fontSize:17,bold:true,color:NAV});
+    var segs=[
+      {lbl:'Resueltas a tiempo',  cnt:resOk,  ac:GRN},
+      {lbl:'Resueltas atrasadas', cnt:resAtr, ac:ORG},
+      {lbl:'Abiertas en plazo',   cnt:abOk,   ac:BLU},
+      {lbl:'Abiertas atrasadas',  cnt:abAtr,  ac:RED}
+    ];
+    var tot3=tareas.length||1;
+    /* Donut chart nativo de PowerPoint */
+    var chartData=[{name:'Estado',labels:segs.map(function(g){return g.lbl;}),values:segs.map(function(g){return g.cnt;})}];
+    s.addChart(pptx.ChartType.doughnut, chartData, {
+      x:.3, y:.78, w:4.5, h:4.2,
+      holeSize:60,
+      showLegend:false, showLabel:false, showValue:false, showPercent:false,
+      chartColors:[GRN,ORG,BLU,RED]
+    });
+    /* leyenda derecha — igual que el generador */
+    segs.forEach(function(g,i){
+      var ly=1.2+i*1.0;
+      var pct3=Math.round(g.cnt/tot3*100);
+      s.addShape(pptx.ShapeType.ellipse,{x:4.95,y:ly+.1,w:.22,h:.22,fill:{color:g.ac},line:{color:g.ac}});
+      s.addText(g.lbl,{x:5.26,y:ly,w:3.4,h:.28,fontSize:11,color:NAV,valign:'middle'});
+      s.addText(String(g.cnt),{x:8.7,y:ly,w:.95,h:.28,fontSize:13,bold:true,color:g.ac,align:'right',valign:'middle'});
+      s.addText('('+pct3+'%)',{x:5.26,y:ly+.28,w:3.4,h:.2,fontSize:9,color:MUT});
+    });
+    s.addText('Total: '+tareas.length+' tareas',{x:4.95,y:4.7,w:4.7,h:.2,fontSize:8,color:MUT,align:'center'});
+  })();
+
+  /* ══════════ 4. SUCURSALES MENOR CUMPLIMIENTO ══════════ */
+  (function(){
+    var s=mkSlide(RED,'Sucursales con Menor Cumplimiento');
+    s.addText('Sucursales con Menor Cumplimiento',{x:.35,y:.34,w:9.3,h:.42,fontSize:17,bold:true,color:NAV});
+    var byS={};
+    aud.forEach(function(a){var k=a.tienda||a.centro;if(!byS[k])byS[k]={s:0,n:0,c:a.centro};byS[k].s+=a.pctCumpl;byS[k].n++;});
+    var arr=Object.entries(byS).map(function(e){return{t:e[0],c:e[1].c,v:Math.round(e[1].s/e[1].n*100)};}).sort(function(a,b){return a.v-b.v;}).slice(0,9);
+    if(!arr.length){
+      s.addText('Sin auditorías registradas.',{x:.35,y:2.5,w:9.3,h:.4,fontSize:12,color:MUT,align:'center'});
+      return;
+    }
+    var sy=.88, rh=.43;
+    s.addShape(pptx.ShapeType.rect,{x:.34,y:sy,w:9.32,h:.3,fill:{color:NAV},line:{color:NAV}});
+    [{t:'#',x:.42,w:.28,a:'center'},{t:'Sucursal',x:.77,w:3.9,a:'left'},{t:'Centro',x:4.72,w:2.3,a:'left'},{t:'% Cumpl.',x:7.08,w:.9,a:'right'},{t:'Progreso',x:8.05,w:1.55,a:'left'}].forEach(function(h){
+      s.addText(h.t,{x:h.x,y:sy+.05,w:h.w,h:.2,fontSize:7.5,bold:true,color:WHT,align:h.a,valign:'middle',charSpacing:.8});
+    });
+    arr.forEach(function(r,i){
+      var y=sy+.3+i*rh;
+      var rc=r.v>=70?GRN:r.v>=50?AMB:RED;
+      s.addShape(pptx.ShapeType.rect,{x:.34,y:y,w:9.32,h:rh-.04,fill:{color:i%2===0?WHT:OFF},line:{color:LIN,pt:.4}});
+      /* badge blanco con borde */
+      s.addShape(pptx.ShapeType.rect,{x:.42,y:y+.09,w:.26,h:.22,fill:{color:WHT},line:{color:rc,pt:.8}});
+      s.addText(String(i+1),{x:.42,y:y+.09,w:.26,h:.22,fontSize:8.5,bold:true,color:rc,align:'center',valign:'middle'});
+      s.addText(r.t,{x:.75,y:y+.09,w:3.9,h:.22,fontSize:9.5,bold:true,color:NAV});
+      s.addText(r.c||'—',{x:4.7,y:y+.09,w:2.3,h:.22,fontSize:9,color:SLT});
+      s.addText(r.v+'%',{x:7.06,y:y+.09,w:.94,h:.22,fontSize:11,bold:true,color:rc,align:'right'});
+      s.addShape(pptx.ShapeType.rect,{x:8.03,y:y+.15,w:1.55,h:.1,fill:{color:LIN},line:{color:LIN}});
+      s.addShape(pptx.ShapeType.rect,{x:8.03,y:y+.15,w:Math.max(.02,r.v/100*1.55),h:.1,fill:{color:rc},line:{color:rc}});
+    });
+  })();
+
+  /* ══════════ 5. SUCURSALES MÁS PENDIENTES ══════════ */
+  (function(){
+    var s=mkSlide(ORG,'Sucursales con más Pendientes');
+    s.addText('Sucursales con más Pendientes',{x:.35,y:.34,w:9.3,h:.42,fontSize:17,bold:true,color:NAV});
+    var byStore={};
+    tareas.filter(esPendiente).forEach(function(t){
+      var k=t.tienda||'Sin tienda';
+      if(!byStore[k])byStore[k]={cnt:0,venc:0};
+      byStore[k].cnt++;
+      if(diasVenc(t)!==null&&diasVenc(t)<0)byStore[k].venc++;
+    });
+    var topS=Object.entries(byStore).map(function(e){return{t:e[0],cnt:e[1].cnt,venc:e[1].venc};}).sort(function(a,b){return b.cnt-a.cnt;}).slice(0,9);
+    if(!topS.length){
+      s.addText('No hay tareas pendientes.',{x:.35,y:2.5,w:9.3,h:.4,fontSize:12,color:MUT,align:'center'});
+      return;
+    }
+    var maxC=topS[0].cnt||1, sy=.88, rh=.43;
+    s.addShape(pptx.ShapeType.rect,{x:.34,y:sy,w:9.32,h:.3,fill:{color:NAV},line:{color:NAV}});
+    [{t:'#',x:.42,w:.28,a:'center'},{t:'Sucursal',x:.77,w:4.2,a:'left'},{t:'Pendientes',x:5.03,w:2.6,a:'left'},{t:'Vencidas',x:7.7,w:1.92,a:'right'}].forEach(function(h){
+      s.addText(h.t,{x:h.x,y:sy+.05,w:h.w,h:.2,fontSize:7.5,bold:true,color:WHT,align:h.a,valign:'middle',charSpacing:.8});
+    });
+    topS.forEach(function(r,i){
+      var y=sy+.3+i*rh;
+      s.addShape(pptx.ShapeType.rect,{x:.34,y:y,w:9.32,h:rh-.04,fill:{color:i%2===0?WHT:OFF},line:{color:LIN,pt:.4}});
+      s.addShape(pptx.ShapeType.rect,{x:.42,y:y+.09,w:.26,h:.22,fill:{color:WHT},line:{color:ORG,pt:.8}});
+      s.addText(String(i+1),{x:.42,y:y+.09,w:.26,h:.22,fontSize:8.5,bold:true,color:ORG,align:'center',valign:'middle'});
+      s.addText(r.t,{x:.75,y:y+.09,w:4.22,h:.22,fontSize:9.5,bold:true,color:NAV});
+      s.addShape(pptx.ShapeType.rect,{x:5.01,y:y+.15,w:2.55,h:.1,fill:{color:LIN},line:{color:LIN}});
+      s.addShape(pptx.ShapeType.rect,{x:5.01,y:y+.15,w:Math.max(.03,r.cnt/maxC*2.55),h:.1,fill:{color:ORG},line:{color:ORG}});
+      s.addText(String(r.cnt),{x:5.01,y:y+.09,w:.7,h:.22,fontSize:10,bold:true,color:ORG});
+      s.addText(String(r.venc),{x:7.68,y:y+.09,w:1.94,h:.22,fontSize:10,bold:true,color:r.venc>0?RED:MUT,align:'right'});
+    });
+  })();
+
+  closePptModal();
+  toast('⏳ Generando PowerPoint…');
+  var fname='Cumplimiento_'+new Date().toISOString().slice(0,10)+'.pptx';
+  pptx.writeFile({fileName:fname}).then(function(){toast('✓ PowerPoint descargado');});
+}
+
+</script>
+</body>
+</html>
