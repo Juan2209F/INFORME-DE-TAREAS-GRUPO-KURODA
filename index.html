@@ -1995,6 +1995,99 @@ async function syncToSupabase(parsed){
   }catch(e){}
 })();
 
+
+
+/* ════════════════════════════════════════════════════════════════════
+   GESTIÓN DE USUARIOS (solo admin)
+════════════════════════════════════════════════════════════════════ */
+function openUsuarios(){
+  if(!_session||_session.rol!=='admin'){toast('⚠ Solo administradores');return;}
+  document.getElementById('usr-overlay').classList.add('show');
+  loadUsuarios();
+}
+function closeUsuarios(){
+  document.getElementById('usr-overlay').classList.remove('show');
+  document.getElementById('usr-err').textContent='';
+}
+
+async function loadUsuarios(){
+  const tbody=document.getElementById('usr-tbody');
+  tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Cargando...</td></tr>';
+  if(!_sb){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted)">Sin conexión a Supabase</td></tr>';return;}
+  try{
+    const {data,error}=await _sb.rpc('listar_usuarios');
+    if(error)throw error;
+    if(!data||!data.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted)">Sin usuarios</td></tr>';return;}
+    tbody.innerHTML=data.map(function(u){
+      var rolClass='rol-'+u.rol;
+      return '<tr>'+
+        '<td style="font-weight:700;font-family:monospace">'+u.username+'</td>'+
+        '<td>'+(u.nombre||'—')+'</td>'+
+        '<td><span class="rol-badge '+rolClass+'">'+u.rol+'</span></td>'+
+        '<td><span style="color:'+(u.activo?'var(--green)':'var(--red)')+'">'+
+          (u.activo?'✓ Activo':'✕ Inactivo')+'</span></td>'+
+        '<td style="display:flex;gap:6px">'+
+          '<button class="btn btn-ghost" style="padding:4px 8px;font-size:11px" onclick="toggleActivo(\''+u.id+'\','+(!u.activo)+')">'+
+            (u.activo?'Desactivar':'Activar')+'</button>'+
+          (u.username!=='ADMIN'?'<button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;color:var(--red)" onclick="eliminarUsuario(\''+u.id+'\',\''+u.username+'\')">Eliminar</button>':'')+
+        '</td></tr>';
+    }).join('');
+  }catch(e){
+    tbody.innerHTML='<tr><td colspan="5" style="color:var(--red);text-align:center">Error: '+e.message+'</td></tr>';
+  }
+}
+
+async function crearUsuario(){
+  var user=document.getElementById('nu-user').value.trim().toUpperCase();
+  var pass=document.getElementById('nu-pass').value;
+  var nombre=document.getElementById('nu-nombre').value.trim();
+  var rol=document.getElementById('nu-rol').value;
+  var errEl=document.getElementById('usr-err');
+  errEl.textContent='';
+  if(!user||!pass){errEl.textContent='Usuario y contraseña requeridos';return;}
+  if(pass.length<3){errEl.textContent='Contraseña mínimo 3 caracteres';return;}
+  if(!_sb){errEl.textContent='Sin conexión a Supabase';return;}
+  try{
+    const {data,error}=await _sb.rpc('crear_usuario',{
+      p_username:user, p_password:pass, p_rol:rol,
+      p_nombre:nombre||null
+    });
+    if(error)throw error;
+    document.getElementById('nu-user').value='';
+    document.getElementById('nu-pass').value='';
+    document.getElementById('nu-nombre').value='';
+    toast('✓ Usuario '+user+' creado');
+    loadUsuarios();
+  }catch(e){
+    errEl.textContent='Error: '+e.message;
+  }
+}
+
+async function toggleActivo(id, nuevoEstado){
+  if(!_sb)return;
+  try{
+    await _sb.rpc('actualizar_usuario',{p_id:id, p_activo:nuevoEstado});
+    loadUsuarios();
+    toast('✓ Usuario '+(nuevoEstado?'activado':'desactivado'));
+  }catch(e){toast('Error: '+e.message);}
+}
+
+async function eliminarUsuario(id, username){
+  if(!confirm('¿Eliminar usuario '+username+'?'))return;
+  if(!_sb)return;
+  try{
+    await _sb.rpc('eliminar_usuario',{p_id:id});
+    loadUsuarios();
+    toast('✓ Usuario '+username+' eliminado');
+  }catch(e){toast('Error: '+e.message);}
+}
+
+/* Mostrar botón admin solo si el usuario tiene rol admin */
+function checkAdminUI(){
+  var navBtn=document.getElementById('nav-usuarios');
+  if(navBtn&&_session&&_session.rol==='admin') navBtn.style.display='';
+}
+
 </script>
 
 <!-- ═══════════ MODAL GESTIÓN USUARIOS ═══════════ -->
