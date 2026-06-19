@@ -1090,6 +1090,7 @@ function renderTrend(aud){
   document.getElementById('trend-note').textContent=ord.length?`${ord.length} período(s)`:'';
   destroyChart('trend');
   const ctx=document.getElementById('chart-trend');
+  if(!ctx){return;}
   if(!labels.length){ctx.parentElement.innerHTML='<div class="empty">Sin auditorías en el rango seleccionado.</div>';return;}
   if(!document.getElementById('chart-trend')){document.querySelector('#view-dash .chart-wrap').innerHTML='<canvas id="chart-trend"></canvas>';}
   charts.trend=new Chart(ctx,{type:'line',
@@ -1111,6 +1112,7 @@ function renderResPend(tareas){
   const labels=ord.map(b=>b.lbl);
   destroyChart('respend');
   const ctx=document.getElementById('chart-respend');
+  if(!ctx){return;}
   if(!labels.length){ctx.parentElement.innerHTML='<div class="empty">Sin tareas en el rango seleccionado.</div>';return;}
   charts.respend=new Chart(ctx,{type:'bar',
     data:{labels,datasets:[
@@ -1128,6 +1130,7 @@ function renderCentro(aud){
   const ent=Object.entries(byC).map(([k,d])=>({k,v:Math.round(d.s/d.n*100)})).sort((a,b)=>b.v-a.v);
   destroyChart('centro');
   const ctx=document.getElementById('chart-centro');
+  if(!ctx){return;}
   if(!ent.length){ctx.parentElement.innerHTML='<div class="empty">Sin datos.</div>';return;}
   charts.centro=new Chart(ctx,{type:'bar',
     data:{labels:ent.map(e=>e.k),datasets:[{data:ent.map(e=>e.v),
@@ -1147,6 +1150,7 @@ function renderDonut(tareas){
     ['Abiertas en plazo','#2563eb',ab],['Abiertas atrasadas','#dc2626',abAtr]];
   destroyChart('donut');
   const ctx=document.getElementById('chart-donut');
+  if(!ctx){return;}
   charts.donut=new Chart(ctx,{type:'doughnut',
     data:{labels:segs.map(s=>s[0]),datasets:[{data:segs.map(s=>s[2]),
       backgroundColor:segs.map(s=>s[1]),borderWidth:3,borderColor:'#fff'}]},
