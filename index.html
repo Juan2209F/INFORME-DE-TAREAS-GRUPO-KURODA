@@ -816,6 +816,7 @@ function commitImport(mode){
   });
   STORE.auditorias=[...byKey.values()];
   saveStore();clearStaged();closeModal();refreshAll();
+  syncToSupabase({auditorias:STORE.auditorias,tareas:STORE.tareas});
   toast(`✓ Combinado: ${added} nuevas · ${replaced} reemplazadas · ${skipped} omitidas`);
 }
 
@@ -1961,46 +1962,54 @@ async function loadDataFromSupabase(){
 
 /* ── sincronizar Excel subido → Supabase ── */
 async function syncToSupabase(parsed){
-  if(!_sb){return;}
-  var upload_id='upload_'+Date.now();
-  var audOk=0,tarOk=0;
+  var client=_sb;
+  if(!client){
+    var u=localStorage.getItem('sb_url'),k=localStorage.getItem('sb_key');
+    if(!u||!k)return;
+    client=supabase.createClient(u,k);
+  }
+  var upload_id='upload_'+Date.now(), audOk=0, tarOk=0, errMsg=null;
   try{
     if(parsed.auditorias&&parsed.auditorias.length>0){
-      var arows=parsed.auditorias.map(function(a){return{
-        razon:a.razon,centro:a.centro,tienda:a.tienda,
+      var arows=parsed.auditorias.filter(Boolean).map(function(a){return{
+        razon:a.razon||null,centro:a.centro||null,tienda:a.tienda||null,
         fecha:a.fecha?String(a.fecha).split('T')[0]:null,
-        mes:a.mes,pct_cumpl:parseFloat(a.pctCumpl)||0,
+        mes:a.mes||null,pct_cumpl:parseFloat(a.pctCumpl)||0,
         tareas:parseInt(a.tareas)||0,pendientes:parseInt(a.pendientes)||0,
         resueltas:parseInt(a.resueltas)||0,
         pct_resuelto:parseFloat(a.pctResuelto)||0,
-        clase:a.clase,upload_id:upload_id
+        clase:a.clase||null,upload_id:upload_id
       };});
-      var ar=await _sb.from('auditorias').insert(arows);
-      if(ar.error)toast('⚠ Error aud: '+ar.error.message);
-      else audOk=arows.length;
+      if(arows.length){
+        var ar=await client.from('auditorias').insert(arows);
+        if(ar.error)errMsg='Aud: '+ar.error.message;
+        else audOk=arows.length;
+      }
     }
     if(parsed.tareas&&parsed.tareas.length>0){
-      var trows=parsed.tareas.map(function(t){return{
-        tarea_id:String(t.id||''),razon:t.razon,centro:t.centro,
-        tienda:t.tienda,area_resp:t.areaResp,area_rev:t.areaRev,
-        actividad:t.actividad,nombre:t.nombre,tipo_tarea:t.tipoTarea,
-        estado:t.estado,
+      var trows=parsed.tareas.filter(Boolean).map(function(t){return{
+        tarea_id:String(t.id||t.tarea_id||''),
+        razon:t.razon||null,centro:t.centro||null,tienda:t.tienda||null,
+        area_resp:t.areaResp||null,area_rev:t.areaRev||null,
+        actividad:t.actividad||null,nombre:t.nombre||null,
+        tipo_tarea:t.tipoTarea||null,estado:t.estado||null,
         fecha_creacion:t.fechaCreacion?String(t.fechaCreacion).split('T')[0]:null,
         fecha_term:t.fechaTerm?String(t.fechaTerm).split('T')[0]:null,
         fecha_cumpl:t.fechaCumpl?String(t.fechaCumpl).split('T')[0]:null,
         upload_id:upload_id
       };});
       for(var ci=0;ci<trows.length;ci+=500){
-        var tr=await _sb.from('tareas').insert(trows.slice(ci,ci+500));
-        if(tr.error){toast('⚠ Error tareas: '+tr.error.message);break;}
+        var tr=await client.from('tareas').insert(trows.slice(ci,ci+500));
+        if(tr.error){errMsg=(errMsg?errMsg+' | ':'')+'Tar: '+tr.error.message;break;}
         tarOk+=Math.min(500,trows.length-ci);
       }
     }
-    if(audOk>0||tarOk>0){
+    if(errMsg)toast('⚠ '+errMsg);
+    else if(audOk>0||tarOk>0){
       toast('☁️ Guardado en Supabase: '+audOk+' auditorías · '+tarOk+' tareas');
-      setPill('supabase');
+      if(typeof setPill==='function')setPill('supabase');
     }
-  }catch(e){toast('⚠ '+e.message);}
+  }catch(e){toast('⚠ Error Supabase: '+e.message);console.error('syncToSupabase:',e);}
 }
 
 /* ── inicialización ── */
@@ -2153,4 +2162,3 @@ function checkAdminUI(){
 </div>
 </body>
 </html>
-
