@@ -1961,27 +1961,46 @@ async function loadDataFromSupabase(){
 
 /* ── sincronizar Excel subido → Supabase ── */
 async function syncToSupabase(parsed){
-  if(!_sb||!_session){console.log('syncToSupabase: skipped (no Supabase)');return;}
-  const upload_id='upload_'+Date.now();
-  const uid=_session.id==='local'?null:_session.id;
+  if(!_sb){return;}
+  var upload_id='upload_'+Date.now();
+  var audOk=0,tarOk=0;
   try{
     if(parsed.auditorias&&parsed.auditorias.length>0){
-      const {error}=await _sb.rpc('insertar_auditorias',{
-        rows:JSON.stringify(parsed.auditorias),
-        p_upload_id:upload_id,
-        p_usuario_id:uid
-      });
-      if(error) console.warn('Sync auditorias error:',error.message);
+      var arows=parsed.auditorias.map(function(a){return{
+        razon:a.razon,centro:a.centro,tienda:a.tienda,
+        fecha:a.fecha?String(a.fecha).split('T')[0]:null,
+        mes:a.mes,pct_cumpl:parseFloat(a.pctCumpl)||0,
+        tareas:parseInt(a.tareas)||0,pendientes:parseInt(a.pendientes)||0,
+        resueltas:parseInt(a.resueltas)||0,
+        pct_resuelto:parseFloat(a.pctResuelto)||0,
+        clase:a.clase,upload_id:upload_id
+      };});
+      var ar=await _sb.from('auditorias').insert(arows);
+      if(ar.error)toast('⚠ Error aud: '+ar.error.message);
+      else audOk=arows.length;
     }
     if(parsed.tareas&&parsed.tareas.length>0){
-      const {error}=await _sb.rpc('insertar_tareas',{
-        rows:JSON.stringify(parsed.tareas),
-        p_upload_id:upload_id,
-        p_usuario_id:uid
-      });
-      if(error) console.warn('Sync tareas error:',error.message);
+      var trows=parsed.tareas.map(function(t){return{
+        tarea_id:String(t.id||''),razon:t.razon,centro:t.centro,
+        tienda:t.tienda,area_resp:t.areaResp,area_rev:t.areaRev,
+        actividad:t.actividad,nombre:t.nombre,tipo_tarea:t.tipoTarea,
+        estado:t.estado,
+        fecha_creacion:t.fechaCreacion?String(t.fechaCreacion).split('T')[0]:null,
+        fecha_term:t.fechaTerm?String(t.fechaTerm).split('T')[0]:null,
+        fecha_cumpl:t.fechaCumpl?String(t.fechaCumpl).split('T')[0]:null,
+        upload_id:upload_id
+      };});
+      for(var ci=0;ci<trows.length;ci+=500){
+        var tr=await _sb.from('tareas').insert(trows.slice(ci,ci+500));
+        if(tr.error){toast('⚠ Error tareas: '+tr.error.message);break;}
+        tarOk+=Math.min(500,trows.length-ci);
+      }
     }
-  }catch(e){console.warn('syncToSupabase error:',e);}
+    if(audOk>0||tarOk>0){
+      toast('☁️ Guardado en Supabase: '+audOk+' auditorías · '+tarOk+' tareas');
+      setPill('supabase');
+    }
+  }catch(e){toast('⚠ '+e.message);}
 }
 
 /* ── inicialización ── */
@@ -2134,3 +2153,4 @@ function checkAdminUI(){
 </div>
 </body>
 </html>
+
