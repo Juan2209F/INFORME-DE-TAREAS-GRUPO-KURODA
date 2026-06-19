@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -8,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -257,9 +259,52 @@ table.dt tbody tr:last-child td{border-bottom:none}
   .fg select,.fg input{min-width:110px}
 }
 #png-stage{position:fixed;left:-99999px;top:0}
+/* ═══════════ LOGIN PAGE ═══════════ */
+#login-page{position:fixed;inset:0;background:#f0f4ff;display:flex;align-items:center;justify-content:center;z-index:9999;font-family:'Inter','Segoe UI',system-ui,sans-serif}
+#login-page.hidden{display:none}
+.lp-card{background:#fff;border-radius:20px;box-shadow:0 8px 40px rgba(37,99,235,.10),0 1px 4px rgba(0,0,0,.06);padding:44px 40px 36px;width:100%;max-width:400px;display:flex;flex-direction:column;gap:0}
+.lp-logo{width:52px;height:52px;background:linear-gradient(135deg,#2563eb,#0d9488);border-radius:15px;display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 20px}
+.lp-title{font-size:22px;font-weight:800;color:#0f172a;text-align:center;letter-spacing:-.02em}
+.lp-sub{font-size:13px;color:#64748b;text-align:center;margin:4px 0 28px}
+.lp-field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+.lp-field label{font-size:11.5px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.05em}
+.lp-field input{padding:10px 13px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:14px;font-family:inherit;color:#0f172a;transition:border .15s,box-shadow .15s;outline:none}
+.lp-field input:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.lp-btn{width:100%;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:11px;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px;transition:background .15s,transform .1s;font-family:inherit}
+.lp-btn:hover{background:#1d4ed8}
+.lp-btn:active{transform:scale(.98)}
+.lp-btn:disabled{background:#93c5fd;cursor:not-allowed}
+.lp-err{font-size:12.5px;color:#dc2626;text-align:center;min-height:18px;margin-top:6px}
+.lp-brand{font-size:11px;color:#94a3b8;text-align:center;margin-top:20px}
+.lp-cfg-link{font-size:11.5px;color:#2563eb;text-align:center;margin-top:14px;cursor:pointer;text-decoration:underline}
+#supabase-cfg{background:#f8fafc;border-radius:12px;padding:14px 16px;margin-bottom:14px;display:none;border:1px solid #e2e8f0}
+#supabase-cfg.show{display:block}
+#supabase-cfg .lp-field{margin-bottom:8px}
+
 </style>
 </head>
 <body>
+
+
+<!-- ═══════════ PÁGINA DE LOGIN ═══════════ -->
+<div id="login-page">
+  <div class="lp-card">
+    <div class="lp-logo">📊</div>
+    <div class="lp-title">Monitor de Cumplimiento</div>
+    <div class="lp-sub">Grupo Kuroda · Ingresa tus credenciales</div>
+    <div id="supabase-cfg">
+      <div class="lp-field"><label>Supabase URL</label><input type="text" id="cfg-url" placeholder="https://xxxx.supabase.co" autocomplete="off"></div>
+      <div class="lp-field"><label>Anon Key</label><input type="text" id="cfg-key" placeholder="eyJ..." autocomplete="off"></div>
+      <button class="lp-btn" style="margin-top:0;padding:8px" onclick="saveSupabaseCfg()">Guardar configuración</button>
+    </div>
+    <div class="lp-field"><label>Usuario</label><input type="text" id="lp-user" placeholder="usuario" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('lp-pass').focus()"></div>
+    <div class="lp-field"><label>Contraseña</label><input type="password" id="lp-pass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <button class="lp-btn" id="lp-btn" onclick="doLogin()">Ingresar</button>
+    <div class="lp-err" id="lp-err"></div>
+    <div class="lp-cfg-link" onclick="toggleSupabaseCfg()">⚙️ Configurar conexión Supabase</div>
+    <div class="lp-brand">AUDITORIA · v19 · Acceso restringido</div>
+  </div>
+</div>
 
 <nav class="sidebar">
   <div class="logo">📊</div>
@@ -277,6 +322,10 @@ table.dt tbody tr:last-child td{border-bottom:none}
       <p>Grupo Cerezo · auditorías y tareas por sucursal — datos guardados localmente</p>
     </div>
     <div class="topbar-gap"></div>
+      <div style="display:flex;align-items:center;gap:10px;font-size:13px">
+        <span style="color:var(--muted);font-weight:600" id="topbar-user"></span>
+        <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px" onclick="doLogout()">Salir</button>
+      </div>
     <div class="live-pill"><span class="dot-live"></span>Guardado local</div>
   </div>
 
@@ -1451,7 +1500,7 @@ function setView(v){
   if(!had||(!STORE.tareas.length&&!STORE.auditorias.length)){
     try{
       const seed=JSON.parse(document.getElementById('seed-data').textContent);
-      STORE.auditorias=seed.auditorias||[];STORE.tareas=seed.tareas||[];
+      STORE.auditorias=seed.auditorias||[];STORE.tareas=seed.tareas||[];syncToSupabase(seed);
       saveStore();
     }catch(e){}
   }
@@ -1727,6 +1776,173 @@ function generatePpt(){
   var fname='Cumplimiento_'+new Date().toISOString().slice(0,10)+'.pptx';
   pptx.writeFile({fileName:fname}).then(function(){toast('✓ PowerPoint descargado');});
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   SUPABASE + LOGIN + SYNC
+════════════════════════════════════════════════════════════════════ */
+const SB_URL_KEY='sb_url', SB_KEY_KEY='sb_key', SB_SESSION_KEY='sb_session';
+let _sb=null, _session=null;
+
+function getSbCreds(){
+  return {url:localStorage.getItem(SB_URL_KEY)||'',key:localStorage.getItem(SB_KEY_KEY)||''};
+}
+function initSupabase(){
+  const {url,key}=getSbCreds();
+  if(!url||!key)return null;
+  try{_sb=supabase.createClient(url,key);return _sb;}catch(e){return null;}
+}
+function saveSupabaseCfg(){
+  const url=document.getElementById('cfg-url').value.trim();
+  const key=document.getElementById('cfg-key').value.trim();
+  if(!url||!key){showLoginErr('Completa URL y Key');return;}
+  localStorage.setItem(SB_URL_KEY,url);
+  localStorage.setItem(SB_KEY_KEY,key);
+  _sb=null;
+  document.getElementById('supabase-cfg').classList.remove('show');
+  showLoginErr('');
+  toast('✓ Configuración Supabase guardada');
+}
+function toggleSupabaseCfg(){
+  const el=document.getElementById('supabase-cfg');
+  el.classList.toggle('show');
+  if(el.classList.contains('show')){
+    const {url,key}=getSbCreds();
+    document.getElementById('cfg-url').value=url;
+    document.getElementById('cfg-key').value=key;
+  }
+}
+function showLoginErr(msg){document.getElementById('lp-err').textContent=msg;}
+
+async function doLogin(){
+  const user=document.getElementById('lp-user').value.trim();
+  const pass=document.getElementById('lp-pass').value;
+  if(!user||!pass){showLoginErr('Completa usuario y contraseña');return;}
+  const btn=document.getElementById('lp-btn');
+  btn.disabled=true; btn.textContent='Verificando…'; showLoginErr('');
+
+  /* intentar con Supabase */
+  if(!_sb) _sb=initSupabase();
+  if(_sb){
+    try{
+      const {data,error}=await _sb.rpc('login_usuario',{p_username:user,p_password:pass});
+      if(error) throw error;
+      if(data&&data.length>0){
+        _session=data[0];
+        localStorage.setItem(SB_SESSION_KEY,JSON.stringify(_session));
+        onLoginSuccess();return;
+      } else {
+        showLoginErr('Usuario o contraseña incorrectos');
+        btn.disabled=false;btn.textContent='Ingresar';return;
+      }
+    }catch(e){
+      /* fallback a modo local si Supabase falla */
+      console.warn('Supabase login error, usando modo local:',e.message);
+    }
+  }
+  /* fallback modo sin conexión — usuarios del Excel */
+  var OFFLINE_USERS=[
+    {username:'ADMIN',      password:'FGUERRERO', rol:'admin',  nombre:'Administrador'},
+    {username:'OAMAVIZSCA', password:'1234',      rol:'viewer', nombre:'O. Amavizsca'}
+  ];
+  var found=OFFLINE_USERS.find(function(u){
+    return u.username===user.toUpperCase()&&u.password===pass;
+  });
+  if(found){
+    _session={id:'local',username:found.username,rol:found.rol,nombre:found.nombre};
+    localStorage.setItem(SB_SESSION_KEY,JSON.stringify(_session));
+    onLoginSuccess();
+  } else {
+    showLoginErr('Usuario o contraseña incorrectos.');
+    btn.disabled=false;btn.textContent='Ingresar';
+  }
+}
+
+function onLoginSuccess(){
+  document.getElementById('login-page').classList.add('hidden');
+  /* mostrar nombre de usuario en topbar */
+  const el=document.getElementById('topbar-user');
+  if(el&&_session) el.textContent=_session.nombre||_session.username;
+  /* cargar datos de Supabase si hay conexión */
+  if(_sb) loadDataFromSupabase();
+  else { loadStore(); refreshAll(); }
+}
+
+function doLogout(){
+  localStorage.removeItem(SB_SESSION_KEY);
+  _session=null;
+  document.getElementById('login-page').classList.remove('hidden');
+  document.getElementById('lp-pass').value='';
+  showLoginErr('');
+}
+
+/* ── carga datos desde Supabase ── */
+async function loadDataFromSupabase(){
+  if(!_sb){loadStore();refreshAll();return;}
+  try{
+    toast('⏳ Cargando datos…');
+    const [{data:aud},{data:tar}]=await Promise.all([
+      _sb.from('auditorias').select('*').order('fecha',{ascending:false}).limit(5000),
+      _sb.from('tareas').select('*').order('fecha_term',{ascending:true}).limit(10000)
+    ]);
+    if(aud) STORE.auditorias=aud.map(function(a){return{
+      razon:a.razon||'',centro:a.centro||'',tienda:a.tienda||'',
+      fecha:a.fecha,mes:a.mes||'',
+      pctCumpl:parseFloat(a.pct_cumpl)||0,
+      tareas:a.tareas||0,pendientes:a.pendientes||0,
+      resueltas:a.resueltas||0,pctResuelto:parseFloat(a.pct_resuelto)||0,
+      clase:a.clase||''
+    };});
+    if(tar) STORE.tareas=tar.map(function(t){return{
+      id:t.tarea_id||t.id,razon:t.razon||'',centro:t.centro||'',
+      tienda:t.tienda||'',areaResp:t.area_resp||'',areaRev:t.area_rev||'',
+      actividad:t.actividad||'',nombre:t.nombre||'',tipoTarea:t.tipo_tarea||'',
+      estado:t.estado||'',
+      fechaCreacion:t.fecha_creacion,fechaTerm:t.fecha_term,fechaCumpl:t.fecha_cumpl
+    };});
+    saveStore();refreshAll();
+    toast('✓ Datos cargados desde Supabase ('+STORE.tareas.length+' tareas, '+STORE.auditorias.length+' auditorías)');
+  }catch(e){
+    console.warn('Error cargando Supabase:',e);
+    loadStore();refreshAll();
+    toast('⚠ Sin datos en Supabase, usando caché local');
+  }
+}
+
+/* ── sincronizar Excel subido → Supabase ── */
+async function syncToSupabase(parsed){
+  if(!_sb||!_session)return;
+  const upload_id='upload_'+Date.now();
+  const uid=_session.id==='local'?null:_session.id;
+  try{
+    if(parsed.auditorias&&parsed.auditorias.length>0){
+      const {error}=await _sb.rpc('insertar_auditorias',{
+        rows:JSON.stringify(parsed.auditorias),
+        p_upload_id:upload_id,
+        p_usuario_id:uid
+      });
+      if(error) console.warn('Sync auditorias error:',error.message);
+    }
+    if(parsed.tareas&&parsed.tareas.length>0){
+      const {error}=await _sb.rpc('insertar_tareas',{
+        rows:JSON.stringify(parsed.tareas),
+        p_upload_id:upload_id,
+        p_usuario_id:uid
+      });
+      if(error) console.warn('Sync tareas error:',error.message);
+    }
+  }catch(e){console.warn('syncToSupabase error:',e);}
+}
+
+/* ── inicialización ── */
+(function initApp(){
+  /* restaurar sesión */
+  try{
+    const raw=localStorage.getItem(SB_SESSION_KEY);
+    if(raw){_session=JSON.parse(raw);onLoginSuccess();return;}
+  }catch(e){}
+  /* sin sesión: mostrar login */
+  initSupabase();
+})();
 
 </script>
 </body>
