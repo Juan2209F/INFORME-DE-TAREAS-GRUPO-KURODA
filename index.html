@@ -1408,7 +1408,13 @@ function saveTask(isNew){
     fechaCreacion:ddate('e-fcre'),fechaTerm:ddate('e-fterm'),fechaCumpl:ddate('e-fcumpl')
   };
   const idx=STORE.tareas.findIndex(t=>String(t.id)===id);
-  if(idx>=0)STORE.tareas[idx]={...STORE.tareas[idx],...rec};else STORE.tareas.push(rec);
+  if(idx>=0){
+    /* Preserve sb_uuid from original record */
+    rec.sb_uuid=STORE.tareas[idx].sb_uuid||null;
+    STORE.tareas[idx]={...STORE.tareas[idx],...rec};
+  } else {
+    STORE.tareas.push(rec);
+  }
   saveStore();closeModal();refreshAll();toast(isNew?'✓ Tarea creada':'✓ Tarea actualizada');
   /* Sync to Supabase */
   syncTaskToSupabase(rec, isNew);
@@ -1428,8 +1434,9 @@ function openFileIfAllowed(){
 async function syncTaskToSupabase(rec, isNew){
   var client=_sb;
   if(!client){try{client=supabase.createClient(SB_URL,SB_KEY);}catch(e){return;}}
+  var tid=String(rec.id);
   var row={
-    tarea_id:String(rec.id),razon:rec.razon||null,centro:rec.centro||null,
+    tarea_id:tid,razon:rec.razon||null,centro:rec.centro||null,
     tienda:rec.tienda||null,area_resp:rec.areaResp||null,area_rev:rec.areaRev||null,
     actividad:rec.actividad||null,nombre:rec.nombre||null,
     tipo_tarea:rec.tipoTarea||null,estado:rec.estado||null,
@@ -1438,25 +1445,44 @@ async function syncTaskToSupabase(rec, isNew){
     fecha_cumpl:rec.fechaCumpl?String(rec.fechaCumpl).split('T')[0]:null
   };
   try{
-    if(isNew){
-      var r=await client.from('tareas').insert([row]);
-      if(r.error)toast('⚠ Supabase: '+r.error.message);
-      else toast('☁️ Tarea guardada en Supabase');
-    } else {
-      var r=await client.from('tareas').update(row).eq('tarea_id',String(rec.id));
-      if(r.error){
-        /* Si no existe, insertar */
-        var r2=await client.from('tareas').insert([row]);
-        if(r2.error)toast('⚠ Supabase: '+r2.error.message);
+    var ru, ri;
+    if(!isNew){
+      /* Try UPDATE by sb_uuid first (most reliable), fallback to tarea_id */
+      if(rec.sb_uuid){
+        ru=await client.from('tareas').update(row).eq('id',rec.sb_uuid);
+      } else {
+        ru=await client.from('tareas').update(row).eq('tarea_id',tid);
+      }
+      if(ru.error){
+        /* Error on update — try insert */
+        ri=await client.from('tareas').insert([row]);
+        if(ri.error)toast('⚠ Supabase: '+ri.error.message);
         else toast('☁️ Tarea sincronizada en Supabase');
-      } else toast('☁️ Tarea actualizada en Supabase');
+      } else {
+        /* Check if update actually affected rows via select */
+        var chk=await client.from('tareas').select('tarea_id',{count:'exact',head:true}).eq('tarea_id',tid);
+        if(chk.count===0){
+          /* Row didn't exist — insert */
+          ri=await client.from('tareas').insert([row]);
+          if(ri.error)toast('⚠ Supabase insert: '+ri.error.message);
+          else{toast('☁️ Tarea creada en Supabase');}
+        } else {
+          toast('☁️ Tarea actualizada en Supabase');
+        }
+      }
+    } else {
+      /* Nueva tarea — INSERT */
+      ri=await client.from('tareas').insert([row]);
+      if(ri.error)toast('⚠ Supabase: '+ri.error.message);
+      else toast('☁️ Tarea guardada en Supabase');
     }
-  }catch(e){console.warn('syncTaskToSupabase:',e);}
+  }catch(e){toast('⚠ Error Supabase: '+e.message);console.error('syncTaskToSupabase:',e);}
 }
 async function deleteTaskFromSupabase(taskId){
   var client=_sb;
   if(!client){try{client=supabase.createClient(SB_URL,SB_KEY);}catch(e){return;}}
   try{
+    /* Try delete by tarea_id */
     var r=await client.from('tareas').delete().eq('tarea_id',taskId);
     if(r.error)toast('⚠ Supabase delete: '+r.error.message);
     else toast('☁️ Tarea eliminada de Supabase');
@@ -2057,7 +2083,7 @@ async function loadDataFromSupabase(){
       clase:a.clase||''
     };});
     if(tar) STORE.tareas=tar.map(function(t){return{
-      id:t.tarea_id||t.id,razon:t.razon||'',centro:t.centro||'',
+      id:t.tarea_id||t.id,sb_uuid:t.id,razon:t.razon||'',centro:t.centro||'',
       tienda:t.tienda||'',areaResp:t.area_resp||'',areaRev:t.area_rev||'',
       actividad:t.actividad||'',nombre:t.nombre||'',tipoTarea:t.tipo_tarea||'',
       estado:t.estado||'',
