@@ -552,8 +552,8 @@ table.dt tbody tr:last-child td{border-bottom:none}
         </div>
       </div>
 
-      <div class="slbl"><span class="dot" style="background:var(--orange)"></span>Tareas pendientes por vencer
-        <span style="font-weight:600;font-size:10px;color:var(--muted);text-transform:none;margin-left:6px">🔴 vencida · 🟠 ≤7 días · 🔵 en plazo</span></div>
+      <div class="slbl"><span class="dot" style="background:var(--orange)"></span>Tareas pendientes
+        <span style="font-weight:600;font-size:10px;color:var(--muted);text-transform:none;margin-left:6px"><span style="display:inline-flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:50%;background:#dc2626;display:inline-block"></span>Vencida</span> &nbsp;<span style="display:inline-flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:50%;background:#ea580c;display:inline-block"></span>≤7 días</span> &nbsp;<span style="display:inline-flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:50%;background:#2563eb;display:inline-block"></span>En plazo</span></span></div>
       <div class="card" id="venc-card">
         <div class="tbl-scroll" id="venc-table"></div>
       </div>
@@ -692,6 +692,15 @@ function bucketKey(d,gran){
   if(gran==='half'){const h=m<6?1:2;return {k:`${y}-H${h}`,sort:y*100+h,lbl:`${h==1?'1er':'2do'} sem. ${y}`};}
   if(gran==='quarter'){const q=Math.floor(m/3)+1;return {k:`${y}-T${q}`,sort:y*100+q,lbl:`T${q} ${y}`};}
   return {k:`${y}-${m}`,sort:y*100+m,lbl:`${MESES[m]} ${y}`};
+}
+function bucketKeyEx(d,gran){
+  if(!d)return null;
+  if(gran==='day'){
+    const y=d.getFullYear(),m=d.getMonth(),day=d.getDate();
+    const z=n=>String(n).padStart(2,'0');
+    return {k:`${y}-${z(m+1)}-${z(day)}`,sort:y*10000+(m+1)*100+day,lbl:`${day} ${MESES[m]}`};
+  }
+  return bucketKey(d,gran);
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -929,8 +938,12 @@ function setQuick(q,el){
   document.getElementById('f-hasta').value=fmtInput(hasta);
   // sincroniza granularidad con el rango elegido
   const g=document.getElementById('f-gran');
-  if(q==='month')g.value='month';else if(q==='quarter')g.value='quarter';
-  else if(q==='half')g.value='half';else if(q==='year')g.value='year';
+  /* Auto-set granularity to match the range for meaningful trend buckets */
+  if(q==='all')g.value='month';
+  else if(q==='month')g.value='month';
+  else if(q==='quarter')g.value='month';
+  else if(q==='half')g.value='quarter';
+  else if(q==='year')g.value='quarter';
   render();
 }
 function onFilter(src){
@@ -1198,8 +1211,12 @@ function destroyChart(id){if(charts[id]){charts[id].destroy();charts[id]=null;}}
 
 function renderTrend(aud){
   const f=getFilterState();
+  /* Auto-adjust granularity: if all data falls in same month, use day-level bucketing */
+  let gran=f.gran;
+  const uniqueMonths=new Set(aud.map(a=>{const d=fromISO(a.fecha);return d?d.getFullYear()+'-'+d.getMonth():null}).filter(Boolean));
+  if(uniqueMonths.size<=1&&gran==='month')gran='day';
   const buckets={};
-  aud.forEach(a=>{const d=fromISO(a.fecha);const b=bucketKey(d,f.gran);if(!b)return;
+  aud.forEach(a=>{const d=fromISO(a.fecha);const b=bucketKeyEx(d,gran);if(!b)return;
     if(!buckets[b.k])buckets[b.k]={lbl:b.lbl,sort:b.sort,s:0,n:0,res:0,pen:0};
     buckets[b.k].s+=a.pctCumpl;buckets[b.k].n++;});
   const ord=Object.values(buckets).sort((a,b)=>a.sort-b.sort);
