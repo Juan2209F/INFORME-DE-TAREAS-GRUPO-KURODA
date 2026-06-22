@@ -418,6 +418,7 @@ table.dt tbody tr:last-child td{border-bottom:none}
   <div class="nav-item" id="nav-tareas" title="Tareas (editar)" onclick="setView('tareas')">📝</div>
   <div class="nav-item" id="nav-pend" title="Pendientes por sucursal" onclick="openPendientes()">🏬</div>
   <div class="nav-item" id="nav-actividades" title="Actividades por mes" onclick="setView('actividades')">📋</div>
+  <div class="nav-item" id="nav-auditorias" title="Auditorías por clase" onclick="setView('auditorias')">🔍</div>
   <div class="nav-sep"></div>
   <div class="nav-item" id="nav-usuarios" title="Gestión de usuarios" onclick="openUsuarios()" style="display:none">👥</div>
 </nav>
@@ -648,6 +649,32 @@ table.dt tbody tr:last-child td{border-bottom:none}
       <div class="card" style="padding:8px 10px">
         <div class="tbl-scroll" id="actividades-table"></div>
       </div>
+    </div>
+
+    <!-- ════════ VISTA AUDITORÍAS (por clase) ════════ -->
+    <div id="view-auditorias" style="display:none;flex-direction:column;gap:14px">
+      <div class="slbl"><span class="dot" style="background:var(--blue)"></span>Auditorías por clase
+        <span style="font-weight:600;font-size:10px;color:var(--muted);text-transform:none;margin-left:6px">datos desde Supabase · agrupadas por clase</span></div>
+
+      <!-- Filtros -->
+      <div class="card" style="padding:16px">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+          <div class="fg"><label>MES</label>
+            <select id="aud-f-mes" onchange="renderAuditoriasView()"><option value="ALL">Todos</option></select></div>
+          <div class="fg"><label>TIENDA / SUCURSAL</label>
+            <select id="aud-f-tienda" onchange="renderAuditoriasView()"><option value="ALL">Todas</option></select></div>
+          <div class="fg"><label>CENTRO</label>
+            <select id="aud-f-centro" onchange="renderAuditoriasView()"><option value="ALL">Todos</option></select></div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-ghost" onclick="loadDataFromSupabase().then(renderAuditoriasView)">🔄 Recargar</button>
+        <button class="btn btn-teal" onclick="downloadAuditoriasPNG()">🖼️ PNG</button>
+        <span id="aud-count" style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600;align-self:center"></span>
+      </div>
+
+      <div id="auditorias-tables"></div>
     </div>
 
   </div>
@@ -1899,12 +1926,107 @@ function setView(v){
   document.getElementById('view-tareas').style.display=v==='tareas'?'flex':'none';
   var va=document.getElementById('view-actividades');
   if(va)va.style.display=v==='actividades'?'flex':'none';
+  var vau=document.getElementById('view-auditorias');
+  if(vau)vau.style.display=v==='auditorias'?'flex':'none';
   document.getElementById('nav-dash').classList.toggle('active',v==='dash');
   document.getElementById('nav-tareas').classList.toggle('active',v==='tareas');
   var na=document.getElementById('nav-actividades');
   if(na)na.classList.toggle('active',v==='actividades');
+  var nau=document.getElementById('nav-auditorias');
+  if(nau)nau.classList.toggle('active',v==='auditorias');
   if(v==='actividades'){ if(!ACTIVIDADES.length) loadActividades(); else renderActividades(); }
+  else if(v==='auditorias'){ if(!STORE.auditorias.length) loadDataFromSupabase().then(renderAuditoriasView); else renderAuditoriasView(); }
   else render();
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   MÓDULO AUDITORÍAS (vista por clase, datos de tabla auditorias)
+════════════════════════════════════════════════════════════════════ */
+function fillAudFilters(){
+  var meses=[...new Set(STORE.auditorias.map(a=>a.mes).filter(Boolean))];
+  var tiendas=[...new Set(STORE.auditorias.map(a=>a.tienda).filter(Boolean))].sort();
+  var centros=[...new Set(STORE.auditorias.map(a=>a.centro).filter(Boolean))].sort();
+  var sM=document.getElementById('aud-f-mes'), sT=document.getElementById('aud-f-tienda'), sC=document.getElementById('aud-f-centro');
+  if(!sM)return;
+  var vM=sM.value,vT=sT.value,vC=sC.value;
+  sM.innerHTML='<option value="ALL">Todos</option>'+meses.map(m=>'<option>'+m+'</option>').join('');
+  sT.innerHTML='<option value="ALL">Todas</option>'+tiendas.map(t=>'<option>'+t+'</option>').join('');
+  sC.innerHTML='<option value="ALL">Todos</option>'+centros.map(c=>'<option>'+c+'</option>').join('');
+  sM.value=vM;sT.value=vT;sC.value=vC;
+}
+
+function filteredAudByView(){
+  var mes=document.getElementById('aud-f-mes').value;
+  var tienda=document.getElementById('aud-f-tienda').value;
+  var centro=document.getElementById('aud-f-centro').value;
+  return STORE.auditorias.filter(function(a){
+    if(mes!=='ALL'&&a.mes!==mes)return false;
+    if(tienda!=='ALL'&&a.tienda!==tienda)return false;
+    if(centro!=='ALL'&&a.centro!==centro)return false;
+    return true;
+  });
+}
+
+function pctFmt(v){if(v==null)return'—';var n=v>1.5?v:v*100;return Math.round(n)+'%';}
+
+function audTablaPorClase(titulo,color,rows){
+  var filas=rows.map(function(a){
+    var pend=a.pendientes||0;
+    var pendColor=pend>0?'#dc2626':'#16a34a';
+    return '<tr>'+
+      '<td><b>'+(a.tienda||'—')+'</b></td>'+
+      '<td>'+(a.mes||'—')+'</td>'+
+      '<td style="text-align:center">'+pctFmt(a.pctCumpl)+'</td>'+
+      '<td style="text-align:center">'+(a.tareas||0)+'</td>'+
+      '<td style="text-align:center;color:'+pendColor+';font-weight:700">'+pend+'</td>'+
+      '<td style="text-align:center">'+(a.resueltas||0)+'</td>'+
+      '<td style="text-align:center">'+pctFmt(a.pctResuelto)+'</td>'+
+    '</tr>';
+  }).join('');
+  return '<div class="slbl" style="margin:4px 0 8px;color:'+color+'"><span class="dot" style="background:'+color+'"></span>'+titulo+
+    ' <span style="font-weight:600;font-size:10px;color:var(--muted)">('+rows.length+')</span></div>'+
+    '<div class="card" style="padding:8px 10px;margin-bottom:22px"><div class="tbl-scroll"><table class="dt">'+
+    '<thead><tr><th>Tienda</th><th>Mes Auditoría</th><th>% Cumplimiento</th><th>Tareas</th><th>Pendientes</th><th>Resueltos</th><th>% Resuelto</th></tr></thead>'+
+    '<tbody>'+(filas||'<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:18px">Sin registros</td></tr>')+'</tbody></table></div></div>';
+}
+
+function renderAuditoriasView(){
+  fillAudFilters();
+  var arr=filteredAudByView();
+  document.getElementById('aud-count').textContent=arr.length+' auditoría(s)';
+  var cont=document.getElementById('auditorias-tables');
+  if(!arr.length){cont.innerHTML='<div class="empty" style="padding:30px">Sin auditorías en Supabase. Carga datos con el módulo principal.</div>';return;}
+
+  /* Agrupar por clase: las que contienen "colaboracion" vs "orden y limpieza" vs otras */
+  function clasifica(a){
+    var c=norm(a.clase||'');
+    if(c.includes('colaboracion')||c.includes('colab'))return 'colab';
+    if(c.includes('orden')||c.includes('limpieza'))return 'orden';
+    return 'otras';
+  }
+  var colab=arr.filter(a=>clasifica(a)==='colab');
+  var orden=arr.filter(a=>clasifica(a)==='orden');
+  var otras=arr.filter(a=>clasifica(a)==='otras');
+
+  var html='';
+  html+=audTablaPorClase('AUDITORIAS DE COLABORACION','#2563eb',colab);
+  html+=audTablaPorClase('ORDEN Y LIMPIEZA','#16a34a',orden);
+  if(otras.length)html+=audTablaPorClase('OTRAS AUDITORÍAS','#7c8696',otras);
+
+  cont.innerHTML=html;
+}
+
+function downloadAuditoriasPNG(){
+  toast('⏳ Generando PNG...');
+  var el=document.getElementById('auditorias-tables');
+  if(typeof html2canvas==='undefined'){toast('⚠ Librería de captura no disponible');return;}
+  html2canvas(el,{scale:2,backgroundColor:'#fff'}).then(function(canvas){
+    var link=document.createElement('a');
+    link.download='auditorias_por_clase.png';
+    link.href=canvas.toDataURL('image/png');
+    link.click();
+    toast('✓ PNG descargado');
+  }).catch(function(e){toast('⚠ Error: '+e.message);});
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -1972,11 +2094,14 @@ function renderActividades(){
   var arr=filteredActividades();
   document.getElementById('act-count').textContent=arr.length+' actividad(es)';
   var canEdit=_session&&['admin','editor'].includes(_session.rol);
-  if(!arr.length){document.getElementById('actividades-table').innerHTML='<div class="empty" style="padding:30px">Sin actividades. '+(canEdit?'Crea una con "Nueva actividad".':'')+'</div>';return;}
-  var rows=arr.map(function(a){
+  var cont=document.getElementById('actividades-table');
+
+  if(!arr.length){cont.innerHTML='<div class="empty" style="padding:30px">Sin actividades. '+(canEdit?'Crea una con "Nueva actividad".':'')+'</div>';return;}
+
+  function filaActividad(a){
     return '<tr>'+
       '<td>'+(a.mes||'—')+'</td>'+
-      '<td style="min-width:200px"><b>'+(a.actividad||'—')+'</b>'+(a.programada?'':' <span style="font-size:9px;color:#dc2626;font-weight:700">NO PROG.</span>')+'</td>'+
+      '<td style="min-width:200px"><b>'+(a.actividad||'—')+'</b></td>'+
       '<td>'+actEstadoBadge(a.estado)+'</td>'+
       '<td>'+(a.categoria||'—')+'</td>'+
       '<td>'+(a.asignado||'—')+'</td>'+
@@ -1987,10 +2112,31 @@ function renderActividades(){
       '<td style="text-align:center">'+(a.durReal!=null?a.durReal:'—')+'</td>'+
       '<td class="cell-c">'+(canEdit?'<button class="icon-btn" onclick="openActividad(\''+a.id+'\')">✎</button>':'<span style="color:var(--border)">—</span>')+'</td>'+
     '</tr>';
-  }).join('');
-  document.getElementById('actividades-table').innerHTML=
-    '<table class="dt"><thead><tr><th>Mes</th><th>Actividad/Proyecto</th><th>Estado</th><th>Categoría</th><th>Asignado</th>'+
-    '<th>Est.Inicio</th><th>Est.Fin</th><th>Real Inicio</th><th>Real Fin</th><th>Dur.real</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>';
+  }
+
+  var thead='<thead><tr><th>Mes</th><th>Actividad/Proyecto</th><th>Estado</th><th>Categoría</th><th>Asignado</th>'+
+    '<th>Est.Inicio</th><th>Est.Fin</th><th>Real Inicio</th><th>Real Fin</th><th>Dur.real</th><th></th></tr></thead>';
+
+  var prog=arr.filter(function(a){return a.programada;});
+  var noProg=arr.filter(function(a){return !a.programada;});
+
+  var html='';
+  // Tabla PROGRAMADAS
+  html+='<div class="slbl" style="margin:4px 0 8px"><span class="dot" style="background:var(--green)"></span>Programadas <span style="font-weight:600;font-size:10px;color:var(--muted)">('+prog.length+')</span></div>';
+  if(prog.length){
+    html+='<table class="dt">'+thead+'<tbody>'+prog.map(filaActividad).join('')+'</tbody></table>';
+  } else {
+    html+='<div class="empty" style="padding:18px;font-size:12px">Sin actividades programadas.</div>';
+  }
+  // Tabla NO PROGRAMADAS
+  html+='<div class="slbl" style="margin:22px 0 8px"><span class="dot" style="background:#dc2626"></span>No programadas <span style="font-weight:600;font-size:10px;color:var(--muted)">('+noProg.length+')</span></div>';
+  if(noProg.length){
+    html+='<table class="dt">'+thead+'<tbody>'+noProg.map(filaActividad).join('')+'</tbody></table>';
+  } else {
+    html+='<div class="empty" style="padding:18px;font-size:12px">Sin actividades no programadas.</div>';
+  }
+
+  cont.innerHTML=html;
 }
 
 function openActividadIfAllowed(id){
