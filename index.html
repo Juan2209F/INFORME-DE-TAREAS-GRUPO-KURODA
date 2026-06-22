@@ -626,10 +626,14 @@ table.dt tbody tr:last-child td{border-bottom:none}
           <div class="fg"><label>ESTADO</label>
             <select id="act-f-estado" onchange="renderActividades()">
               <option value="ALL">Todos</option>
-              <option>Completado</option><option>En curso</option><option>Sin comenzar</option>
+              <option>Completado</option><option>En curso</option><option>Reprogramado</option><option>Sin comenzar</option>
             </select></div>
           <div class="fg"><label>CATEGORÍA</label>
-            <select id="act-f-categoria" onchange="renderActividades()"><option value="ALL">Todas</option></select></div>
+            <select id="act-f-categoria" onchange="renderActividades()">
+              <option value="ALL">Todas</option>
+              <option>Evaluacion</option><option>Auditoria</option><option>Entrega</option>
+              <option>Inventario</option><option>Apoyo Juridico</option><option>Apoyo a RH</option>
+            </select></div>
           <div class="fg"><label>ASIGNADO A</label>
             <select id="act-f-asignado" onchange="renderActividades()"><option value="ALL">Todos</option></select></div>
         </div>
@@ -1931,13 +1935,11 @@ async function loadActividades(){
 }
 
 function fillActFilters(){
-  var cats=[...new Set(ACTIVIDADES.map(a=>a.categoria).filter(Boolean))].sort();
   var asigs=[...new Set(ACTIVIDADES.map(a=>a.asignado).filter(Boolean))].sort();
-  var selC=document.getElementById('act-f-categoria'), selA=document.getElementById('act-f-asignado');
-  var vC=selC.value, vA=selA.value;
-  selC.innerHTML='<option value="ALL">Todas</option>'+cats.map(c=>'<option>'+c+'</option>').join('');
+  var selA=document.getElementById('act-f-asignado');
+  var vA=selA.value;
   selA.innerHTML='<option value="ALL">Todos</option>'+asigs.map(a=>'<option>'+a+'</option>').join('');
-  selC.value=vC; selA.value=vA;
+  selA.value=vA;
 }
 
 function filteredActividades(){
@@ -1956,10 +1958,11 @@ function filteredActividades(){
 
 function actEstadoBadge(estado){
   var e=norm(estado);
-  var color='#94a3b8', bg='#f1f5f9';
-  if(e.includes('completad')){color='#15803d';bg='#dcfce7';}
-  else if(e.includes('curso')){color='#b45309';bg='#fef3c7';}
-  else if(e.includes('comenzar')||e.includes('sin')){color='#64748b';bg='#f1f5f9';}
+  var color='#1d4ed8', bg='#dbeafe';  // default sin comenzar: azul claro / letra azul
+  if(e.includes('completad')){color='#15803d';bg='#dcfce7';}           // verde
+  else if(e.includes('curso')){color='#1a1a1a';bg='#fb923c';}          // naranja, letra negra
+  else if(e.includes('reprogramad')){color='#ffffff';bg='#2563eb';}    // azul, letra blanca
+  else if(e.includes('comenzar')||e.includes('sin')){color='#1d4ed8';bg='#dbeafe';} // azul claro, letra azul
   return '<span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;color:'+color+';background:'+bg+'">'+(estado||'—')+'</span>';
 }
 
@@ -1971,7 +1974,6 @@ function renderActividades(){
   var canEdit=_session&&['admin','editor'].includes(_session.rol);
   if(!arr.length){document.getElementById('actividades-table').innerHTML='<div class="empty" style="padding:30px">Sin actividades. '+(canEdit?'Crea una con "Nueva actividad".':'')+'</div>';return;}
   var rows=arr.map(function(a){
-    var pct=a.cumplimiento!=null?(Math.round(a.cumplimiento*(a.cumplimiento<=1?100:1))+'%'):'—';
     return '<tr>'+
       '<td>'+(a.mes||'—')+'</td>'+
       '<td style="min-width:200px"><b>'+(a.actividad||'—')+'</b>'+(a.programada?'':' <span style="font-size:9px;color:#dc2626;font-weight:700">NO PROG.</span>')+'</td>'+
@@ -1982,13 +1984,13 @@ function renderActividades(){
       '<td>'+fmtActFecha(a.estFin)+'</td>'+
       '<td>'+fmtActFecha(a.realInicio)+'</td>'+
       '<td>'+fmtActFecha(a.realFin)+'</td>'+
-      '<td style="text-align:center">'+pct+'</td>'+
+      '<td style="text-align:center">'+(a.durReal!=null?a.durReal:'—')+'</td>'+
       '<td class="cell-c">'+(canEdit?'<button class="icon-btn" onclick="openActividad(\''+a.id+'\')">✎</button>':'<span style="color:var(--border)">—</span>')+'</td>'+
     '</tr>';
   }).join('');
   document.getElementById('actividades-table').innerHTML=
     '<table class="dt"><thead><tr><th>Mes</th><th>Actividad/Proyecto</th><th>Estado</th><th>Categoría</th><th>Asignado</th>'+
-    '<th>Est.Inicio</th><th>Est.Fin</th><th>Real Inicio</th><th>Real Fin</th><th>Cumpl.</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>';
+    '<th>Est.Inicio</th><th>Est.Fin</th><th>Real Inicio</th><th>Real Fin</th><th>Dur.real</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>';
 }
 
 function openActividadIfAllowed(id){
@@ -2001,25 +2003,23 @@ function openActividadIfAllowed(id){
 function openActividad(id){
   var a=id?ACTIVIDADES.find(x=>String(x.id)===String(id)):null;
   var isNew=!a;
-  if(!a)a={mes:'',actividad:'',estado:'Sin comenzar',categoria:'',asignado:'',estInicio:'',estFin:'',durEstimada:'',realInicio:'',realFin:'',cumplimiento:'',durReal:'',pctAdicional:'',cumplFechaInicio:'',variacionDias:'',comentario:'',apoyos:'',programada:true};
+  if(!a)a={mes:'',actividad:'',estado:'Sin comenzar',categoria:'',asignado:'',estInicio:'',estFin:'',durEstimada:'',realInicio:'',realFin:'',durReal:'',comentario:'',apoyos:'',programada:true};
   function di(d){if(!d)return'';var x=fromISO(d);return x?fmtInput(x):'';}
   var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  var cats=['Evaluacion','Auditoria','Entrega','Inventario','Apoyo Juridico','Apoyo a RH'];
+  var estados=['Completado','En curso','Reprogramado','Sin comenzar'];
   var body='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
     '<div class="fg" style="grid-column:1/3"><label>Actividad / Proyecto *</label><input id="a-actividad" value="'+esc(a.actividad)+'" placeholder="Nombre de la actividad"></div>'+
     '<div class="fg"><label>Mes</label><select id="a-mes">'+['<option value="">—</option>'].concat(meses.map(m=>'<option'+(norm(a.mes)===norm(m)?' selected':'')+'>'+m+'</option>')).join('')+'</select></div>'+
-    '<div class="fg"><label>Estado</label><select id="a-estado">'+['Completado','En curso','Sin comenzar'].map(e=>'<option'+(norm(a.estado)===norm(e)?' selected':'')+'>'+e+'</option>').join('')+'</select></div>'+
-    '<div class="fg"><label>Categoría</label><input id="a-categoria" value="'+esc(a.categoria)+'" placeholder="Auditoría, Revisión..."></div>'+
+    '<div class="fg"><label>Estado</label><select id="a-estado">'+estados.map(e=>'<option'+(norm(a.estado)===norm(e)?' selected':'')+'>'+e+'</option>').join('')+'</select></div>'+
+    '<div class="fg"><label>Categoría</label><select id="a-categoria"><option value="">—</option>'+cats.map(c=>'<option'+(norm(a.categoria)===norm(c)?' selected':'')+'>'+c+'</option>').join('')+'</select></div>'+
     '<div class="fg"><label>Asignado a</label><input id="a-asignado" value="'+esc(a.asignado)+'" placeholder="Nombre"></div>'+
-    '<div class="fg"><label>Estimado Inicio</label><input type="date" id="a-estinicio" value="'+di(a.estInicio)+'"></div>'+
-    '<div class="fg"><label>Estimado Finalización</label><input type="date" id="a-estfin" value="'+di(a.estFin)+'"></div>'+
-    '<div class="fg"><label>Duración estimada (días)</label><input type="number" id="a-durest" value="'+(a.durEstimada!=null?a.durEstimada:'')+'"></div>'+
-    '<div class="fg"><label>Real Inicio</label><input type="date" id="a-realinicio" value="'+di(a.realInicio)+'"></div>'+
-    '<div class="fg"><label>Real Finalización</label><input type="date" id="a-realfin" value="'+di(a.realFin)+'"></div>'+
-    '<div class="fg"><label>Duración real (días)</label><input type="number" id="a-durreal" value="'+(a.durReal!=null?a.durReal:'')+'"></div>'+
-    '<div class="fg"><label>Cumplimiento %</label><input type="number" step="0.01" id="a-cumpl" value="'+(a.cumplimiento!=null?a.cumplimiento:'')+'" placeholder="0-100"></div>'+
-    '<div class="fg"><label>% adicional utilizado</label><input type="number" step="0.01" id="a-pctad" value="'+(a.pctAdicional!=null?a.pctAdicional:'')+'"></div>'+
-    '<div class="fg"><label>Cumpl. en fecha inicio</label><input id="a-cumplfi" value="'+esc(a.cumplFechaInicio)+'"></div>'+
-    '<div class="fg"><label>Variación días inicio</label><input type="number" id="a-variacion" value="'+(a.variacionDias!=null?a.variacionDias:'')+'"></div>'+
+    '<div class="fg"><label>Estimado Inicio</label><input type="date" id="a-estinicio" value="'+di(a.estInicio)+'" oninput="calcDurEst()"></div>'+
+    '<div class="fg"><label>Estimado Finalización</label><input type="date" id="a-estfin" value="'+di(a.estFin)+'" oninput="calcDurEst()"></div>'+
+    '<div class="fg"><label>Duración estimada (días)</label><input type="number" id="a-durest" value="'+(a.durEstimada!=null?a.durEstimada:'')+'" readonly style="background:#f1f5f9"></div>'+
+    '<div class="fg"><label>Real Inicio</label><input type="date" id="a-realinicio" value="'+di(a.realInicio)+'" oninput="calcDurReal()"></div>'+
+    '<div class="fg"><label>Real Finalización</label><input type="date" id="a-realfin" value="'+di(a.realFin)+'" oninput="calcDurReal()"></div>'+
+    '<div class="fg"><label>Duración real (días)</label><input type="number" id="a-durreal" value="'+(a.durReal!=null?a.durReal:'')+'" readonly style="background:#f1f5f9"></div>'+
     '<div class="fg" style="grid-column:1/3"><label>Comentario</label><input id="a-comentario" value="'+esc(a.comentario)+'"></div>'+
     '<div class="fg" style="grid-column:1/3"><label>Apoyos requeridos</label><input id="a-apoyos" value="'+esc(a.apoyos)+'"></div>'+
     '<label style="grid-column:1/3;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--txt)"><input type="checkbox" id="a-programada"'+(a.programada?' checked':'')+'> Actividad programada (desmarcar si es NO PROGRAMADA)</label>'+
@@ -2027,6 +2027,23 @@ function openActividad(id){
   var foot=[{label:isNew?'Crear':'Guardar',cls:'btn-blue',fn:function(){saveActividad(a.id,isNew);}}];
   if(!isNew&&_session&&_session.rol==='admin')foot.push({label:'Eliminar',cls:'btn-red',fn:function(){deleteActividad(a.id);}});
   openModal(isNew?'➕ Nueva actividad':'✎ Editar actividad',body,foot);
+}
+
+/* Calcula días entre dos fechas (inclusive) */
+function calcDias(d1,d2){
+  if(!d1||!d2)return '';
+  var a=fromISO(d1), b=fromISO(d2);
+  if(!a||!b)return '';
+  var diff=Math.round((b-a)/(1000*60*60*24));
+  return diff>=0?diff:'';
+}
+function calcDurEst(){
+  var v=calcDias(document.getElementById('a-estinicio').value,document.getElementById('a-estfin').value);
+  document.getElementById('a-durest').value=v;
+}
+function calcDurReal(){
+  var v=calcDias(document.getElementById('a-realinicio').value,document.getElementById('a-realfin').value);
+  document.getElementById('a-durreal').value=v;
 }
 
 async function saveActividad(id,isNew){
@@ -2037,13 +2054,10 @@ async function saveActividad(id,isNew){
   var row={
     actividad:actividad, mes:document.getElementById('a-mes').value||null,
     estado:document.getElementById('a-estado').value||null,
-    categoria:document.getElementById('a-categoria').value.trim()||null,
+    categoria:document.getElementById('a-categoria').value||null,
     asignado:document.getElementById('a-asignado').value.trim()||null,
     est_inicio:dv('a-estinicio'), est_fin:dv('a-estfin'), dur_estimada:nv('a-durest'),
     real_inicio:dv('a-realinicio'), real_fin:dv('a-realfin'), dur_real:nv('a-durreal'),
-    cumplimiento:nv('a-cumpl'), pct_adicional:nv('a-pctad'),
-    cumpl_fecha_inicio:document.getElementById('a-cumplfi').value.trim()||null,
-    variacion_dias:nv('a-variacion'),
     comentario:document.getElementById('a-comentario').value.trim()||null,
     apoyos:document.getElementById('a-apoyos').value.trim()||null,
     programada:document.getElementById('a-programada').checked
