@@ -520,18 +520,18 @@ table.dt tbody tr:last-child td{border-bottom:none}
         <div class="card">
           <div class="card-hdr"><div class="card-title"><span class="ct-dot" style="background:var(--blue)"></span>Tendencia de % cumplimiento</div>
             <span class="card-note" id="trend-note"></span></div>
-          <div class="chart-wrap"><canvas id="chart-trend"></canvas></div>
+          <div class="chart-wrap" data-canvas="chart-trend"><canvas id="chart-trend"></canvas></div>
         </div>
         <div class="card">
           <div class="card-hdr"><div class="card-title"><span class="ct-dot" style="background:var(--teal)"></span>Resueltas vs Pendientes por período</div></div>
-          <div class="chart-wrap"><canvas id="chart-respend"></canvas></div>
+          <div class="chart-wrap" data-canvas="chart-respend"><canvas id="chart-respend"></canvas></div>
         </div>
       </div>
 
       <div class="grid2">
         <div class="card">
           <div class="card-hdr"><div class="card-title"><span class="ct-dot" style="background:var(--orange)"></span>% Cumplimiento por centro</div></div>
-          <div class="chart-wrap"><canvas id="chart-centro"></canvas></div>
+          <div class="chart-wrap" data-canvas="chart-centro"><canvas id="chart-centro"></canvas></div>
         </div>
         <div class="card">
           <div class="card-hdr"><div class="card-title"><span class="ct-dot" style="background:var(--teal)"></span>Distribución de estado de tareas</div></div>
@@ -1308,6 +1308,30 @@ function saveKpiCfg(){
 }
 
 function destroyChart(id){if(charts[id]){charts[id].destroy();charts[id]=null;}}
+/* Garantiza que el canvas exista; lo recrea si fue destruido por un "empty" previo */
+function ensureCanvas(canvasId){
+  var cv=document.getElementById(canvasId);
+  if(cv)return cv;
+  /* Buscar el chart-wrap que originalmente contenía este canvas */
+  var wraps=document.querySelectorAll('.chart-wrap');
+  for(var i=0;i<wraps.length;i++){
+    if(wraps[i].getAttribute('data-canvas')===canvasId){
+      wraps[i].innerHTML='<canvas id="'+canvasId+'"></canvas>';
+      return document.getElementById(canvasId);
+    }
+  }
+  return null;
+}
+/* Muestra mensaje vacío SIN destruir el canvas permanentemente */
+function showEmpty(canvasId,msg){
+  var cv=document.getElementById(canvasId);
+  var wrap=cv?cv.parentElement:null;
+  if(!wrap){
+    var wraps=document.querySelectorAll('.chart-wrap');
+    for(var i=0;i<wraps.length;i++){if(wraps[i].getAttribute('data-canvas')===canvasId){wrap=wraps[i];break;}}
+  }
+  if(wrap)wrap.innerHTML='<div class="empty">'+msg+'</div>';
+}
 
 function renderTrend(aud){
   const f=getFilterState();
@@ -1324,10 +1348,9 @@ function renderTrend(aud){
   const data=ord.map(b=>Math.round(b.s/b.n*100));
   document.getElementById('trend-note').textContent=ord.length?`${ord.length} período(s)`:'';
   destroyChart('trend');
-  const ctx=document.getElementById('chart-trend');
+  if(!labels.length){showEmpty('chart-trend','Sin auditorías en el rango seleccionado.');return;}
+  const ctx=ensureCanvas('chart-trend');
   if(!ctx){return;}
-  if(!labels.length){ctx.parentElement.innerHTML='<div class="empty">Sin auditorías en el rango seleccionado.</div>';return;}
-  if(!document.getElementById('chart-trend')){document.querySelector('#view-dash .chart-wrap').innerHTML='<canvas id="chart-trend"></canvas>';}
   charts.trend=new Chart(ctx,{type:'line',
     data:{labels,datasets:[{data,borderColor:'#2563eb',backgroundColor:'rgba(37,99,235,.12)',
       fill:true,tension:.35,pointRadius:5,pointBackgroundColor:'#2563eb',borderWidth:2.5}]},
@@ -1346,9 +1369,9 @@ function renderResPend(tareas){
   const ord=Object.values(buckets).sort((a,b)=>a.sort-b.sort);
   const labels=ord.map(b=>b.lbl);
   destroyChart('respend');
-  const ctx=document.getElementById('chart-respend');
+  if(!labels.length){showEmpty('chart-respend','Sin tareas en el rango seleccionado.');return;}
+  const ctx=ensureCanvas('chart-respend');
   if(!ctx){return;}
-  if(!labels.length){ctx.parentElement.innerHTML='<div class="empty">Sin tareas en el rango seleccionado.</div>';return;}
   charts.respend=new Chart(ctx,{type:'bar',
     data:{labels,datasets:[
       {label:'Resueltas',data:ord.map(b=>b.res),backgroundColor:'#16a34a',borderRadius:5,stack:'a'},
@@ -1364,9 +1387,9 @@ function renderCentro(aud){
   aud.forEach(a=>{const k=a.centro||a.tienda||'—';if(!byC[k])byC[k]={s:0,n:0};byC[k].s+=a.pctCumpl;byC[k].n++;});
   const ent=Object.entries(byC).map(([k,d])=>({k,v:Math.round(d.s/d.n*100)})).sort((a,b)=>b.v-a.v);
   destroyChart('centro');
-  const ctx=document.getElementById('chart-centro');
+  if(!ent.length){showEmpty('chart-centro','Sin datos.');return;}
+  const ctx=ensureCanvas('chart-centro');
   if(!ctx){return;}
-  if(!ent.length){ctx.parentElement.innerHTML='<div class="empty">Sin datos.</div>';return;}
   charts.centro=new Chart(ctx,{type:'bar',
     data:{labels:ent.map(e=>e.k),datasets:[{data:ent.map(e=>e.v),
       backgroundColor:ent.map(e=>e.v>=70?'#16a34a':e.v>=50?'#d97706':'#dc2626'),borderRadius:6}]},
