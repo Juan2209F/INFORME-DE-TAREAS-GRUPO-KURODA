@@ -444,6 +444,7 @@ table.dt tbody tr:last-child td{border-bottom:none}
       <div class="stat"><b id="ds-pend">0</b><span>Pendientes</span></div>
       <div class="filters-spacer"></div>
       <span id="staged-box"></span>
+      <button class="btn btn-ghost" id="btn-recargar" onclick="recargarDatos()" title="Traer los últimos cambios desde Supabase">🔄 Recargar</button>
       <button class="btn btn-ghost" id="btn-cargar-excel" onclick="openFileIfAllowed()">📂 Cargar Excel</button>
       <button class="btn btn-blue" id="btn-generar" onclick="generarImport()" disabled>⚙ Generar / Combinar</button>
       <input type="file" id="file-input" accept=".xlsx,.xls" multiple onchange="stageFiles(this.files)">
@@ -640,17 +641,10 @@ const MESES=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','
 /* ════════════════════════════════════════════════════════════════════
    PERSISTENCIA (localStorage — acumula entre sesiones)
 ════════════════════════════════════════════════════════════════════ */
-function saveStore(){
-  try{localStorage.setItem(LS_KEY,JSON.stringify(STORE));}
-  catch(e){toast('⚠ No se pudo guardar: '+e.message);}
-}
-function loadStore(){
-  try{
-    const raw=localStorage.getItem(LS_KEY);
-    if(raw){STORE=JSON.parse(raw);if(!STORE.auditorias)STORE.auditorias=[];if(!STORE.tareas)STORE.tareas=[];return true;}
-  }catch(e){}
-  return false;
-}
+/* Datos NO se persisten en localStorage — la fuente de verdad es Supabase.
+   STORE solo vive en memoria durante la sesión para renderizar el dashboard. */
+function saveStore(){ /* no-op: los datos viven en Supabase, no en localStorage */ }
+function loadStore(){ return false; /* sin caché local de datos */ }
 function confirmWipe(){
   openConfirm('🗑️ Borrar datos guardados',
     `Se eliminarán <b>${STORE.tareas.length} tareas</b> y <b>${STORE.auditorias.length} auditorías</b> guardadas en este navegador. Esta acción no se puede deshacer.`,
@@ -835,71 +829,177 @@ function clearStaged(){STAGED={auditorias:[],tareas:[],files:[]};renderStaged();
 
 function audKey(a){return [norm(a.razon),norm(a.centro),norm(a.tienda),a.fecha||'',norm(a.clase)].join('|');}
 
-function generarImport(){
+async function generarImport(){
   if(!STAGED.tareas.length&&!STAGED.auditorias.length){toast('No hay datos en cola para generar');return;}
-  // detectar duplicados de TAREAS por ID
-  const existIds=new Set(STORE.tareas.map(t=>String(t.id)));
-  const dupTareas=STAGED.tareas.filter(t=>existIds.has(String(t.id)));
-  // detectar duplicados de AUDITORÍAS por clave compuesta
-  const existAud=new Set(STORE.auditorias.map(audKey));
-  const dupAud=STAGED.auditorias.filter(a=>existAud.has(audKey(a)));
+  var client=getSbClient();
+  if(!client){toast('⚠ Sin conexión a Supabase. No se puede validar.');return;}
 
-  if(dupTareas.length||dupAud.length){
-    askDuplicates(dupTareas,dupAud);
-  }else{
-    commitImport('replace'); // sin duplicados, simplemente añade
+  toast('⏳ Validando contra Supabase…');
+
+  /* ── Traer registros existentes de Supabase por ID ── */
+  var stagedIds=STAGED.tareas.map(function(t){return String(t.id);}).filter(Boolean);
+  var existentes={};
+  try{
+    /* Buscar en chunks de 200 IDs */
+    for(var i=0;i<stagedIds.length;i+=200){
+      var chunk=stagedIds.slice(i,i+200);
+      var r=await client.from('tareas').select('*').in('tarea_id',chunk);
+      if(r.error){toast('⚠ Error consultando Supabase: '+r.error.message);return;}
+      (r.data||[]).forEach(function(row){existentes[String(row.tarea_id)]=row;});
+    }
+  }catch(e){toast('⚠ Error: '+e.message);return;}
+
+  /* ── Clasificar cada tarea staged ── */
+  var nuevas=[], idénticas=[], diferentes=[];
+  STAGED.tareas.forEach(function(t){
+    var id=String(t.id);
+    var ex=existentes[id];
+    if(!ex){nuevas.push(t);return;}
+    /* Comparar campo por campo */
+    if(tareaIgualSupabase(t,ex)){idénticas.push(t);}
+    else{diferentes.push({nueva:t,actual:ex});}
+  });
+
+  /* ── Auditorías: validar por clave compuesta ── */
+  var audStaged=STAGED.auditorias.slice();
+
+  /* ── Si hay diferencias, pedir permiso ── */
+  if(diferentes.length>0){
+    askUpdatePermission(nuevas, idénticas, diferentes, audStaged);
+  } else {
+    /* Solo insertar nuevas, omitir idénticas */
+    await commitToSupabase(nuevas, [], audStaged, idénticas.length);
   }
 }
 
-function askDuplicates(dupTareas,dupAud){
-  const list=dupTareas.slice(0,12).map(t=>`<tr><td><b>${t.id}</b></td><td>${t.tienda}</td><td class="tsub">${(t.nombre||'').slice(0,46)}</td></tr>`).join('');
-  const moreT=dupTareas.length>12?`<div class="tsub" style="padding:6px 12px">…y ${dupTareas.length-12} más</div>`:'';
-  const html=`
-    <p style="font-size:13.5px;color:var(--txt);margin-bottom:14px">
-      Se encontraron registros que ya existen en los datos guardados.
-      Decide qué hacer con los <b>IDs duplicados</b>:</p>
-    <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:16px">
-      <div class="stat" style="border:none"><b style="color:var(--orange);font-size:22px">${dupTareas.length}</b>
-        <span style="font-size:11px;color:var(--muted)">tareas con ID repetido</span></div>
-      <div class="stat" style="border:none"><b style="color:var(--orange);font-size:22px">${dupAud.length}</b>
-        <span style="font-size:11px;color:var(--muted)">auditorías repetidas</span></div>
-    </div>
-    ${dupTareas.length?`<div class="tbl-scroll"><table class="dt" style="min-width:0">
-      <thead><tr><th>ID</th><th>Sucursal</th><th>Tarea</th></tr></thead><tbody>${list}</tbody></table></div>${moreT}`:''}
-    <p style="font-size:12px;color:var(--muted);margin-top:14px">
-      <b style="color:var(--blue)">Reemplazar</b>: los nuevos pisan a los existentes ·
-      <b style="color:var(--orange)">Omitir</b>: se conservan los actuales y se ignoran los repetidos.
-      Los registros <b>nuevos (sin duplicar)</b> siempre se agregan.</p>`;
-  openModal('🔀 IDs duplicados — ¿qué hacemos?',html,[
-    {label:'Omitir duplicados',cls:'btn-orange',fn:()=>commitImport('skip')},
-    {label:'Reemplazar duplicados',cls:'btn-blue',fn:()=>commitImport('replace')}
+/* Compara una tarea staged con la fila de Supabase — true si son idénticas */
+function tareaIgualSupabase(t, ex){
+  function n(v){return (v===null||v===undefined||v==='')?'':String(v).trim();}
+  function fdate(v){return v?String(v).split('T')[0]:'';}
+  return n(t.razon)===n(ex.razon) &&
+         n(t.centro)===n(ex.centro) &&
+         n(t.tienda)===n(ex.tienda) &&
+         n(t.areaResp)===n(ex.area_resp) &&
+         n(t.areaRev)===n(ex.area_rev) &&
+         n(t.actividad)===n(ex.actividad) &&
+         n(t.nombre)===n(ex.nombre) &&
+         n(t.tipoTarea)===n(ex.tipo_tarea) &&
+         n(t.estado)===n(ex.estado) &&
+         fdate(t.fechaCreacion)===fdate(ex.fecha_creacion) &&
+         fdate(t.fechaTerm)===fdate(ex.fecha_term) &&
+         fdate(t.fechaCumpl)===fdate(ex.fecha_cumpl);
+}
+
+/* Lista qué campos cambiaron entre staged y Supabase */
+function camposDiferentes(t, ex){
+  function n(v){return (v===null||v===undefined||v==='')?'':String(v).trim();}
+  function fdate(v){return v?String(v).split('T')[0]:'';}
+  var campos=[];
+  if(n(t.estado)!==n(ex.estado))campos.push('Estado: "'+n(ex.estado)+'" → "'+n(t.estado)+'"');
+  if(fdate(t.fechaCumpl)!==fdate(ex.fecha_cumpl))campos.push('F.Cumplimiento: "'+fdate(ex.fecha_cumpl)+'" → "'+fdate(t.fechaCumpl)+'"');
+  if(fdate(t.fechaTerm)!==fdate(ex.fecha_term))campos.push('F.Término: "'+fdate(ex.fecha_term)+'" → "'+fdate(t.fechaTerm)+'"');
+  if(n(t.nombre)!==n(ex.nombre))campos.push('Nombre cambió');
+  if(n(t.areaResp)!==n(ex.area_resp))campos.push('Área Resp. cambió');
+  if(n(t.tienda)!==n(ex.tienda))campos.push('Tienda cambió');
+  if(!campos.length)campos.push('Otros campos');
+  return campos;
+}
+
+function askUpdatePermission(nuevas, idénticas, diferentes, audStaged){
+  var rows=diferentes.slice(0,10).map(function(d){
+    var difs=camposDiferentes(d.nueva, d.actual);
+    return '<tr><td><b>'+d.nueva.id+'</b></td><td>'+(d.nueva.tienda||'')+'</td>'+
+           '<td class="tsub" style="font-size:11px">'+difs.join('<br>')+'</td></tr>';
+  }).join('');
+  var more=diferentes.length>10?'<div class="tsub" style="padding:6px 12px">…y '+(diferentes.length-10)+' más</div>':'';
+
+  var html='<p style="font-size:13.5px;color:var(--txt);margin-bottom:14px">'+
+    'Validación contra <b>Supabase</b> completada:</p>'+
+    '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:16px">'+
+      '<div class="stat" style="border:none"><b style="color:var(--green);font-size:22px">'+nuevas.length+'</b><span style="font-size:11px;color:var(--muted)">nuevas (se agregarán)</span></div>'+
+      '<div class="stat" style="border:none"><b style="color:var(--muted);font-size:22px">'+idénticas.length+'</b><span style="font-size:11px;color:var(--muted)">idénticas (se omiten)</span></div>'+
+      '<div class="stat" style="border:none"><b style="color:var(--orange);font-size:22px">'+diferentes.length+'</b><span style="font-size:11px;color:var(--muted)">con cambios</span></div>'+
+    '</div>'+
+    '<p style="font-size:12.5px;color:var(--txt);margin-bottom:8px"><b>Tareas que YA existen en Supabase con cambios:</b></p>'+
+    '<div class="tbl-scroll"><table class="dt" style="min-width:0"><thead><tr><th>ID</th><th>Sucursal</th><th>Cambios detectados</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+more+
+    '<p style="font-size:12px;color:var(--muted);margin-top:14px">'+
+      '<b style="color:var(--orange)">Actualizar</b>: aplica los cambios a las tareas existentes · '+
+      '<b style="color:var(--muted)">Solo nuevas</b>: ignora los cambios y conserva lo que ya está en Supabase.</p>';
+
+  openModal('🔄 Tareas existentes con cambios', html, [
+    {label:'Solo agregar nuevas',cls:'btn-ghost',fn:function(){commitToSupabase(nuevas,[],audStaged,idénticas.length);}},
+    {label:'Actualizar las que cambiaron',cls:'btn-orange',fn:function(){commitToSupabase(nuevas,diferentes.map(function(d){return d.nueva;}),audStaged,idénticas.length);}}
   ]);
-  document.querySelector('#modal-title b')&&(document.querySelector('#modal-title b').style.color='var(--orange)');
 }
 
-function commitImport(mode){
-  // TAREAS
-  const byId=new Map(STORE.tareas.map(t=>[String(t.id),t]));
-  let added=0,replaced=0,skipped=0;
-  STAGED.tareas.forEach(t=>{
-    const k=String(t.id);
-    if(byId.has(k)){
-      if(mode==='replace'){byId.set(k,t);replaced++;}else{skipped++;}
-    }else{byId.set(k,t);added++;}
-  });
-  STORE.tareas=[...byId.values()];
-  // AUDITORÍAS
-  const byKey=new Map(STORE.auditorias.map(a=>[audKey(a),a]));
-  STAGED.auditorias.forEach(a=>{
-    const k=audKey(a);
-    if(byKey.has(k)){if(mode==='replace')byKey.set(k,a);}else{byKey.set(k,a);}
-  });
-  STORE.auditorias=[...byKey.values()];
-  saveStore();clearStaged();closeModal();refreshAll();
-  syncToSupabase({auditorias:STORE.auditorias,tareas:STORE.tareas});
-  toast(`✓ Combinado: ${added} nuevas · ${replaced} reemplazadas · ${skipped} omitidas`);
+async function commitToSupabase(nuevas, actualizar, audStaged, omitidas){
+  var client=getSbClient();
+  if(!client){toast('⚠ Sin conexión a Supabase');return;}
+  closeModal();
+  toast('⏳ Guardando en Supabase…');
+
+  var insOk=0, updOk=0, audOk=0, err=null;
+
+  function toRow(t){return{
+    tarea_id:String(t.id),razon:t.razon||null,centro:t.centro||null,tienda:t.tienda||null,
+    area_resp:t.areaResp||null,area_rev:t.areaRev||null,actividad:t.actividad||null,
+    nombre:t.nombre||null,tipo_tarea:t.tipoTarea||null,estado:t.estado||null,
+    fecha_creacion:t.fechaCreacion?String(t.fechaCreacion).split('T')[0]:null,
+    fecha_term:t.fechaTerm?String(t.fechaTerm).split('T')[0]:null,
+    fecha_cumpl:t.fechaCumpl?String(t.fechaCumpl).split('T')[0]:null
+  };}
+
+  try{
+    /* INSERT nuevas */
+    if(nuevas.length){
+      var rows=nuevas.map(toRow);
+      for(var i=0;i<rows.length;i+=500){
+        var r=await client.from('tareas').insert(rows.slice(i,i+500));
+        if(r.error){err='Insert: '+r.error.message;break;}
+        insOk+=Math.min(500,rows.length-i);
+      }
+    }
+    /* UPDATE las que cambiaron (con permiso) */
+    if(!err&&actualizar.length){
+      for(var j=0;j<actualizar.length;j++){
+        var row=toRow(actualizar[j]);
+        var ru=await client.from('tareas').update(row).eq('tarea_id',row.tarea_id);
+        if(ru.error){err='Update: '+ru.error.message;break;}
+        updOk++;
+      }
+    }
+    /* Auditorías — upsert por clave compuesta */
+    if(!err&&audStaged.length){
+      var arows=audStaged.filter(Boolean).map(function(a){return{
+        razon:a.razon||null,centro:a.centro||null,tienda:a.tienda||null,
+        fecha:a.fecha?String(a.fecha).split('T')[0]:null,mes:a.mes||null,
+        pct_cumpl:parseFloat(a.pctCumpl)||0,tareas:parseInt(a.tareas)||0,
+        pendientes:parseInt(a.pendientes)||0,resueltas:parseInt(a.resueltas)||0,
+        pct_resuelto:parseFloat(a.pctResuelto)||0,clase:a.clase||null
+      };});
+      var ra=await client.from('auditorias').upsert(arows,{onConflict:'razon,centro,tienda,fecha',ignoreDuplicates:false});
+      if(ra.error)err='Aud: '+ra.error.message;
+      else audOk=arows.length;
+    }
+  }catch(e){err=e.message;}
+
+  clearStaged();
+  if(err){toast('⚠ '+err);return;}
+
+  /* Recargar datos frescos desde Supabase */
+  await loadDataFromSupabase();
+  toast('✓ '+insOk+' nuevas · '+updOk+' actualizadas · '+omitidas+' omitidas (idénticas)');
 }
 
+/* Helper: obtener cliente Supabase */
+function getSbClient(){
+  if(_sb)return _sb;
+  try{return supabase.createClient(SB_URL,SB_KEY,{
+    auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
+    realtime:{enabled:false},
+    global:{headers:{'x-client-info':'monitor-cumplimiento'}}
+  });}catch(e){return null;}
+}
 /* ════════════════════════════════════════════════════════════════════
    FILTROS
 ════════════════════════════════════════════════════════════════════ */
@@ -1475,6 +1575,18 @@ async function syncTaskToSupabase(rec, isNew){
   try{
     var ru, ri;
     if(!isNew){
+      /* ── CONTROL DE CONCURRENCIA ──
+         Verificar si la tarea fue modificada por otro usuario desde que la cargamos */
+      if(rec.sb_uuid&&rec.sb_updated){
+        var cc=await client.from('tareas').select('updated_at').eq('id',rec.sb_uuid).single();
+        if(cc.data&&cc.data.updated_at&&cc.data.updated_at!==rec.sb_updated){
+          var ok=confirm('⚠ Esta tarea fue modificada por otro usuario mientras la editabas.\n\n¿Deseas sobrescribir esos cambios con los tuyos?\n\n(Cancelar = conservar los cambios del otro usuario)');
+          if(!ok){
+            toast('↩ Cambios descartados. Recarga para ver la versión actual.');
+            return;
+          }
+        }
+      }
       /* Try UPDATE by sb_uuid first (most reliable), fallback to tarea_id */
       if(rec.sb_uuid){
         ru=await client.from('tareas').update(row).eq('id',rec.sb_uuid);
@@ -1727,14 +1839,9 @@ function setView(v){
    ARRANQUE  (carga datos guardados o semilla del Excel)
 ════════════════════════════════════════════════════════════════════ */
 (function init(){
-  const had=loadStore();
-  if(!had||(!STORE.tareas.length&&!STORE.auditorias.length)){
-    try{
-      const seed=JSON.parse(document.getElementById('seed-data').textContent);
-      STORE.auditorias=seed.auditorias||[];STORE.tareas=seed.tareas||[];syncToSupabase(seed);
-      saveStore();
-    }catch(e){}
-  }
+  /* No cargar seed ni localStorage al arrancar.
+     Los datos se cargan desde Supabase tras el login. */
+  STORE={auditorias:[],tareas:[]};
   refreshAll();
 })();
 /* ════════════════════════════════════════════════════════════════════
@@ -2089,8 +2196,10 @@ function onLoginSuccess(){
   const el=document.getElementById('topbar-user');
   if(el&&_session) el.textContent=_session.nombre||_session.username;
   checkAdminUI();
+  /* Siempre cargar desde Supabase — nunca localStorage */
+  if(!_sb)_sb=initSupabase();
   if(_sb) loadDataFromSupabase();
-  else { loadStore(); refreshAll(); setPill('offline'); }
+  else { STORE={auditorias:[],tareas:[]}; refreshAll(); setPill('offline'); toast('⚠ Sin conexión a Supabase'); }
 }
 
 function doLogout(){
@@ -2102,8 +2211,16 @@ function doLogout(){
 }
 
 /* ── carga datos desde Supabase ── */
+async function recargarDatos(){
+  var btn=document.getElementById('btn-recargar');
+  if(!_sb)_sb=initSupabase();
+  if(!_sb){toast('⚠ Sin conexión a Supabase');return;}
+  if(btn){btn.disabled=true;btn.textContent='⏳ Recargando…';}
+  await loadDataFromSupabase();
+  if(btn){btn.disabled=false;btn.textContent='🔄 Recargar';}
+}
 async function loadDataFromSupabase(){
-  if(!_sb){loadStore();refreshAll();return;}
+  if(!_sb){STORE={auditorias:[],tareas:[]};refreshAll();return;}
   try{
     toast('⏳ Cargando datos…');
     const [{data:aud},{data:tar}]=await Promise.all([
@@ -2119,18 +2236,18 @@ async function loadDataFromSupabase(){
       clase:a.clase||''
     };});
     if(tar) STORE.tareas=tar.map(function(t){return{
-      id:t.tarea_id||t.id,sb_uuid:t.id,razon:t.razon||'',centro:t.centro||'',
+      id:t.tarea_id||t.id,sb_uuid:t.id,sb_updated:t.updated_at||null,razon:t.razon||'',centro:t.centro||'',
       tienda:t.tienda||'',areaResp:t.area_resp||'',areaRev:t.area_rev||'',
       actividad:t.actividad||'',nombre:t.nombre||'',tipoTarea:t.tipo_tarea||'',
       estado:t.estado||'',
       fechaCreacion:t.fecha_creacion,fechaTerm:t.fecha_term,fechaCumpl:t.fecha_cumpl
     };});
-    saveStore();refreshAll();
+    refreshAll();
     setPill('supabase');toast('✓ Conectado a Supabase — '+STORE.tareas.length+' tareas, '+STORE.auditorias.length+' auditorías');
   }catch(e){
     console.warn('Error cargando Supabase:',e);
-    loadStore();refreshAll();
-    setPill('offline');toast('⚠ Sin conexión a Supabase, usando caché local');
+    STORE={auditorias:[],tareas:[]};refreshAll();
+    setPill('offline');toast('⚠ Error cargando datos de Supabase: '+e.message);
   }
 }
 
@@ -2157,7 +2274,7 @@ async function syncToSupabase(parsed){
         clase:a.clase||null,upload_id:upload_id
       };});
       if(arows.length){
-        var ar=await client.from('auditorias').insert(arows);
+        var ar=await client.from('auditorias').upsert(arows,{onConflict:'razon,centro,tienda,fecha',ignoreDuplicates:false});
         if(ar.error)errMsg='Aud: '+ar.error.message;
         else audOk=arows.length;
       }
@@ -2175,7 +2292,7 @@ async function syncToSupabase(parsed){
         upload_id:upload_id
       };});
       for(var ci=0;ci<trows.length;ci+=500){
-        var tr=await client.from('tareas').insert(trows.slice(ci,ci+500));
+        var tr=await client.from('tareas').upsert(trows.slice(ci,ci+500),{onConflict:'tarea_id',ignoreDuplicates:false});
         if(tr.error){errMsg=(errMsg?errMsg+' | ':'')+'Tar: '+tr.error.message;break;}
         tarOk+=Math.min(500,trows.length-ci);
       }
