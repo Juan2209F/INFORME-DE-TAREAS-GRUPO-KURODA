@@ -417,6 +417,7 @@ table.dt tbody tr:last-child td{border-bottom:none}
   <div class="nav-item active" id="nav-dash" title="Dashboard" onclick="setView('dash')">⊞</div>
   <div class="nav-item" id="nav-tareas" title="Tareas (editar)" onclick="setView('tareas')">📝</div>
   <div class="nav-item" id="nav-pend" title="Pendientes por sucursal" onclick="openPendientes()">🏬</div>
+  <div class="nav-item" id="nav-actividades" title="Actividades por mes" onclick="setView('actividades')">📋</div>
   <div class="nav-sep"></div>
   <div class="nav-item" id="nav-usuarios" title="Gestión de usuarios" onclick="openUsuarios()" style="display:none">👥</div>
 </nav>
@@ -607,6 +608,44 @@ table.dt tbody tr:last-child td{border-bottom:none}
       </div>
     </div>
 
+    <!-- ════════ VISTA ACTIVIDADES ════════ -->
+    <div id="view-actividades" style="display:none;flex-direction:column;gap:14px">
+      <div class="slbl"><span class="dot" style="background:var(--blue)"></span>Actividades por mes
+        <span style="font-weight:600;font-size:10px;color:var(--muted);text-transform:none;margin-left:6px">registra, edita y consulta · se guarda en Supabase</span></div>
+
+      <!-- Filtros estructura del generador -->
+      <div class="card" style="padding:16px">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="fg"><label>MES</label>
+            <select id="act-f-mes" onchange="renderActividades()">
+              <option value="ALL">Todos</option>
+              <option>Enero</option><option>Febrero</option><option>Marzo</option><option>Abril</option>
+              <option>Mayo</option><option>Junio</option><option>Julio</option><option>Agosto</option>
+              <option>Septiembre</option><option>Octubre</option><option>Noviembre</option><option>Diciembre</option>
+            </select></div>
+          <div class="fg"><label>ESTADO</label>
+            <select id="act-f-estado" onchange="renderActividades()">
+              <option value="ALL">Todos</option>
+              <option>Completado</option><option>En curso</option><option>Sin comenzar</option>
+            </select></div>
+          <div class="fg"><label>CATEGORÍA</label>
+            <select id="act-f-categoria" onchange="renderActividades()"><option value="ALL">Todas</option></select></div>
+          <div class="fg"><label>ASIGNADO A</label>
+            <select id="act-f-asignado" onchange="renderActividades()"><option value="ALL">Todos</option></select></div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-blue" id="btn-add-actividad" onclick="openActividadIfAllowed(null)">➕ Nueva actividad</button>
+        <button class="btn btn-ghost" onclick="loadActividades()">🔄 Recargar</button>
+        <span id="act-count" style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600;align-self:center"></span>
+      </div>
+
+      <div class="card" style="padding:8px 10px">
+        <div class="tbl-scroll" id="actividades-table"></div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -701,6 +740,7 @@ function bucketKeyEx(d,gran){
    PARSEO DE EXCEL (detección por encabezado, tolerante a variaciones)
 ════════════════════════════════════════════════════════════════════ */
 function norm(s){return String(s||'').toLowerCase().replace(/\s+/g,' ').replace(/[áàä]/g,'a').replace(/[éèë]/g,'e').replace(/[íìï]/g,'i').replace(/[óòö]/g,'o').replace(/[úùü]/g,'u').trim();}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function findCol(headers,keys){
   for(let i=0;i<headers.length;i++){const h=norm(headers[i]);
     if(keys.some(k=>h.includes(k)))return i;}
@@ -1853,9 +1893,189 @@ function setView(v){
   VIEW=v;
   document.getElementById('view-dash').style.display=v==='dash'?'flex':'none';
   document.getElementById('view-tareas').style.display=v==='tareas'?'flex':'none';
+  var va=document.getElementById('view-actividades');
+  if(va)va.style.display=v==='actividades'?'flex':'none';
   document.getElementById('nav-dash').classList.toggle('active',v==='dash');
   document.getElementById('nav-tareas').classList.toggle('active',v==='tareas');
-  render();
+  var na=document.getElementById('nav-actividades');
+  if(na)na.classList.toggle('active',v==='actividades');
+  if(v==='actividades'){ if(!ACTIVIDADES.length) loadActividades(); else renderActividades(); }
+  else render();
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   MÓDULO ACTIVIDADES
+════════════════════════════════════════════════════════════════════ */
+let ACTIVIDADES=[];
+
+async function loadActividades(){
+  var client=getSbClient();
+  if(!client){toast('⚠ Sin conexión a Supabase');return;}
+  try{
+    var r=await client.from('actividades').select('*').order('est_inicio',{ascending:true}).limit(5000);
+    if(r.error){toast('⚠ '+r.error.message);return;}
+    ACTIVIDADES=(r.data||[]).map(function(a){return{
+      id:a.id, mes:a.mes||'', actividad:a.actividad||'', estado:a.estado||'',
+      categoria:a.categoria||'', asignado:a.asignado||'',
+      estInicio:a.est_inicio, estFin:a.est_fin, durEstimada:a.dur_estimada,
+      realInicio:a.real_inicio, realFin:a.real_fin, cumplimiento:a.cumplimiento,
+      durReal:a.dur_real, pctAdicional:a.pct_adicional,
+      cumplFechaInicio:a.cumpl_fecha_inicio, variacionDias:a.variacion_dias,
+      comentario:a.comentario||'', apoyos:a.apoyos||'',
+      programada:a.programada!==false, sb_updated:a.updated_at||null
+    };});
+    fillActFilters();
+    renderActividades();
+    toast('✓ '+ACTIVIDADES.length+' actividades cargadas');
+  }catch(e){toast('⚠ Error: '+e.message);}
+}
+
+function fillActFilters(){
+  var cats=[...new Set(ACTIVIDADES.map(a=>a.categoria).filter(Boolean))].sort();
+  var asigs=[...new Set(ACTIVIDADES.map(a=>a.asignado).filter(Boolean))].sort();
+  var selC=document.getElementById('act-f-categoria'), selA=document.getElementById('act-f-asignado');
+  var vC=selC.value, vA=selA.value;
+  selC.innerHTML='<option value="ALL">Todas</option>'+cats.map(c=>'<option>'+c+'</option>').join('');
+  selA.innerHTML='<option value="ALL">Todos</option>'+asigs.map(a=>'<option>'+a+'</option>').join('');
+  selC.value=vC; selA.value=vA;
+}
+
+function filteredActividades(){
+  var mes=document.getElementById('act-f-mes').value;
+  var est=document.getElementById('act-f-estado').value;
+  var cat=document.getElementById('act-f-categoria').value;
+  var asig=document.getElementById('act-f-asignado').value;
+  return ACTIVIDADES.filter(function(a){
+    if(mes!=='ALL'&&norm(a.mes)!==norm(mes))return false;
+    if(est!=='ALL'&&norm(a.estado)!==norm(est))return false;
+    if(cat!=='ALL'&&a.categoria!==cat)return false;
+    if(asig!=='ALL'&&a.asignado!==asig)return false;
+    return true;
+  });
+}
+
+function actEstadoBadge(estado){
+  var e=norm(estado);
+  var color='#94a3b8', bg='#f1f5f9';
+  if(e.includes('completad')){color='#15803d';bg='#dcfce7';}
+  else if(e.includes('curso')){color='#b45309';bg='#fef3c7';}
+  else if(e.includes('comenzar')||e.includes('sin')){color='#64748b';bg='#f1f5f9';}
+  return '<span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;color:'+color+';background:'+bg+'">'+(estado||'—')+'</span>';
+}
+
+function fmtActFecha(d){if(!d)return'—';var x=fromISO(d);if(!x)return'—';return fmtInput(x).split('-').reverse().join('/');}
+
+function renderActividades(){
+  var arr=filteredActividades();
+  document.getElementById('act-count').textContent=arr.length+' actividad(es)';
+  var canEdit=_session&&['admin','editor'].includes(_session.rol);
+  if(!arr.length){document.getElementById('actividades-table').innerHTML='<div class="empty" style="padding:30px">Sin actividades. '+(canEdit?'Crea una con "Nueva actividad".':'')+'</div>';return;}
+  var rows=arr.map(function(a){
+    var pct=a.cumplimiento!=null?(Math.round(a.cumplimiento*(a.cumplimiento<=1?100:1))+'%'):'—';
+    return '<tr>'+
+      '<td>'+(a.mes||'—')+'</td>'+
+      '<td style="min-width:200px"><b>'+(a.actividad||'—')+'</b>'+(a.programada?'':' <span style="font-size:9px;color:#dc2626;font-weight:700">NO PROG.</span>')+'</td>'+
+      '<td>'+actEstadoBadge(a.estado)+'</td>'+
+      '<td>'+(a.categoria||'—')+'</td>'+
+      '<td>'+(a.asignado||'—')+'</td>'+
+      '<td>'+fmtActFecha(a.estInicio)+'</td>'+
+      '<td>'+fmtActFecha(a.estFin)+'</td>'+
+      '<td>'+fmtActFecha(a.realInicio)+'</td>'+
+      '<td>'+fmtActFecha(a.realFin)+'</td>'+
+      '<td style="text-align:center">'+pct+'</td>'+
+      '<td class="cell-c">'+(canEdit?'<button class="icon-btn" onclick="openActividad(\''+a.id+'\')">✎</button>':'<span style="color:var(--border)">—</span>')+'</td>'+
+    '</tr>';
+  }).join('');
+  document.getElementById('actividades-table').innerHTML=
+    '<table class="dt"><thead><tr><th>Mes</th><th>Actividad/Proyecto</th><th>Estado</th><th>Categoría</th><th>Asignado</th>'+
+    '<th>Est.Inicio</th><th>Est.Fin</th><th>Real Inicio</th><th>Real Fin</th><th>Cumpl.</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>';
+}
+
+function openActividadIfAllowed(id){
+  if(!_session||!['admin','editor'].includes(_session.rol)){
+    toast('⚠ Solo administradores y editores pueden editar actividades');return;
+  }
+  openActividad(id);
+}
+
+function openActividad(id){
+  var a=id?ACTIVIDADES.find(x=>String(x.id)===String(id)):null;
+  var isNew=!a;
+  if(!a)a={mes:'',actividad:'',estado:'Sin comenzar',categoria:'',asignado:'',estInicio:'',estFin:'',durEstimada:'',realInicio:'',realFin:'',cumplimiento:'',durReal:'',pctAdicional:'',cumplFechaInicio:'',variacionDias:'',comentario:'',apoyos:'',programada:true};
+  function di(d){if(!d)return'';var x=fromISO(d);return x?fmtInput(x):'';}
+  var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  var body='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+    '<div class="fg" style="grid-column:1/3"><label>Actividad / Proyecto *</label><input id="a-actividad" value="'+esc(a.actividad)+'" placeholder="Nombre de la actividad"></div>'+
+    '<div class="fg"><label>Mes</label><select id="a-mes">'+['<option value="">—</option>'].concat(meses.map(m=>'<option'+(norm(a.mes)===norm(m)?' selected':'')+'>'+m+'</option>')).join('')+'</select></div>'+
+    '<div class="fg"><label>Estado</label><select id="a-estado">'+['Completado','En curso','Sin comenzar'].map(e=>'<option'+(norm(a.estado)===norm(e)?' selected':'')+'>'+e+'</option>').join('')+'</select></div>'+
+    '<div class="fg"><label>Categoría</label><input id="a-categoria" value="'+esc(a.categoria)+'" placeholder="Auditoría, Revisión..."></div>'+
+    '<div class="fg"><label>Asignado a</label><input id="a-asignado" value="'+esc(a.asignado)+'" placeholder="Nombre"></div>'+
+    '<div class="fg"><label>Estimado Inicio</label><input type="date" id="a-estinicio" value="'+di(a.estInicio)+'"></div>'+
+    '<div class="fg"><label>Estimado Finalización</label><input type="date" id="a-estfin" value="'+di(a.estFin)+'"></div>'+
+    '<div class="fg"><label>Duración estimada (días)</label><input type="number" id="a-durest" value="'+(a.durEstimada!=null?a.durEstimada:'')+'"></div>'+
+    '<div class="fg"><label>Real Inicio</label><input type="date" id="a-realinicio" value="'+di(a.realInicio)+'"></div>'+
+    '<div class="fg"><label>Real Finalización</label><input type="date" id="a-realfin" value="'+di(a.realFin)+'"></div>'+
+    '<div class="fg"><label>Duración real (días)</label><input type="number" id="a-durreal" value="'+(a.durReal!=null?a.durReal:'')+'"></div>'+
+    '<div class="fg"><label>Cumplimiento %</label><input type="number" step="0.01" id="a-cumpl" value="'+(a.cumplimiento!=null?a.cumplimiento:'')+'" placeholder="0-100"></div>'+
+    '<div class="fg"><label>% adicional utilizado</label><input type="number" step="0.01" id="a-pctad" value="'+(a.pctAdicional!=null?a.pctAdicional:'')+'"></div>'+
+    '<div class="fg"><label>Cumpl. en fecha inicio</label><input id="a-cumplfi" value="'+esc(a.cumplFechaInicio)+'"></div>'+
+    '<div class="fg"><label>Variación días inicio</label><input type="number" id="a-variacion" value="'+(a.variacionDias!=null?a.variacionDias:'')+'"></div>'+
+    '<div class="fg" style="grid-column:1/3"><label>Comentario</label><input id="a-comentario" value="'+esc(a.comentario)+'"></div>'+
+    '<div class="fg" style="grid-column:1/3"><label>Apoyos requeridos</label><input id="a-apoyos" value="'+esc(a.apoyos)+'"></div>'+
+    '<label style="grid-column:1/3;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--txt)"><input type="checkbox" id="a-programada"'+(a.programada?' checked':'')+'> Actividad programada (desmarcar si es NO PROGRAMADA)</label>'+
+  '</div>';
+  var foot=[{label:isNew?'Crear':'Guardar',cls:'btn-blue',fn:function(){saveActividad(a.id,isNew);}}];
+  if(!isNew&&_session&&_session.rol==='admin')foot.push({label:'Eliminar',cls:'btn-red',fn:function(){deleteActividad(a.id);}});
+  openModal(isNew?'➕ Nueva actividad':'✎ Editar actividad',body,foot);
+}
+
+async function saveActividad(id,isNew){
+  var actividad=document.getElementById('a-actividad').value.trim();
+  if(!actividad){toast('⚠ La actividad es obligatoria');return;}
+  function dv(elId){var v=document.getElementById(elId).value;return v||null;}
+  function nv(elId){var v=document.getElementById(elId).value;return v!==''?parseFloat(v):null;}
+  var row={
+    actividad:actividad, mes:document.getElementById('a-mes').value||null,
+    estado:document.getElementById('a-estado').value||null,
+    categoria:document.getElementById('a-categoria').value.trim()||null,
+    asignado:document.getElementById('a-asignado').value.trim()||null,
+    est_inicio:dv('a-estinicio'), est_fin:dv('a-estfin'), dur_estimada:nv('a-durest'),
+    real_inicio:dv('a-realinicio'), real_fin:dv('a-realfin'), dur_real:nv('a-durreal'),
+    cumplimiento:nv('a-cumpl'), pct_adicional:nv('a-pctad'),
+    cumpl_fecha_inicio:document.getElementById('a-cumplfi').value.trim()||null,
+    variacion_dias:nv('a-variacion'),
+    comentario:document.getElementById('a-comentario').value.trim()||null,
+    apoyos:document.getElementById('a-apoyos').value.trim()||null,
+    programada:document.getElementById('a-programada').checked
+  };
+  var client=getSbClient();
+  if(!client){toast('⚠ Sin conexión a Supabase');return;}
+  closeModal();
+  try{
+    if(isNew){
+      var ri=await client.from('actividades').insert([row]);
+      if(ri.error){toast('⚠ '+ri.error.message);return;}
+      toast('☁️ Actividad creada en Supabase');
+    } else {
+      var ru=await client.from('actividades').update(row).eq('id',id);
+      if(ru.error){toast('⚠ '+ru.error.message);return;}
+      toast('☁️ Actividad actualizada en Supabase');
+    }
+    await loadActividades();
+  }catch(e){toast('⚠ Error: '+e.message);}
+}
+
+async function deleteActividad(id){
+  if(!confirm('¿Eliminar esta actividad permanentemente?'))return;
+  var client=getSbClient();
+  if(!client){toast('⚠ Sin conexión');return;}
+  closeModal();
+  try{
+    var r=await client.from('actividades').delete().eq('id',id);
+    if(r.error){toast('⚠ '+r.error.message);return;}
+    toast('☁️ Actividad eliminada');
+    await loadActividades();
+  }catch(e){toast('⚠ Error: '+e.message);}
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -2438,6 +2658,11 @@ function checkAdminUI(){
   if(addBtn){
     var canEdit=_session&&['admin','editor'].includes(_session.rol);
     addBtn.style.display=canEdit?'':'none';
+  }
+  var addAct=document.getElementById('btn-add-actividad');
+  if(addAct){
+    var canEditA=_session&&['admin','editor'].includes(_session.rol);
+    addAct.style.display=canEditA?'':'none';
   }
 }
 
