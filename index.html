@@ -467,6 +467,7 @@ table.seg tbody tr:hover{background:var(--soft)}
   <div class="nav-item" id="nav-actividades" title="Actividades por mes" onclick="setView('actividades')">📋</div>
   <div class="nav-item" id="nav-auditorias" title="Auditorías por clase" onclick="setView('auditorias')">🔍</div>
   <div class="nav-item" id="nav-ajustes" title="Ajustes" onclick="setView('ajustes')">⚖️</div>
+  <div class="nav-item" id="nav-mermas" title="Mermas" onclick="setView('mermas')">🗂️</div>
   <div class="nav-sep"></div>
   <div class="nav-item" id="nav-usuarios" title="Gestión de usuarios" onclick="openUsuarios()" style="display:none">👥</div>
 </nav>
@@ -743,6 +744,8 @@ table.seg tbody tr:hover{background:var(--soft)}
             <select id="aj-f-tienda" onchange="renderAjustes()"><option value="ALL">Todas</option></select></div>
           <div style="display:flex;gap:8px;align-items:end">
             <button class="btn btn-blue" id="btn-nuevo-ajuste" onclick="openNuevoAjuste()" style="display:none">➕ Nuevo ajuste</button>
+            <button class="btn btn-teal" id="btn-excel-ajuste" onclick="document.getElementById('aj-file-input').click()" style="display:none" title="Cargar Excel de ajustes">📥 Cargar Excel</button>
+            <input type="file" id="aj-file-input" accept=".xlsx,.xls" style="display:none" onchange="importAjustesExcel(this.files)">
             <button class="btn btn-ghost" onclick="loadAjustes()">🔄 Recargar</button>
             <span id="aj-count" style="font-size:11px;color:var(--muted);font-weight:600;white-space:nowrap;align-self:center"></span>
           </div>
@@ -773,7 +776,58 @@ table.seg tbody tr:hover{background:var(--soft)}
           <div id="aj-donut-legend" style="display:flex;flex-direction:column;gap:10px"></div>
         </div>
       </div>
-    </div>
+    </div><!-- /view-ajustes -->
+
+    <!-- ════════ VISTA MERMAS ════════ -->
+    <div id="view-mermas" style="display:none;flex-direction:column;gap:14px">
+      <div class="slbl"><span class="dot" style="background:var(--orange)"></span>Registro de Mermas
+        <span style="font-weight:600;font-size:10px;color:var(--muted);text-transform:none;margin-left:6px">días entre autorización y validación · máximo 3 días para estar en tiempo</span>
+      </div>
+
+      <!-- Filtros -->
+      <div class="card" style="padding:14px 16px">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-items:end">
+          <div class="fg"><label>MES</label>
+            <select id="mr-f-mes" onchange="renderMermas()"><option value="ALL">Todos</option></select></div>
+          <div class="fg"><label>AÑO</label>
+            <select id="mr-f-año" onchange="renderMermas()"><option value="ALL">Todos</option></select></div>
+          <div class="fg"><label>TIENDA</label>
+            <select id="mr-f-tienda" onchange="renderMermas()"><option value="ALL">Todas</option></select></div>
+          <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+            <button class="btn btn-orange" id="btn-nueva-merma" onclick="openNuevaMerma()" style="display:none">➕ Nueva merma</button>
+            <button class="btn btn-teal" id="btn-excel-merma" onclick="document.getElementById('mr-file-input').click()" style="display:none">📥 Cargar Excel</button>
+            <input type="file" id="mr-file-input" accept=".xlsx,.xls" style="display:none" onchange="importMermasExcel(this.files)">
+            <button class="btn btn-ghost" onclick="loadMermas()">🔄 Recargar</button>
+            <span id="mr-count" style="font-size:11px;color:var(--muted);font-weight:600;white-space:nowrap;align-self:center"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabla sticky -->
+      <div class="card" style="padding:0">
+        <div class="ajustes-table-wrap">
+          <table>
+            <thead><tr>
+              <th>#</th><th>Tienda</th><th>Local/Foránea</th><th>Mes</th>
+              <th class="c">Autorización</th><th class="c">Validación</th>
+              <th class="c">Días</th><th class="c">Condición</th>
+              <th class="c" id="mr-edit-th" style="display:none"></th>
+            </tr></thead>
+            <tbody id="mr-tbody"><tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px">Cargando…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Gráfica dona -->
+      <div class="card">
+        <div class="card-hdr"><div class="card-title"><span class="ct-dot" style="background:var(--orange)"></span>Distribución de condición — Mermas</div>
+          <span class="card-note" id="mr-donut-note"></span></div>
+        <div class="ajustes-donut-wrap">
+          <div style="position:relative;width:165px;height:165px;flex-shrink:0"><canvas id="chart-mr-donut"></canvas></div>
+          <div id="mr-donut-legend" style="display:flex;flex-direction:column;gap:10px"></div>
+        </div>
+      </div>
+    </div><!-- /view-mermas -->
 
   </div>
 </div>
@@ -2030,6 +2084,8 @@ function setView(v){
   if(vau)vau.style.display=v==='auditorias'?'flex':'none';
   var vaj=document.getElementById('view-ajustes');
   if(vaj)vaj.style.display=v==='ajustes'?'flex':'none';
+  var vmr=document.getElementById('view-mermas');
+  if(vmr)vmr.style.display=v==='mermas'?'flex':'none';
   document.getElementById('nav-dash').classList.toggle('active',v==='dash');
   document.getElementById('nav-tareas').classList.toggle('active',v==='tareas');
   var na=document.getElementById('nav-actividades');
@@ -2038,12 +2094,15 @@ function setView(v){
   if(nau)nau.classList.toggle('active',v==='auditorias');
   var naj=document.getElementById('nav-ajustes');
   if(naj)naj.classList.toggle('active',v==='ajustes');
+  var nmr=document.getElementById('nav-mermas');
+  if(nmr)nmr.classList.toggle('active',v==='mermas');
   if(v==='actividades'){ if(!ACTIVIDADES.length) loadActividades(); else renderActividades(); }
   else if(v==='auditorias'){
     if(!STORE.auditorias.length) loadDataFromSupabase().then(renderAuditoriasView);
     else{ if(!SEG_LOADED)loadSeguimientos().then(renderAuditoriasView); else renderAuditoriasView(); }
   }
   else if(v==='ajustes'){ if(!AJUSTES.length) loadAjustes(); else renderAjustes(); }
+  else if(v==='mermas'){ if(!MERMAS.length) loadMermas(); else renderMermas(); }
   else render();
 }
 
@@ -2219,6 +2278,7 @@ function openEditAuditoria(idx,titulo){
   '</div>';
   openModal('✎ Editar auditoría — '+esc(a.tienda||''),html,[
     {label:'Cancelar',cls:'btn-ghost',fn:closeModal},
+    {label:'Eliminar',cls:'btn-red',fn:function(){deleteAuditoria(a);}},
     {label:'Guardar cambios',cls:'btn-blue',fn:function(){saveEditAuditoria(a);}}
   ]);
 }
@@ -2237,13 +2297,11 @@ async function saveEditAuditoria(original){
     pctResuelto:parseInt(dv('ea-tareas'))>0?(parseInt(dv('ea-res'))/parseInt(dv('ea-tareas'))):0,
     clase:original.clase
   };
-  /* Actualizar en STORE local */
   var idx=STORE.auditorias.findIndex(function(x){
     return norm(x.tienda)===norm(original.tienda)&&norm(x.mes)===norm(original.mes)&&norm(x.clase)===norm(original.clase);
   });
   if(idx>=0)STORE.auditorias[idx]=Object.assign({},STORE.auditorias[idx],updated);
   closeModal();refreshAll();
-  /* Sync Supabase */
   var client=getSbClient();
   if(!client){toast('✓ Guardado local (sin Supabase)');return;}
   try{
@@ -2255,6 +2313,26 @@ async function saveEditAuditoria(original){
       .eq('tienda',original.tienda).eq('mes',original.mes.toUpperCase()).eq('clase',original.clase);
     if(r.error)toast('⚠ '+r.error.message);
     else{toast('☁️ Auditoría actualizada');if(VIEW==='auditorias')renderAuditoriasView();}
+  }catch(e){toast('⚠ '+e.message);}
+}
+
+async function deleteAuditoria(a){
+  if(!_session||_session.rol!=='admin'){toast('⚠ Solo administradores');return;}
+  if(!confirm('¿Eliminar auditoría de '+a.tienda+' ('+a.mes+')?'))return;
+  closeModal();
+  STORE.auditorias=STORE.auditorias.filter(function(x){
+    return !(norm(x.tienda)===norm(a.tienda)&&norm(x.mes)===norm(a.mes)&&norm(x.clase)===norm(a.clase)&&x.fecha===a.fecha);
+  });
+  refreshAll();
+  var client=getSbClient();
+  if(!client){toast('✓ Eliminado local');return;}
+  try{
+    var q=client.from('auditorias').delete()
+      .eq('tienda',a.tienda).eq('mes',(a.mes||'').toUpperCase()).eq('clase',a.clase);
+    if(a.fecha)q=q.eq('fecha',a.fecha);
+    var r=await q;
+    if(r.error)toast('⚠ '+r.error.message);
+    else{toast('☁️ Auditoría eliminada');if(VIEW==='auditorias')renderAuditoriasView();}
   }catch(e){toast('⚠ '+e.message);}
 }
 
@@ -3199,8 +3277,16 @@ function checkAdminUI(){
   if(audBtn) audBtn.style.display=(_session&&_session.rol==='admin')?'':'none';
   var ajBtn=document.getElementById('btn-nuevo-ajuste');
   if(ajBtn) ajBtn.style.display=(_session&&_session.rol==='admin')?'':'none';
+  var ajExcel=document.getElementById('btn-excel-ajuste');
+  if(ajExcel) ajExcel.style.display=(_session&&_session.rol==='admin')?'':'none';
   var ajTh=document.getElementById('aj-edit-th');
   if(ajTh) ajTh.style.display=(_session&&_session.rol==='admin')?'':'none';
+  var mrBtn=document.getElementById('btn-nueva-merma');
+  if(mrBtn) mrBtn.style.display=(_session&&_session.rol==='admin')?'':'none';
+  var mrExcel=document.getElementById('btn-excel-merma');
+  if(mrExcel) mrExcel.style.display=(_session&&_session.rol==='admin')?'':'none';
+  var mrTh=document.getElementById('mr-edit-th');
+  if(mrTh) mrTh.style.display=(_session&&_session.rol==='admin')?'':'none';
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -3697,6 +3783,391 @@ async function deleteAjuste(id){
     if(r.error){toast('⚠ '+r.error.message);return;}
     AJUSTES=AJUSTES.filter(function(x){return x.id!==id;});
     fillAjFilters();renderAjustes();toast('☁️ Ajuste eliminado');
+  }catch(e){toast('⚠ '+e.message);}
+}
+/* ── Importar Excel de Ajustes ── */
+function importAjustesExcel(files){
+  if(!files||!files.length)return;
+  if(!_session||_session.rol!=='admin'){toast('⚠ Solo administradores');return;}
+  var file=files[0];
+  document.getElementById('aj-file-input').value='';
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+      var ws=wb.Sheets[wb.SheetNames[0]];
+      var raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      if(raw.length<2){toast('⚠ Excel vacío o sin datos');return;}
+      /* Detectar cabecera */
+      var H=raw[0].map(function(c){return String(c||'').toLowerCase().trim();});
+      function fc(keys){var k=keys.find(function(k){return H.indexOf(k)>=0;});return k?H.indexOf(k):-1;}
+      var iT=fc(['tienda','sucursal']);
+      var iM=fc(['mes','month']);
+      var iC=fc(['correo','fecha correo','fecha_correo','f correo','fcorreo']);
+      var iA=fc(['ajuste','fecha ajuste','fecha_ajuste','f ajuste','fajuste']);
+      if(iT<0||iC<0||iA<0){
+        toast('⚠ Columnas no encontradas. Necesita: Tienda, Fecha Correo, Fecha Ajuste');return;
+      }
+      function parseExcelDate(v){
+        if(!v)return null;
+        if(v instanceof Date){var d=v;return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+        var s=String(v).trim();
+        /* dd/mm/yyyy */
+        var m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+        if(m)return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+        /* yyyy-mm-dd */
+        if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+        var d=new Date(s);
+        if(!isNaN(d))return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+        return null;
+      }
+      var rows=[];
+      for(var i=1;i<raw.length;i++){
+        var r=raw[i];
+        var tienda=String(r[iT]||'').trim().toUpperCase();
+        if(!tienda)continue;
+        var fechaC=parseExcelDate(r[iC]);
+        var fechaA=parseExcelDate(r[iA]);
+        if(!fechaC||!fechaA)continue;
+        var mes=iM>=0?String(r[iM]||'').trim().toUpperCase():'';
+        if(!mes&&fechaC){
+          var mNames=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
+            'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+          mes=mNames[parseInt(fechaC.split('-')[1])-1]||'';
+        }
+        var año=parseInt((fechaC||'').split('-')[0])||null;
+        var dias=diasEntre(fechaC,fechaA);
+        rows.push({tienda,mes,año,fecha_correo:fechaC,fecha_ajuste:fechaA,
+          dias,condicion:condicionAjuste(dias)});
+      }
+      if(!rows.length){toast('⚠ Sin filas válidas en el Excel');return;}
+      toast('⏳ Importando '+rows.length+' registros…');
+      commitAjustesExcel(rows);
+    }catch(err){toast('⚠ Error leyendo Excel: '+err.message);}
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function commitAjustesExcel(rows){
+  var client=getSbClient();
+  if(!client){toast('⚠ Sin Supabase');return;}
+  try{
+    /* Insertar en lotes de 500 */
+    var ok=0;
+    for(var i=0;i<rows.length;i+=500){
+      var batch=rows.slice(i,i+500);
+      var r=await client.from('ajustes').insert(batch);
+      if(r.error){toast('⚠ '+r.error.message);return;}
+      ok+=batch.length;
+    }
+    toast('☁️ '+ok+' ajuste(s) importados');
+    await loadAjustes();
+  }catch(e){toast('⚠ '+e.message);}
+}
+/* ════════════════════════════════════════════════════════════════════
+   MÓDULO MERMAS — Supabase
+   Tabla: mermas
+   Columnas: id (uuid PK), tienda (text), local_foranea (text),
+             mes (text), año (int), fecha_autorizacion (date),
+             fecha_validacion (date), dias (int), condicion (text),
+             created_at, updated_at
+════════════════════════════════════════════════════════════════════ */
+var MERMAS=[];
+var _chartMrDonut=null;
+
+async function loadMermas(){
+  var client=getSbClient();
+  if(!client){toast('⚠ Sin Supabase');return;}
+  try{
+    var r=await client.from('mermas').select('*').order('fecha_autorizacion',{ascending:true}).limit(5000);
+    if(r.error){toast('⚠ '+r.error.message);return;}
+    MERMAS=(r.data||[]).map(function(m){
+      var dias=diasEntre(m.fecha_autorizacion,m.fecha_validacion);
+      return{id:m.id,tienda:m.tienda||'',localForanea:m.local_foranea||'',
+        mes:m.mes||'',año:m.año||'',
+        fechaAut:m.fecha_autorizacion,fechaVal:m.fecha_validacion,
+        dias:dias,condicion:condicionAjuste(dias)};
+    });
+    fillMrFilters();renderMermas();
+    toast('✓ '+MERMAS.length+' merma(s) cargadas');
+  }catch(e){toast('⚠ '+e.message);}
+}
+
+function fillMrFilters(){
+  var meses=[...new Set(MERMAS.map(function(m){return m.mes;}).filter(Boolean))].sort();
+  var años=[...new Set(MERMAS.map(function(m){return String(m.año||'');}).filter(Boolean))].sort().reverse();
+  var tiendas=[...new Set(MERMAS.map(function(m){return m.tienda;}).filter(Boolean))].sort();
+  var sm=document.getElementById('mr-f-mes');
+  var sa=document.getElementById('mr-f-año');
+  var st=document.getElementById('mr-f-tienda');
+  if(!sm)return;
+  var vm=sm.value,va=sa.value,vt=st.value;
+  sm.innerHTML='<option value="ALL">Todos</option>'+meses.map(function(m){return'<option>'+m+'</option>';}).join('');
+  sa.innerHTML='<option value="ALL">Todos</option>'+años.map(function(y){return'<option>'+y+'</option>';}).join('');
+  st.innerHTML='<option value="ALL">Todas</option>'+tiendas.map(function(t){return'<option>'+t+'</option>';}).join('');
+  sm.value=vm;sa.value=va;st.value=vt;
+}
+
+function filteredMermas(){
+  var mes=document.getElementById('mr-f-mes').value;
+  var año=document.getElementById('mr-f-año').value;
+  var tienda=document.getElementById('mr-f-tienda').value;
+  return MERMAS.filter(function(m){
+    if(mes!=='ALL'&&norm(m.mes)!==norm(mes))return false;
+    if(año!=='ALL'&&String(m.año||'')!==String(año))return false;
+    if(tienda!=='ALL'&&norm(m.tienda)!==norm(tienda))return false;
+    return true;
+  });
+}
+
+function renderMermas(){
+  var arr=filteredMermas();
+  var isAdmin=_session&&_session.rol==='admin';
+  document.getElementById('mr-count').textContent=arr.length+' registro(s)';
+  var th=document.getElementById('mr-edit-th');
+  if(th)th.style.display=isAdmin?'':'none';
+
+  var tbody=document.getElementById('mr-tbody');
+  if(!arr.length){
+    tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px">Sin registros para los filtros seleccionados.</td></tr>';
+  }else{
+    tbody.innerHTML=arr.map(function(m,i){
+      var cls=m.condicion==='A tiempo'?'b-atiempo':'b-destiempo';
+      var lf=m.localForanea||'—';
+      var lfColor=norm(lf).includes('foranea')||norm(lf).includes('foránea')?'color:#ea580c;font-weight:700':'color:#2563eb;font-weight:700';
+      var editTd=isAdmin?'<td style="text-align:center"><button class="icon-btn" onclick="openEditMerma(\''+m.id+'\')" title="Editar">✎</button></td>':'';
+      return '<tr>'+
+        '<td style="color:var(--muted);font-size:11px">'+(i+1)+'</td>'+
+        '<td><b>'+esc(m.tienda)+'</b></td>'+
+        '<td style="'+lfColor+'">'+esc(lf)+'</td>'+
+        '<td>'+esc(m.mes)+'</td>'+
+        '<td style="text-align:center">'+fmtFecha(m.fechaAut)+'</td>'+
+        '<td style="text-align:center">'+fmtFecha(m.fechaVal)+'</td>'+
+        '<td style="text-align:center;font-weight:800">'+(m.dias!==null?m.dias:'—')+'</td>'+
+        '<td style="text-align:center"><span class="'+cls+'">'+esc(m.condicion)+'</span></td>'+
+        editTd+'</tr>';
+    }).join('');
+  }
+  renderMrDonut(arr);
+}
+
+function renderMrDonut(arr){
+  var ok=arr.filter(function(m){return m.condicion==='A tiempo';}).length;
+  var mal=arr.filter(function(m){return m.condicion==='Destiempo';}).length;
+  var total=arr.length;
+  document.getElementById('mr-donut-note').textContent=total?total+' registros':'';
+  if(_chartMrDonut){_chartMrDonut.destroy();_chartMrDonut=null;}
+  var ctx=document.getElementById('chart-mr-donut');
+  if(!ctx)return;
+  if(!total){
+    ctx.parentElement.innerHTML='<div class="empty">Sin datos</div>';
+    document.getElementById('mr-donut-legend').innerHTML='';
+    return;
+  }
+  _chartMrDonut=new Chart(ctx,{
+    type:'doughnut',
+    data:{labels:['A tiempo','Destiempo'],
+      datasets:[{data:[ok,mal],backgroundColor:['#16a34a','#dc2626'],borderWidth:2,borderColor:'#fff'}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:function(c){return c.label+': '+c.raw+' ('+Math.round(c.raw/(total||1)*100)+'%)';}}}}}
+  });
+  document.getElementById('mr-donut-legend').innerHTML=
+    '<div class="legend-item"><span class="legend-dot" style="background:#16a34a"></span>'+
+    '<span class="legend-lbl">A tiempo</span><span class="legend-val" style="margin-left:12px">'+ok+'</span></div>'+
+    '<div class="legend-item"><span class="legend-dot" style="background:#dc2626"></span>'+
+    '<span class="legend-lbl">Destiempo</span><span class="legend-val" style="margin-left:12px">'+mal+'</span></div>';
+}
+
+function mrFormHtml(m){
+  m=m||{};
+  var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+    'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  var tiendas=uniq(STORE.tareas.map(function(t){return t.tienda;})
+    .concat(STORE.auditorias.map(function(a){return a.tienda;})));
+  return '<div class="form-grid">'+
+    '<div class="form-field"><label>Tienda *</label>'+
+      '<input id="mrf-tienda" list="mrf-tienda-list" value="'+esc(m.tienda||'')+'" placeholder="Nombre de tienda">'+
+      '<datalist id="mrf-tienda-list">'+tiendas.map(function(t){return'<option value="'+esc(t)+'">';}).join('')+'</datalist></div>'+
+    '<div class="form-field"><label>Local / Foránea *</label>'+
+      '<select id="mrf-lf">'+
+        '<option value="Local"'+(m.localForanea==='Local'?' selected':'')+'>Local</option>'+
+        '<option value="Foranea"'+(m.localForanea&&m.localForanea!=='Local'?' selected':'')+'>Foránea</option>'+
+      '</select></div>'+
+    '<div class="form-field"><label>Mes</label>'+
+      '<select id="mrf-mes">'+meses.map(function(ms){return'<option'+(norm(m.mes||'')===norm(ms)?' selected':'')+'>'+ms+'</option>';}).join('')+'</select></div>'+
+    '<div class="form-field"><label>Fecha autorización *</label><input type="date" id="mrf-aut" value="'+(m.fechaAut||'')+'" oninput="mrfAutoCalc()"></div>'+
+    '<div class="form-field"><label>Fecha validación *</label><input type="date" id="mrf-val" value="'+(m.fechaVal||'')+'" oninput="mrfAutoCalc()"></div>'+
+    '<div class="form-field" style="background:var(--soft);border-radius:var(--radius-sm);padding:10px 12px;border:1px solid var(--border)">'+
+      '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Días / Condición</div>'+
+      '<div id="mrf-preview" style="font-size:20px;font-weight:800;color:var(--blue)">'+
+        (m.dias!=null?m.dias+' día(s) — '+m.condicion:'—')+'</div></div>'+
+  '</div><div id="mrf-err" style="font-size:12px;color:var(--red);min-height:16px;margin-top:8px"></div>';
+}
+function mrfAutoCalc(){
+  var a=document.getElementById('mrf-aut').value;
+  var v=document.getElementById('mrf-val').value;
+  var dias=diasEntre(a,v);
+  var prev=document.getElementById('mrf-preview');
+  if(dias===null||!a||!v){prev.textContent='—';prev.style.color='var(--blue)';return;}
+  var cond=condicionAjuste(dias);
+  prev.textContent=dias+' día(s) — '+cond;
+  prev.style.color=cond==='A tiempo'?'#16a34a':'#dc2626';
+}
+
+function openNuevaMerma(){
+  if(!_session||_session.rol!=='admin'){toast('⚠ Solo administradores');return;}
+  openModal('➕ Nueva merma',mrFormHtml(),[
+    {label:'Cancelar',cls:'btn-ghost',fn:closeModal},
+    {label:'Guardar',cls:'btn-orange',fn:guardarNuevaMerma}
+  ]);
+}
+
+async function guardarNuevaMerma(){
+  var errEl=document.getElementById('mrf-err');errEl.textContent='';
+  var tienda=document.getElementById('mrf-tienda').value.trim().toUpperCase();
+  var lf=document.getElementById('mrf-lf').value;
+  var mes=document.getElementById('mrf-mes').value;
+  var aut=document.getElementById('mrf-aut').value;
+  var val=document.getElementById('mrf-val').value;
+  if(!tienda){errEl.textContent='La tienda es obligatoria';return;}
+  if(!aut||!val){errEl.textContent='Ambas fechas son obligatorias';return;}
+  var dias=diasEntre(aut,val);
+  var año=parseInt((aut||'').split('-')[0])||null;
+  var row={tienda,local_foranea:lf,mes:mes.toUpperCase(),año,
+    fecha_autorizacion:aut,fecha_validacion:val,dias,condicion:condicionAjuste(dias)};
+  var client=getSbClient();if(!client){toast('⚠ Sin Supabase');return;}
+  closeModal();
+  try{
+    var r=await client.from('mermas').insert([row]).select();
+    if(r.error){toast('⚠ '+r.error.message);return;}
+    var ins=r.data[0]||row;
+    MERMAS.push({id:ins.id,tienda:ins.tienda,localForanea:ins.local_foranea,
+      mes:ins.mes,año:ins.año,fechaAut:ins.fecha_autorizacion,
+      fechaVal:ins.fecha_validacion,dias:ins.dias,condicion:ins.condicion});
+    fillMrFilters();renderMermas();toast('☁️ Merma guardada');
+  }catch(e){toast('⚠ '+e.message);}
+}
+
+function openEditMerma(id){
+  if(!_session||_session.rol!=='admin'){toast('⚠ Solo administradores');return;}
+  var m=MERMAS.find(function(x){return x.id===id;});if(!m)return;
+  openModal('✎ Editar merma — '+esc(m.tienda),mrFormHtml(m),[
+    {label:'Cancelar',cls:'btn-ghost',fn:closeModal},
+    {label:'Eliminar',cls:'btn-red',fn:function(){deleteMerma(id);}},
+    {label:'Guardar',cls:'btn-orange',fn:function(){saveEditMerma(id);}}
+  ]);
+}
+
+async function saveEditMerma(id){
+  function dv(el){var e=document.getElementById(el);return e?e.value.trim():'';}
+  var tienda=dv('mrf-tienda').toUpperCase();
+  var lf=dv('mrf-lf');
+  var mes=dv('mrf-mes').toUpperCase();
+  var aut=dv('mrf-aut');
+  var val=dv('mrf-val');
+  var dias=diasEntre(aut,val);
+  var año=parseInt((aut||'').split('-')[0])||null;
+  var row={tienda,local_foranea:lf,mes,año,fecha_autorizacion:aut,
+    fecha_validacion:val,dias,condicion:condicionAjuste(dias)};
+  var client=getSbClient();if(!client)return;
+  closeModal();
+  try{
+    var r=await client.from('mermas').update(row).eq('id',id);
+    if(r.error){toast('⚠ '+r.error.message);return;}
+    var idx=MERMAS.findIndex(function(x){return x.id===id;});
+    if(idx>=0)MERMAS[idx]=Object.assign({},MERMAS[idx],{tienda,localForanea:lf,mes,año,
+      fechaAut:aut,fechaVal:val,dias,condicion:condicionAjuste(dias)});
+    fillMrFilters();renderMermas();toast('☁️ Merma actualizada');
+  }catch(e){toast('⚠ '+e.message);}
+}
+
+async function deleteMerma(id){
+  if(!confirm('¿Eliminar esta merma?'))return;
+  var client=getSbClient();if(!client)return;
+  closeModal();
+  try{
+    var r=await client.from('mermas').delete().eq('id',id);
+    if(r.error){toast('⚠ '+r.error.message);return;}
+    MERMAS=MERMAS.filter(function(x){return x.id!==id;});
+    fillMrFilters();renderMermas();toast('☁️ Merma eliminada');
+  }catch(e){toast('⚠ '+e.message);}
+}
+
+/* ── Importar Excel Mermas ── */
+function importMermasExcel(files){
+  if(!files||!files.length)return;
+  if(!_session||_session.rol!=='admin'){toast('⚠ Solo administradores');return;}
+  var file=files[0];
+  document.getElementById('mr-file-input').value='';
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+      var ws=wb.Sheets[wb.SheetNames[0]];
+      var raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      if(raw.length<2){toast('⚠ Excel vacío');return;}
+      var H=raw[0].map(function(c){return String(c||'').toLowerCase().trim();});
+      function fc(keys){var k=keys.find(function(k){return H.indexOf(k)>=0;});return k?H.indexOf(k):-1;}
+      var iT=fc(['tienda','sucursal']);
+      var iLF=fc(['local/foranea','local/foránea','local foranea','local_foranea','tipo']);
+      var iM=fc(['mes','month']);
+      var iA=fc(['autorizacion','autorización','fecha autorizacion','fecha_autorizacion','f autorizacion']);
+      var iV=fc(['validacion','validación','fecha validacion','fecha_validacion','f validacion']);
+      if(iT<0||iA<0||iV<0){
+        toast('⚠ Columnas no encontradas. Necesita: Tienda, Autorización, Validación');return;
+      }
+      function parseExcelDate(v){
+        if(!v)return null;
+        if(v instanceof Date){var d=v;return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+        var s=String(v).trim();
+        var m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+        if(m)return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+        if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+        var d=new Date(s);
+        if(!isNaN(d))return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+        return null;
+      }
+      var mNames=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
+        'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+      var rows=[];
+      for(var i=1;i<raw.length;i++){
+        var r=raw[i];
+        var tienda=String(r[iT]||'').trim().toUpperCase();
+        if(!tienda)continue;
+        var fechaA=parseExcelDate(r[iA]);
+        var fechaV=parseExcelDate(r[iV]);
+        if(!fechaA||!fechaV)continue;
+        var lf=iLF>=0?String(r[iLF]||'').trim():'';
+        if(!lf)lf='Local';
+        var mes=iM>=0?String(r[iM]||'').trim().toUpperCase():'';
+        if(!mes&&fechaA)mes=mNames[parseInt(fechaA.split('-')[1])-1]||'';
+        /* Extraer año y mes del formato "junio,2026" si aplica */
+        if(mes&&mes.includes(',')){var parts=mes.split(',');mes=parts[0].trim().toUpperCase();}
+        var año=parseInt((fechaA||'').split('-')[0])||null;
+        var dias=diasEntre(fechaA,fechaV);
+        rows.push({tienda,local_foranea:lf,mes,año,fecha_autorizacion:fechaA,
+          fecha_validacion:fechaV,dias,condicion:condicionAjuste(dias)});
+      }
+      if(!rows.length){toast('⚠ Sin filas válidas en el Excel');return;}
+      toast('⏳ Importando '+rows.length+' registros…');
+      commitMermasExcel(rows);
+    }catch(err){toast('⚠ Error: '+err.message);}
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function commitMermasExcel(rows){
+  var client=getSbClient();if(!client){toast('⚠ Sin Supabase');return;}
+  try{
+    var ok=0;
+    for(var i=0;i<rows.length;i+=500){
+      var batch=rows.slice(i,i+500);
+      var r=await client.from('mermas').insert(batch);
+      if(r.error){toast('⚠ '+r.error.message);return;}
+      ok+=batch.length;
+    }
+    toast('☁️ '+ok+' merma(s) importadas');
+    await loadMermas();
   }catch(e){toast('⚠ '+e.message);}
 }
 
