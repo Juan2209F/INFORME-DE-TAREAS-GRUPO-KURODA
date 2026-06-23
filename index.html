@@ -4486,6 +4486,11 @@ function renderFinalizadas(){
     var dias=f.duracion_dias!=null?f.duracion_dias+'d':'—';
     var sems=f.duracion_dias!=null?(Math.round(f.duracion_dias/7*10)/10)+' sem':'—';
     var editTd=isAdmin?'<td style="text-align:center"><button class="icon-btn" data-fid="'+esc(f.id||'')+'" onclick="finDeleteClick(this)" title="Eliminar">✕</button></td>':'';
+    var fechaCell=isAdmin?
+      '<td style="text-align:center"><input class="seg-date-input" type="date" value="'+(f.fecha_finalizacion||'')+'" '+
+        'data-fid="'+esc(f.id||'')+'" onchange="updateFinFecha(this)" title="Editar fecha de finalización" '+
+        'style="width:110px"></td>':
+      '<td style="text-align:center">'+fmtFecha(f.fecha_finalizacion)+'</td>';
     return '<tr style="background:#f0fdf4">'+
       '<td style="color:var(--muted);font-size:11px">'+(i+1)+'</td>'+
       '<td><b style="color:#15803d">'+esc(f.tienda||'—')+'</b></td>'+
@@ -4494,7 +4499,7 @@ function renderFinalizadas(){
       '<td style="text-align:center;font-weight:700;color:#16a34a">'+pct+'</td>'+
       '<td style="text-align:center">'+(f.total_tareas||0)+'</td>'+
       '<td style="text-align:center;color:#16a34a;font-weight:700">'+(f.resueltas||0)+'</td>'+
-      '<td style="text-align:center">'+fmtFecha(f.fecha_finalizacion)+'</td>'+
+      fechaCell+
       '<td style="text-align:center;color:var(--muted)">'+dias+'</td>'+
       '<td style="text-align:center;color:var(--muted)">'+sems+'</td>'+
       editTd+'</tr>';
@@ -4504,6 +4509,22 @@ function renderFinalizadas(){
 function finDeleteClick(el){
   var id=el.getAttribute('data-fid');
   if(id)deleteFinalizada(id);
+}
+
+async function updateFinFecha(el){
+  if(!_session||_session.rol!=='admin')return;
+  var id=el.getAttribute('data-fid');
+  var newDate=el.value;
+  if(!id||!newDate)return;
+  /* Actualizar en cache local */
+  var rec=FINALIZADAS.find(function(f){return f.id===id;});
+  if(rec)rec.fecha_finalizacion=newDate;
+  var client=getSbClient();if(!client)return;
+  try{
+    var r=await client.from('tareas_finalizadas').update({fecha_finalizacion:newDate}).eq('id',id);
+    if(r.error)toast('⚠ '+r.error.message);
+    else toast('✓ Fecha actualizada');
+  }catch(e){toast('⚠ '+e.message);}
 }
 
 async function deleteFinalizada(id){
