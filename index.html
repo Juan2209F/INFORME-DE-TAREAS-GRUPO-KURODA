@@ -513,6 +513,7 @@ table.seg tbody tr:hover{background:var(--soft)}
           <option value="ALL">Todas</option>
           <option value="ol">Orden y Limpieza</option>
           <option value="col">Auditoría Colaboración</option>
+          <option value="cartera">Cartera</option>
         </select>
       </div>
       <div class="fg"><label>Desde</label><input type="date" id="f-desde" onchange="onFilter('manual')"></div>
@@ -857,7 +858,7 @@ table.seg tbody tr:hover{background:var(--soft)}
         <div class="ajustes-table-wrap">
           <table>
             <thead><tr>
-              <th>#</th><th>Tienda</th><th>Mes</th><th>Clase</th>
+              <th>#</th><th>Tienda</th><th>Clase</th>
               <th class="c">% Cumpl.</th><th class="c">Tareas</th>
               <th class="c">Resueltas</th><th class="c">Fecha Fin</th>
               <th class="c">Días</th><th class="c">Semanas</th>
@@ -4477,12 +4478,13 @@ async function loadFinalizadas(){
       .order('fecha_finalizacion',{ascending:false}).limit(5000);
     if(r.error){toast('⚠ '+r.error.message);return;}
     FINALIZADAS=(r.data||[]).map(function(f){
-      /* Auto-calcular duracion_dias si tenemos ambas fechas */
-      var dur=f.duracion_dias;
-      if((dur==null||dur===0)&&f.fecha_inicio&&f.fecha_finalizacion){
-        dur=diasEntre(f.fecha_inicio,f.fecha_finalizacion);
-      }
-      /* Recalcular tareas desde STORE si están disponibles */
+      /* duracion_dias: solo calcular si genuinamente null */
+      var dur=(f.duracion_dias!=null)?f.duracion_dias:
+        (f.fecha_inicio&&f.fecha_finalizacion?diasEntre(f.fecha_inicio,f.fecha_finalizacion):null);
+      /* pct_cumpl: normalizar — puede llegar como 0.74 o como 74 */
+      var pct=parseFloat(f.pct_cumpl)||0;
+      if(pct>1)pct=pct/100;
+      /* total_tareas y resueltas desde STORE */
       var total=f.total_tareas||0;
       var res=f.resueltas||0;
       if(STORE.tareas.length>0&&f.aud_key){
@@ -4494,12 +4496,12 @@ async function loadFinalizadas(){
         });
         if(td.length>0){total=td.length;res=td.filter(function(t){return!esPendiente(t);}).length;}
       }
-      return Object.assign({},f,{duracion_dias:dur,total_tareas:total,resueltas:res});
+      return Object.assign({},f,{duracion_dias:dur,pct_cumpl:pct,total_tareas:total,resueltas:res});
     });
     _finLoaded=true;
     fillFinFilters();renderFinalizadas();
-    toast('✓ '+FINALIZADAS.length+' tarea(s) finalizada(s)');
-  }catch(e){toast('⚠ '+e.message);}
+    toast('\u2713 '+FINALIZADAS.length+' tarea(s) finalizada(s)');
+  }catch(e){toast('\u26a0 '+e.message);}
 }
 
 function fillFinFilters(){
@@ -4542,62 +4544,73 @@ function renderFinalizadas(){
   document.getElementById('fin-count').textContent=arr.length+' finalizada(s)';
   var th=document.getElementById('fin-edit-th');if(th)th.style.display=isAdmin?'':'none';
   var tbody=document.getElementById('fin-tbody');
+  var nCols=isAdmin?10:9;
+
   if(!arr.length){
-    tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:24px">Sin registros finalizados.</td></tr>';
+    tbody.innerHTML='<tr><td colspan="'+nCols+'" style="text-align:center;color:var(--muted);padding:24px">Sin registros finalizados.</td></tr>';
     return;
   }
-  var validPct=arr.filter(function(f){return f.pct_cumpl!=null;});
-  var promPct=validPct.length?Math.round(validPct.reduce(function(s,f){return s+(f.pct_cumpl||0);},0)/validPct.length*100):null;
-  var validDur=arr.filter(function(f){
-    var d=f.duracion_dias!=null?f.duracion_dias:
-      (f.fecha_inicio&&f.fecha_finalizacion?diasEntre(f.fecha_inicio,f.fecha_finalizacion):null);
-    return d!=null&&d>=0;
-  });
-  var promDias=validDur.length?Math.round(validDur.reduce(function(s,f){
-    var d=f.duracion_dias!=null?f.duracion_dias:diasEntre(f.fecha_inicio,f.fecha_finalizacion);
-    return s+(d||0);
-  },0)/validDur.length):null;
-  var promSems=promDias!=null?(Math.round(promDias/7*10)/10):null;
-  var totalTareasSum=arr.reduce(function(s,f){return s+(f.total_tareas||0);},0);
-  var totalResSum=arr.reduce(function(s,f){return s+(f.resueltas||0);},0);
-  var resumen='<tr style="background:#dcfce7;font-weight:700;border-top:2px solid #16a34a">'+
-    '<td colspan="2" style="color:#15803d;padding:8px 12px">📊 TOTALES / PROMEDIO</td>'+
-    '<td colspan="1"></td>'+
-    '<td style="text-align:center;color:#16a34a">'+(promPct!=null?promPct+'% prom.':'—')+'</td>'+
-    '<td style="text-align:center;color:#16a34a">'+totalTareasSum+'</td>'+
+
+  /* Función local para obtener duración */
+  function getDur(f){
+    if(f.duracion_dias!=null)return f.duracion_dias;
+    if(f.fecha_inicio&&f.fecha_finalizacion)return diasEntre(f.fecha_inicio,f.fecha_finalizacion);
+    return null;
+  }
+
+  /* ── Cálculos ── */
+  var arrConPct=arr.filter(function(f){return f.pct_cumpl>0;});
+  var promPct=arrConPct.length?
+    Math.round(arrConPct.reduce(function(s,f){return s+(f.pct_cumpl||0);},0)/arrConPct.length*100):null;
+
+  var arrConDur=arr.filter(function(f){var d=getDur(f);return d!=null&&d>=0;});
+  var promDias=arrConDur.length?
+    Math.round(arrConDur.reduce(function(s,f){return s+getDur(f);},0)/arrConDur.length):null;
+  var promSems=promDias!=null?Math.round(promDias/7*10)/10:null;
+
+  var totalTareasSum=arr.reduce(function(s,f){return s+(parseInt(f.total_tareas)||0);},0);
+  var totalResSum=arr.reduce(function(s,f){return s+(parseInt(f.resueltas)||0);},0);
+
+  /* ── Fila de totales/promedio ── */
+  var resumen='<tr style="background:#dcfce7;font-weight:800;border-top:2px solid #16a34a">'+
+    '<td style="color:#15803d;padding:9px 12px" colspan="2">📊 TOTALES / PROM.</td>'+
+    '<td style="text-align:center;color:var(--muted);font-size:10px">'+arr.length+' reg.</td>'+
+    '<td style="text-align:center;color:#16a34a">'+(promPct!=null?promPct+'%':'N/A')+'</td>'+
+    '<td style="text-align:center;color:#2563eb">'+totalTareasSum+'</td>'+
     '<td style="text-align:center;color:#16a34a">'+totalResSum+'</td>'+
-    '<td style="text-align:center;color:#16a34a">'+(promDias!=null?promDias+' días prom.':'—')+'</td>'+
-    '<td style="text-align:center;color:#16a34a">'+(promSems!=null?'~'+promSems+' sem':'—')+'</td>'+
-    (isAdmin?'<td></td>':'')+'</tr>';
+    '<td style="text-align:center;color:#16a34a">'+(promDias!=null?promDias+' d':'—')+'</td>'+
+    '<td style="text-align:center;color:#16a34a">'+(promSems!=null?promSems+' sem':'—')+'</td>'+
+    (isAdmin?'<td></td><td></td>':'')+'</tr>';
+
+  /* ── Filas de datos ── */
   tbody.innerHTML=arr.map(function(f,i){
-    var pct=f.pct_cumpl!=null?Math.round(f.pct_cumpl*100)+'%':'—';
+    var pct=(f.pct_cumpl>0)?Math.round(f.pct_cumpl*100)+'%':'—';
     var cls=norm(f.clase||'');
     var claseLabel=cls.includes('colaboracion')||cls.includes('colab')?
-      '<span style="font-size:10px;color:#2563eb;font-weight:700">COLABORACIÓN</span>':
+      '<span style="font-size:10px;color:#2563eb;font-weight:700">COLAB.</span>':
       cls.includes('orden')||cls.includes('limpieza')?
-      '<span style="font-size:10px;color:#16a34a;font-weight:700">ORDEN Y LIMPIEZA</span>':
+      '<span style="font-size:10px;color:#16a34a;font-weight:700">O&L</span>':
+      cls.includes('cartera')?
+      '<span style="font-size:10px;color:#7c3aed;font-weight:700">CARTERA</span>':
       '<span style="font-size:10px;color:var(--muted)">'+esc(f.clase||'—')+'</span>';
-    var durCalc=f.duracion_dias!=null?f.duracion_dias:
-      (f.fecha_inicio&&f.fecha_finalizacion?diasEntre(f.fecha_inicio,f.fecha_finalizacion):null);
-    var dias=durCalc!=null?durCalc+'d':'—';
-    var sems=durCalc!=null?(Math.round(durCalc/7*10)/10)+' sem':'—';
+    var dur=getDur(f);
+    var diasStr=dur!=null?dur+'d':'—';
+    var semsStr=dur!=null?(Math.round(dur/7*10)/10)+' sem':'—';
     var editTd=isAdmin?'<td style="text-align:center"><button class="icon-btn" data-fid="'+esc(f.id||'')+'" onclick="finDeleteClick(this)" title="Eliminar">✕</button></td>':'';
     var fechaCell=isAdmin?
       '<td style="text-align:center"><input class="seg-date-input" type="date" value="'+(f.fecha_finalizacion||'')+'" '+
-        'data-fid="'+esc(f.id||'')+'" onchange="updateFinFecha(this)" title="Editar fecha de finalización" '+
-        'style="width:110px"></td>':
+        'data-fid="'+esc(f.id||'')+'" onchange="updateFinFecha(this)" style="width:110px"></td>':
       '<td style="text-align:center">'+fmtFecha(f.fecha_finalizacion)+'</td>';
     return '<tr style="background:#f0fdf4">'+
       '<td style="color:var(--muted);font-size:11px">'+(i+1)+'</td>'+
       '<td><b style="color:#15803d">'+esc(f.tienda||'—')+'</b></td>'+
-      '<td>'+esc(f.mes||'—')+'</td>'+
       '<td>'+claseLabel+'</td>'+
       '<td style="text-align:center;font-weight:700;color:#16a34a">'+pct+'</td>'+
-      '<td style="text-align:center">'+(f.total_tareas||0)+'</td>'+
-      '<td style="text-align:center;color:#16a34a;font-weight:700">'+(f.resueltas||0)+'</td>'+
+      '<td style="text-align:center;font-weight:700">'+(parseInt(f.total_tareas)||0)+'</td>'+
+      '<td style="text-align:center;color:#16a34a;font-weight:700">'+(parseInt(f.resueltas)||0)+'</td>'+
       fechaCell+
-      '<td style="text-align:center;color:var(--muted)">'+dias+'</td>'+
-      '<td style="text-align:center;color:var(--muted)">'+sems+'</td>'+
+      '<td style="text-align:center;color:var(--muted)">'+diasStr+'</td>'+
+      '<td style="text-align:center;color:var(--muted)">'+semsStr+'</td>'+
       editTd+'</tr>';
   }).join('')+resumen;
 }
