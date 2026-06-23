@@ -3474,35 +3474,46 @@ function renderSeguimientoTable(rows,claseKey){
       var locked=past&&!done;
       var checkCls=done?'done':(locked?'past':'pending');
       var checkIcon=done?'✓':(locked?'✕':'');
-
-      /* Sin pendientes → bloquear interacción (check solo lectura) */
-      var noInteract=sinPendientes&&!done;
-      var onck=(!canEdit||locked||noInteract)?'':
-        'toggleSegCheck(\''+ak+'\',\''+sr.id+'\','+done+')';
-      var title=sinPendientes?'Sin pendientes — al corriente':
-        (done?'Desmarcar':(locked?'Fecha vencida':'Marcar como seguido'));
+      /* Admin siempre puede editar; sinPendientes bloquea solo a no-admin */
+      var noInteract=sinPendientes&&!done&&!canEdit;
+      var checkClickable=canEdit?true:(!locked&&!noInteract);
+      var onck=checkClickable?
+        'toggleSegCheck(\''+ak+'\',\''+sr.id+'\','+done+')':'';
+      var title=sinPendientes&&!canEdit?'Sin pendientes — al corriente':
+        (done?'Desmarcar':(locked&&!canEdit?'Fecha vencida':'Marcar como seguido'));
 
       var inputEl='';
       if(done){
-        inputEl='<div class="seg-date-label">'+fmtSegShort(sr.fecha_completado||fechaFinal)+'</div>';
-      }else if(locked||sinPendientes){
+        if(canEdit){
+          inputEl='<input class="seg-date-input" type="date" value="'+(sr.fecha_completado||fechaFinal)+'" '+
+            'onchange="updateSegFecha(\''+ak+'\',\''+sr.id+'\',this.value)" title="Fecha semana '+col+'">';
+        }else{
+          inputEl='<div class="seg-date-label">'+fmtSegShort(sr.fecha_completado||fechaFinal)+'</div>';
+        }
+      }else if(locked){
+        if(canEdit){
+          inputEl='<input class="seg-date-input" type="date" value="'+fechaFinal+'" '+
+            'onchange="updateSegFecha(\''+ak+'\',\''+sr.id+'\',this.value)" title="Fecha semana '+col+'">';
+        }else{
+          inputEl='<div class="seg-date-gray">'+fmtSegShort(fechaFinal)+'</div>';
+        }
+      }else if(sinPendientes&&!canEdit){
         inputEl='<div class="seg-date-gray">'+fmtSegShort(fechaFinal)+'</div>';
       }else{
         inputEl='<input class="seg-date-input" type="date" value="'+fechaFinal+'" '+
-          (canEdit&&!sinPendientes?'onchange="updateSegFecha(\''+ak+'\',\''+sr.id+'\',this.value)"':'disabled')+
-          ' title="Fecha semana '+col+'">';
+          'onchange="updateSegFecha(\''+ak+'\',\''+sr.id+'\',this.value)" title="Fecha semana '+col+'">';
       }
 
       celdas+='<td><div class="seg-cell">'+
         '<div class="seg-check '+checkCls+'" '+
           (onck?'onclick="'+onck+'" title="'+title+'"':'title="'+title+'"')+
-          ' style="'+((!canEdit||noInteract||locked)?'cursor:default':'')+'">'+checkIcon+'</div>'+
+          ' style="'+(!onck?'cursor:default':'')+'" >'+checkIcon+'</div>'+
         inputEl+'</div></td>';
     }
 
-    /* Botón agregar semana — solo si hay pendientes */
+    /* Botón agregar semana — admin siempre, otros solo si hay pendientes */
     var addBtn='<td></td>';
-    if(canEdit&&!sinPendientes){
+    if(canEdit){
       addBtn='<td style="vertical-align:middle"><button class="btn btn-ghost" style="padding:4px 9px;font-size:11px;white-space:nowrap" '+
         'onclick="addSegSemana(\''+ak+'\',\''+a.fecha+'\')" title="Agregar semana">+ Semana</button></td>';
     }
@@ -3552,9 +3563,25 @@ async function loadAjustes(){
   try{
     var r=await client.from('ajustes').select('*').order('fecha_correo',{ascending:true}).limit(5000);
     if(r.error){toast('⚠ '+r.error.message);return;}
+    var MN=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
+      'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
     AJUSTES=(r.data||[]).map(function(a){
       var dias=diasEntre(a.fecha_correo,a.fecha_ajuste);
-      return{id:a.id,tienda:a.tienda||'',mes:a.mes||'',año:a.año||'',
+      /* Derivar mes y año limpios desde fecha_correo */
+      var mesLimpio=a.mes||'';
+      var añoLimpio=a.año||'';
+      if(a.fecha_correo){
+        var parts=a.fecha_correo.split('-');
+        if(parts.length>=2){
+          añoLimpio=parseInt(parts[0]);
+          mesLimpio=MN[parseInt(parts[1])-1]||mesLimpio;
+        }
+      }else if(mesLimpio&&mesLimpio.includes(',')){
+        var mp=mesLimpio.split(',');
+        mesLimpio=mp[0].trim().toUpperCase();
+        if(!añoLimpio&&mp[1])añoLimpio=parseInt(mp[1].trim());
+      }
+      return{id:a.id,tienda:a.tienda||'',mes:mesLimpio,año:añoLimpio,
         fechaCorreo:a.fecha_correo,fechaAjuste:a.fecha_ajuste,
         dias:dias,condicion:condicionAjuste(dias)};
     });
@@ -3628,28 +3655,29 @@ function renderAjDonut(arr){
   var total=arr.length;
   document.getElementById('aj-donut-note').textContent=total?total+' registros':'';
   if(_chartAjDonut){_chartAjDonut.destroy();_chartAjDonut=null;}
-  var ctx=document.getElementById('chart-aj-donut');
-  if(!ctx)return;
+  /* Siempre restaurar el canvas antes de decidir qué mostrar */
+  var wrap=document.getElementById('chart-aj-donut');
+  if(!wrap||wrap.tagName!=='CANVAS'){
+    var parent=wrap?wrap.parentElement:document.querySelector('#view-ajustes .ajustes-donut-wrap div');
+    if(parent)parent.innerHTML='<canvas id="chart-aj-donut"></canvas>';
+  }
+  var legend=document.getElementById('aj-donut-legend');
   if(!total){
-    ctx.parentElement.innerHTML='<div class="empty">Sin datos</div>';
-    document.getElementById('aj-donut-legend').innerHTML='';
+    var cv=document.getElementById('chart-aj-donut');
+    if(cv)cv.parentElement.innerHTML='<div class="empty" style="display:flex;align-items:center;justify-content:center;width:165px;height:165px;color:var(--muted);font-size:12px">Sin datos</div>';
+    if(legend)legend.innerHTML='';
     return;
   }
-  /* Recrear canvas si fue reemplazado por empty */
-  if(!document.getElementById('chart-aj-donut')){
-    ctx.parentElement.innerHTML='<canvas id="chart-aj-donut"></canvas>';
-  }
   var canvas=document.getElementById('chart-aj-donut');
+  if(!canvas)return;
   _chartAjDonut=new Chart(canvas,{
     type:'doughnut',
-    data:{
-      labels:['A tiempo','Destiempo'],
-      datasets:[{data:[ok,mal],backgroundColor:['#16a34a','#dc2626'],borderWidth:2,borderColor:'#fff'}]
-    },
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
-      tooltip:{callbacks:{label:function(c){return c.label+': '+c.raw+' ('+Math.round(c.raw/total*100)+'%)';}}}}}
+    data:{labels:['A tiempo','Destiempo'],
+      datasets:[{data:[ok,mal],backgroundColor:['#16a34a','#dc2626'],borderWidth:2,borderColor:'#fff'}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:function(ctx2){return ctx2.label+': '+ctx2.raw+' ('+Math.round(ctx2.raw/total*100)+'%)';}}}}}
   });
-  document.getElementById('aj-donut-legend').innerHTML=
+  if(legend)legend.innerHTML=
     '<div class="legend-item"><span class="legend-dot" style="background:#16a34a"></span>'+
     '<span class="legend-lbl">A tiempo</span><span class="legend-val" style="margin-left:12px">'+ok+'</span></div>'+
     '<div class="legend-item"><span class="legend-dot" style="background:#dc2626"></span>'+
@@ -3957,21 +3985,28 @@ function renderMrDonut(arr){
   var total=arr.length;
   document.getElementById('mr-donut-note').textContent=total?total+' registros':'';
   if(_chartMrDonut){_chartMrDonut.destroy();_chartMrDonut=null;}
-  var ctx=document.getElementById('chart-mr-donut');
-  if(!ctx)return;
+  var wrap=document.getElementById('chart-mr-donut');
+  if(!wrap||wrap.tagName!=='CANVAS'){
+    var parent=wrap?wrap.parentElement:document.querySelector('#view-mermas .ajustes-donut-wrap div');
+    if(parent)parent.innerHTML='<canvas id="chart-mr-donut"></canvas>';
+  }
+  var legend=document.getElementById('mr-donut-legend');
   if(!total){
-    ctx.parentElement.innerHTML='<div class="empty">Sin datos</div>';
-    document.getElementById('mr-donut-legend').innerHTML='';
+    var cv=document.getElementById('chart-mr-donut');
+    if(cv)cv.parentElement.innerHTML='<div class="empty" style="display:flex;align-items:center;justify-content:center;width:165px;height:165px;color:var(--muted);font-size:12px">Sin datos</div>';
+    if(legend)legend.innerHTML='';
     return;
   }
-  _chartMrDonut=new Chart(ctx,{
+  var canvas=document.getElementById('chart-mr-donut');
+  if(!canvas)return;
+  _chartMrDonut=new Chart(canvas,{
     type:'doughnut',
     data:{labels:['A tiempo','Destiempo'],
       datasets:[{data:[ok,mal],backgroundColor:['#16a34a','#dc2626'],borderWidth:2,borderColor:'#fff'}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
-      tooltip:{callbacks:{label:function(c){return c.label+': '+c.raw+' ('+Math.round(c.raw/(total||1)*100)+'%)';}}}}}
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:function(ctx2){return ctx2.label+': '+ctx2.raw+' ('+Math.round(ctx2.raw/(total||1)*100)+'%)';}}}}}
   });
-  document.getElementById('mr-donut-legend').innerHTML=
+  if(legend)legend.innerHTML=
     '<div class="legend-item"><span class="legend-dot" style="background:#16a34a"></span>'+
     '<span class="legend-lbl">A tiempo</span><span class="legend-val" style="margin-left:12px">'+ok+'</span></div>'+
     '<div class="legend-item"><span class="legend-dot" style="background:#dc2626"></span>'+
@@ -4102,29 +4137,50 @@ function importMermasExcel(files){
   var reader=new FileReader();
   reader.onload=function(e){
     try{
-      var wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+      /* cellDates:false para recibir seriales numéricos y convertirlos manualmente */
+      var wb=XLSX.read(e.target.result,{type:'array',cellDates:false});
       var ws=wb.Sheets[wb.SheetNames[0]];
       var raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
       if(raw.length<2){toast('⚠ Excel vacío');return;}
-      var H=raw[0].map(function(c){return String(c||'').toLowerCase().trim();});
-      function fc(keys){var k=keys.find(function(k){return H.indexOf(k)>=0;});return k?H.indexOf(k):-1;}
-      var iT=fc(['tienda','sucursal']);
-      var iLF=fc(['local/foranea','local/foránea','local foranea','local_foranea','tipo']);
-      var iM=fc(['mes','month']);
-      var iA=fc(['autorizacion','autorización','fecha autorizacion','fecha_autorizacion','f autorizacion']);
-      var iV=fc(['validacion','validación','fecha validacion','fecha_validacion','f validacion']);
-      if(iT<0||iA<0||iV<0){
-        toast('⚠ Columnas no encontradas. Necesita: Tienda, Autorización, Validación');return;
+      /* Normalizar cabeceras: minúsculas + sin tildes + sin espacios extra */
+      function normH(s){return String(s||'').toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'');}
+      var H=raw[0].map(normH);
+      /* Buscar columna por lista de variantes, con coincidencia parcial como fallback */
+      function fc(keys){
+        var nk=keys.map(normH);
+        for(var ki=0;ki<nk.length;ki++)for(var hi=0;hi<H.length;hi++)if(H[hi]===nk[ki])return hi;
+        for(var ki=0;ki<nk.length;ki++)for(var hi=0;hi<H.length;hi++)if(H[hi].includes(nk[ki])||nk[ki].includes(H[hi]))return hi;
+        return -1;
       }
-      function parseExcelDate(v){
-        if(!v)return null;
-        if(v instanceof Date){var d=v;return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+      var iT=fc(['tienda','sucursal']);
+      var iLF=fc(['local_foranea','local/foranea','local foranea','localforanea','tipo']);
+      var iM=fc(['mes','month']);
+      /* "Autoriacion" es error tipográfico en el Excel — aceptar sin z */
+      var iA=fc(['autorizacion','autoriacion','autoriacion','fecha autorizacion','fecha_autorizacion']);
+      var iV=fc(['validacion','fecha validacion','fecha_validacion']);
+      if(iT<0||iA<0||iV<0){
+        toast('⚠ Columnas detectadas: '+H.join(' | '));
+        return;
+      }
+      /* Convertir serial de Excel (número) o string a yyyy-mm-dd */
+      function toISOfecha(v){
+        if(!v&&v!==0)return null;
+        var n=Number(v);
+        if(!isNaN(n)&&n>30000&&n<80000){
+          /* Excel base: 25569 días desde epoch Unix = 1900-01-01 con bug de bisiesto */
+          var ms=(n-25569)*86400*1000;
+          var d=new Date(ms);
+          return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
+        }
+        if(v instanceof Date){
+          return v.getFullYear()+'-'+String(v.getMonth()+1).padStart(2,'0')+'-'+String(v.getDate()).padStart(2,'0');
+        }
         var s=String(v).trim();
         var m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
         if(m)return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
         if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
-        var d=new Date(s);
-        if(!isNaN(d))return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+        var dt=new Date(s);
+        if(!isNaN(dt))return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
         return null;
       }
       var mNames=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
@@ -4134,24 +4190,23 @@ function importMermasExcel(files){
         var r=raw[i];
         var tienda=String(r[iT]||'').trim().toUpperCase();
         if(!tienda)continue;
-        var fechaA=parseExcelDate(r[iA]);
-        var fechaV=parseExcelDate(r[iV]);
+        var fechaA=toISOfecha(r[iA]);
+        var fechaV=toISOfecha(r[iV]);
         if(!fechaA||!fechaV)continue;
-        var lf=iLF>=0?String(r[iLF]||'').trim():'';
+        var lf=iLF>=0?String(r[iLF]||'').trim():'Local';
         if(!lf)lf='Local';
         var mes=iM>=0?String(r[iM]||'').trim().toUpperCase():'';
+        if(mes&&mes.includes(','))mes=mes.split(',')[0].trim().toUpperCase();
         if(!mes&&fechaA)mes=mNames[parseInt(fechaA.split('-')[1])-1]||'';
-        /* Extraer año y mes del formato "junio,2026" si aplica */
-        if(mes&&mes.includes(',')){var parts=mes.split(',');mes=parts[0].trim().toUpperCase();}
         var año=parseInt((fechaA||'').split('-')[0])||null;
         var dias=diasEntre(fechaA,fechaV);
         rows.push({tienda,local_foranea:lf,mes,año,fecha_autorizacion:fechaA,
           fecha_validacion:fechaV,dias,condicion:condicionAjuste(dias)});
       }
-      if(!rows.length){toast('⚠ Sin filas válidas en el Excel');return;}
+      if(!rows.length){toast('⚠ Sin filas válidas. Revisa que las columnas de fecha tengan datos');return;}
       toast('⏳ Importando '+rows.length+' registros…');
       commitMermasExcel(rows);
-    }catch(err){toast('⚠ Error: '+err.message);}
+    }catch(err){toast('⚠ Error: '+err.message);console.error(err);}
   };
   reader.readAsArrayBuffer(file);
 }
