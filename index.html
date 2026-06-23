@@ -2221,12 +2221,17 @@ function pendColor(stats){
 
 function audTablaPorClase(titulo,color,rows){
   var isAdmin=_session&&_session.rol==='admin';
-  var filas=rows.map(function(a,idx){
+  /* Cache global indexado por clave única (no por título que puede colisionar) */
+  window._audItemCache=window._audItemCache||{};
+  var filas=rows.map(function(a){
     var stats=calcAudStats(a,rows);
     var pend=stats.pendientes;
     var pc=pendColor(stats);
     var mark=stats.dinamico?'<span style="font-size:9px;color:var(--teal);margin-left:3px" title="En tiempo real">⟳</span>':'';
-    var editBtn=isAdmin?'<td style="text-align:center"><button class="icon-btn" onclick="openEditAuditoria('+idx+',\''+titulo+'\')" title="Editar auditoría">✎</button></td>':'<td></td>';
+    /* Clave única por auditoría */
+    var akey=[norm(a.tienda||''),norm(a.mes||''),norm(a.clase||''),a.fecha||''].join('|');
+    window._audItemCache[akey]=a;
+    var editBtn=isAdmin?'<td style="text-align:center"><button class="icon-btn" onclick="openEditAuditoria(\''+akey+'\')" title="Editar auditoría">✎</button></td>':'<td></td>';
     return '<tr>'+
       '<td><b>'+(a.tienda||'—')+'</b></td>'+
       '<td>'+(a.mes||'—')+'</td>'+
@@ -2244,9 +2249,6 @@ function audTablaPorClase(titulo,color,rows){
     '<span><span style="color:#2563eb;font-weight:800">●</span> Vigente</span>'+
     '<span><span style="color:#d97706;font-weight:800">●</span> Resuelta c/atraso</span>'+
     '<span><span style="color:#16a34a;font-weight:800">●</span> Al corriente</span></span>';
-  /* Guardar referencia de rows para edición */
-  window._audRowsCache=window._audRowsCache||{};
-  window._audRowsCache[titulo]=rows;
   var tablaHTML='<div class="slbl" style="margin:4px 0 4px;color:'+color+'">'+
     '<span class="dot" style="background:'+color+'"></span>'+titulo+
     ' <span style="font-weight:600;font-size:10px;color:var(--muted)">('+rows.length+')</span>'+
@@ -2260,10 +2262,9 @@ function audTablaPorClase(titulo,color,rows){
 }
 
 /* ── Editar auditoría (solo admin) ── */
-function openEditAuditoria(idx,titulo){
+function openEditAuditoria(akey){
   if(!_session||_session.rol!=='admin'){toast('⚠ Solo administradores pueden editar auditorías');return;}
-  var rows=(window._audRowsCache&&window._audRowsCache[titulo])||[];
-  var a=rows[idx];if(!a)return;
+  var a=(window._audItemCache&&window._audItemCache[akey]);if(!a)return;
   var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   var html='<div class="form-grid">'+
     '<div class="form-field"><label>Tienda</label><input id="ea-tienda" value="'+esc(a.tienda||'')+'"></div>'+
@@ -3578,7 +3579,7 @@ async function loadAjustes(){
   var client=getSbClient();
   if(!client){toast('⚠ Sin Supabase');return;}
   try{
-    var r=await client.from('ajustes').select('*').order('fecha_correo',{ascending:true}).limit(5000);
+    var r=await client.from('ajustes').select('*').order('fecha_correo',{ascending:true}).order('fecha_ajuste',{ascending:true}).limit(5000);
     if(r.error){toast('⚠ '+r.error.message);return;}
     var MN=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
       'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
@@ -3608,26 +3609,35 @@ async function loadAjustes(){
 }
 
 function fillAjFilters(){
-  var meses=[...new Set(AJUSTES.map(function(a){return a.mes;}).filter(Boolean))].sort();
-  var años=[...new Set(AJUSTES.map(function(a){return String(a.año||'');}).filter(Boolean))].sort().reverse();
+  var MORD=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
+    'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+  /* Meses en orden cronológico, no alfabético */
+  var mesSet=new Set(AJUSTES.map(function(a){return(a.mes||'').toUpperCase();}).filter(Boolean));
+  var meses=MORD.filter(function(m){return mesSet.has(m);});
+  /* Completar con cualquier mes no estándar que pueda venir */
+  mesSet.forEach(function(m){if(MORD.indexOf(m)<0)meses.push(m);});
+  var años=[...new Set(AJUSTES.map(function(a){return a.año?String(a.año):'';}).filter(Boolean))].sort().reverse();
   var tiendas=[...new Set(AJUSTES.map(function(a){return a.tienda;}).filter(Boolean))].sort();
   var sm=document.getElementById('aj-f-mes');
   var sa=document.getElementById('aj-f-año');
   var st=document.getElementById('aj-f-tienda');
   if(!sm)return;
   var vm=sm.value,va=sa.value,vt=st.value;
-  sm.innerHTML='<option value="ALL">Todos</option>'+meses.map(function(m){return'<option>'+m+'</option>';}).join('');
-  sa.innerHTML='<option value="ALL">Todos</option>'+años.map(function(y){return'<option>'+y+'</option>';}).join('');
+  sm.innerHTML='<option value="ALL">Todos</option>'+meses.map(function(m){return'<option value="'+m+'">'+m+'</option>';}).join('');
+  sa.innerHTML='<option value="ALL">Todos</option>'+años.map(function(y){return'<option value="'+y+'">'+y+'</option>';}).join('');
   st.innerHTML='<option value="ALL">Todas</option>'+tiendas.map(function(t){return'<option>'+t+'</option>';}).join('');
-  sm.value=vm;sa.value=va;st.value=vt;
+  /* Restaurar selección solo si el valor sigue existiendo */
+  if([...sm.options].some(function(o){return o.value===vm;}))sm.value=vm;
+  if([...sa.options].some(function(o){return o.value===va;}))sa.value=va;
+  if([...st.options].some(function(o){return o.value===vt;}))st.value=vt;
 }
 
 function filteredAjustes(){
-  var mes=document.getElementById('aj-f-mes').value;
-  var año=document.getElementById('aj-f-año').value;
-  var tienda=document.getElementById('aj-f-tienda').value;
+  var mes=(document.getElementById('aj-f-mes').value||'ALL');
+  var año=(document.getElementById('aj-f-año').value||'ALL');
+  var tienda=(document.getElementById('aj-f-tienda').value||'ALL');
   return AJUSTES.filter(function(a){
-    if(mes!=='ALL'&&norm(a.mes)!==norm(mes))return false;
+    if(mes!=='ALL'&&(a.mes||'').toUpperCase()!==mes.toUpperCase())return false;
     if(año!=='ALL'&&String(a.año||'')!==String(año))return false;
     if(tienda!=='ALL'&&norm(a.tienda)!==norm(tienda))return false;
     return true;
@@ -3640,6 +3650,11 @@ function fmtFecha(iso){
 
 function renderAjustes(){
   var arr=filteredAjustes();
+  /* Ordenar por fecha de correo: día 1 primero, último día al final */
+  arr=arr.slice().sort(function(a,b){
+    var da=a.fechaCorreo||'';var db=b.fechaCorreo||'';
+    return da<db?-1:da>db?1:0;
+  });
   var isAdmin=_session&&_session.rol==='admin';
   document.getElementById('aj-count').textContent=arr.length+' registro(s)';
   var th=document.getElementById('aj-edit-th');
@@ -3924,7 +3939,7 @@ async function loadMermas(){
   var client=getSbClient();
   if(!client){toast('⚠ Sin Supabase');return;}
   try{
-    var r=await client.from('mermas').select('*').order('fecha_autorizacion',{ascending:true}).limit(5000);
+    var r=await client.from('mermas').select('*').order('fecha_autorizacion',{ascending:true}).order('fecha_validacion',{ascending:true}).limit(5000);
     if(r.error){toast('⚠ '+r.error.message);return;}
     MERMAS=(r.data||[]).map(function(m){
       var dias=diasEntre(m.fecha_autorizacion,m.fecha_validacion);
@@ -3939,26 +3954,32 @@ async function loadMermas(){
 }
 
 function fillMrFilters(){
-  var meses=[...new Set(MERMAS.map(function(m){return m.mes;}).filter(Boolean))].sort();
-  var años=[...new Set(MERMAS.map(function(m){return String(m.año||'');}).filter(Boolean))].sort().reverse();
+  var MORD=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
+    'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+  var mesSet=new Set(MERMAS.map(function(m){return(m.mes||'').toUpperCase();}).filter(Boolean));
+  var meses=MORD.filter(function(m){return mesSet.has(m);});
+  mesSet.forEach(function(m){if(MORD.indexOf(m)<0)meses.push(m);});
+  var años=[...new Set(MERMAS.map(function(m){return m.año?String(m.año):'';}).filter(Boolean))].sort().reverse();
   var tiendas=[...new Set(MERMAS.map(function(m){return m.tienda;}).filter(Boolean))].sort();
   var sm=document.getElementById('mr-f-mes');
   var sa=document.getElementById('mr-f-año');
   var st=document.getElementById('mr-f-tienda');
   if(!sm)return;
   var vm=sm.value,va=sa.value,vt=st.value;
-  sm.innerHTML='<option value="ALL">Todos</option>'+meses.map(function(m){return'<option>'+m+'</option>';}).join('');
-  sa.innerHTML='<option value="ALL">Todos</option>'+años.map(function(y){return'<option>'+y+'</option>';}).join('');
+  sm.innerHTML='<option value="ALL">Todos</option>'+meses.map(function(m){return'<option value="'+m+'">'+m+'</option>';}).join('');
+  sa.innerHTML='<option value="ALL">Todos</option>'+años.map(function(y){return'<option value="'+y+'">'+y+'</option>';}).join('');
   st.innerHTML='<option value="ALL">Todas</option>'+tiendas.map(function(t){return'<option>'+t+'</option>';}).join('');
-  sm.value=vm;sa.value=va;st.value=vt;
+  if([...sm.options].some(function(o){return o.value===vm;}))sm.value=vm;
+  if([...sa.options].some(function(o){return o.value===va;}))sa.value=va;
+  if([...st.options].some(function(o){return o.value===vt;}))st.value=vt;
 }
 
 function filteredMermas(){
-  var mes=document.getElementById('mr-f-mes').value;
-  var año=document.getElementById('mr-f-año').value;
-  var tienda=document.getElementById('mr-f-tienda').value;
+  var mes=(document.getElementById('mr-f-mes').value||'ALL');
+  var año=(document.getElementById('mr-f-año').value||'ALL');
+  var tienda=(document.getElementById('mr-f-tienda').value||'ALL');
   return MERMAS.filter(function(m){
-    if(mes!=='ALL'&&norm(m.mes)!==norm(mes))return false;
+    if(mes!=='ALL'&&(m.mes||'').toUpperCase()!==mes.toUpperCase())return false;
     if(año!=='ALL'&&String(m.año||'')!==String(año))return false;
     if(tienda!=='ALL'&&norm(m.tienda)!==norm(tienda))return false;
     return true;
@@ -3967,6 +3988,11 @@ function filteredMermas(){
 
 function renderMermas(){
   var arr=filteredMermas();
+  /* Ordenar por fecha de autorización: día 1 primero, último día al final */
+  arr=arr.slice().sort(function(a,b){
+    var da=a.fechaAut||'';var db=b.fechaAut||'';
+    return da<db?-1:da>db?1:0;
+  });
   var isAdmin=_session&&_session.rol==='admin';
   document.getElementById('mr-count').textContent=arr.length+' registro(s)';
   var th=document.getElementById('mr-edit-th');
