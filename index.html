@@ -217,6 +217,36 @@ table.dt tbody tr:last-child td{border-bottom:none}
 /* EMPTY */
 .empty{padding:34px;text-align:center;color:var(--muted);font-size:13px}
 
+/* TABLA SEGUIMIENTO */
+.seg-wrap{margin-top:14px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.seg-title{background:var(--soft);padding:10px 14px;font-size:11px;font-weight:800;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:8px}
+table.seg{width:100%;border-collapse:collapse}
+table.seg thead th{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
+  padding:8px 10px;text-align:center;background:var(--soft);border-bottom:2px solid var(--border);
+  color:var(--muted);white-space:nowrap;border-right:1px solid var(--border)}
+table.seg thead th:first-child{text-align:left;min-width:130px}
+table.seg tbody td{padding:7px 10px;border-bottom:1px solid var(--rowline);font-size:11.5px;
+  text-align:center;border-right:1px solid var(--rowline)}
+table.seg tbody td:first-child{text-align:left;font-weight:700;color:var(--txt)}
+table.seg tbody tr:last-child td{border-bottom:none}
+table.seg tbody tr:hover{background:var(--soft)}
+.seg-cell{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:90px}
+.seg-check{width:22px;height:22px;border-radius:6px;border:2px solid var(--border);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;
+  transition:all .15s;margin:0 auto;flex-shrink:0;user-select:none}
+.seg-check.done{background:var(--green);border-color:var(--green);color:#fff}
+.seg-check.past{background:#d1d5db;border-color:#9ca3af;color:#6b7280;cursor:not-allowed;pointer-events:none}
+.seg-check.pending{background:var(--white);border-color:var(--border)}
+.seg-check.pending:hover{border-color:var(--green);background:var(--green-soft)}
+.seg-date-input{border:1px solid var(--border);border-radius:5px;font-size:10px;
+  padding:3px 5px;color:var(--txt);font-family:inherit;width:98px;text-align:center}
+.seg-date-input:focus{outline:2px solid var(--blue);border-color:var(--blue)}
+.seg-date-input:disabled{background:#f1f5f9;color:var(--muted);cursor:not-allowed}
+.seg-date-label{font-size:10px;color:var(--green);font-weight:700}
+.seg-date-gray{font-size:10px;color:var(--muted);font-style:italic}
+
 /* MODAL */
 .modal-overlay{position:fixed;inset:0;background:rgba(31,37,48,.5);display:none;align-items:center;
   justify-content:center;z-index:200;padding:20px}
@@ -1938,7 +1968,10 @@ function setView(v){
   var nau=document.getElementById('nav-auditorias');
   if(nau)nau.classList.toggle('active',v==='auditorias');
   if(v==='actividades'){ if(!ACTIVIDADES.length) loadActividades(); else renderActividades(); }
-  else if(v==='auditorias'){ if(!STORE.auditorias.length) loadDataFromSupabase().then(renderAuditoriasView); else renderAuditoriasView(); }
+  else if(v==='auditorias'){
+    if(!STORE.auditorias.length) loadDataFromSupabase().then(renderAuditoriasView);
+    else{ if(!SEG_LOADED)loadSeguimientos().then(renderAuditoriasView); else renderAuditoriasView(); }
+  }
   else render();
 }
 
@@ -2076,13 +2109,18 @@ function audTablaPorClase(titulo,color,rows){
     '<span><span style="color:#2563eb;font-weight:800">●</span> Vigente</span>'+
     '<span><span style="color:#d97706;font-weight:800">●</span> Resuelta c/atraso</span>'+
     '<span><span style="color:#16a34a;font-weight:800">●</span> Al corriente</span></span>';
-  return '<div class="slbl" style="margin:4px 0 4px;color:'+color+'">'+
+  var tablaHTML='<div class="slbl" style="margin:4px 0 4px;color:'+color+'">'+
     '<span class="dot" style="background:'+color+'"></span>'+titulo+
     ' <span style="font-weight:600;font-size:10px;color:var(--muted)">('+rows.length+')</span>'+
     leyenda+'</div>'+
-    '<div class="card" style="padding:8px 10px;margin-bottom:22px"><div class="tbl-scroll"><table class="dt">'+
+    '<div class="card" style="padding:8px 10px;margin-bottom:10px"><div class="tbl-scroll"><table class="dt">'+
     '<thead><tr><th>Tienda</th><th>Mes Auditoría</th><th class="c">% Cumplimiento</th><th class="c">Tareas</th><th class="c">Pendientes</th><th class="c">Resueltos</th><th class="c">% Resuelto</th></tr></thead>'+
     '<tbody>'+(filas||'<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:18px">Sin registros</td></tr>')+'</tbody></table></div></div>';
+
+  /* Tabla de seguimiento */
+  var segHTML=renderSeguimientoTable(rows, titulo);
+
+  return tablaHTML+segHTML+'<div style="margin-bottom:22px"></div>';
 }
 
 function renderAuditoriasView(){
@@ -2838,6 +2876,8 @@ async function loadDataFromSupabase(){
       fechaCreacion:t.fecha_creacion,fechaTerm:t.fecha_term,fechaCumpl:t.fecha_cumpl
     };});
     refreshAll();
+    /* Cargar seguimientos en paralelo */
+    loadSeguimientos().then(function(){if(VIEW==='auditorias')renderAuditoriasView();});
     setPill('supabase');toast('✓ Conectado a Supabase — '+STORE.tareas.length+' tareas, '+STORE.auditorias.length+' auditorías');
   }catch(e){
     console.warn('Error cargando Supabase:',e);
@@ -3016,6 +3056,228 @@ function checkAdminUI(){
     var canEditA=_session&&['admin','editor'].includes(_session.rol);
     addAct.style.display=canEditA?'':'none';
   }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   MÓDULO SEGUIMIENTO — Supabase
+   Tabla: seguimiento_semanas
+   Columnas: id (uuid PK), aud_key (text), num_semana (int),
+             fecha_prog (date), completado (bool), fecha_completado (date),
+             created_at (timestamptz default now())
+════════════════════════════════════════════════════════════════════ */
+
+/* Cache en memoria para evitar re-fetches innecesarios */
+var SEG_CACHE={};        /* {aud_key: [{id,num_semana,fecha_prog,completado,fecha_completado},...]} */
+var SEG_LOADED=false;
+
+/* Genera clave única para cada auditoría */
+function audSegKey(a){
+  return [norm(a.razon||''),norm(a.tienda||''),norm(a.centro||''),
+          (a.mes||'').toUpperCase(),norm(a.clase||'')].join('|');
+}
+
+function isPast(iso){
+  if(!iso)return false;
+  var t=new Date();t.setHours(0,0,0,0);
+  return new Date(iso+'T00:00:00')<t;
+}
+function fmtSegShort(iso){
+  if(!iso)return'—';
+  var p=iso.split('-');return p[2]+'/'+p[1];
+}
+function calcSugerida(fechaAud,n){
+  var b=fechaAud?new Date(fechaAud+'T12:00:00'):new Date();
+  b.setDate(b.getDate()+n*7);
+  return b.toISOString().split('T')[0];
+}
+
+/* ── Cargar todos los seguimientos desde Supabase ── */
+async function loadSeguimientos(){
+  var client=getSbClient();
+  if(!client){SEG_LOADED=true;return;}
+  try{
+    var r=await client.from('seguimiento_semanas').select('*').order('aud_key').order('num_semana');
+    if(r.error){console.warn('seguimiento_semanas:',r.error.message);SEG_LOADED=true;return;}
+    SEG_CACHE={};
+    (r.data||[]).forEach(function(row){
+      if(!SEG_CACHE[row.aud_key])SEG_CACHE[row.aud_key]=[];
+      SEG_CACHE[row.aud_key].push(row);
+    });
+    SEG_LOADED=true;
+  }catch(e){console.warn('loadSeguimientos:',e.message);SEG_LOADED=true;}
+}
+
+/* ── Obtener semanas de una auditoría (del cache) ── */
+function getSegRows(ak){
+  return (SEG_CACHE[ak]||[]).slice().sort(function(a,b){return a.num_semana-b.num_semana;});
+}
+function maxSemana(ak){
+  var rows=getSegRows(ak);
+  if(!rows.length)return 0;
+  return Math.max.apply(null,rows.map(function(r){return r.num_semana;}));
+}
+
+/* ── Toggle completado ── */
+async function toggleSegCheck(ak,rowId,currentVal){
+  var client=getSbClient();if(!client){toast('⚠ Sin Supabase');return;}
+  var newVal=!currentVal;
+  var today=new Date().toISOString().split('T')[0];
+
+  /* Actualismo en cache primero para UI inmediata */
+  if(SEG_CACHE[ak]){
+    SEG_CACHE[ak].forEach(function(r){
+      if(r.id===rowId){r.completado=newVal;r.fecha_completado=newVal?today:null;}
+    });
+  }
+  renderAuditoriasView();
+
+  try{
+    var upd={completado:newVal,fecha_completado:newVal?today:null};
+    var res=await client.from('seguimiento_semanas').update(upd).eq('id',rowId);
+    if(res.error){toast('⚠ '+res.error.message);await loadSeguimientos();renderAuditoriasView();}
+    else toast(newVal?'✓ Seguimiento registrado':'↩ Desmarcado');
+  }catch(e){toast('⚠ '+e.message);}
+}
+
+/* ── Actualizar fecha programada ── */
+async function updateSegFecha(ak,rowId,newDate){
+  var client=getSbClient();if(!client)return;
+  if(SEG_CACHE[ak]){
+    SEG_CACHE[ak].forEach(function(r){if(r.id===rowId)r.fecha_prog=newDate;});
+  }
+  try{
+    await client.from('seguimiento_semanas').update({fecha_prog:newDate}).eq('id',rowId);
+  }catch(e){console.warn('updateSegFecha:',e.message);}
+}
+
+/* ── Agregar nueva semana ── */
+async function addSegSemana(ak,fechaAud){
+  var client=getSbClient();if(!client){toast('⚠ Sin Supabase');return;}
+  var next=(maxSemana(ak)||0)+1;
+  var fechaProg=calcSugerida(fechaAud,next);
+  var newRow={aud_key:ak,num_semana:next,fecha_prog:fechaProg,completado:false,fecha_completado:null};
+  try{
+    var r=await client.from('seguimiento_semanas').insert([newRow]).select();
+    if(r.error){toast('⚠ '+r.error.message);return;}
+    if(!SEG_CACHE[ak])SEG_CACHE[ak]=[];
+    SEG_CACHE[ak].push(r.data[0]||{...newRow,id:'tmp'+Date.now()});
+    renderAuditoriasView();
+    toast('✓ Semana '+(next)+' añadida');
+  }catch(e){toast('⚠ '+e.message);}
+}
+
+/* ── Inicializar semanas si no existen (crea 5 por defecto) ── */
+async function initSegSemanas(ak,fechaAud){
+  var client=getSbClient();if(!client)return;
+  var existing=getSegRows(ak);
+  if(existing.length>0)return; /* Ya tiene semanas */
+  var rows=[];
+  for(var i=1;i<=5;i++){
+    rows.push({aud_key:ak,num_semana:i,fecha_prog:calcSugerida(fechaAud,i),
+               completado:false,fecha_completado:null});
+  }
+  try{
+    var r=await client.from('seguimiento_semanas').insert(rows).select();
+    if(r.error){console.warn('initSegSemanas:',r.error.message);return;}
+    SEG_CACHE[ak]=r.data||rows.map(function(x,i){return{...x,id:'tmp'+i};});
+    renderAuditoriasView();
+  }catch(e){console.warn('initSegSemanas:',e.message);}
+}
+
+/* ── Renderizar tabla de seguimiento ── */
+function renderSeguimientoTable(rows,claseKey){
+  if(!rows||!rows.length)return'';
+  var canEdit=_session&&['admin','editor'].includes(_session.rol);
+
+  /* Cabecera dinámica: máximo de semanas entre todas las filas de este grupo */
+  var maxSems=0;
+  rows.forEach(function(a){
+    var ak=audSegKey(a);
+    var n=maxSemana(ak)||5;
+    if(n>maxSems)maxSems=n;
+  });
+  if(maxSems<5)maxSems=5;
+
+  var thCols='';
+  for(var s=1;s<=maxSems;s++)thCols+='<th>SEMANA '+s+'</th>';
+  var thead='<thead><tr><th style="text-align:left;min-width:130px">Tienda</th>'+thCols+'<th></th></tr></thead>';
+
+  var tbody=rows.map(function(a){
+    var ak=audSegKey(a);
+    var semRows=getSegRows(ak);
+
+    /* Si no tiene semanas aún y Supabase está listo, inicializar de fondo */
+    if(SEG_LOADED&&semRows.length===0){
+      initSegSemanas(ak,a.fecha);
+      /* Mostrar placeholders mientras carga */
+      var placeholders='';
+      for(var pi=0;pi<maxSems;pi++){
+        placeholders+='<td><div class="seg-cell"><div class="seg-check pending" style="opacity:.4"></div>'+
+          '<div class="seg-date-gray">cargando…</div></div></td>';
+      }
+      return '<tr><td><b>'+(a.tienda||'—')+'</b><br>'+
+        '<span style="font-size:10px;color:var(--muted)">'+(a.mes||'')+'</span></td>'+
+        placeholders+'<td></td></tr>';
+    }
+
+    /* Construir mapa por num_semana para acceso rápido */
+    var semMap={};
+    semRows.forEach(function(r){semMap[r.num_semana]=r;});
+
+    var celdas='';
+    for(var col=1;col<=maxSems;col++){
+      var sr=semMap[col];
+      if(!sr){
+        celdas+='<td>—</td>';
+        continue;
+      }
+      var done=!!sr.completado;
+      var fechaFinal=sr.fecha_prog||'';
+      var past=isPast(fechaFinal);
+      var locked=past&&!done;
+      var checkCls=done?'done':(locked?'past':'pending');
+      var checkIcon=done?'✓':(locked?'✕':'');
+
+      var onck=(!canEdit||locked)?'':
+        'toggleSegCheck(\''+ak+'\',\''+sr.id+'\','+done+')';
+      var title=done?'Desmarcar':(locked?'Fecha vencida':'Marcar como seguido');
+
+      var inputEl='';
+      if(done){
+        inputEl='<div class="seg-date-label">'+fmtSegShort(sr.fecha_completado||fechaFinal)+'</div>';
+      }else if(locked){
+        inputEl='<div class="seg-date-gray">'+fmtSegShort(fechaFinal)+'</div>';
+      }else{
+        inputEl='<input class="seg-date-input" type="date" value="'+fechaFinal+'" '+
+          (canEdit?'onchange="updateSegFecha(\''+ak+'\',\''+sr.id+'\',this.value)"':'disabled')+
+          ' title="Fecha semana '+col+'">';
+      }
+
+      celdas+='<td><div class="seg-cell">'+
+        '<div class="seg-check '+checkCls+'" '+
+          (onck?'onclick="'+onck+'" title="'+title+'"':'')+
+          (!canEdit?'style="cursor:default"':'')+'>'+checkIcon+'</div>'+
+        inputEl+'</div></td>';
+    }
+
+    /* Botón agregar semana */
+    var addBtn=canEdit?
+      '<td style="vertical-align:middle"><button class="btn btn-ghost" style="padding:4px 9px;font-size:11px;white-space:nowrap" '+
+        'onclick="addSegSemana(\''+ak+'\',\''+a.fecha+'\')" title="Agregar semana">+ Semana</button></td>':
+      '<td></td>';
+
+    return '<tr>'+
+      '<td><b>'+(a.tienda||'—')+'</b><br>'+
+        '<span style="font-size:10px;color:var(--muted)">'+(a.mes||'')+'</span></td>'+
+      celdas+addBtn+'</tr>';
+  }).join('');
+
+  return '<div class="seg-wrap">'+
+    '<div class="seg-title">📅 Seguimiento — '+claseKey+
+      '<span style="font-size:10px;font-weight:500;color:var(--muted);margin-left:8px">'+
+      'Palomea para registrar · fecha se bloquea al pasar · datos en Supabase</span></div>'+
+    '<div class="tbl-scroll"><table class="seg">'+thead+'<tbody>'+tbody+'</tbody></table></div>'+
+  '</div>';
 }
 
 </script>
