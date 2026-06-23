@@ -2127,9 +2127,9 @@ function filteredAudByView(){
   var tienda=document.getElementById('aud-f-tienda').value;
   var centro=document.getElementById('aud-f-centro').value;
   return STORE.auditorias.filter(function(a){
-    if(mes!=='ALL'&&a.mes!==mes)return false;
-    if(tienda!=='ALL'&&a.tienda!==tienda)return false;
-    if(centro!=='ALL'&&a.centro!==centro)return false;
+    if(mes!=='ALL'&&norm(a.mes)!==norm(mes))return false;
+    if(tienda!=='ALL'&&norm(a.tienda)!==norm(tienda))return false;
+    if(centro!=='ALL'&&norm(a.centro)!==norm(centro))return false;
     return true;
   });
 }
@@ -2341,23 +2341,40 @@ function renderAuditoriasView(){
   var arr=filteredAudByView();
   document.getElementById('aud-count').textContent=arr.length+' auditoría(s)';
   var cont=document.getElementById('auditorias-tables');
-  if(!arr.length){cont.innerHTML='<div class="empty" style="padding:30px">Sin auditorías en Supabase. Carga datos con el módulo principal.</div>';return;}
+  if(!arr.length){cont.innerHTML='<div class="empty" style="padding:30px">Sin auditorías. Verifica los filtros o carga datos desde el módulo principal.</div>';return;}
 
-  /* Agrupar por clase */
-  function clasifica(a){
+  /* Clasificar en los dos tipos conocidos + agrupar el resto por clase real */
+  function claseCanonica(a){
     var c=norm(a.clase||'');
-    if(c.includes('colaboracion')||c.includes('colab'))return 'colab';
-    if(c.includes('orden')||c.includes('limpieza'))return 'orden';
-    return 'otras';
+    if(c.includes('colaboracion')||c.includes('colab'))return '__colab';
+    if(c.includes('orden')||c.includes('limpieza'))return '__orden';
+    return a.clase||'SIN CLASE'; /* clase real como clave */
   }
-  var colab=arr.filter(a=>clasifica(a)==='colab');
-  var orden=arr.filter(a=>clasifica(a)==='orden');
-  var otras=arr.filter(a=>clasifica(a)==='otras');
+
+  var grupos={};
+  arr.forEach(function(a){
+    var k=claseCanonica(a);
+    if(!grupos[k])grupos[k]=[];
+    grupos[k].push(a);
+  });
 
   var html='';
-  html+=audTablaPorClase('AUDITORIAS DE COLABORACION','#2563eb',colab);
-  html+=audTablaPorClase('ORDEN Y LIMPIEZA','#16a34a',orden);
-  if(otras.length)html+=audTablaPorClase('OTRAS AUDITORÍAS','#7c8696',otras);
+  /* Primero los dos grupos conocidos en orden fijo */
+  if(grupos['__colab']&&grupos['__colab'].length)
+    html+=audTablaPorClase('AUDITORIAS DE COLABORACION','#2563eb',grupos['__colab']);
+  if(grupos['__orden']&&grupos['__orden'].length)
+    html+=audTablaPorClase('ORDEN Y LIMPIEZA','#16a34a',grupos['__orden']);
+  /* Luego cualquier otra clase que exista en Supabase — cada una con su título real */
+  Object.keys(grupos).forEach(function(k){
+    if(k==='__colab'||k==='__orden')return;
+    html+=audTablaPorClase(k.toUpperCase(),'#7c8696',grupos[k]);
+  });
+
+  /* Si hay 0 auditorías en colab o en orden, mostrar sección vacía informativa */
+  if(!grupos['__colab']||!grupos['__colab'].length)
+    html+='<div class="slbl" style="color:#2563eb;margin-bottom:8px"><span class="dot" style="background:#2563eb"></span>AUDITORIAS DE COLABORACION <span style="font-size:10px;color:var(--muted);font-weight:500">(0 con los filtros actuales)</span></div>';
+  if(!grupos['__orden']||!grupos['__orden'].length)
+    html+='<div class="slbl" style="color:#16a34a;margin-bottom:8px"><span class="dot" style="background:#16a34a"></span>ORDEN Y LIMPIEZA <span style="font-size:10px;color:var(--muted);font-weight:500">(0 con los filtros actuales)</span></div>';
 
   cont.innerHTML=html;
 }
