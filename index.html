@@ -2145,13 +2145,13 @@ function setView(v){
   if(nmr)nmr.classList.toggle('active',v==='mermas');
   var nfin=document.getElementById('nav-finalizadas');
   if(nfin)nfin.classList.toggle('active',v==='finalizadas');
-  if(v==='actividades'){ if(!ACTIVIDADES.length) loadActividades(); else renderActividades(); }
+  if(v==='actividades'){ if(!ACTIVIDADES.length) loadActividades(); else{ fillActFilters(); renderActividades(); } }
   else if(v==='auditorias'){
     if(!STORE.auditorias.length) loadDataFromSupabase().then(renderAuditoriasView);
     else{ if(!SEG_LOADED)loadSeguimientos().then(renderAuditoriasView); else renderAuditoriasView(); }
   }
-  else if(v==='ajustes'){ if(!AJUSTES.length) loadAjustes(); else renderAjustes(); }
-  else if(v==='mermas'){ if(!MERMAS.length) loadMermas(); else renderMermas(); }
+  else if(v==='ajustes'){ if(!AJUSTES.length) loadAjustes(); else{ fillAjFilters(); renderAjustes(); } }
+  else if(v==='mermas'){ if(!MERMAS.length) loadMermas(); else{ fillMrFilters(); renderMermas(); } }
   else if(v==='finalizadas'){ if(!FINALIZADAS.length) loadFinalizadas(); else renderFinalizadas(); }
   else render();
 }
@@ -2655,10 +2655,13 @@ function fillActFilters(){
   var vA=selA.value;
   selA.innerHTML='<option value="ALL">Todos</option>'+asigs.map(a=>'<option>'+a+'</option>').join('');
   selA.value=vA;
-  /* Auto-seleccionar mes en curso si el filtro aún está en "Todos" */
-  var MORD=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  /* Auto-seleccionar mes en curso si el filtro no tiene selección explícita */
+  var MORD_ACT=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   var sm=document.getElementById('act-f-mes');
-  if(sm&&sm.value==='ALL'){var mesHoy=MORD[new Date().getMonth()];if([...sm.options].some(function(o){return o.value===mesHoy;}))sm.value=mesHoy;}
+  if(sm){
+    var mesHoy=MORD_ACT[new Date().getMonth()];
+    if(sm.value==='ALL'&&[...sm.options].some(function(o){return o.value===mesHoy;}))sm.value=mesHoy;
+  }
 }
 
 function filteredActividades(){
@@ -3812,12 +3815,14 @@ function fillAjFilters(){
   sm.innerHTML='<option value="ALL">Todos</option>'+meses.map(function(m){return'<option value="'+m+'">'+m+'</option>';}).join('');
   sa.innerHTML='<option value="ALL">Todos</option>'+años.map(function(y){return'<option value="'+y+'">'+y+'</option>';}).join('');
   st.innerHTML='<option value="ALL">Todas</option>'+tiendas.map(function(t){return'<option>'+t+'</option>';}).join('');
-  /* Restaurar selección solo si el valor sigue existiendo */
-  if([...sm.options].some(function(o){return o.value===vm;}))sm.value=vm;
-  else{var mesHoy=MORD[new Date().getMonth()];if([...sm.options].some(function(o){return o.value===mesHoy;}))sm.value=mesHoy;}
-  if([...sa.options].some(function(o){return o.value===va;}))sa.value=va;
-  else{var añoHoy=String(new Date().getFullYear());if([...sa.options].some(function(o){return o.value===añoHoy;}))sa.value=añoHoy;}
-  if([...st.options].some(function(o){return o.value===vt;}))st.value=vt;
+  /* Si había selección previa explícita, restaurarla; si era ALL (sin selección), poner mes/año actual */
+  var mesHoy=MORD[new Date().getMonth()];
+  var añoHoy=String(new Date().getFullYear());
+  if(vm!=='ALL'&&[...sm.options].some(function(o){return o.value===vm;}))sm.value=vm;
+  else if([...sm.options].some(function(o){return o.value===mesHoy;}))sm.value=mesHoy;
+  if(va!=='ALL'&&[...sa.options].some(function(o){return o.value===va;}))sa.value=va;
+  else if([...sa.options].some(function(o){return o.value===añoHoy;}))sa.value=añoHoy;
+  if(vt!=='ALL'&&[...st.options].some(function(o){return o.value===vt;}))st.value=vt;
 }
 
 function filteredAjustes(){
@@ -4165,11 +4170,13 @@ function fillMrFilters(){
   sm.innerHTML='<option value="ALL">Todos</option>'+meses.map(function(m){return'<option value="'+m+'">'+m+'</option>';}).join('');
   sa.innerHTML='<option value="ALL">Todos</option>'+años.map(function(y){return'<option value="'+y+'">'+y+'</option>';}).join('');
   st.innerHTML='<option value="ALL">Todas</option>'+tiendas.map(function(t){return'<option>'+t+'</option>';}).join('');
-  if([...sm.options].some(function(o){return o.value===vm;}))sm.value=vm;
-  else{var mesHoy=MORD[new Date().getMonth()];if([...sm.options].some(function(o){return o.value===mesHoy;}))sm.value=mesHoy;}
-  if([...sa.options].some(function(o){return o.value===va;}))sa.value=va;
-  else{var añoHoy=String(new Date().getFullYear());if([...sa.options].some(function(o){return o.value===añoHoy;}))sa.value=añoHoy;}
-  if([...st.options].some(function(o){return o.value===vt;}))st.value=vt;
+  var mesHoy=MORD[new Date().getMonth()];
+  var añoHoy=String(new Date().getFullYear());
+  if(vm!=='ALL'&&[...sm.options].some(function(o){return o.value===vm;}))sm.value=vm;
+  else if([...sm.options].some(function(o){return o.value===mesHoy;}))sm.value=mesHoy;
+  if(va!=='ALL'&&[...sa.options].some(function(o){return o.value===va;}))sa.value=va;
+  else if([...sa.options].some(function(o){return o.value===añoHoy;}))sa.value=añoHoy;
+  if(vt!=='ALL'&&[...st.options].some(function(o){return o.value===vt;}))st.value=vt;
 }
 
 function filteredMermas(){
