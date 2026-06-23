@@ -974,8 +974,9 @@ function findCol(headers,keys){
 function tipoNorm(t){
   const n=norm(t);
   if(n.includes('orden')||n.includes('limpieza'))return 'ol';
+  if(n.includes('cartera'))return 'cartera';
   if(n.includes('col')||n.includes('colab')||n.includes('auditoria col'))return 'col';
-  return n.includes('orden')?'ol':'col';
+  return 'col';
 }
 function parseWorkbook(buf){
   const wb=XLSX.read(buf,{type:'array',cellDates:true});
@@ -1734,7 +1735,7 @@ function renderVencTable(tareas){
       <td><div class="tname" style="max-width:320px;overflow:hidden;text-overflow:ellipsis">${t.nombre}</div></td>
       <td class="tname">${t.tienda}<div class="tsub">${t.centro}</div></td>
       <td class="tsub">${t.areaResp}</td>
-      <td><span class="badge b-gray">${tipoNorm(t.tipoTarea)==='ol'?'O&L':'Colab.'}</span></td>
+      <td><span class="badge b-gray">${tipoNorm(t.tipoTarea)==='ol'?'O&L':tipoNorm(t.tipoTarea)==='cartera'?'Cartera':'Colab.'}</span></td>
       <td class="tsub">${fmtDate(fromISO(t.fechaTerm))}</td>
       <td class="cell-c"><span class="badge ${v.cls}">${v.txt}</span></td>
     </tr>`).join('')}</tbody></table>`;
@@ -1755,7 +1756,7 @@ function renderTareasView(tareas){
       <td><div class="tname" style="max-width:280px;overflow:hidden;text-overflow:ellipsis" title="${(t.nombre||'').replace(/"/g,'&quot;')}">${t.nombre}</div><div class="tsub">${t.actividad||''}</div></td>
       <td class="tname">${t.tienda}<div class="tsub">${t.centro}</div></td>
       <td class="tsub">${t.areaResp}</td>
-      <td><span class="badge b-gray">${tipoNorm(t.tipoTarea)==='ol'?'O&L':'Colab.'}</span></td>
+      <td><span class="badge b-gray">${tipoNorm(t.tipoTarea)==='ol'?'O&L':tipoNorm(t.tipoTarea)==='cartera'?'Cartera':'Colab.'}</span></td>
       <td>${estadoBadge(t.estado)}</td>
       <td class="tsub">${fmtDate(fromISO(t.fechaTerm))}</td>
       <td class="tsub">${fmtDate(fromISO(t.fechaCumpl))}</td>
@@ -1788,6 +1789,7 @@ function openEdit(id){
         <select id="e-tipo">
           <option value="TAREAS ORDEN Y LIMPIEZA" ${tipoNorm(v.tipoTarea)==='ol'?'selected':''}>Orden y Limpieza</option>
           <option value="TAREAS AUDITORIA COL" ${tipoNorm(v.tipoTarea)==='col'?'selected':''}>Auditoría Colaboración</option>
+          <option value="TAREAS CARTERA" ${tipoNorm(v.tipoTarea)==='cartera'?'selected':''}>Cartera</option>
         </select></div>
       <div class="form-field full"><label>Nombre de tarea</label><textarea id="e-nombre" rows="2">${v.nombre||''}</textarea></div>
       <div class="form-field"><label>Razón</label><input id="e-razon" value="${v.razon||''}"></div>
@@ -1944,7 +1946,7 @@ function pendientesPorSucursalHTML(){
           <td><b>${t.id}</b></td>
           <td><div class="tname" style="max-width:300px;overflow:hidden;text-overflow:ellipsis">${t.nombre}</div></td>
           <td class="tsub">${t.areaResp}</td>
-          <td><span class="badge b-gray">${tipoNorm(t.tipoTarea)==='ol'?'O&L':'Colab.'}</span></td>
+          <td><span class="badge b-gray">${tipoNorm(t.tipoTarea)==='ol'?'O&L':tipoNorm(t.tipoTarea)==='cartera'?'Cartera':'Colab.'}</span></td>
           <td>${estadoBadge(t.estado)}</td>
           <td class="tsub">${fmtDate(fromISO(t.fechaTerm))}</td>
           <td class="cell-c"><span class="badge ${v.cls}">${v.txt}</span></td>
@@ -2196,11 +2198,13 @@ function tipoTareaDeClase(clase){
   var c=norm(clase||'');
   if(c.includes('colaboracion')||c.includes('colab'))return 'col';
   if(c.includes('orden')||c.includes('limpieza'))return 'ol';
+  if(c.includes('cartera'))return 'cartera';
   return null;
 }
 function tipoNormLocal(tipo){
   var t=norm(tipo||'');
   if(t.includes('orden')||t.includes('limpieza'))return 'ol';
+  if(t.includes('cartera'))return 'cartera';
   if(t.includes('col')||t.includes('auditoria'))return 'col';
   return '';
 }
@@ -2308,15 +2312,68 @@ function audTablaPorClase(titulo,color,rows){
   return tablaHTML+segHTML+'<div style="margin-bottom:22px"></div>';
 }
 
-/* ── Editar auditoría (solo admin) ── */
-function openEditAuditoria(akey){
+/* Wrapper: decide si usar tabla normal o tabla cartera */
+function audTablaPorClaseCartera(titulo,color,rows,esCartera){
+  if(esCartera)return audTablaPorClaseCarteraRender(titulo,color,rows);
+  return audTablaPorClase(titulo,color,rows);
+}
+
+/* Tabla especial CARTERA — sin % cumplimiento, solo seguimiento de tareas */
+function audTablaPorClaseCarteraRender(titulo,color,rows){
+  var isAdmin=_session&&_session.rol==='admin';
+  window._audItemCache=window._audItemCache||{};
+  var filas=rows.map(function(a){
+    var tipoClase=tipoTareaDeClase(a.clase);
+    var tareasDeAud=STORE.tareas.filter(function(t){
+      if(norm(t.tienda)!==norm(a.tienda)||norm(t.centro)!==norm(a.centro))return false;
+      if(tipoClase&&tipoNormLocal(t.tipoTarea)!==tipoClase)return false;
+      return true;
+    });
+    var total=tareasDeAud.length||a.tareas||0;
+    var pend=tareasDeAud.filter(esPendiente).length;
+    var resu=tareasDeAud.filter(function(t){return!esPendiente(t);}).length;
+    var pc=pend>0?'#dc2626':'#16a34a';
+    var akey=[norm(a.tienda||''),norm(a.mes||''),norm(a.clase||''),a.fecha||''].join('|');
+    window._audItemCache[akey]=a;
+    var editBtn=isAdmin?'<td style="text-align:center"><button class="icon-btn" data-akey="'+akey+'" onclick="openEditAuditoriaKey(this)" title="Editar">✎</button></td>':'<td></td>';
+    return '<tr>'+
+      '<td><b>'+(a.tienda||'—')+'</b></td>'+
+      '<td>'+(a.mes||'—')+'</td>'+
+      '<td style="text-align:center">'+total+'</td>'+
+      '<td style="text-align:center;color:'+pc+';font-weight:800">'+pend+'</td>'+
+      '<td style="text-align:center;color:#16a34a;font-weight:700">'+resu+'</td>'+
+      editBtn+'</tr>';
+  }).join('');
+  var editTh=isAdmin?'<th class="c"></th>':'<th></th>';
+  var tablaHTML='<div class="slbl" style="margin:4px 0 4px;color:'+color+'">'+
+    '<span class="dot" style="background:'+color+'"></span>'+titulo+
+    ' <span style="font-weight:600;font-size:10px;color:var(--muted)">('+rows.length+')</span>'+
+    '<span style="font-size:10px;font-weight:600;color:#7c3aed;margin-left:10px">Sin % cumplimiento · solo seguimiento</span></div>'+
+    '<div class="card" style="padding:8px 10px;margin-bottom:10px"><div class="tbl-scroll"><table class="dt">'+
+    '<thead><tr><th>Tienda</th><th>Mes</th><th class="c">Total Tareas</th>'+
+    '<th class="c">Pendientes</th><th class="c">Resueltas</th>'+editTh+'</tr></thead>'+
+    '<tbody>'+(filas||'<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:18px">Sin registros</td></tr>')+'</tbody></table></div></div>';
+  var segHTML=renderSeguimientoTable(rows,titulo);
+  return tablaHTML+segHTML+'<div style="margin-bottom:22px"></div>';
+}
+
+function openEditAuditoriaKey(el){
+  var akey=el.getAttribute('data-akey');
+  var a=window._audItemCache&&window._audItemCache[akey];
+  if(!a)return;
+  openEditAuditoria(akey);
+}
   if(!_session||_session.rol!=='admin'){toast('⚠ Solo administradores pueden editar auditorías');return;}
   var a=(window._audItemCache&&window._audItemCache[akey]);if(!a)return;
   var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   var html='<div class="form-grid">'+
     '<div class="form-field"><label>Tienda</label><input id="ea-tienda" value="'+esc(a.tienda||'')+'"></div>'+
     '<div class="form-field"><label>Centro</label><input id="ea-centro" value="'+esc(a.centro||'')+'"></div>'+
-    '<div class="form-field"><label>Razón</label><input id="ea-razon" value="'+esc(a.razon||'')+'"></div>'+
+    '<div class="form-field full"><label>Clase</label><select id="ea-clase">'+
+      '<option value="AUDITORIAS DE COLABORACION"'+(norm(a.clase||'').includes('colab')?' selected':'')+'>Colaboración</option>'+
+      '<option value="AUDITORIA ORDEN Y LIMPIEZA"'+(norm(a.clase||'').includes('orden')?' selected':'')+'>Orden y Limpieza</option>'+
+      '<option value="AUDITORIA CARTERA"'+(norm(a.clase||'').includes('cartera')?' selected':'')+'>Cartera</option>'+
+    '</select></div>'+
     '<div class="form-field"><label>Mes</label><select id="ea-mes">'+meses.map(function(m){return'<option'+(norm(a.mes||'')===norm(m)?' selected':'')+'>'+m+'</option>';}).join('')+'</select></div>'+
     '<div class="form-field"><label>Fecha auditoría</label><input type="date" id="ea-fecha" value="'+(a.fecha||'')+'"></div>'+
     '<div class="form-field"><label>% Cumplimiento (0–100)</label><input type="number" id="ea-pct" min="0" max="100" step="0.1" value="'+Math.round((a.pctCumpl||0)*100)+'"></div>'+
@@ -2343,7 +2400,7 @@ async function saveEditAuditoria(original){
     pendientes:parseInt(dv('ea-pend'))||0,
     resueltas:parseInt(dv('ea-res'))||0,
     pctResuelto:parseInt(dv('ea-tareas'))>0?(parseInt(dv('ea-res'))/parseInt(dv('ea-tareas'))):0,
-    clase:original.clase
+    clase:dv('ea-clase')||original.clase
   };
   var idx=STORE.auditorias.findIndex(function(x){
     return norm(x.tienda)===norm(original.tienda)&&norm(x.mes)===norm(original.mes)&&norm(x.clase)===norm(original.clase);
@@ -2413,7 +2470,8 @@ function renderAuditoriasView(){
     var c=norm(a.clase||'');
     if(c.includes('colaboracion')||c.includes('colab'))return '__colab';
     if(c.includes('orden')||c.includes('limpieza'))return '__orden';
-    return a.clase||'SIN CLASE'; /* clase real como clave */
+    if(c.includes('cartera'))return '__cartera';
+    return a.clase||'SIN CLASE';
   }
 
   var grupos={};
@@ -2426,12 +2484,14 @@ function renderAuditoriasView(){
   var html='';
   /* Primero los dos grupos conocidos en orden fijo */
   if(grupos['__colab']&&grupos['__colab'].length)
-    html+=audTablaPorClase('AUDITORIAS DE COLABORACION','#2563eb',grupos['__colab']);
+    html+=audTablaPorClaseCartera('AUDITORIAS DE COLABORACION','#2563eb',grupos['__colab'],false);
   if(grupos['__orden']&&grupos['__orden'].length)
-    html+=audTablaPorClase('ORDEN Y LIMPIEZA','#16a34a',grupos['__orden']);
-  /* Luego cualquier otra clase que exista en Supabase — cada una con su título real */
+    html+=audTablaPorClaseCartera('ORDEN Y LIMPIEZA','#16a34a',grupos['__orden'],false);
+  if(grupos['__cartera']&&grupos['__cartera'].length)
+    html+=audTablaPorClaseCartera('AUDITORIA CARTERA','#7c3aed',grupos['__cartera'],true);
+  /* Luego cualquier otra clase */
   Object.keys(grupos).forEach(function(k){
-    if(k==='__colab'||k==='__orden')return;
+    if(k==='__colab'||k==='__orden'||k==='__cartera')return;
     html+=audTablaPorClase(k.toUpperCase(),'#7c8696',grupos[k]);
   });
 
@@ -3404,7 +3464,9 @@ function fmtSegShort(iso){
   var p=iso.split('-');return p[2]+'/'+p[1];
 }
 function calcSugerida(fechaAud,n){
-  var b=fechaAud?new Date(fechaAud+'T12:00:00'):new Date();
+  /* Normalizar: si viene con hora (2026-03-26T17:35:00), tomar solo la parte de fecha */
+  var dateStr=fechaAud?String(fechaAud).split('T')[0]:null;
+  var b=dateStr?new Date(dateStr+'T12:00:00'):new Date();
   b.setDate(b.getDate()+n*7);
   return b.toISOString().split('T')[0];
 }
@@ -4411,7 +4473,26 @@ async function loadFinalizadas(){
     var r=await client.from('tareas_finalizadas').select('*')
       .order('fecha_finalizacion',{ascending:false}).limit(5000);
     if(r.error){toast('⚠ '+r.error.message);return;}
-    FINALIZADAS=(r.data||[]);
+    FINALIZADAS=(r.data||[]).map(function(f){
+      /* Auto-calcular duracion_dias si tenemos ambas fechas */
+      var dur=f.duracion_dias;
+      if((dur==null||dur===0)&&f.fecha_inicio&&f.fecha_finalizacion){
+        dur=diasEntre(f.fecha_inicio,f.fecha_finalizacion);
+      }
+      /* Recalcular tareas desde STORE si están disponibles */
+      var total=f.total_tareas||0;
+      var res=f.resueltas||0;
+      if(STORE.tareas.length>0&&f.aud_key){
+        var tipoClase=tipoTareaDeClase(f.clase||'');
+        var td=STORE.tareas.filter(function(t){
+          if(norm(t.tienda)!==norm(f.tienda||''))return false;
+          if(tipoClase&&tipoNormLocal(t.tipoTarea)!==tipoClase)return false;
+          return true;
+        });
+        if(td.length>0){total=td.length;res=td.filter(function(t){return!esPendiente(t);}).length;}
+      }
+      return Object.assign({},f,{duracion_dias:dur,total_tareas:total,resueltas:res});
+    });
     _finLoaded=true;
     fillFinFilters();renderFinalizadas();
     toast('✓ '+FINALIZADAS.length+' tarea(s) finalizada(s)');
@@ -4464,15 +4545,25 @@ function renderFinalizadas(){
   }
   var validPct=arr.filter(function(f){return f.pct_cumpl!=null;});
   var promPct=validPct.length?Math.round(validPct.reduce(function(s,f){return s+(f.pct_cumpl||0);},0)/validPct.length*100):null;
-  var validDur=arr.filter(function(f){return f.duracion_dias!=null&&f.duracion_dias>=0;});
-  var promDias=validDur.length?Math.round(validDur.reduce(function(s,f){return s+(f.duracion_dias||0);},0)/validDur.length):null;
+  var validDur=arr.filter(function(f){
+    var d=f.duracion_dias!=null?f.duracion_dias:
+      (f.fecha_inicio&&f.fecha_finalizacion?diasEntre(f.fecha_inicio,f.fecha_finalizacion):null);
+    return d!=null&&d>=0;
+  });
+  var promDias=validDur.length?Math.round(validDur.reduce(function(s,f){
+    var d=f.duracion_dias!=null?f.duracion_dias:diasEntre(f.fecha_inicio,f.fecha_finalizacion);
+    return s+(d||0);
+  },0)/validDur.length):null;
   var promSems=promDias!=null?(Math.round(promDias/7*10)/10):null;
+  var totalTareasSum=arr.reduce(function(s,f){return s+(f.total_tareas||0);},0);
+  var totalResSum=arr.reduce(function(s,f){return s+(f.resueltas||0);},0);
   var resumen='<tr style="background:#dcfce7;font-weight:700;border-top:2px solid #16a34a">'+
-    '<td colspan="2" style="color:#15803d;padding:8px 12px">📊 PROMEDIO</td>'+
-    '<td colspan="2"></td>'+
-    '<td style="text-align:center;color:#16a34a">'+(promPct!=null?promPct+'%':'—')+'</td>'+
-    '<td colspan="2"></td>'+
-    '<td style="text-align:center;color:#16a34a">'+(promDias!=null?promDias+' días':'—')+'</td>'+
+    '<td colspan="2" style="color:#15803d;padding:8px 12px">📊 TOTALES / PROMEDIO</td>'+
+    '<td colspan="1"></td>'+
+    '<td style="text-align:center;color:#16a34a">'+(promPct!=null?promPct+'% prom.':'—')+'</td>'+
+    '<td style="text-align:center;color:#16a34a">'+totalTareasSum+'</td>'+
+    '<td style="text-align:center;color:#16a34a">'+totalResSum+'</td>'+
+    '<td style="text-align:center;color:#16a34a">'+(promDias!=null?promDias+' días prom.':'—')+'</td>'+
     '<td style="text-align:center;color:#16a34a">'+(promSems!=null?'~'+promSems+' sem':'—')+'</td>'+
     (isAdmin?'<td></td>':'')+'</tr>';
   tbody.innerHTML=arr.map(function(f,i){
@@ -4483,8 +4574,10 @@ function renderFinalizadas(){
       cls.includes('orden')||cls.includes('limpieza')?
       '<span style="font-size:10px;color:#16a34a;font-weight:700">ORDEN Y LIMPIEZA</span>':
       '<span style="font-size:10px;color:var(--muted)">'+esc(f.clase||'—')+'</span>';
-    var dias=f.duracion_dias!=null?f.duracion_dias+'d':'—';
-    var sems=f.duracion_dias!=null?(Math.round(f.duracion_dias/7*10)/10)+' sem':'—';
+    var durCalc=f.duracion_dias!=null?f.duracion_dias:
+      (f.fecha_inicio&&f.fecha_finalizacion?diasEntre(f.fecha_inicio,f.fecha_finalizacion):null);
+    var dias=durCalc!=null?durCalc+'d':'—';
+    var sems=durCalc!=null?(Math.round(durCalc/7*10)/10)+' sem':'—';
     var editTd=isAdmin?'<td style="text-align:center"><button class="icon-btn" data-fid="'+esc(f.id||'')+'" onclick="finDeleteClick(this)" title="Eliminar">✕</button></td>':'';
     var fechaCell=isAdmin?
       '<td style="text-align:center"><input class="seg-date-input" type="date" value="'+(f.fecha_finalizacion||'')+'" '+
@@ -4555,6 +4648,7 @@ async function deleteFinalizada(id){
           <select id="na-clase">
             <option value="AUDITORIAS DE COLABORACION">Auditorías de Colaboración</option>
             <option value="AUDITORIA ORDEN Y LIMPIEZA">Orden y Limpieza</option>
+            <option value="AUDITORIA CARTERA">Cartera</option>
           </select>
         </div>
         <div class="form-field">
