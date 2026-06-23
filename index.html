@@ -669,6 +669,7 @@ table.dt tbody tr:last-child td{border-bottom:none}
       </div>
 
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-blue" onclick="openNuevaAuditoria()">➕ Nueva auditoría</button>
         <button class="btn btn-ghost" onclick="loadDataFromSupabase().then(renderAuditoriasView)">🔄 Recargar</button>
         <button class="btn btn-teal" onclick="downloadAuditoriasPNG()">🖼️ PNG</button>
         <span id="aud-count" style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600;align-self:center"></span>
@@ -2124,6 +2125,103 @@ function downloadAuditoriasPNG(){
 }
 
 /* ════════════════════════════════════════════════════════════════════
+   NUEVA AUDITORÍA (modal)
+════════════════════════════════════════════════════════════════════ */
+function openNuevaAuditoria(){
+  /* Rellenar datalists con valores existentes */
+  var tiendas=uniq(STORE.auditorias.map(function(a){return a.tienda;}).concat(STORE.tareas.map(function(t){return t.tienda;})));
+  var centros=uniq(STORE.auditorias.map(function(a){return a.centro;}).concat(STORE.tareas.map(function(t){return t.centro;})));
+  var razones=uniq(STORE.auditorias.map(function(a){return a.razon;}).concat(STORE.tareas.map(function(t){return t.razon;})));
+  document.getElementById('na-tienda-list').innerHTML=tiendas.map(function(v){return'<option value="'+v+'">';}).join('');
+  document.getElementById('na-centro-list').innerHTML=centros.map(function(v){return'<option value="'+v+'">';}).join('');
+  document.getElementById('na-razon-list').innerHTML=razones.map(function(v){return'<option value="'+v+'">';}).join('');
+  /* Reset campos */
+  ['na-tienda','na-centro','na-razon','na-pct','na-tareas','na-pend','na-res'].forEach(function(id){
+    document.getElementById(id).value='';
+  });
+  document.getElementById('na-mes').value='';
+  document.getElementById('na-fecha').value='';
+  document.getElementById('na-pct-res-preview').textContent='—';
+  document.getElementById('na-pct-res-preview').style.color='var(--blue)';
+  document.getElementById('na-err').textContent='';
+  document.getElementById('aud-modal-overlay').classList.add('show');
+}
+
+function closeNuevaAuditoria(){
+  document.getElementById('aud-modal-overlay').classList.remove('show');
+}
+
+function naAutoCalc(){
+  var total=parseInt(document.getElementById('na-tareas').value)||0;
+  var pend=parseInt(document.getElementById('na-pend').value)||0;
+  var res=parseInt(document.getElementById('na-res').value)||0;
+  /* Si llenan tareas y pendientes, auto-calcular resueltos */
+  if(total>0&&pend>=0&&document.getElementById('na-res').value===''){
+    var autoRes=total-pend;
+    if(autoRes>=0) document.getElementById('na-res').value=autoRes;
+    res=autoRes>=0?autoRes:0;
+  }
+  var pctRes=total>0?Math.round(res/total*100):0;
+  var prev=document.getElementById('na-pct-res-preview');
+  prev.textContent=total>0?(pctRes+'%'):'—';
+  prev.style.color=pctRes>=80?'#16a34a':pctRes>=50?'#d97706':'#dc2626';
+}
+
+async function guardarNuevaAuditoria(){
+  var errEl=document.getElementById('na-err');
+  errEl.textContent='';
+  var tienda=document.getElementById('na-tienda').value.trim().toUpperCase();
+  var mes=document.getElementById('na-mes').value;
+  if(!tienda){errEl.textContent='La tienda es obligatoria';return;}
+  if(!mes){errEl.textContent='El mes es obligatorio';return;}
+
+  var clase=document.getElementById('na-clase').value;
+  var centro=document.getElementById('na-centro').value.trim().toUpperCase();
+  var razon=document.getElementById('na-razon').value.trim().toUpperCase();
+  var fechaVal=document.getElementById('na-fecha').value;
+  var pct=parseFloat(document.getElementById('na-pct').value)||0;
+  var total=parseInt(document.getElementById('na-tareas').value)||0;
+  var pend=parseInt(document.getElementById('na-pend').value)||0;
+  var res=parseInt(document.getElementById('na-res').value)||0;
+  var pctRes=total>0?res/total:0;
+
+  /* Fecha: si no se puso usar hoy */
+  var fecha=fechaVal?fechaVal:new Date().toISOString().split('T')[0];
+
+  var newAud={
+    razon:razon||'KNO', centro:centro, tienda:tienda,
+    fecha:fecha, mes:mes.toUpperCase(),
+    pctCumpl:pct>1?pct/100:pct,
+    tareas:total, pendientes:pend, resueltas:res,
+    pctResuelto:pctRes, clase:clase
+  };
+
+  /* Agregar a STORE local — sincronizar dashboard y vista de auditorías */
+  STORE.auditorias.unshift(newAud);
+  closeNuevaAuditoria();
+  refreshAll();
+  fillAudFilters();
+  if(VIEW==='auditorias') renderAuditoriasView();
+  toast('✓ Auditoría agregada');
+
+  /* Intentar sync a Supabase */
+  var client=getSbClient();
+  if(!client){toast('⚠ Sin Supabase — guardado solo en local');return;}
+  try{
+    var row={
+      razon:newAud.razon||null, centro:newAud.centro||null, tienda:newAud.tienda,
+      fecha:newAud.fecha, mes:newAud.mes,
+      pct_cumpl:newAud.pctCumpl, tareas:newAud.tareas,
+      pendientes:newAud.pendientes, resueltas:newAud.resueltas,
+      pct_resuelto:newAud.pctResuelto, clase:newAud.clase
+    };
+    var r=await client.from('auditorias').upsert([row],{onConflict:'razon,centro,tienda,fecha',ignoreDuplicates:false});
+    if(r.error)toast('⚠ Supabase: '+r.error.message);
+    else toast('☁️ Auditoría guardada en Supabase');
+  }catch(e){toast('⚠ Error Supabase: '+e.message);}
+}
+
+/* ════════════════════════════════════════════════════════════════════
    MÓDULO ACTIVIDADES
 ════════════════════════════════════════════════════════════════════ */
 let ACTIVIDADES=[];
@@ -2921,6 +3019,81 @@ function checkAdminUI(){
 }
 
 </script>
+
+<!-- ═══════════ MODAL NUEVA AUDITORÍA ═══════════ -->
+<div class="modal-overlay" id="aud-modal-overlay" onclick="if(event.target===this)closeNuevaAuditoria()" style="z-index:210">
+  <div class="modal" onclick="event.stopPropagation()" style="max-width:560px">
+    <div class="modal-hdr">
+      <h2>➕ Nueva <b>auditoría</b></h2>
+      <button class="modal-close" onclick="closeNuevaAuditoria()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-field full">
+          <label>Tipo / Clase</label>
+          <select id="na-clase">
+            <option value="AUDITORIAS DE COLABORACION">Auditorías de Colaboración</option>
+            <option value="AUDITORIA ORDEN Y LIMPIEZA">Orden y Limpieza</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Tienda / Sucursal *</label>
+          <input id="na-tienda" list="na-tienda-list" placeholder="Nombre de tienda">
+          <datalist id="na-tienda-list"></datalist>
+        </div>
+        <div class="form-field">
+          <label>Centro</label>
+          <input id="na-centro" list="na-centro-list" placeholder="Ej. KN01">
+          <datalist id="na-centro-list"></datalist>
+        </div>
+        <div class="form-field">
+          <label>Razón</label>
+          <input id="na-razon" list="na-razon-list" placeholder="Ej. KNO">
+          <datalist id="na-razon-list"></datalist>
+        </div>
+        <div class="form-field">
+          <label>Mes de auditoría *</label>
+          <select id="na-mes">
+            <option value="">— Selecciona —</option>
+            <option>Enero</option><option>Febrero</option><option>Marzo</option>
+            <option>Abril</option><option>Mayo</option><option>Junio</option>
+            <option>Julio</option><option>Agosto</option><option>Septiembre</option>
+            <option>Octubre</option><option>Noviembre</option><option>Diciembre</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Fecha de auditoría</label>
+          <input type="date" id="na-fecha">
+        </div>
+        <div class="form-field">
+          <label>% Cumplimiento (0–100)</label>
+          <input type="number" id="na-pct" min="0" max="100" step="0.1" placeholder="Ej. 74">
+        </div>
+        <div class="form-field">
+          <label>Total tareas</label>
+          <input type="number" id="na-tareas" min="0" placeholder="Ej. 10" oninput="naAutoCalc()">
+        </div>
+        <div class="form-field">
+          <label>Pendientes</label>
+          <input type="number" id="na-pend" min="0" placeholder="Ej. 3" oninput="naAutoCalc()">
+        </div>
+        <div class="form-field">
+          <label>Resueltos</label>
+          <input type="number" id="na-res" min="0" placeholder="Ej. 7" oninput="naAutoCalc()">
+        </div>
+        <div class="form-field full" style="background:var(--soft);border-radius:var(--radius-sm);padding:10px 12px;border:1px solid var(--border)">
+          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">% Resuelto (calculado)</div>
+          <div id="na-pct-res-preview" style="font-size:22px;font-weight:800;color:var(--blue)">—</div>
+        </div>
+      </div>
+      <div id="na-err" style="font-size:12px;color:var(--red);margin-top:10px;min-height:16px"></div>
+    </div>
+    <div class="modal-foot" style="display:flex">
+      <button class="btn btn-ghost" onclick="closeNuevaAuditoria()">Cancelar</button>
+      <button class="btn btn-blue" onclick="guardarNuevaAuditoria()">✓ Guardar auditoría</button>
+    </div>
+  </div>
+</div>
 
 <!-- ═══════════ MODAL GESTIÓN USUARIOS ═══════════ -->
 <div class="usr-overlay" id="usr-overlay" onclick="if(event.target===this)closeUsuarios()">
