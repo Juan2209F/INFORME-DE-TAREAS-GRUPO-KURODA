@@ -4478,9 +4478,33 @@ async function loadFinalizadas(){
       .order('fecha_finalizacion',{ascending:false}).limit(5000);
     if(r.error){toast('⚠ '+r.error.message);return;}
     FINALIZADAS=(r.data||[]).map(function(f){
-      /* duracion_dias: solo calcular si genuinamente null */
+      /* duracion_dias: calcular desde fechas reales de tareas cuando sea posible */
+      var fechaIni=f.fecha_inicio;
+      var fechaFinRec=f.fecha_finalizacion;
+      /* Si fecha_inicio es null, buscarla en STORE.tareas */
+      if((!fechaIni||!fechaFinRec)&&STORE.tareas.length>0){
+        var tipoC=tipoTareaDeClase(f.clase||'');
+        var td2=STORE.tareas.filter(function(t){
+          if(norm(t.tienda)!==norm(f.tienda||''))return false;
+          if(tipoC&&tipoNormLocal(t.tipoTarea)!==tipoC)return false;
+          return true;
+        });
+        if(!fechaIni&&td2.length>0){
+          td2.forEach(function(t){
+            var fc=t.fechaCreacion?String(t.fechaCreacion).split('T')[0]:null;
+            if(fc&&(!fechaIni||fc<fechaIni))fechaIni=fc;
+          });
+        }
+        if(!fechaFinRec&&td2.length>0){
+          td2.forEach(function(t){
+            var fd=t.fechaCumpl?String(t.fechaCumpl).split('T')[0]:
+                   (t.fechaTerm?String(t.fechaTerm).split('T')[0]:null);
+            if(fd&&(!fechaFinRec||fd>fechaFinRec))fechaFinRec=fd;
+          });
+        }
+      }
       var dur=(f.duracion_dias!=null)?f.duracion_dias:
-        (f.fecha_inicio&&f.fecha_finalizacion?diasEntre(f.fecha_inicio,f.fecha_finalizacion):null);
+        (fechaIni&&fechaFinRec?diasEntre(fechaIni,fechaFinRec):null);
       /* pct_cumpl: normalizar — puede llegar como 0.74 o como 74 */
       var pct=parseFloat(f.pct_cumpl)||0;
       if(pct>1)pct=pct/100;
@@ -4551,11 +4575,27 @@ function renderFinalizadas(){
     return;
   }
 
-  /* Función local para obtener duración */
+  /* Función local para obtener duración, buscando en tareas si es necesario */
   function getDur(f){
     if(f.duracion_dias!=null)return f.duracion_dias;
-    if(f.fecha_inicio&&f.fecha_finalizacion)return diasEntre(f.fecha_inicio,f.fecha_finalizacion);
-    return null;
+    var fi=f.fecha_inicio;var ff=f.fecha_finalizacion;
+    if(!fi||!ff){
+      var tipoC=tipoTareaDeClase(f.clase||'');
+      var td=STORE.tareas.filter(function(t){
+        if(norm(t.tienda)!==norm(f.tienda||''))return false;
+        if(tipoC&&tipoNormLocal(t.tipoTarea)!==tipoC)return false;
+        return true;
+      });
+      if(!fi&&td.length>0)td.forEach(function(t){
+        var fc=t.fechaCreacion?String(t.fechaCreacion).split('T')[0]:null;
+        if(fc&&(!fi||fc<fi))fi=fc;
+      });
+      if(!ff&&td.length>0)td.forEach(function(t){
+        var fd=t.fechaCumpl?String(t.fechaCumpl).split('T')[0]:(t.fechaTerm?String(t.fechaTerm).split('T')[0]:null);
+        if(fd&&(!ff||fd>ff))ff=fd;
+      });
+    }
+    return (fi&&ff)?diasEntre(fi,ff):null;
   }
 
   /* ── Cálculos ── */
@@ -4634,6 +4674,80 @@ async function updateFinFecha(el){
     if(r.error)toast('⚠ '+r.error.message);
     else toast('✓ Fecha actualizada');
   }catch(e){toast('⚠ '+e.message);}
+}
+
+/* ── Registrar auditoría como finalizada ──
+   fecha_inicio  = fechaCreacion más antigua de las tareas
+   fecha_finalizacion = fechaCumpl o fechaTerm más reciente
+   duracion_dias = fecha_finalizacion - fecha_inicio */
+async function registrarFinalizada(a){
+  var client=getSbClient();if(!client)return;
+  var ak=audSegKey(a);
+  var existe=FINALIZADAS.find(function(f){return f.aud_key===ak&&!f._pending;});
+  if(existe)return;
+  FINALIZADAS.unshift({aud_key:ak,_pending:true});
+
+  var tipoClase=tipoTareaDeClase(a.clase);
+  var tareasDeAud=STORE.tareas.filter(function(t){
+    if(norm(t.tienda)!==norm(a.tienda||''))return false;
+    if(norm(t.centro)!==norm(a.centro||''))return false;
+    if(tipoClase&&tipoNormLocal(t.tipoTarea)!==tipoClase)return false;
+    return true;
+  });
+  var totalTareas=tareasDeAud.length;
+  var resueltas=tareasDeAud.filter(function(t){return!esPendiente(t);}).length;
+
+  /* fecha_inicio = fechaCreacion mas antigua */
+  var fechaInicio=null;
+  tareasDeAud.forEach(function(t){
+    var fc=t.fechaCreacion?String(t.fechaCreacion).split('T')[0]:null;
+    if(fc&&(!fechaInicio||fc<fechaInicio))fechaInicio=fc;
+  });
+  if(!fechaInicio&&a.fecha)fechaInicio=String(a.fecha).split('T')[0];
+
+  /* fecha_finalizacion = fechaCumpl o fechaTerm mas reciente */
+  var fechaFin=null;
+  tareasDeAud.forEach(function(t){
+    var fd=t.fechaCumpl?String(t.fechaCumpl).split('T')[0]:
+           (t.fechaTerm?String(t.fechaTerm).split('T')[0]:null);
+    if(fd&&(!fechaFin||fd>fechaFin))fechaFin=fd;
+  });
+  if(!fechaFin){
+    var semRows=getSegRows(ak);
+    if(semRows.length>0&&semRows[semRows.length-1].fecha_prog)
+      fechaFin=semRows[semRows.length-1].fecha_prog;
+    else
+      fechaFin=new Date().toISOString().split('T')[0];
+  }
+
+  var duracion=(fechaInicio&&fechaFin)?diasEntre(fechaInicio,fechaFin):null;
+  var pct=parseFloat(a.pctCumpl)||0;
+  if(pct>1)pct=pct/100;
+
+  var row={
+    aud_key:ak,tienda:a.tienda||'',mes:(a.mes||'').toUpperCase(),
+    clase:a.clase||'',pct_cumpl:pct,
+    total_tareas:totalTareas,resueltas:resueltas,
+    fecha_inicio:fechaInicio,fecha_finalizacion:fechaFin,
+    duracion_dias:duracion
+  };
+  try{
+    var r=await client.from('tareas_finalizadas').insert([row]).select();
+    if(r.error){
+      FINALIZADAS=FINALIZADAS.filter(function(f){return f.aud_key!==ak||!f._pending;});
+      if(!r.error.message.includes('duplicate')&&!r.error.message.includes('unique'))
+        console.warn('registrarFinalizada:',r.error.message);
+      return;
+    }
+    var ix=FINALIZADAS.findIndex(function(f){return f.aud_key===ak&&f._pending;});
+    var saved=Object.assign({},r.data[0]||row);
+    if(saved.pct_cumpl>1)saved.pct_cumpl=saved.pct_cumpl/100;
+    if(ix>=0)FINALIZADAS[ix]=saved;
+    if(VIEW==='finalizadas'){fillFinFilters();renderFinalizadas();}
+  }catch(e){
+    FINALIZADAS=FINALIZADAS.filter(function(f){return f.aud_key!==ak||!f._pending;});
+    console.warn('registrarFinalizada:',e.message);
+  }
 }
 
 async function deleteFinalizada(id){
