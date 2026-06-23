@@ -858,8 +858,9 @@ table.seg tbody tr:hover{background:var(--soft)}
           <table>
             <thead><tr>
               <th>#</th><th>Tienda</th><th>Mes</th><th>Clase</th>
-              <th class="c">% Cumplimiento</th><th class="c">Tareas</th>
-              <th class="c">Resueltas</th><th class="c">Fecha Finalización</th>
+              <th class="c">% Cumpl.</th><th class="c">Tareas</th>
+              <th class="c">Resueltas</th><th class="c">Fecha Fin</th>
+              <th class="c">Días</th><th class="c">Semanas</th>
               <th class="c" id="fin-edit-th" style="display:none"></th>
             </tr></thead>
             <tbody id="fin-tbody">
@@ -2386,6 +2387,23 @@ async function deleteAuditoria(a){
 function renderAuditoriasView(){
   fillAudFilters();
   var arr=filteredAudByView();
+  /* Excluir auditorías ya finalizadas (sin pendientes y registradas en tareas_finalizadas) */
+  arr=arr.filter(function(a){
+    var ak=audSegKey(a);
+    var tipoClase=tipoTareaDeClase(a.clase);
+    var tareasDeAud=STORE.tareas.filter(function(t){
+      if(norm(t.tienda)!==norm(a.tienda)||norm(t.centro)!==norm(a.centro))return false;
+      if(tipoClase&&tipoNormLocal(t.tipoTarea)!==tipoClase)return false;
+      return true;
+    });
+    var sinPend=tareasDeAud.length>0&&tareasDeAud.filter(esPendiente).length===0;
+    /* Solo excluir si ya está confirmada en FINALIZADAS (no pending) */
+    if(sinPend){
+      var yaFin=FINALIZADAS.find(function(f){return f.aud_key===ak&&!f._pending;});
+      if(yaFin)return false;
+    }
+    return true;
+  });
   document.getElementById('aud-count').textContent=arr.length+' auditoría(s)';
   var cont=document.getElementById('auditorias-tables');
   if(!arr.length){cont.innerHTML='<div class="empty" style="padding:30px">Sin auditorías. Verifica los filtros o carga datos desde el módulo principal.</div>';return;}
@@ -3421,15 +3439,22 @@ function maxSemana(ak){
 async function toggleSegCheck(ak,rowId,currentVal){
   var client=getSbClient();if(!client){toast('⚠ Sin Supabase');return;}
   var newVal=!currentVal;
-  var today=new Date().toISOString().split('T')[0];
+  /* Usar la fecha programada (fecha_prog) como fecha_completado, no today */
+  var row=window._segIndexId&&window._segIndexId[rowId];
+  var fechaComp=newVal?(row&&row.fecha_prog?row.fecha_prog:new Date().toISOString().split('T')[0]):null;
   if(SEG_CACHE[ak]){
     SEG_CACHE[ak].forEach(function(r){
-      if(r.id===rowId){r.completado=newVal;r.fecha_completado=newVal?today:null;}
+      if(r.id===rowId){r.completado=newVal;r.fecha_completado=fechaComp;}
     });
+    /* Actualizar índice también */
+    if(window._segIndexId&&window._segIndexId[rowId]){
+      window._segIndexId[rowId].completado=newVal;
+      window._segIndexId[rowId].fecha_completado=fechaComp;
+    }
   }
   renderAuditoriasView();
   try{
-    var upd={completado:newVal,fecha_completado:newVal?today:null};
+    var upd={completado:newVal,fecha_completado:fechaComp};
     var res=await client.from('seguimiento_semanas').update(upd).eq('id',rowId);
     if(res.error){toast('⚠ '+res.error.message);await loadSeguimientos();renderAuditoriasView();}
     else toast(newVal?'✓ Seguimiento registrado':'↩ Desmarcado');
@@ -4434,9 +4459,22 @@ function renderFinalizadas(){
   var th=document.getElementById('fin-edit-th');if(th)th.style.display=isAdmin?'':'none';
   var tbody=document.getElementById('fin-tbody');
   if(!arr.length){
-    tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px">Sin registros finalizados.</td></tr>';
+    tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:24px">Sin registros finalizados.</td></tr>';
     return;
   }
+  var validPct=arr.filter(function(f){return f.pct_cumpl!=null;});
+  var promPct=validPct.length?Math.round(validPct.reduce(function(s,f){return s+(f.pct_cumpl||0);},0)/validPct.length*100):null;
+  var validDur=arr.filter(function(f){return f.duracion_dias!=null&&f.duracion_dias>=0;});
+  var promDias=validDur.length?Math.round(validDur.reduce(function(s,f){return s+(f.duracion_dias||0);},0)/validDur.length):null;
+  var promSems=promDias!=null?(Math.round(promDias/7*10)/10):null;
+  var resumen='<tr style="background:#dcfce7;font-weight:700;border-top:2px solid #16a34a">'+
+    '<td colspan="2" style="color:#15803d;padding:8px 12px">📊 PROMEDIO</td>'+
+    '<td colspan="2"></td>'+
+    '<td style="text-align:center;color:#16a34a">'+(promPct!=null?promPct+'%':'—')+'</td>'+
+    '<td colspan="2"></td>'+
+    '<td style="text-align:center;color:#16a34a">'+(promDias!=null?promDias+' días':'—')+'</td>'+
+    '<td style="text-align:center;color:#16a34a">'+(promSems!=null?'~'+promSems+' sem':'—')+'</td>'+
+    (isAdmin?'<td></td>':'')+'</tr>';
   tbody.innerHTML=arr.map(function(f,i){
     var pct=f.pct_cumpl!=null?Math.round(f.pct_cumpl*100)+'%':'—';
     var cls=norm(f.clase||'');
@@ -4445,7 +4483,9 @@ function renderFinalizadas(){
       cls.includes('orden')||cls.includes('limpieza')?
       '<span style="font-size:10px;color:#16a34a;font-weight:700">ORDEN Y LIMPIEZA</span>':
       '<span style="font-size:10px;color:var(--muted)">'+esc(f.clase||'—')+'</span>';
-    var editTd=isAdmin?'<td style="text-align:center"><button class="icon-btn" onclick="deleteFinalizada(\''+f.id+'\')" title="Eliminar registro">✕</button></td>':'';
+    var dias=f.duracion_dias!=null?f.duracion_dias+'d':'—';
+    var sems=f.duracion_dias!=null?(Math.round(f.duracion_dias/7*10)/10)+' sem':'—';
+    var editTd=isAdmin?'<td style="text-align:center"><button class="icon-btn" data-fid="'+esc(f.id||'')+'" onclick="finDeleteClick(this)" title="Eliminar">✕</button></td>':'';
     return '<tr style="background:#f0fdf4">'+
       '<td style="color:var(--muted);font-size:11px">'+(i+1)+'</td>'+
       '<td><b style="color:#15803d">'+esc(f.tienda||'—')+'</b></td>'+
@@ -4455,55 +4495,15 @@ function renderFinalizadas(){
       '<td style="text-align:center">'+(f.total_tareas||0)+'</td>'+
       '<td style="text-align:center;color:#16a34a;font-weight:700">'+(f.resueltas||0)+'</td>'+
       '<td style="text-align:center">'+fmtFecha(f.fecha_finalizacion)+'</td>'+
+      '<td style="text-align:center;color:var(--muted)">'+dias+'</td>'+
+      '<td style="text-align:center;color:var(--muted)">'+sems+'</td>'+
       editTd+'</tr>';
-  }).join('');
+  }).join('')+resumen;
 }
 
-/* ── Registrar auditoría como finalizada (llamado desde seguimiento cuando sinPendientes) ── */
-async function registrarFinalizada(a){
-  var client=getSbClient();if(!client)return;
-  var ak=audSegKey(a);
-  /* Verificar en cache local para no hacer doble insert */
-  var existe=FINALIZADAS.find(function(f){return f.aud_key===ak;});
-  if(existe)return;
-  /* Marcar en cache inmediatamente para evitar race condition en renders consecutivos */
-  var placeholder={aud_key:ak,_pending:true};
-  FINALIZADAS.unshift(placeholder);
-
-  /* Calcular stats desde tareas del STORE */
-  var tipoClase=tipoTareaDeClase(a.clase);
-  var tareasDeAud=STORE.tareas.filter(function(t){
-    if(norm(t.tienda)!==norm(a.tienda)||norm(t.centro)!==norm(a.centro))return false;
-    if(tipoClase&&tipoNormLocal(t.tipoTarea)!==tipoClase)return false;
-    return true;
-  });
-  var totalTareas=tareasDeAud.length;
-  var resueltas=tareasDeAud.filter(function(t){return!esPendiente(t);}).length;
-
-  var row={
-    aud_key:ak,tienda:a.tienda||'',mes:(a.mes||'').toUpperCase(),
-    clase:a.clase||'',pct_cumpl:parseFloat(a.pctCumpl)||0,
-    total_tareas:totalTareas,resueltas:resueltas,
-    fecha_finalizacion:new Date().toISOString().split('T')[0]
-  };
-  try{
-    var r=await client.from('tareas_finalizadas').insert([row]).select();
-    if(r.error){
-      /* Quitar placeholder si falló */
-      FINALIZADAS=FINALIZADAS.filter(function(f){return f.aud_key!==ak||!f._pending;});
-      if(!r.error.message.includes('duplicate')&&!r.error.message.includes('unique')){
-        console.warn('registrarFinalizada:',r.error.message);
-      }
-      return;
-    }
-    /* Reemplazar placeholder con dato real */
-    var idx=FINALIZADAS.findIndex(function(f){return f.aud_key===ak&&f._pending;});
-    if(idx>=0)FINALIZADAS[idx]=r.data[0]||row;
-    if(VIEW==='finalizadas'){fillFinFilters();renderFinalizadas();}
-  }catch(e){
-    FINALIZADAS=FINALIZADAS.filter(function(f){return f.aud_key!==ak||!f._pending;});
-    console.warn('registrarFinalizada:',e.message);
-  }
+function finDeleteClick(el){
+  var id=el.getAttribute('data-fid');
+  if(id)deleteFinalizada(id);
 }
 
 async function deleteFinalizada(id){
