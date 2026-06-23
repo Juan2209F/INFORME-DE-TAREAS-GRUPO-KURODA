@@ -468,6 +468,7 @@ table.seg tbody tr:hover{background:var(--soft)}
   <div class="nav-item" id="nav-auditorias" title="Auditorías por clase" onclick="setView('auditorias')">🔍</div>
   <div class="nav-item" id="nav-ajustes" title="Ajustes" onclick="setView('ajustes')">⚖️</div>
   <div class="nav-item" id="nav-mermas" title="Mermas" onclick="setView('mermas')">🗂️</div>
+  <div class="nav-item" id="nav-finalizadas" title="Tareas Finalizadas" onclick="setView('finalizadas')">✅</div>
   <div class="nav-sep"></div>
   <div class="nav-item" id="nav-usuarios" title="Gestión de usuarios" onclick="openUsuarios()" style="display:none">👥</div>
 </nav>
@@ -828,6 +829,46 @@ table.seg tbody tr:hover{background:var(--soft)}
         </div>
       </div>
     </div><!-- /view-mermas -->
+
+    <!-- ════════ VISTA TAREAS FINALIZADAS ════════ -->
+    <div id="view-finalizadas" style="display:none;flex-direction:column;gap:14px">
+      <div class="slbl"><span class="dot" style="background:var(--green)"></span>Tareas Finalizadas
+        <span style="font-weight:600;font-size:10px;color:var(--muted);text-transform:none;margin-left:6px">Auditorías sin tareas pendientes · registro guardado en Supabase</span>
+      </div>
+
+      <!-- Filtros -->
+      <div class="card" style="padding:14px 16px">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-items:end">
+          <div class="fg"><label>MES</label>
+            <select id="fin-f-mes" onchange="renderFinalizadas()"><option value="ALL">Todos</option></select></div>
+          <div class="fg"><label>AÑO</label>
+            <select id="fin-f-año" onchange="renderFinalizadas()"><option value="ALL">Todos</option></select></div>
+          <div class="fg"><label>TIENDA</label>
+            <select id="fin-f-tienda" onchange="renderFinalizadas()"><option value="ALL">Todas</option></select></div>
+          <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+            <button class="btn btn-ghost" onclick="loadFinalizadas()">🔄 Recargar</button>
+            <span id="fin-count" style="font-size:11px;color:var(--green);font-weight:700;align-self:center"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabla -->
+      <div class="card" style="padding:0">
+        <div class="ajustes-table-wrap">
+          <table>
+            <thead><tr>
+              <th>#</th><th>Tienda</th><th>Mes</th><th>Clase</th>
+              <th class="c">% Cumplimiento</th><th class="c">Tareas</th>
+              <th class="c">Resueltas</th><th class="c">Fecha Finalización</th>
+              <th class="c" id="fin-edit-th" style="display:none"></th>
+            </tr></thead>
+            <tbody id="fin-tbody">
+              <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px">Cargando…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div><!-- /view-finalizadas -->
 
   </div>
 </div>
@@ -2086,6 +2127,8 @@ function setView(v){
   if(vaj)vaj.style.display=v==='ajustes'?'flex':'none';
   var vmr=document.getElementById('view-mermas');
   if(vmr)vmr.style.display=v==='mermas'?'flex':'none';
+  var vfin=document.getElementById('view-finalizadas');
+  if(vfin)vfin.style.display=v==='finalizadas'?'flex':'none';
   document.getElementById('nav-dash').classList.toggle('active',v==='dash');
   document.getElementById('nav-tareas').classList.toggle('active',v==='tareas');
   var na=document.getElementById('nav-actividades');
@@ -2096,6 +2139,8 @@ function setView(v){
   if(naj)naj.classList.toggle('active',v==='ajustes');
   var nmr=document.getElementById('nav-mermas');
   if(nmr)nmr.classList.toggle('active',v==='mermas');
+  var nfin=document.getElementById('nav-finalizadas');
+  if(nfin)nfin.classList.toggle('active',v==='finalizadas');
   if(v==='actividades'){ if(!ACTIVIDADES.length) loadActividades(); else renderActividades(); }
   else if(v==='auditorias'){
     if(!STORE.auditorias.length) loadDataFromSupabase().then(renderAuditoriasView);
@@ -2103,6 +2148,7 @@ function setView(v){
   }
   else if(v==='ajustes'){ if(!AJUSTES.length) loadAjustes(); else renderAjustes(); }
   else if(v==='mermas'){ if(!MERMAS.length) loadMermas(); else renderMermas(); }
+  else if(v==='finalizadas'){ if(!FINALIZADAS.length) loadFinalizadas(); else renderFinalizadas(); }
   else render();
 }
 
@@ -3305,6 +3351,8 @@ function checkAdminUI(){
   if(mrExcel) mrExcel.style.display=(_session&&_session.rol==='admin')?'':'none';
   var mrTh=document.getElementById('mr-edit-th');
   if(mrTh) mrTh.style.display=(_session&&_session.rol==='admin')?'':'none';
+  var finTh=document.getElementById('fin-edit-th');
+  if(finTh) finTh.style.display=(_session&&_session.rol==='admin')?'':'none';
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -3464,6 +3512,8 @@ function renderSeguimientoTable(rows,claseKey){
     });
     var sinPendientes=tareasDeAud.length>0&&tareasDeAud.filter(esPendiente).length===0;
     var rowCls=sinPendientes?'seg-row-ok':'';
+    /* Auto-registrar como finalizada en Supabase (solo una vez) */
+    if(sinPendientes&&SEG_LOADED)registrarFinalizada(a);
 
     /* Si no tiene semanas aún y Supabase está listo, inicializar de fondo */
     if(SEG_LOADED&&semRows.length===0){
@@ -3585,20 +3635,25 @@ async function loadAjustes(){
       'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
     AJUSTES=(r.data||[]).map(function(a){
       var dias=diasEntre(a.fecha_correo,a.fecha_ajuste);
-      /* Derivar mes y año limpios desde fecha_correo */
-      var mesLimpio=a.mes||'';
-      var añoLimpio=a.año||'';
+      /* SIEMPRE derivar mes y año desde fecha_correo para evitar formatos sucios
+         ("julio2023.", "agosto", etc.) que pueden estar en el campo mes de Supabase */
+      var mesLimpio='';
+      var añoLimpio=null;
       if(a.fecha_correo){
         var parts=a.fecha_correo.split('-');
         if(parts.length>=2){
           añoLimpio=parseInt(parts[0]);
-          mesLimpio=MN[parseInt(parts[1])-1]||mesLimpio;
+          mesLimpio=MN[parseInt(parts[1])-1]||'';
         }
-      }else if(mesLimpio&&mesLimpio.includes(',')){
-        var mp=mesLimpio.split(',');
-        mesLimpio=mp[0].trim().toUpperCase();
-        if(!añoLimpio&&mp[1])añoLimpio=parseInt(mp[1].trim());
       }
+      /* Fallback: intentar parsear el campo mes almacenado si no hay fecha_correo */
+      if(!mesLimpio&&a.mes){
+        var raw=String(a.mes).toUpperCase().replace(/[0-9.]/g,'').trim();
+        /* Extraer solo la parte del nombre del mes */
+        var found=MN.find(function(m){return raw.startsWith(m)||raw===m;});
+        mesLimpio=found||raw;
+      }
+      if(!añoLimpio&&a.año)añoLimpio=parseInt(a.año);
       return{id:a.id,tienda:a.tienda||'',mes:mesLimpio,año:añoLimpio,
         fechaCorreo:a.fecha_correo,fechaAjuste:a.fecha_ajuste,
         dias:dias,condicion:condicionAjuste(dias)};
@@ -3854,31 +3909,41 @@ function importAjustesExcel(files){
   var reader=new FileReader();
   reader.onload=function(e){
     try{
-      var wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+      /* cellDates:false → recibir seriales numéricos y convertir manualmente */
+      var wb=XLSX.read(e.target.result,{type:'array',cellDates:false});
       var ws=wb.Sheets[wb.SheetNames[0]];
       var raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
       if(raw.length<2){toast('⚠ Excel vacío o sin datos');return;}
-      /* Detectar cabecera */
       var H=raw[0].map(function(c){return String(c||'').toLowerCase().trim();});
       function fc(keys){var k=keys.find(function(k){return H.indexOf(k)>=0;});return k?H.indexOf(k):-1;}
       var iT=fc(['tienda','sucursal']);
-      var iM=fc(['mes','month']);
       var iC=fc(['correo','fecha correo','fecha_correo','f correo','fcorreo']);
       var iA=fc(['ajuste','fecha ajuste','fecha_ajuste','f ajuste','fajuste']);
       if(iT<0||iC<0||iA<0){
-        toast('⚠ Columnas no encontradas. Necesita: Tienda, Fecha Correo, Fecha Ajuste');return;
+        toast('⚠ Columnas no encontradas. Necesita: Tienda, Correo, Ajuste');return;
       }
-      function parseExcelDate(v){
-        if(!v)return null;
-        if(v instanceof Date){var d=v;return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+      var MN=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
+              'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+      /* Convierte serial Excel numérico O string de fecha a 'yyyy-mm-dd' */
+      function toISO(v){
+        if(!v&&v!==0)return null;
+        var n=Number(v);
+        if(!isNaN(n)&&n>30000&&n<80000){
+          /* Epoch Unix en ms: (serial - 25569) * 86400 * 1000 */
+          var ms=(n-25569)*86400*1000;
+          var d=new Date(ms);
+          return d.getUTCFullYear()+'-'+
+            String(d.getUTCMonth()+1).padStart(2,'0')+'-'+
+            String(d.getUTCDate()).padStart(2,'0');
+        }
         var s=String(v).trim();
-        /* dd/mm/yyyy */
         var m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
         if(m)return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
-        /* yyyy-mm-dd */
         if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
-        var d=new Date(s);
-        if(!isNaN(d))return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+        var dt=new Date(s);
+        if(!isNaN(dt))return dt.getFullYear()+'-'+
+          String(dt.getMonth()+1).padStart(2,'0')+'-'+
+          String(dt.getDate()).padStart(2,'0');
         return null;
       }
       var rows=[];
@@ -3886,16 +3951,14 @@ function importAjustesExcel(files){
         var r=raw[i];
         var tienda=String(r[iT]||'').trim().toUpperCase();
         if(!tienda)continue;
-        var fechaC=parseExcelDate(r[iC]);
-        var fechaA=parseExcelDate(r[iA]);
+        var fechaC=toISO(r[iC]);
+        var fechaA=toISO(r[iA]);
         if(!fechaC||!fechaA)continue;
-        var mes=iM>=0?String(r[iM]||'').trim().toUpperCase():'';
-        if(!mes&&fechaC){
-          var mNames=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
-            'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
-          mes=mNames[parseInt(fechaC.split('-')[1])-1]||'';
-        }
-        var año=parseInt((fechaC||'').split('-')[0])||null;
+        /* Derivar mes y año SIEMPRE desde fecha_correo — ignorar campo Mes del Excel
+           porque viene con formatos inconsistentes: "julio2023.", "julio", etc. */
+        var parts=fechaC.split('-');
+        var año=parseInt(parts[0]);
+        var mes=MN[parseInt(parts[1])-1]||'';
         var dias=diasEntre(fechaC,fechaA);
         rows.push({tienda,mes,año,fecha_correo:fechaC,fecha_ajuste:fechaA,
           dias,condicion:condicionAjuste(dias)});
@@ -3903,7 +3966,7 @@ function importAjustesExcel(files){
       if(!rows.length){toast('⚠ Sin filas válidas en el Excel');return;}
       toast('⏳ Importando '+rows.length+' registros…');
       commitAjustesExcel(rows);
-    }catch(err){toast('⚠ Error leyendo Excel: '+err.message);}
+    }catch(err){toast('⚠ Error: '+err.message);console.error(err);}
   };
   reader.readAsArrayBuffer(file);
 }
@@ -4266,6 +4329,132 @@ async function commitMermasExcel(rows){
     }
     toast('☁️ '+ok+' merma(s) importadas');
     await loadMermas();
+  }catch(e){toast('⚠ '+e.message);}
+}
+/* ════════════════════════════════════════════════════════════════════
+   MÓDULO TAREAS FINALIZADAS — Supabase
+   Tabla: tareas_finalizadas
+   Columnas: id, aud_key, tienda, mes, clase, pct_cumpl,
+             total_tareas, resueltas, fecha_finalizacion,
+             created_at
+   Flujo: cuando sinPendientes=true en seguimiento → mover aquí
+          (la entrada desaparece de seguimiento cuando se registra)
+════════════════════════════════════════════════════════════════════ */
+var FINALIZADAS=[];
+var _finLoaded=false;
+
+async function loadFinalizadas(){
+  var client=getSbClient();
+  if(!client){toast('⚠ Sin Supabase');return;}
+  try{
+    var r=await client.from('tareas_finalizadas').select('*')
+      .order('fecha_finalizacion',{ascending:false}).limit(5000);
+    if(r.error){toast('⚠ '+r.error.message);return;}
+    FINALIZADAS=(r.data||[]);
+    _finLoaded=true;
+    fillFinFilters();renderFinalizadas();
+    toast('✓ '+FINALIZADAS.length+' tarea(s) finalizada(s)');
+  }catch(e){toast('⚠ '+e.message);}
+}
+
+function fillFinFilters(){
+  var MORD=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
+    'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+  var mesSet=new Set(FINALIZADAS.map(function(f){return(f.mes||'').toUpperCase();}).filter(Boolean));
+  var meses=MORD.filter(function(m){return mesSet.has(m);});
+  var añoSet=[...new Set(FINALIZADAS.map(function(f){
+    return f.fecha_finalizacion?f.fecha_finalizacion.split('-')[0]:'';
+  }).filter(Boolean))].sort().reverse();
+  var tiendas=[...new Set(FINALIZADAS.map(function(f){return f.tienda;}).filter(Boolean))].sort();
+  var sm=document.getElementById('fin-f-mes');
+  var sa=document.getElementById('fin-f-año');
+  var st=document.getElementById('fin-f-tienda');
+  if(!sm)return;
+  var vm=sm.value,va=sa.value,vt=st.value;
+  sm.innerHTML='<option value="ALL">Todos</option>'+meses.map(function(m){return'<option value="'+m+'">'+m+'</option>';}).join('');
+  sa.innerHTML='<option value="ALL">Todos</option>'+añoSet.map(function(y){return'<option value="'+y+'">'+y+'</option>';}).join('');
+  st.innerHTML='<option value="ALL">Todas</option>'+tiendas.map(function(t){return'<option>'+t+'</option>';}).join('');
+  if([...sm.options].some(function(o){return o.value===vm;}))sm.value=vm;
+  if([...sa.options].some(function(o){return o.value===va;}))sa.value=va;
+  if([...st.options].some(function(o){return o.value===vt;}))st.value=vt;
+}
+
+function filteredFinalizadas(){
+  var mes=document.getElementById('fin-f-mes').value||'ALL';
+  var año=document.getElementById('fin-f-año').value||'ALL';
+  var tienda=document.getElementById('fin-f-tienda').value||'ALL';
+  return FINALIZADAS.filter(function(f){
+    if(mes!=='ALL'&&(f.mes||'').toUpperCase()!==mes)return false;
+    if(año!=='ALL'){var y=f.fecha_finalizacion?f.fecha_finalizacion.split('-')[0]:'';if(y!==año)return false;}
+    if(tienda!=='ALL'&&norm(f.tienda)!==norm(tienda))return false;
+    return true;
+  });
+}
+
+function renderFinalizadas(){
+  var arr=filteredFinalizadas();
+  var isAdmin=_session&&_session.rol==='admin';
+  document.getElementById('fin-count').textContent=arr.length+' finalizada(s)';
+  var th=document.getElementById('fin-edit-th');if(th)th.style.display=isAdmin?'':'none';
+  var tbody=document.getElementById('fin-tbody');
+  if(!arr.length){
+    tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px">Sin registros finalizados.</td></tr>';
+    return;
+  }
+  tbody.innerHTML=arr.map(function(f,i){
+    var pct=f.pct_cumpl!=null?Math.round(f.pct_cumpl*100)+'%':'—';
+    var cls=norm(f.clase||'');
+    var claseLabel=cls.includes('colaboracion')||cls.includes('colab')?
+      '<span style="font-size:10px;color:#2563eb;font-weight:700">COLABORACIÓN</span>':
+      cls.includes('orden')||cls.includes('limpieza')?
+      '<span style="font-size:10px;color:#16a34a;font-weight:700">ORDEN Y LIMPIEZA</span>':
+      '<span style="font-size:10px;color:var(--muted)">'+esc(f.clase||'—')+'</span>';
+    var editTd=isAdmin?'<td style="text-align:center"><button class="icon-btn" onclick="deleteFinalizada(\''+f.id+'\')" title="Eliminar registro">✕</button></td>':'';
+    return '<tr style="background:#f0fdf4">'+
+      '<td style="color:var(--muted);font-size:11px">'+(i+1)+'</td>'+
+      '<td><b style="color:#15803d">'+esc(f.tienda||'—')+'</b></td>'+
+      '<td>'+esc(f.mes||'—')+'</td>'+
+      '<td>'+claseLabel+'</td>'+
+      '<td style="text-align:center;font-weight:700;color:#16a34a">'+pct+'</td>'+
+      '<td style="text-align:center">'+(f.total_tareas||0)+'</td>'+
+      '<td style="text-align:center;color:#16a34a;font-weight:700">'+(f.resueltas||0)+'</td>'+
+      '<td style="text-align:center">'+fmtFecha(f.fecha_finalizacion)+'</td>'+
+      editTd+'</tr>';
+  }).join('');
+}
+
+/* ── Registrar auditoría como finalizada (llamado desde seguimiento cuando sinPendientes) ── */
+async function registrarFinalizada(a){
+  var client=getSbClient();if(!client)return;
+  /* Verificar si ya existe para no duplicar */
+  var ak=audSegKey(a);
+  var existe=FINALIZADAS.find(function(f){return f.aud_key===ak;});
+  if(existe)return; /* Ya registrada */
+  var stats=calcAudStats(a,STORE.auditorias);
+  var row={
+    aud_key:ak,tienda:a.tienda||'',mes:(a.mes||'').toUpperCase(),
+    clase:a.clase||'',pct_cumpl:a.pctCumpl||0,
+    total_tareas:stats.tareas||a.tareas||0,
+    resueltas:stats.resueltas||a.resueltas||0,
+    fecha_finalizacion:new Date().toISOString().split('T')[0]
+  };
+  try{
+    var r=await client.from('tareas_finalizadas').insert([row]).select();
+    if(r.error){console.warn('registrarFinalizada:',r.error.message);return;}
+    FINALIZADAS.unshift(r.data[0]||row);
+    if(VIEW==='finalizadas'){fillFinFilters();renderFinalizadas();}
+  }catch(e){console.warn('registrarFinalizada:',e.message);}
+}
+
+async function deleteFinalizada(id){
+  if(!_session||_session.rol!=='admin'){toast('⚠ Solo administradores');return;}
+  if(!confirm('¿Eliminar este registro de finalización?'))return;
+  var client=getSbClient();if(!client)return;
+  try{
+    var r=await client.from('tareas_finalizadas').delete().eq('id',id);
+    if(r.error){toast('⚠ '+r.error.message);return;}
+    FINALIZADAS=FINALIZADAS.filter(function(f){return f.id!==id;});
+    fillFinFilters();renderFinalizadas();toast('☁️ Registro eliminado');
   }catch(e){toast('⚠ '+e.message);}
 }
 
