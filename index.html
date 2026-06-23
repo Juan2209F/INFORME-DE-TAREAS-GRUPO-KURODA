@@ -1190,6 +1190,8 @@ function refreshAll(){
   document.getElementById('ds-tar').textContent=STORE.tareas.length;
   document.getElementById('ds-pend').textContent=STORE.tareas.filter(esPendiente).length;
   fillFilters();render();
+  /* Si la vista de auditorías está activa, re-renderizarla para reflejar cambios en tareas */
+  if(VIEW==='auditorias') renderAuditoriasView();
 }
 function render(){
   const tareas=filteredTareas(), aud=filteredAuditorias();
@@ -1969,22 +1971,78 @@ function filteredAudByView(){
 
 function pctFmt(v){if(v==null)return'—';var n=v>1.5?v:v*100;return Math.round(n)+'%';}
 
+/* Mapa mes-nombre → índice 0-based */
+var MESES_NOMBRE=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function mesIndexFromNombre(nombre){
+  if(!nombre)return -1;
+  var n=nombre.toLowerCase().trim();
+  return MESES_NOMBRE.indexOf(n);
+}
+
+/* Calcula resueltas/pendientes dinámicamente desde STORE.tareas para una auditoría.
+   Usa tienda+centro como clave primaria; si hay 2+ auditorías para la misma tienda
+   filtra además por el mes de fechaCreacion de la tarea == mes de la auditoría. */
+function calcAudStats(a, todosTiendaRows){
+  /* todosTiendaRows = todas las auditorías de la misma tienda+clase (para saber si hay 2+) */
+  var audsMismaTienda = todosTiendaRows ? todosTiendaRows.filter(function(x){
+    return norm(x.tienda)===norm(a.tienda) && norm(x.centro)===norm(a.centro);
+  }) : [a];
+  var multiAud = audsMismaTienda.length > 1;
+
+  var mesMes = mesIndexFromNombre(a.mes); /* índice 0-based del mes de la auditoría */
+
+  /* Filtrar tareas por tienda + centro */
+  var tareasTienda = STORE.tareas.filter(function(t){
+    return norm(t.tienda)===norm(a.tienda) && norm(t.centro)===norm(a.centro);
+  });
+
+  /* Si hay 2+ auditorías para la misma tienda/centro, filtrar por mes */
+  if(multiAud && mesMes >= 0){
+    tareasTienda = tareasTienda.filter(function(t){
+      var d = fromISO(t.fechaCreacion);
+      return d && d.getMonth() === mesMes;
+    });
+  }
+
+  if(!tareasTienda.length){
+    /* Sin tareas vinculadas: usar valores originales de la auditoría */
+    return {
+      tareas: a.tareas||0,
+      resueltas: a.resueltas||0,
+      pendientes: a.pendientes||0,
+      pctResuelto: a.pctResuelto||0,
+      dinamico: false
+    };
+  }
+
+  var total = tareasTienda.length;
+  var resueltas = tareasTienda.filter(esResuelta).length;
+  var pendientes = tareasTienda.filter(esPendiente).length;
+  var pctResuelto = total > 0 ? resueltas / total : 0;
+
+  return {tareas: total, resueltas: resueltas, pendientes: pendientes, pctResuelto: pctResuelto, dinamico: true};
+}
+
 function audTablaPorClase(titulo,color,rows){
   var filas=rows.map(function(a){
-    var pend=a.pendientes||0;
-    var pendColor=pend>0?'#dc2626':'#16a34a';
+    var stats = calcAudStats(a, rows);
+    var pend = stats.pendientes;
+    var pendColor = pend>0 ? '#dc2626' : '#16a34a';
+    var dinamicoTip = stats.dinamico ? ' title="Calculado desde tareas reales"' : '';
+    var dinamicoMark = stats.dinamico ? '<span style="font-size:9px;color:var(--teal);margin-left:3px" title="Calculado en tiempo real">⟳</span>' : '';
     return '<tr>'+
       '<td><b>'+(a.tienda||'—')+'</b></td>'+
       '<td>'+(a.mes||'—')+'</td>'+
       '<td style="text-align:center">'+pctFmt(a.pctCumpl)+'</td>'+
-      '<td style="text-align:center">'+(a.tareas||0)+'</td>'+
+      '<td style="text-align:center">'+stats.tareas+'</td>'+
       '<td style="text-align:center;color:'+pendColor+';font-weight:700">'+pend+'</td>'+
-      '<td style="text-align:center">'+(a.resueltas||0)+'</td>'+
-      '<td style="text-align:center">'+pctFmt(a.pctResuelto)+'</td>'+
+      '<td style="text-align:center"'+dinamicoTip+'>'+stats.resueltas+dinamicoMark+'</td>'+
+      '<td style="text-align:center"'+dinamicoTip+'>'+pctFmt(stats.pctResuelto)+dinamicoMark+'</td>'+
     '</tr>';
   }).join('');
   return '<div class="slbl" style="margin:4px 0 8px;color:'+color+'"><span class="dot" style="background:'+color+'"></span>'+titulo+
-    ' <span style="font-weight:600;font-size:10px;color:var(--muted)">('+rows.length+')</span></div>'+
+    ' <span style="font-weight:600;font-size:10px;color:var(--muted)">('+rows.length+')</span>'+
+    ' <span style="font-size:9.5px;font-weight:600;color:var(--teal);margin-left:6px">⟳ Resueltos y % calculados en tiempo real</span></div>'+
     '<div class="card" style="padding:8px 10px;margin-bottom:22px"><div class="tbl-scroll"><table class="dt">'+
     '<thead><tr><th>Tienda</th><th>Mes Auditoría</th><th>% Cumplimiento</th><th>Tareas</th><th>Pendientes</th><th>Resueltos</th><th>% Resuelto</th></tr></thead>'+
     '<tbody>'+(filas||'<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:18px">Sin registros</td></tr>')+'</tbody></table></div></div>';
@@ -1997,7 +2055,7 @@ function renderAuditoriasView(){
   var cont=document.getElementById('auditorias-tables');
   if(!arr.length){cont.innerHTML='<div class="empty" style="padding:30px">Sin auditorías en Supabase. Carga datos con el módulo principal.</div>';return;}
 
-  /* Agrupar por clase: las que contienen "colaboracion" vs "orden y limpieza" vs otras */
+  /* Agrupar por clase */
   function clasifica(a){
     var c=norm(a.clase||'');
     if(c.includes('colaboracion')||c.includes('colab'))return 'colab';
