@@ -3157,8 +3157,11 @@ async function loadDataFromSupabase(){
       fechaCreacion:t.fecha_creacion,fechaTerm:t.fecha_term,fechaCumpl:t.fecha_cumpl
     };});
     refreshAll();
-    /* Cargar seguimientos en paralelo */
-    loadSeguimientos().then(function(){if(VIEW==='auditorias')renderAuditoriasView();});
+    /* Cargar seguimientos y finalizadas en paralelo */
+    Promise.all([
+      loadSeguimientos(),
+      loadFinalizadas()
+    ]).then(function(){if(VIEW==='auditorias')renderAuditoriasView();});
     setPill('supabase');toast('✓ Conectado a Supabase — '+STORE.tareas.length+' tareas, '+STORE.auditorias.length+' auditorías');
   }catch(e){
     console.warn('Error cargando Supabase:',e);
@@ -3419,21 +3422,43 @@ async function toggleSegCheck(ak,rowId,currentVal){
   var client=getSbClient();if(!client){toast('⚠ Sin Supabase');return;}
   var newVal=!currentVal;
   var today=new Date().toISOString().split('T')[0];
-
-  /* Actualismo en cache primero para UI inmediata */
   if(SEG_CACHE[ak]){
     SEG_CACHE[ak].forEach(function(r){
       if(r.id===rowId){r.completado=newVal;r.fecha_completado=newVal?today:null;}
     });
   }
   renderAuditoriasView();
-
   try{
     var upd={completado:newVal,fecha_completado:newVal?today:null};
     var res=await client.from('seguimiento_semanas').update(upd).eq('id',rowId);
     if(res.error){toast('⚠ '+res.error.message);await loadSeguimientos();renderAuditoriasView();}
     else toast(newVal?'✓ Seguimiento registrado':'↩ Desmarcado');
   }catch(e){toast('⚠ '+e.message);}
+}
+
+/* Wrapper para click en check usando data-attributes (evita escaping de strings en HTML) */
+function segCheckClick(el){
+  var rowId=el.getAttribute('data-rowid');
+  var done=el.getAttribute('data-done')==='true';
+  var ak=window._segIndexAk&&window._segIndexAk[rowId];
+  if(!ak||!rowId)return;
+  toggleSegCheck(ak,rowId,done);
+}
+
+/* Wrapper para cambio de fecha */
+function segFechaChange(el){
+  var rowId=el.getAttribute('data-id');
+  var ak=window._segIndexAk&&window._segIndexAk[rowId];
+  if(!ak||!rowId)return;
+  updateSegFecha(ak,rowId,el.value);
+}
+
+/* Wrapper para agregar semana */
+function segAddSemana(el){
+  var ak=el.getAttribute('data-ak');
+  var fecha=el.getAttribute('data-fecha');
+  if(!ak)return;
+  addSegSemana(ak,fecha);
 }
 
 /* ── Actualizar fecha programada ── */
@@ -3499,11 +3524,15 @@ function renderSeguimientoTable(rows,claseKey){
   for(var s=1;s<=maxSems;s++)thCols+='<th>SEMANA '+s+'</th>';
   var thead='<thead><tr><th style="text-align:left;min-width:130px">Tienda</th>'+thCols+'<th></th></tr></thead>';
 
+  /* Registrar índice de filas para acceso por data-attribute */
+  window._segIndexAk = window._segIndexAk||{};
+  window._segIndexId = window._segIndexId||{};
+
   var tbody=rows.map(function(a){
     var ak=audSegKey(a);
     var semRows=getSegRows(ak);
 
-    /* ── Calcular si la tienda está sin pendientes ── */
+    /* Calcular si la tienda está sin pendientes */
     var tipoClase=tipoTareaDeClase(a.clase);
     var tareasDeAud=STORE.tareas.filter(function(t){
       if(norm(t.tienda)!==norm(a.tienda)||norm(t.centro)!==norm(a.centro))return false;
@@ -3512,10 +3541,14 @@ function renderSeguimientoTable(rows,claseKey){
     });
     var sinPendientes=tareasDeAud.length>0&&tareasDeAud.filter(esPendiente).length===0;
     var rowCls=sinPendientes?'seg-row-ok':'';
-    /* Auto-registrar como finalizada en Supabase (solo una vez) */
-    if(sinPendientes&&SEG_LOADED)registrarFinalizada(a);
 
-    /* Si no tiene semanas aún y Supabase está listo, inicializar de fondo */
+    /* Auto-registrar finalizada solo si no está ya en cache */
+    if(sinPendientes&&SEG_LOADED&&_finLoaded){
+      var yaFin=FINALIZADAS.find(function(f){return f.aud_key===ak;});
+      if(!yaFin)registrarFinalizada(a);
+    }
+
+    /* Si no tiene semanas aún, inicializar de fondo */
     if(SEG_LOADED&&semRows.length===0){
       initSegSemanas(ak,a.fecha);
       var placeholders='';
@@ -3528,9 +3561,13 @@ function renderSeguimientoTable(rows,claseKey){
         placeholders+'<td></td></tr>';
     }
 
-    /* Construir mapa por num_semana */
     var semMap={};
-    semRows.forEach(function(r){semMap[r.num_semana]=r;});
+    semRows.forEach(function(r){
+      semMap[r.num_semana]=r;
+      /* Guardar en índice global para acceso por data-id */
+      window._segIndexAk[r.id]=ak;
+      window._segIndexId[r.id]=r;
+    });
 
     var celdas='';
     for(var col=1;col<=maxSems;col++){
@@ -3539,29 +3576,27 @@ function renderSeguimientoTable(rows,claseKey){
       var done=!!sr.completado;
       var fechaFinal=sr.fecha_prog||'';
       var past=isPast(fechaFinal);
-      var locked=past&&!done;
-      var checkCls=done?'done':(locked?'past':'pending');
-      var checkIcon=done?'✓':(locked?'✕':'');
-      /* Admin siempre puede editar; sinPendientes bloquea solo a no-admin */
-      var noInteract=sinPendientes&&!done&&!canEdit;
-      var checkClickable=canEdit?true:(!locked&&!noInteract);
-      var onck=checkClickable?
-        'toggleSegCheck(\''+ak+'\',\''+sr.id+'\','+done+')':'';
-      var title=sinPendientes&&!canEdit?'Sin pendientes — al corriente':
-        (done?'Desmarcar':(locked&&!canEdit?'Fecha vencida':'Marcar como seguido'));
+      /* Admin puede marcar/desmarcar sin restricción de locked ni sinPendientes */
+      var checkCls=done?'done':(past&&!canEdit?'past':'pending');
+      var checkIcon=done?'✓':(past&&!canEdit?'✕':'');
+
+      /* Siempre clickeable para admin; bloqueado para no-admin si locked o sinPendientes */
+      var clickable=canEdit||((!past)&&!sinPendientes);
+      var checkStyle=clickable?'cursor:pointer':'cursor:default';
 
       var inputEl='';
       if(done){
+        /* Admin ve input editable; otros ven label */
         if(canEdit){
           inputEl='<input class="seg-date-input" type="date" value="'+(sr.fecha_completado||fechaFinal)+'" '+
-            'onchange="updateSegFecha(\''+ak+'\',\''+sr.id+'\',this.value)" title="Fecha semana '+col+'">';
+            'data-id="'+sr.id+'" onchange="segFechaChange(this)" title="Fecha semana '+col+'">';
         }else{
           inputEl='<div class="seg-date-label">'+fmtSegShort(sr.fecha_completado||fechaFinal)+'</div>';
         }
-      }else if(locked){
+      }else if(past){
         if(canEdit){
           inputEl='<input class="seg-date-input" type="date" value="'+fechaFinal+'" '+
-            'onchange="updateSegFecha(\''+ak+'\',\''+sr.id+'\',this.value)" title="Fecha semana '+col+'">';
+            'data-id="'+sr.id+'" onchange="segFechaChange(this)" title="Fecha semana '+col+'">';
         }else{
           inputEl='<div class="seg-date-gray">'+fmtSegShort(fechaFinal)+'</div>';
         }
@@ -3569,21 +3604,22 @@ function renderSeguimientoTable(rows,claseKey){
         inputEl='<div class="seg-date-gray">'+fmtSegShort(fechaFinal)+'</div>';
       }else{
         inputEl='<input class="seg-date-input" type="date" value="'+fechaFinal+'" '+
-          'onchange="updateSegFecha(\''+ak+'\',\''+sr.id+'\',this.value)" title="Fecha semana '+col+'">';
+          'data-id="'+sr.id+'" onchange="segFechaChange(this)" title="Fecha semana '+col+'">';
       }
 
+      var titCheck=done?'Desmarcar':(past&&!canEdit?'Fecha vencida':(sinPendientes&&!canEdit?'Sin pendientes':'Marcar como seguido'));
       celdas+='<td><div class="seg-cell">'+
-        '<div class="seg-check '+checkCls+'" '+
-          (onck?'onclick="'+onck+'" title="'+title+'"':'title="'+title+'"')+
-          ' style="'+(!onck?'cursor:default':'')+'" >'+checkIcon+'</div>'+
+        '<div class="seg-check '+checkCls+'" style="'+checkStyle+'" '+
+          (clickable?'data-rowid="'+sr.id+'" data-done="'+done+'" onclick="segCheckClick(this)" title="'+titCheck+'"':
+                     'title="'+titCheck+'"')+
+        '>'+checkIcon+'</div>'+
         inputEl+'</div></td>';
     }
 
-    /* Botón agregar semana — admin siempre, otros solo si hay pendientes */
     var addBtn='<td></td>';
     if(canEdit){
       addBtn='<td style="vertical-align:middle"><button class="btn btn-ghost" style="padding:4px 9px;font-size:11px;white-space:nowrap" '+
-        'onclick="addSegSemana(\''+ak+'\',\''+a.fecha+'\')" title="Agregar semana">+ Semana</button></td>';
+        'data-ak="'+ak+'" data-fecha="'+(a.fecha||'')+'" onclick="segAddSemana(this)" title="Agregar semana">+ Semana</button></td>';
     }
 
     return '<tr class="'+rowCls+'">'+
@@ -3595,7 +3631,7 @@ function renderSeguimientoTable(rows,claseKey){
   return '<div class="seg-wrap">'+
     '<div class="seg-title">📅 Seguimiento — '+claseKey+
       '<span style="font-size:10px;font-weight:500;color:var(--muted);margin-left:8px">'+
-      '🟢 Verde = sin pendientes · fecha se bloquea al pasar · datos en Supabase</span></div>'+
+      '🟢 Verde = sin pendientes · Admin puede editar todo · datos en Supabase</span></div>'+
     '<div class="tbl-scroll"><table class="seg">'+thead+'<tbody>'+tbody+'</tbody></table></div>'+
   '</div>';
 }
@@ -4426,24 +4462,48 @@ function renderFinalizadas(){
 /* ── Registrar auditoría como finalizada (llamado desde seguimiento cuando sinPendientes) ── */
 async function registrarFinalizada(a){
   var client=getSbClient();if(!client)return;
-  /* Verificar si ya existe para no duplicar */
   var ak=audSegKey(a);
+  /* Verificar en cache local para no hacer doble insert */
   var existe=FINALIZADAS.find(function(f){return f.aud_key===ak;});
-  if(existe)return; /* Ya registrada */
-  var stats=calcAudStats(a,STORE.auditorias);
+  if(existe)return;
+  /* Marcar en cache inmediatamente para evitar race condition en renders consecutivos */
+  var placeholder={aud_key:ak,_pending:true};
+  FINALIZADAS.unshift(placeholder);
+
+  /* Calcular stats desde tareas del STORE */
+  var tipoClase=tipoTareaDeClase(a.clase);
+  var tareasDeAud=STORE.tareas.filter(function(t){
+    if(norm(t.tienda)!==norm(a.tienda)||norm(t.centro)!==norm(a.centro))return false;
+    if(tipoClase&&tipoNormLocal(t.tipoTarea)!==tipoClase)return false;
+    return true;
+  });
+  var totalTareas=tareasDeAud.length;
+  var resueltas=tareasDeAud.filter(function(t){return!esPendiente(t);}).length;
+
   var row={
     aud_key:ak,tienda:a.tienda||'',mes:(a.mes||'').toUpperCase(),
-    clase:a.clase||'',pct_cumpl:a.pctCumpl||0,
-    total_tareas:stats.tareas||a.tareas||0,
-    resueltas:stats.resueltas||a.resueltas||0,
+    clase:a.clase||'',pct_cumpl:parseFloat(a.pctCumpl)||0,
+    total_tareas:totalTareas,resueltas:resueltas,
     fecha_finalizacion:new Date().toISOString().split('T')[0]
   };
   try{
     var r=await client.from('tareas_finalizadas').insert([row]).select();
-    if(r.error){console.warn('registrarFinalizada:',r.error.message);return;}
-    FINALIZADAS.unshift(r.data[0]||row);
+    if(r.error){
+      /* Quitar placeholder si falló */
+      FINALIZADAS=FINALIZADAS.filter(function(f){return f.aud_key!==ak||!f._pending;});
+      if(!r.error.message.includes('duplicate')&&!r.error.message.includes('unique')){
+        console.warn('registrarFinalizada:',r.error.message);
+      }
+      return;
+    }
+    /* Reemplazar placeholder con dato real */
+    var idx=FINALIZADAS.findIndex(function(f){return f.aud_key===ak&&f._pending;});
+    if(idx>=0)FINALIZADAS[idx]=r.data[0]||row;
     if(VIEW==='finalizadas'){fillFinFilters();renderFinalizadas();}
-  }catch(e){console.warn('registrarFinalizada:',e.message);}
+  }catch(e){
+    FINALIZADAS=FINALIZADAS.filter(function(f){return f.aud_key!==ak||!f._pending;});
+    console.warn('registrarFinalizada:',e.message);
+  }
 }
 
 async function deleteFinalizada(id){
