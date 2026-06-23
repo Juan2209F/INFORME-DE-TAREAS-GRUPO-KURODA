@@ -2363,6 +2363,9 @@ function openEditAuditoriaKey(el){
   if(!a)return;
   openEditAuditoria(akey);
 }
+
+/* ── Editar auditoría (solo admin) ── */
+function openEditAuditoria(akey){
   if(!_session||_session.rol!=='admin'){toast('⚠ Solo administradores pueden editar auditorías');return;}
   var a=(window._audItemCache&&window._audItemCache[akey]);if(!a)return;
   var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
