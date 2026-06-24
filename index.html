@@ -638,26 +638,42 @@ table.seg tbody tr:hover{background:var(--soft)}
 
       <!-- PPT MODAL -->
       <div class="kpi-cfg-overlay" id="ppt-overlay" onclick="if(event.target===this)closePptModal()">
-        <div class="kpi-cfg-modal" style="max-width:480px">
+        <div class="kpi-cfg-modal" style="max-width:500px">
           <div class="kpi-cfg-hdr">
             <span style="font-size:18px">📊</span>
-            <h3>Generar presentación PowerPoint</h3>
+            <h3>Generar PowerPoint</h3>
             <button class="btn btn-ghost" style="padding:5px 10px;font-size:12px" onclick="closePptModal()">✕</button>
           </div>
-          <div class="kpi-cfg-body" style="padding:16px 20px;display:flex;flex-direction:column;gap:10px">
-            <div style="display:flex;flex-direction:column;gap:4px">
-              <label style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Título</label>
-              <input type="text" id="ppt-titulo" value="Reporte de Cumplimiento" style="padding:8px 11px;border-radius:9px;border:1px solid var(--border);font-size:13px;font-family:inherit">
+          <div class="kpi-cfg-body" style="padding:16px 20px;display:flex;flex-direction:column;gap:12px">
+            <div class="fg"><label>Título (Cumplimiento)</label>
+              <input type="text" id="ppt-titulo" value="Reporte de Cumplimiento" style="padding:9px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft)">
             </div>
-            <div style="display:flex;flex-direction:column;gap:4px">
-              <label style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Empresa</label>
-              <input type="text" id="ppt-empresa" value="Grupo Kuroda" style="padding:8px 11px;border-radius:9px;border:1px solid var(--border);font-size:13px;font-family:inherit">
+            <div class="fg"><label>Empresa</label>
+              <input type="text" id="ppt-empresa" value="Grupo Kuroda" style="padding:9px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft)">
             </div>
-            <p style="font-size:11.5px;color:var(--muted);line-height:1.5">La presentación incluirá: <b>Portada · KPIs de Tendencia · Análisis de Tareas · Distribución de Estado · Sucursales con menor cumplimiento · Sucursales con más pendientes</b> — basados en los filtros activos.</p>
+            <div style="height:1px;background:var(--border)"></div>
+            <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Filtro para PPT Actividades Auditoría</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="fg"><label>Mes</label>
+                <select id="ppt-act-mes" style="padding:9px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft)">
+                  <option value="ALL">Todos los meses</option>
+                  <option>Enero</option><option>Febrero</option><option>Marzo</option><option>Abril</option>
+                  <option>Mayo</option><option>Junio</option><option>Julio</option><option>Agosto</option>
+                  <option>Septiembre</option><option>Octubre</option><option>Noviembre</option><option>Diciembre</option>
+                </select>
+              </div>
+              <div class="fg"><label>Año</label>
+                <select id="ppt-act-año" style="padding:9px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft)">
+                  <option value="ALL">Todos</option>
+                  <option>2024</option><option>2025</option><option>2026</option>
+                </select>
+              </div>
+            </div>
           </div>
-          <div class="kpi-cfg-ftr">
+          <div class="kpi-cfg-ftr" style="gap:8px">
             <button class="btn btn-ghost" onclick="closePptModal()">Cancelar</button>
-            <button class="btn btn-blue" onclick="generatePpt()">📊 Descargar PowerPoint</button>
+            <button class="btn btn-teal" onclick="generateActPpt()">📋 Actividades Auditoría</button>
+            <button class="btn btn-blue" onclick="generatePpt()">📊 Cumplimiento</button>
           </div>
         </div>
       </div>
@@ -713,47 +729,10 @@ table.seg tbody tr:hover{background:var(--soft)}
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-blue" id="btn-add-actividad" onclick="openActividadIfAllowed(null)">➕ Nueva actividad</button>
         <button class="btn btn-ghost" onclick="loadActividades()">🔄 Recargar</button>
-        <button class="btn btn-teal" onclick="openActPptModal()" style="margin-left:auto">📋 Generar PPT Actividades</button>
-        <span id="act-count" style="font-size:12px;color:var(--muted);font-weight:600;align-self:center"></span>
+        <span id="act-count" style="font-size:12px;color:var(--muted);font-weight:600;align-self:center;margin-left:auto"></span>
       </div>
 
-      <!-- MODAL PPT ACTIVIDADES -->
-      <div class="kpi-cfg-overlay" id="act-ppt-overlay" onclick="if(event.target===this)closeActPptModal()">
-        <div class="kpi-cfg-modal" style="max-width:480px">
-          <div class="kpi-cfg-hdr">
-            <span style="font-size:18px">📋</span>
-            <h3>Generar PPT Actividades Auditoría</h3>
-            <button class="btn btn-ghost" style="padding:5px 10px;font-size:12px" onclick="closeActPptModal()">✕</button>
-          </div>
-          <div class="kpi-cfg-body" style="padding:16px 20px;display:flex;flex-direction:column;gap:10px">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-              <div style="display:flex;flex-direction:column;gap:4px">
-                <label style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Mes</label>
-                <select id="act-ppt-mes" style="padding:8px 11px;border-radius:9px;border:1px solid var(--border);font-size:13px;font-family:inherit">
-                  <option value="ALL">Todos</option>
-                  <option>Enero</option><option>Febrero</option><option>Marzo</option><option>Abril</option>
-                  <option>Mayo</option><option>Junio</option><option>Julio</option><option>Agosto</option>
-                  <option>Septiembre</option><option>Octubre</option><option>Noviembre</option><option>Diciembre</option>
-                </select>
-              </div>
-              <div style="display:flex;flex-direction:column;gap:4px">
-                <label style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Año</label>
-                <select id="act-ppt-año" style="padding:8px 11px;border-radius:9px;border:1px solid var(--border);font-size:13px;font-family:inherit">
-                  <option value="ALL">Todos</option>
-                  <option>2024</option><option>2025</option><option>2026</option>
-                </select>
-              </div>
-            </div>
-            <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Incluirá: <b>Portada · Actividades del mes (tabla + donut) · Ajustes (donut + tabla por tienda) · Mermas (donut + tabla por tienda)</b></p>
-          </div>
-          <div class="kpi-cfg-ftr">
-            <button class="btn btn-ghost" onclick="closeActPptModal()">Cancelar</button>
-            <button class="btn btn-teal" onclick="generateActPpt()">📋 Descargar PPT Actividades</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="card" style="padding:8px 10px">
+            <div class="card" style="padding:8px 10px">
         <div class="tbl-scroll" id="actividades-table"></div>
       </div>
     </div>
@@ -1469,72 +1448,62 @@ function renderDashboard(tareas,aud){
 }
 
 function renderTareasInsight(tareas){
-  /* Agrupar tareas POR TIPO — no sumar todo en uno */
-  var byTipo={};
-  tareas.forEach(function(t){
-    var tipo=t.tipo_tarea||t.tipoTarea||'Sin tipo';
-    if(!byTipo[tipo])byTipo[tipo]={total:0,resOk:0,resAtr:0,pend:0,venc:0};
-    byTipo[tipo].total++;
-    var n=norm(t.estado);
-    if(esResuelta(t)&&!n.includes('atrasad'))byTipo[tipo].resOk++;
-    else if(esResuelta(t)&&n.includes('atrasad'))byTipo[tipo].resAtr++;
-    else if(esPendiente(t)){
-      byTipo[tipo].pend++;
-      if(diasVenc(t)!==null&&diasVenc(t)<0)byTipo[tipo].venc++;
-    }
+  const nameOf=t=>(t.nombre&&t.nombre.trim())||(t.actividad&&t.actividad.trim())||'Sin nombre';
+
+  const freq={};
+  tareas.forEach(t=>{const k=nameOf(t);freq[k]=(freq[k]||0)+1;});
+  const topFreq=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,6);
+
+  const byName={};
+  tareas.forEach(t=>{
+    const k=nameOf(t);
+    if(!byName[k])byName[k]={total:0,bad:0,good:0};
+    byName[k].total++;
+    const n=norm(t.estado);
+    if(n.includes('abierta')&&n.includes('atrasad'))byName[k].bad++;
+    else if(n.includes('resuelta')&&!n.includes('atrasad'))byName[k].good++;
   });
 
-  var tipos=Object.entries(byTipo).sort(function(a,b){return b[1].total-a[1].total;});
-  var typeColors=['#2563eb','#0d9488','#16a34a','#ea580c','#dc2626','#7c3aed','#d97706'];
+  const peor=Object.entries(byName).sort((a,b)=>b[1].total-a[1].total).slice(0,6);
+  const mejor=Object.entries(byName).sort((a,b)=>a[1].total-b[1].total).slice(0,6);
+  const rankColors=['#2563eb','#0d9488','#ea580c','#7c3aed','#dc2626','#d97706'];
 
-  function tipoCards(){
-    if(!tipos.length)return'<div class="insight-card" style="grid-column:1/-1"><div class="insight-empty">Sin datos de tipos de tareas</div></div>';
-    return tipos.map(function(e,i){
-      var tipo=e[0]; var d=e[1];
-      var col=typeColors[i%typeColors.length];
-      var pctRes=d.total?Math.round((d.resOk+d.resAtr)/d.total*100):0;
-      var pctOk=d.total?Math.round(d.resOk/d.total*100):0;
-      var barOk=d.total?Math.round(d.resOk/d.total*100):0;
-      var barAtr=d.total?Math.round(d.resAtr/d.total*100):0;
-      return '<div class="insight-card">'+
-        '<div class="insight-card-hdr">'+
-          '<span class="insight-rank" style="background:'+col+';width:26px;height:26px;border-radius:8px;font-size:10px">'+(i+1)+'</span>'+
-          '<span class="ttl" style="font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+tipo+'">'+tipo+'</span>'+
-          '<span style="font-size:11px;font-weight:800;color:'+col+'">'+d.total+'</span>'+
-        '</div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">'+
-          '<div style="background:#dcfce7;border-radius:8px;padding:6px 10px;text-align:center">'+
-            '<div style="font-size:18px;font-weight:800;color:#16a34a">'+d.resOk+'</div>'+
-            '<div style="font-size:9px;color:#15803d;font-weight:700;text-transform:uppercase">Res. a tiempo</div>'+
-          '</div>'+
-          '<div style="background:#fef3c7;border-radius:8px;padding:6px 10px;text-align:center">'+
-            '<div style="font-size:18px;font-weight:800;color:#d97706">'+d.resAtr+'</div>'+
-            '<div style="font-size:9px;color:#b45309;font-weight:700;text-transform:uppercase">Res. atrasadas</div>'+
-          '</div>'+
-          '<div style="background:#fff7ed;border-radius:8px;padding:6px 10px;text-align:center">'+
-            '<div style="font-size:18px;font-weight:800;color:#ea580c">'+d.pend+'</div>'+
-            '<div style="font-size:9px;color:#c2410c;font-weight:700;text-transform:uppercase">Pendientes</div>'+
-          '</div>'+
-          '<div style="background:#fee2e2;border-radius:8px;padding:6px 10px;text-align:center">'+
-            '<div style="font-size:18px;font-weight:800;color:#dc2626">'+d.venc+'</div>'+
-            '<div style="font-size:9px;color:#b91c1c;font-weight:700;text-transform:uppercase">Vencidas</div>'+
-          '</div>'+
-        '</div>'+
-        '<div style="background:var(--rowline);border-radius:4px;height:8px;overflow:hidden;display:flex">'+
-          '<div style="width:'+barOk+'%;background:#16a34a;height:100%"></div>'+
-          '<div style="width:'+barAtr+'%;background:#d97706;height:100%"></div>'+
-        '</div>'+
-        '<div style="font-size:9.5px;color:var(--muted);margin-top:4px;font-weight:600">'+pctRes+'% resueltas · '+pctOk+'% a tiempo</div>'+
-      '</div>';
-    }).join('');
+  function freqRows(arr){
+    if(!arr.length)return`<div class="insight-empty">Sin datos</div>`;
+    return arr.map(([name,cnt],i)=>`
+      <div class="insight-row">
+        <span class="insight-rank" style="background:${rankColors[i]}">${i+1}</span>
+        <span class="insight-name" title="${name}">${name}</span>
+        <span class="insight-chip" style="background:${rankColors[i]}18;color:${rankColors[i]}">${cnt}x</span>
+      </div>`).join('');
   }
 
-  /* Actualizar grid para ajustarse a la cantidad de tipos */
-  var grid=document.getElementById('insight-row');
+  function simpleRows(arr,col,colPale){
+    if(!arr.length)return`<div class="insight-empty">Sin datos</div>`;
+    return arr.map(([k,d],i)=>`
+      <div class="insight-row">
+        <span class="insight-rank" style="background:${col}">${i+1}</span>
+        <span class="insight-name" title="${k}">${k}</span>
+        <span class="insight-chip" style="background:${colPale};color:${col}">${d.total}x</span>
+      </div>`).join('');
+  }
+
+  const grid=document.getElementById('insight-row');
   if(grid){
-    var cols=Math.min(tipos.length,3);
-    grid.style.gridTemplateColumns='repeat('+Math.max(cols,1)+',1fr)';
-    grid.innerHTML=tipoCards();
+    grid.style.gridTemplateColumns='repeat(3,1fr)';
+    grid.innerHTML=`
+      <div class="insight-card">
+        <div class="insight-card-hdr"><span class="ico">🔁</span><span class="ttl">Tareas más frecuentes</span></div>
+        ${freqRows(topFreq)}
+      </div>
+      <div class="insight-card">
+        <div class="insight-card-hdr"><span class="ico">🔴</span><span class="ttl">Peor calificadas</span><span style="font-size:9.5px;color:var(--muted);margin-left:auto;font-weight:600">mayor frecuencia</span></div>
+        ${simpleRows(peor,'#dc2626','#fee2e2')}
+      </div>
+      <div class="insight-card">
+        <div class="insight-card-hdr"><span class="ico">✅</span><span class="ttl">Mejor calificadas</span><span style="font-size:9.5px;color:var(--muted);margin-left:auto;font-weight:600">menor frecuencia</span></div>
+        ${simpleRows(mejor,'#16a34a','#dcfce7')}
+      </div>`;
   }
 }
 
@@ -3196,259 +3165,258 @@ function generatePpt(){
 /* ════════════════════════════════════════════════════════════════════
    GENERADOR PPT ACTIVIDADES AUDITORÍA
 ════════════════════════════════════════════════════════════════════ */
-function openActPptModal(){
-  /* Pre-seleccionar mes y año actuales */
-  var MORD=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  var mesHoy=MORD[new Date().getMonth()];
-  var añoHoy=String(new Date().getFullYear());
-  var sm=document.getElementById('act-ppt-mes');
-  var sa=document.getElementById('act-ppt-año');
-  if(sm&&[...sm.options].some(function(o){return o.value===mesHoy;}))sm.value=mesHoy;
-  if(sa&&[...sa.options].some(function(o){return o.value===añoHoy;}))sa.value=añoHoy;
-  document.getElementById('act-ppt-overlay').classList.add('show');
-}
-function closeActPptModal(){
-  document.getElementById('act-ppt-overlay').classList.remove('show');
-}
+
 
 function generateActPpt(){
   if(typeof PptxGenJS==='undefined'){toast('⚠ PptxGenJS no cargado');return;}
-  var mesFilter=(document.getElementById('act-ppt-mes').value||'ALL');
-  var añoFilter=(document.getElementById('act-ppt-año').value||'ALL');
-  var mesLabel=mesFilter==='ALL'?'Todos los meses':mesFilter;
-  var añoLabel=añoFilter==='ALL'?'':' '+añoFilter;
-  var titulo='Actividades Auditoría'+' — '+mesLabel+añoLabel;
-  var today=new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'long',year:'numeric'});
+  var mesFilter=(document.getElementById('ppt-act-mes').value||'ALL');
+  var añoFilter=(document.getElementById('ppt-act-año').value||'ALL');
+  var MORD=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
-  /* ─── Filtrar datos ─── */
+  /* Auto-seleccionar mes/año actuales si están en ALL */
+  if(mesFilter==='ALL'){var m=MORD[new Date().getMonth()];mesFilter=m;}
+  if(añoFilter==='ALL'){añoFilter=String(new Date().getFullYear());}
+
+  var mesUp=mesFilter.toUpperCase();
+  var periodo=mesUp+' '+añoFilter;
+
   function matchPeriod(mesItem,añoItem){
-    if(mesFilter!=='ALL'&&norm(String(mesItem||''))!==norm(mesFilter))return false;
-    if(añoFilter!=='ALL'&&String(añoItem||'')!==String(añoFilter))return false;
+    if(norm(String(mesItem||''))!==norm(mesFilter))return false;
+    if(String(añoItem||'')!==String(añoFilter))return false;
     return true;
   }
-  var actFilt=(ACTIVIDADES||[]).filter(function(a){return matchPeriod(a.mes,null);});
+  var actFilt=(ACTIVIDADES||[]).filter(function(a){return norm(a.mes||'')===norm(mesFilter);});
   var ajFilt=(AJUSTES||[]).filter(function(a){return matchPeriod(a.mes,a.año);});
   var mrFilt=(MERMAS||[]).filter(function(m){return matchPeriod(m.mes,m.año);});
 
-  /* ─── Paleta ─── */
-  var NAV='0F172A',WHT='FFFFFF',OFF='F8FAFC',LIN='E2E8F0',MUT='94A3B8';
-  var BLU='1E3A5F',GRN='16A34A',RED='DC2626',GRNd='DCFCE7',REDd='FEE2E2';
+  /* ── Colores exactos de la presentación de referencia ── */
+  var DARK='0C2230';   /* azul marino oscuro del fondo portada */
+  var DARK2='0D3349';  /* tono medio izquierda portada */
+  var HDRB='1B3A52';   /* cabecera tablas */
+  var WHT='FFFFFF';
+  var OFF='F2F2F2';
+  var GRN='1A6B2A';    /* verde oscuro de los donuts */
+  var RED='C00000';    /* rojo de donuts */
+  var BGTBL='F5F5F5';  /* fondo filas impares tabla */
+  var BOLD_HDR='003366'; /* cabecera columnas tablas */
   var W=10, H=5.625;
 
   var pptx=new PptxGenJS();
   pptx.layout='LAYOUT_WIDE';
-  pptx.title=titulo;
+  pptx.title='Programa de Auditoria '+periodo;
 
-  /* ── Helper: slide con header oscuro ── */
-  function mkSlide(title,sub){
+  /* ══════════ SLIDE 1: PORTADA (replica exacta) ══════════ */
+  (function(){
+    var s=pptx.addSlide();
+    /* Fondo completo azul marino oscuro */
+    s.background={color:DARK};
+    /* Franja inferior azul más claro */
+    s.addShape(pptx.ShapeType.rect,{x:0,y:H-.18,w:W,h:.18,fill:{color:'1B4F72'},line:{color:'1B4F72'}});
+    /* Curva decorativa esquina sup-izq — simulada con círculo grande */
+    s.addShape(pptx.ShapeType.ellipse,{x:-2.2,y:-2.2,w:5,h:5,fill:{color:DARK2},line:{color:DARK2}});
+    /* Recuadro central con borde claro */
+    s.addShape(pptx.ShapeType.rect,{x:2.4,y:1.55,w:5.2,h:2.65,fill:{color:'00000000'},line:{color:'6B9AC4',pt:1.2}});
+    /* Texto título centrado */
+    s.addText('Programa de\nAuditoria\n'+mesFilter+' '+añoFilter,{
+      x:2.4,y:1.6,w:5.2,h:2.55,
+      fontSize:30,color:WHT,align:'center',valign:'middle',
+      fontFace:'Calibri Light',lineSpacingMultiple:1.15
+    });
+  })();
+
+  /* ══════════ SLIDE 2: ACTIVIDADES ══════════ */
+  (function(){
     var s=pptx.addSlide();
     s.background={color:WHT};
-    s.addShape(pptx.ShapeType.rect,{x:0,y:0,w:W,h:.95,fill:{color:NAV},line:{color:NAV}});
-    s.addText(title,{x:.35,y:.1,w:9.3,h:.5,fontSize:22,bold:true,color:WHT,fontFace:'Calibri'});
-    if(sub)s.addText(sub,{x:.35,y:.58,w:9.3,h:.3,fontSize:11,color:MUT,fontFace:'Calibri'});
-    return s;
-  }
+    /* Título con fondo azul marino — replica exacta */
+    s.addShape(pptx.ShapeType.rect,{x:.3,y:.18,w:9.4,h:.52,fill:{color:BOLD_HDR},line:{color:BOLD_HDR}});
+    s.addText('ACTIVIDADES '+periodo,{x:.3,y:.18,w:9.4,h:.52,fontSize:18,bold:true,color:WHT,align:'center',valign:'middle',fontFace:'Calibri'});
 
-  /* ── Helper: donut en PPTX ── */
-  function addDonut(s,x,y,w,h,labels,values,colors,title){
-    if(title)s.addText(title,{x:x,y:y-.05,w:w,h:.28,fontSize:11,bold:true,color:NAV,align:'center',fontFace:'Calibri'});
-    var hasData=values.some(function(v){return v>0;});
-    if(!hasData){
-      s.addText('Sin datos',{x:x,y:y+h/2-.15,w:w,h:.3,fontSize:10,color:MUT,align:'center'});
-      return;
-    }
-    s.addChart(pptx.ChartType.doughnut,[{name:'Estado',labels:labels,values:values}],{
-      x:x,y:y,w:w,h:h,
-      holeSize:60,showLegend:true,legendPos:'b',
-      showLabel:true,showPercent:true,showValue:false,
-      chartColors:colors,dataLabelFontSize:9
-    });
-  }
-
-  /* ── Helper: tabla por tienda ── */
-  function addTiendaTable(s,x,y,w,title,data,headers,cols){
-    /* header row */
-    s.addShape(pptx.ShapeType.rect,{x:x,y:y,w:w,h:.28,fill:{color:NAV},line:{color:NAV}});
-    s.addText(title,{x:x+.08,y:y,w:w-.16,h:.28,fontSize:8,bold:true,color:WHT,valign:'middle',fontFace:'Calibri'});
-    var colHeaders=headers;
-    var colW=w/colHeaders.length;
-    var hy=y+.28;
-    s.addShape(pptx.ShapeType.rect,{x:x,y:hy,w:w,h:.22,fill:{color:'334155'},line:{color:'334155'}});
-    colHeaders.forEach(function(h,ci){
-      s.addText(h,{x:x+ci*colW,y:hy,w:colW,h:.22,fontSize:7,bold:true,color:WHT,align:ci===0?'left':'center',valign:'middle',margin:[0,4,0,4],fontFace:'Calibri'});
-    });
-    var rowH=.26;
-    var totals=colHeaders.map(function(){return 0;});
-    data.slice(0,8).forEach(function(row,ri){
-      var ry=hy+.22+ri*rowH;
-      s.addShape(pptx.ShapeType.rect,{x:x,y:ry,w:w,h:rowH-.02,fill:{color:ri%2===0?WHT:OFF},line:{color:LIN,pt:.3}});
-      row.forEach(function(cell,ci){
-        var isNum=ci>0;
-        var val=typeof cell==='number'?String(cell):cell;
-        s.addText(val,{x:x+ci*colW,y:ry,w:colW,h:rowH-.02,fontSize:8,color:NAV,align:isNum?'center':'left',valign:'middle',margin:[0,4,0,4],fontFace:'Calibri'});
-        if(isNum&&typeof cell==='number')totals[ci]=(totals[ci]||0)+cell;
-      });
-    });
-    /* Total row */
-    var ty=hy+.22+Math.min(data.length,8)*rowH;
-    s.addShape(pptx.ShapeType.rect,{x:x,y:ty,w:w,h:rowH-.02,fill:{color:'1E293B'},line:{color:'1E293B'}});
-    colHeaders.forEach(function(h,ci){
-      var val=ci===0?'TOTAL':String(totals[ci]||0);
-      s.addText(val,{x:x+ci*colW,y:ty,w:colW,h:rowH-.02,fontSize:8,bold:true,color:WHT,align:ci===0?'left':'center',valign:'middle',margin:[0,4,0,4],fontFace:'Calibri'});
-    });
-  }
-
-  /* ══════════ PORTADA ══════════ */
-  (function(){
-    var s=pptx.addSlide();
-    s.background={color:NAV};
-    s.addShape(pptx.ShapeType.rect,{x:0,y:0,w:.3,h:H,fill:{color:BLU},line:{color:BLU}});
-    s.addShape(pptx.ShapeType.rect,{x:3.8,y:0,w:6.2,h:H,fill:{color:WHT},line:{color:WHT}});
-    /* K logo from login */
-    var kLogo2=document.querySelector('.lp-panel-logo img');
-    if(kLogo2&&kLogo2.src&&kLogo2.src.startsWith('data:')){
-      s.addImage({data:kLogo2.src,x:.55,y:.4,w:1.1,h:1.1});
-    }
-    s.addText('PROGRAMA DE',{x:.45,y:1.7,w:3.0,h:.3,fontSize:9,bold:true,color:'7FB3FF',charSpacing:2,fontFace:'Calibri'});
-    s.addText('Actividades\nAuditoría',{x:.45,y:2.05,w:3.0,h:1.0,fontSize:24,bold:true,color:WHT,fontFace:'Calibri',lineSpacingMultiple:1.1});
-    s.addText(mesLabel+añoLabel,{x:.45,y:3.15,w:3.0,h:.3,fontSize:12,color:'7FB3FF',fontFace:'Calibri'});
-    s.addText(today,{x:.45,y:3.55,w:3.0,h:.25,fontSize:9,color:'4B6FA0',fontFace:'Calibri'});
-    /* stats */
-    var stats=[{l:'Actividades',v:actFilt.length,c:'2563EB'},{l:'Ajustes',v:ajFilt.length,c:'0D9488'},{l:'Mermas',v:mrFilt.length,c:'7C3AED'}];
-    stats.forEach(function(m,i){
-      var mx=4.0+i*2.0;
-      s.addShape(pptx.ShapeType.rect,{x:mx,y:1.2,w:1.8,h:1.1,fill:{color:OFF},line:{color:LIN,pt:.8}});
-      s.addText(String(m.v),{x:mx,y:1.25,w:1.8,h:.7,fontSize:28,bold:true,color:m.c,align:'center',valign:'middle',fontFace:'Calibri'});
-      s.addText(m.l,{x:mx,y:1.98,w:1.8,h:.25,fontSize:8,color:MUT,align:'center',bold:true,fontFace:'Calibri'});
-    });
-    s.addText('INFORME CONFIDENCIAL',{x:.45,y:H-.36,w:3.0,h:.24,fontSize:7,color:'4B6FA0',bold:true,charSpacing:1.5,fontFace:'Calibri'});
-  })();
-
-  /* ══════════ SLIDE 1: ACTIVIDADES ══════════ */
-  (function(){
-    if(!actFilt.length&&!ACTIVIDADES.length)return;
-    var s=mkSlide('ACTIVIDADES '+mesLabel.toUpperCase()+añoLabel,today);
-    var complet=actFilt.filter(function(a){return norm(a.estado).includes('completad');}).length;
-    var reprog=actFilt.filter(function(a){return norm(a.estado).includes('reprogramad');}).length;
-    var total=actFilt.length||1;
-    var pctOk=Math.round(complet/total*100);
-
-    /* tabla actividades lado izquierdo */
     var prog=actFilt.filter(function(a){return a.programada!==false;});
     var noP=actFilt.filter(function(a){return a.programada===false;});
+    var complet=actFilt.filter(function(a){return norm(a.estado).includes('completad');}).length;
+    var reprog=actFilt.filter(function(a){return norm(a.estado).includes('reprogramad');}).length;
+    var pend=actFilt.length-complet;
 
-    function addActTable(s,arr,startY,catTitle){
-      if(!arr.length)return startY;
-      var x=.28, w=5.9, rh=.27;
-      /* section header */
-      s.addShape(pptx.ShapeType.rect,{x:x,y:startY,w:w,h:.24,fill:{color:'1E3A5F'},line:{color:'1E3A5F'}});
-      s.addText(catTitle,{x:x+.06,y:startY,w:w-.12,h:.24,fontSize:7.5,bold:true,color:WHT,valign:'middle',fontFace:'Calibri'});
-      /* col headers */
-      var hy=startY+.24;
-      var cws=[2.2,.65,.95,.7,.7,.7];
-      var ths=['Actividades Programadas','Estado','Asignado a','Inicio','Finalización'];
-      /* adjust for no-programadas */
-      s.addShape(pptx.ShapeType.rect,{x:x,y:hy,w:w,h:.22,fill:{color:'334155'},line:{color:'334155'}});
-      var cwidths=[2.6,.68,1.22,.68,.68];
-      var cx=x;
-      ths.forEach(function(th,ci){
-        s.addText(th,{x:cx,y:hy,w:cwidths[ci],h:.22,fontSize:6.5,bold:true,color:WHT,align:'left',valign:'middle',margin:[0,3,0,3],fontFace:'Calibri'});
-        cx+=cwidths[ci];
+    /* ── Tabla izquierda (columnas de la referencia) ── */
+    /* Ancho tabla izq: x=.28 w=6.2, donut x=6.6 w=3.2 */
+    var TX=.28, TW=6.18;
+    var COLS=[{l:'Actividades Programadas',w:2.5},{l:'Estado',w:.9},{l:'Asignado a',w:1.22},{l:'Inicio',w:.73},{l:'Finalización',w:.83}];
+
+    function drawActTable(arr,sy,catLabel){
+      if(!arr.length)return sy;
+      var rh=.3;
+      /* Cabecera sección */
+      s.addShape(pptx.ShapeType.rect,{x:TX,y:sy,w:TW,h:.28,fill:{color:BOLD_HDR},line:{color:BOLD_HDR}});
+      s.addText(catLabel,{x:TX+.06,y:sy,w:TW-.12,h:.28,fontSize:8,bold:true,color:WHT,valign:'middle',fontFace:'Calibri'});
+      var hy=sy+.28;
+      /* Cabecera columnas — fondo gris oscuro */
+      s.addShape(pptx.ShapeType.rect,{x:TX,y:hy,w:TW,h:.25,fill:{color:'404040'},line:{color:'404040'}});
+      var cx=TX;
+      COLS.forEach(function(col){
+        s.addText(col.l,{x:cx,y:hy,w:col.w,h:.25,fontSize:7,bold:true,color:WHT,align:'left',valign:'middle',margin:[0,3,0,3],fontFace:'Calibri'});
+        cx+=col.w;
       });
-      arr.slice(0,9).forEach(function(a,ri){
-        var ry=hy+.22+ri*rh;
-        s.addShape(pptx.ShapeType.rect,{x:x,y:ry,w:w,h:rh-.02,fill:{color:ri%2===0?WHT:OFF},line:{color:LIN,pt:.3}});
+      arr.slice(0,7).forEach(function(a,ri){
+        var ry=hy+.25+ri*rh;
+        var bg=ri%2===0?WHT:'F0F0F0';
+        s.addShape(pptx.ShapeType.rect,{x:TX,y:ry,w:TW,h:rh-.02,fill:{color:bg},line:{color:'DDDDDD',pt:.4}});
         var n=norm(a.estado||'');
-        var stCol=n.includes('completad')?GRN:n.includes('reprogramad')?'2563EB':RED;
-        var stBg=n.includes('completad')?GRNd:n.includes('reprogramad')?'DBEAFE':REDd;
-        var cx2=x;
-        [a.actividad||'—',a.estado||'—',a.asignado||'—',
-          a.realInicio?a.realInicio.split('T')[0].split('-').reverse().join('/'):'—',
-          a.realFin?a.realFin.split('T')[0].split('-').reverse().join('/'):'—'
-        ].forEach(function(val,ci2){
-          if(ci2===1){
-            s.addShape(pptx.ShapeType.rect,{x:cx2+.04,y:ry+.04,w:cwidths[ci2]-.08,h:rh-.1,fill:{color:stBg},line:{color:stBg}});
-            s.addText(val,{x:cx2+.04,y:ry+.04,w:cwidths[ci2]-.08,h:rh-.1,fontSize:6.5,bold:true,color:stCol,align:'center',valign:'middle',fontFace:'Calibri'});
+        var stCol=n.includes('completad')?'006B21':n.includes('reprogramad')?'1F5C9E':'8B0000';
+        var stBg=n.includes('completad')?'92D050':n.includes('reprogramad')?'4472C4':'FF0000';
+        var cx2=TX;
+        var vals=[a.actividad||'—',a.estado||'—',a.asignado||'—',
+          a.estInicio?a.estInicio.split('T')[0].split('-').reverse().join('/'):'—',
+          a.estFin?a.estFin.split('T')[0].split('-').reverse().join('/'):'—'];
+        COLS.forEach(function(col,ci){
+          if(ci===1){
+            /* Badge de estado */
+            s.addShape(pptx.ShapeType.rect,{x:cx2+.03,y:ry+.04,w:col.w-.06,h:rh-.1,fill:{color:stBg},line:{color:stBg}});
+            s.addText(vals[ci],{x:cx2+.03,y:ry+.04,w:col.w-.06,h:rh-.1,fontSize:7,bold:true,color:ci===1&&n.includes('completad')?'006B21':WHT,align:'center',valign:'middle',fontFace:'Calibri'});
           }else{
-            s.addText(ci2===0?val.slice(0,38):val,{x:cx2+.04,y:ry,w:cwidths[ci2]-.08,h:rh-.02,fontSize:ci2===0?7:7,color:NAV,align:'left',valign:'middle',fontFace:'Calibri'});
+            s.addText(ci===0?vals[ci].slice(0,40):vals[ci],{x:cx2+.04,y:ry,w:col.w-.08,h:rh-.02,fontSize:ci===0?7.5:7,color:'111111',align:'left',valign:'middle',fontFace:'Calibri'});
           }
-          cx2+=cwidths[ci2];
+          cx2+=col.w;
         });
       });
-      return hy+.22+Math.min(arr.length,9)*rh+.06;
+      return hy+.25+Math.min(arr.length,7)*rh+.08;
     }
 
-    var nextY=1.04;
-    nextY=addActTable(s,prog,nextY,'Actividades Programadas');
-    addActTable(s,noP,nextY,'Actividades No Programadas');
+    var nextY=.84;
+    nextY=drawActTable(prog,nextY,'Actividades Programadas');
+    drawActTable(noP,nextY,'Actividades No Programadas');
 
-    /* donut cumplimiento lado derecho */
-    addDonut(s,6.35,1.05,3.5,3.0,['Realizada','Pendientes'],[complet,reprog],['1A7A4A','DC2626'],'Cumplimiento de Actividades');
-  })();
-
-  /* ══════════ SLIDE 2: AJUSTES ══════════ */
-  (function(){
-    var s=mkSlide('EFECTIVIDAD AJUSTES — '+mesLabel.toUpperCase()+añoLabel,today);
-    var ok=ajFilt.filter(function(a){return a.condicion==='A tiempo';}).length;
-    var mal=ajFilt.filter(function(a){return a.condicion==='Destiempo';}).length;
-    var total=ajFilt.length;
-
-    /* donut izquierda */
-    addDonut(s,.3,1.05,4.5,3.5,['A tiempo','A Destiempo'],[ok,mal],['16A34A','DC2626'],'Efectividad Ajustes');
-
-    /* tabla derecha por tienda */
-    var byT={};
-    ajFilt.forEach(function(a){
-      var k=a.tienda||'Sin tienda';
-      if(!byT[k])byT[k]={ok:0,mal:0};
-      if(a.condicion==='A tiempo')byT[k].ok++;else byT[k].mal++;
-    });
-    var rows=Object.entries(byT).sort(function(a,b){return (b[1].ok+b[1].mal)-(a[1].ok+a[1].mal);})
-      .map(function(e){return[e[0],e[1].ok+e[1].mal,e[1].ok,e[1].mal];});
-
-    if(total>0){
-      addTiendaTable(s,5.0,1.05,4.75,mesLabel.toUpperCase()+añoLabel,rows,
-        ['Tienda','Cantidad','A tiempo','Destiempo'],[]);
-    }else{
-      s.addText('Sin registros de ajustes para este período.',{x:5.0,y:2.5,w:4.75,h:.4,fontSize:11,color:MUT,align:'center'});
+    /* ── Donut derecha: Cumplimiento de Actividades ── */
+    var DX=6.58, DW=3.2, DY=.82, DH=3.2;
+    s.addText('Cumplimiento de Actividades',{x:DX,y:DY-.02,w:DW,h:.28,fontSize:10,bold:false,color:'111111',align:'center',fontFace:'Calibri'});
+    if(actFilt.length){
+      s.addChart(pptx.ChartType.doughnut,[{name:'Cumplimiento',labels:['Realizada','Pendientes'],values:[complet,pend]}],{
+        x:DX,y:DY+.26,w:DW,h:DH-.26,
+        holeSize:0,               /* pie sólido como en la referencia */
+        showLegend:true,legendPos:'b',showLabel:true,showPercent:true,showValue:false,
+        chartColors:[GRN,RED],dataLabelFontSize:10,dataLabelFontBold:true,dataLabelColor:WHT
+      });
     }
   })();
 
-  /* ══════════ SLIDE 3: MERMAS ══════════ */
+  /* ══════════ SLIDE 3: MERMAS + AJUSTES (slide único, 2 columnas) ══════════ */
   (function(){
-    var s=mkSlide('EFECTIVIDAD MERMAS — '+mesLabel.toUpperCase()+añoLabel,today);
-    var ok=mrFilt.filter(function(m){return m.condicion==='A tiempo';}).length;
-    var mal=mrFilt.filter(function(m){return m.condicion==='Destiempo';}).length;
-    var total=mrFilt.length;
+    var s=pptx.addSlide();
+    s.background={color:WHT};
+    /* Cabecera oscura del slide */
+    s.addShape(pptx.ShapeType.rect,{x:0,y:0,w:W,h:1.05,fill:{color:DARK},line:{color:DARK}});
+    /* franja lateral derecha en azul intermedio */
+    s.addShape(pptx.ShapeType.rect,{x:6.9,y:0,w:3.1,h:1.05,fill:{color:'1B4F72'},line:{color:'1B4F72'}});
+    s.addText('Atención a mermas y\najustes',{x:.28,y:.1,w:6.4,h:.88,fontSize:22,color:WHT,fontFace:'Calibri Light',valign:'middle'});
 
-    /* donut izquierda */
-    addDonut(s,.3,1.05,4.5,3.5,['A tiempo','A Destiempo'],[ok,mal],['16A34A','DC2626'],'Efectividad Merma');
+    /* ── Layout: Merma IZQUIERDA x=.22 w=4.5 | Ajustes DERECHA x=5.0 w=4.78 ── */
+    /* Merma: donut arriba (y=1.12 h=2.4) + tabla abajo (y=3.6) */
+    /* Ajuste: donut arriba (y=1.12 h=2.4) + tabla abajo (y=3.6) */
+    var LX=.22, LW=4.52, RX=5.0, RW=4.78;
+    var DOY=1.12, DOH=2.4;
+    var TBY=3.56;
 
-    /* tabla derecha por tienda */
-    var byT={};
+    /* helper tabla tienda */
+    function drawTiendaTable(x,w,data,titPeriodo){
+      var cols=[{l:'Tienda',cw:w*.48},{l:'Cantidad',cw:w*.18},{l:'A tiempo',cw:w*.17},{l:'A Destiempo',cw:w*.17}];
+      /* Cabecera centrada con periodo */
+      var hrow=TBY;
+      s.addShape(pptx.ShapeType.rect,{x:x,y:hrow,w:w,h:.28,fill:{color:BOLD_HDR},line:{color:BOLD_HDR}});
+      s.addText(titPeriodo,{x:x,y:hrow,w:w,h:.28,fontSize:8,bold:true,color:WHT,align:'center',valign:'middle',fontFace:'Calibri'});
+      /* Sub-cabecera columnas */
+      var chy=hrow+.28;
+      s.addShape(pptx.ShapeType.rect,{x:x,y:chy,w:w,h:.23,fill:{color:'404040'},line:{color:'404040'}});
+      var cx=x;
+      cols.forEach(function(col){
+        s.addText(col.l,{x:cx,y:chy,w:col.cw,h:.23,fontSize:7,bold:true,color:WHT,align:col.l==='Tienda'?'left':'center',valign:'middle',margin:[0,3,0,3],fontFace:'Calibri'});
+        cx+=col.cw;
+      });
+      var rh=.24, totOk=0, totMal=0, totAll=0;
+      data.forEach(function(row,ri){
+        var ry=chy+.23+ri*rh;
+        if(ry+rh>H-.1)return;
+        s.addShape(pptx.ShapeType.rect,{x:x,y:ry,w:w,h:rh-.02,fill:{color:ri%2===0?WHT:'F2F2F2'},line:{color:'DDDDDD',pt:.3}});
+        var cx2=x;
+        [row.tienda,row.total,row.ok,row.mal].forEach(function(v,ci){
+          var isNum=ci>0;
+          s.addText(String(v),{x:cx2+.03,y:ry,w:cols[ci].cw-.06,h:rh-.02,fontSize:7.5,color:ci===3&&v>0?'C00000':'111111',bold:ci===3&&v>0,align:isNum?'center':'left',valign:'middle',fontFace:'Calibri'});
+          cx2+=cols[ci].cw;
+          if(ci===1)totAll+=Number(v)||0;
+          if(ci===2)totOk+=Number(v)||0;
+          if(ci===3)totMal+=Number(v)||0;
+        });
+      });
+      /* Fila total */
+      var totY=chy+.23+data.length*rh;
+      if(totY+rh<=H-.05){
+        s.addShape(pptx.ShapeType.rect,{x:x,y:totY,w:w,h:rh-.02,fill:{color:'1F3864'},line:{color:'1F3864'}});
+        var cx3=x;
+        [{v:'',bold:true},{v:totAll,bold:true},{v:totOk,bold:true},{v:totMal,bold:totMal>0}].forEach(function(it,ci){
+          var col3=totMal>0&&ci===3?'FFD700':'FFFFFF';
+          s.addText(String(it.v),{x:cx3+.03,y:totY,w:cols[ci].cw-.06,h:rh-.02,fontSize:7.5,bold:it.bold,color:col3,align:ci===0?'left':'center',valign:'middle',fontFace:'Calibri'});
+          cx3+=cols[ci].cw;
+        });
+      }
+    }
+
+    /* ── MERMA izquierda ── */
+    var mrOk=mrFilt.filter(function(m){return m.condicion==='A tiempo';}).length;
+    var mrMal=mrFilt.filter(function(m){return m.condicion==='Destiempo';}).length;
+    /* Recuadro borde gris */
+    s.addShape(pptx.ShapeType.rect,{x:LX,y:DOY-.04,w:LW,h:DOH+.08,fill:{color:WHT},line:{color:'BBBBBB',pt:.8}});
+    s.addText('Efectividad Merma',{x:LX,y:DOY-.04,w:LW,h:.3,fontSize:10,bold:true,color:'111111',align:'center',fontFace:'Calibri'});
+    if(mrFilt.length){
+      s.addChart(pptx.ChartType.doughnut,[{name:'Merma',labels:['A tiempo','A Destiempo'],values:[mrOk,mrMal]}],{
+        x:LX,y:DOY+.24,w:LW,h:DOH-.3,
+        holeSize:0,showLegend:true,legendPos:'b',
+        showLabel:true,showPercent:true,showValue:false,
+        chartColors:[GRN,RED],dataLabelFontSize:10,dataLabelFontBold:true,dataLabelColor:WHT
+      });
+    }else{s.addText('Sin datos de mermas',{x:LX,y:DOY+.8,w:LW,h:.4,fontSize:9,color:'888888',align:'center'});}
+
+    /* Tabla merma */
+    var mrByT={};
     mrFilt.forEach(function(m){
       var k=m.tienda||'Sin tienda';
-      if(!byT[k])byT[k]={ok:0,mal:0};
-      if(m.condicion==='A tiempo')byT[k].ok++;else byT[k].mal++;
+      if(!mrByT[k])mrByT[k]={ok:0,mal:0};
+      if(m.condicion==='A tiempo')mrByT[k].ok++;else mrByT[k].mal++;
     });
-    var rows=Object.entries(byT).sort(function(a,b){return (b[1].ok+b[1].mal)-(a[1].ok+a[1].mal);})
-      .map(function(e){return[e[0],e[1].ok+e[1].mal,e[1].ok,e[1].mal];});
+    var mrRows=Object.entries(mrByT).sort(function(a,b){return(b[1].ok+b[1].mal)-(a[1].ok+a[1].mal);})
+      .map(function(e){return{tienda:e[0],total:e[1].ok+e[1].mal,ok:e[1].ok,mal:e[1].mal};});
+    drawTiendaTable(LX,LW,mrRows,periodo);
 
-    if(total>0){
-      addTiendaTable(s,5.0,1.05,4.75,mesLabel.toUpperCase()+añoLabel,rows,
-        ['Tienda','Cantidad','A tiempo','A Destiempo'],[]);
-    }else{
-      s.addText('Sin registros de mermas para este período.',{x:5.0,y:2.5,w:4.75,h:.4,fontSize:11,color:MUT,align:'center'});
-    }
+    /* ── AJUSTE derecha ── */
+    var ajOk=ajFilt.filter(function(a){return a.condicion==='A tiempo';}).length;
+    var ajMal=ajFilt.filter(function(a){return a.condicion==='Destiempo';}).length;
+    s.addShape(pptx.ShapeType.rect,{x:RX,y:DOY-.04,w:RW,h:DOH+.08,fill:{color:WHT},line:{color:'BBBBBB',pt:.8}});
+    s.addText('Efectividad Ajustes',{x:RX,y:DOY-.04,w:RW,h:.3,fontSize:10,bold:true,color:'111111',align:'center',fontFace:'Calibri'});
+    if(ajFilt.length){
+      s.addChart(pptx.ChartType.doughnut,[{name:'Ajustes',labels:['A tiempo','A Destiempo'],values:[ajOk,ajMal]}],{
+        x:RX,y:DOY+.24,w:RW,h:DOH-.3,
+        holeSize:0,showLegend:true,legendPos:'b',
+        showLabel:true,showPercent:true,showValue:false,
+        chartColors:[GRN,RED],dataLabelFontSize:10,dataLabelFontBold:true,dataLabelColor:WHT
+      });
+    }else{s.addText('Sin datos de ajustes',{x:RX,y:DOY+.8,w:RW,h:.4,fontSize:9,color:'888888',align:'center'});}
+
+    /* Tabla ajustes */
+    var ajByT={};
+    ajFilt.forEach(function(a){
+      var k=a.tienda||'Sin tienda';
+      if(!ajByT[k])ajByT[k]={ok:0,mal:0};
+      if(a.condicion==='A tiempo')ajByT[k].ok++;else ajByT[k].mal++;
+    });
+    var ajRows=Object.entries(ajByT).sort(function(a,b){return(b[1].ok+b[1].mal)-(a[1].ok+a[1].mal);})
+      .map(function(e){return{tienda:e[0],total:e[1].ok+e[1].mal,ok:e[1].ok,mal:e[1].mal};});
+    drawTiendaTable(RX,RW,ajRows,periodo);
   })();
 
-  closeActPptModal();
-  toast('⏳ Generando PPT Actividades…');
-  var pLabel=mesFilter==='ALL'?'todos':mesFilter;
-  if(añoFilter!=='ALL')pLabel+='-'+añoFilter;
-  var fname='Actividades_Auditoria_'+pLabel+'_'+new Date().toISOString().slice(0,10)+'.pptx';
-  pptx.writeFile({fileName:fname}).then(function(){toast('✓ PPT Actividades descargado');});
+  closePptModal();
+  toast('\u23f3 Generando PPT Actividades\u2026');
+  var fname='Actividades_Auditoria_'+mesFilter+'_'+añoFilter+'_'+new Date().toISOString().slice(0,10)+'.pptx';
+  pptx.writeFile({fileName:fname}).then(function(){toast('\u2713 PPT Actividades Auditoría descargado');});
 }
+
 
 /* ════════════════════════════════════════════════════════════════════
    SUPABASE + LOGIN + SYNC
