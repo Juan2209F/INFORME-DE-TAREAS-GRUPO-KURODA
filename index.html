@@ -652,7 +652,10 @@ table.seg tbody tr:hover{background:var(--soft)}
               <input type="text" id="ppt-empresa" value="Grupo Kuroda" style="padding:9px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft)">
             </div>
             <div style="height:1px;background:var(--border)"></div>
-            <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Filtro para PPT Actividades Auditoría</div>
+            <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">PPT Actividades Auditoría</div>
+            <div class="fg"><label>Título (Actividades)</label>
+              <input type="text" id="ppt-act-titulo" value="Programa de Auditoria" style="padding:9px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft)">
+            </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
               <div class="fg"><label>Mes</label>
                 <select id="ppt-act-mes" style="padding:9px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft)">
@@ -1894,7 +1897,7 @@ async function syncTaskToSupabase(rec, isNew){
     global:{headers:{'x-client-info':'monitor-cumplimiento'}}
   });}catch(e){return;}}
   var tid=String(rec.id);
-  var row={
+  var _rowRaw={
     tarea_id:tid,razon:rec.razon||null,centro:rec.centro||null,
     tienda:rec.tienda||null,area_resp:rec.areaResp||null,area_rev:rec.areaRev||null,
     actividad:rec.actividad||null,nombre:rec.nombre||null,
@@ -1903,6 +1906,7 @@ async function syncTaskToSupabase(rec, isNew){
     fecha_term:rec.fechaTerm?String(rec.fechaTerm).split('T')[0]:null,
     fecha_cumpl:rec.fechaCumpl?String(rec.fechaCumpl).split('T')[0]:null
   };
+  var row=await encObj(_rowRaw,FIELDS.tareas);
   try{
     var ru, ri;
     if(!isNew){
@@ -2671,7 +2675,9 @@ async function loadActividades(){
   try{
     var r=await client.from('actividades').select('*').order('est_inicio',{ascending:true}).limit(5000);
     if(r.error){toast('⚠ '+r.error.message);return;}
-    ACTIVIDADES=(r.data||[]).map(function(a){return{
+    var _actRaw=r.data||[];
+    var _actDec=await decArr(_actRaw,FIELDS.actividades);
+    ACTIVIDADES=_actDec.map(function(a){return{
       id:a.id, mes:a.mes||'', actividad:a.actividad||'', estado:a.estado||'',
       categoria:a.categoria||'', asignado:a.asignado||'',
       estInicio:a.est_inicio, estFin:a.est_fin, durEstimada:a.dur_estimada,
@@ -2835,7 +2841,7 @@ async function saveActividad(id,isNew){
   if(!actividad){toast('⚠ La actividad es obligatoria');return;}
   function dv(elId){var v=document.getElementById(elId).value;return v||null;}
   function nv(elId){var v=document.getElementById(elId).value;return v!==''?parseFloat(v):null;}
-  var row={
+  var _rowActRaw={
     actividad:actividad, mes:document.getElementById('a-mes').value||null,
     estado:document.getElementById('a-estado').value||null,
     categoria:document.getElementById('a-categoria').value||null,
@@ -2846,6 +2852,7 @@ async function saveActividad(id,isNew){
     apoyos:document.getElementById('a-apoyos').value.trim()||null,
     programada:document.getElementById('a-programada').checked
   };
+  var row=await encObj(_rowActRaw,FIELDS.actividades);
   var client=getSbClient();
   if(!client){toast('⚠ Sin conexión a Supabase');return;}
   closeModal();
@@ -3169,56 +3176,60 @@ function generatePpt(){
 
 function generateActPpt(){
   if(typeof PptxGenJS==='undefined'){toast('⚠ PptxGenJS no cargado');return;}
-  var mesFilter=(document.getElementById('ppt-act-mes').value||'ALL');
-  var añoFilter=(document.getElementById('ppt-act-año').value||'ALL');
+  var mesFilter=document.getElementById('ppt-act-mes').value||'ALL';
+  var añoFilter=document.getElementById('ppt-act-año').value||'ALL';
   var MORD=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-
-  /* Auto-seleccionar mes/año actuales si están en ALL */
-  if(mesFilter==='ALL'){var m=MORD[new Date().getMonth()];mesFilter=m;}
-  if(añoFilter==='ALL'){añoFilter=String(new Date().getFullYear());}
-
+  if(mesFilter==='ALL')mesFilter=MORD[new Date().getMonth()];
+  if(añoFilter==='ALL')añoFilter=String(new Date().getFullYear());
   var mesUp=mesFilter.toUpperCase();
   var periodo=mesUp+' '+añoFilter;
+  var tituloAct=(document.getElementById('ppt-act-titulo').value||'Programa de Auditoria').trim();
 
-  function matchPeriod(mesItem,añoItem){
-    if(norm(String(mesItem||''))!==norm(mesFilter))return false;
-    if(String(añoItem||'')!==String(añoFilter))return false;
-    return true;
-  }
-  var actFilt=(ACTIVIDADES||[]).filter(function(a){return norm(a.mes||'')===norm(mesFilter);});
-  var ajFilt=(AJUSTES||[]).filter(function(a){return matchPeriod(a.mes,a.año);});
-  var mrFilt=(MERMAS||[]).filter(function(m){return matchPeriod(m.mes,m.año);});
+  /* ── Helpers de comparación ── */
+  function mMatch(m){return norm(String(m||''))===norm(mesFilter);}
+  function yMatch(y){return String(y||'')===String(añoFilter);}
 
-  /* ── Colores exactos de la presentación de referencia ── */
-  var DARK='0C2230';   /* azul marino oscuro del fondo portada */
-  var DARK2='0D3349';  /* tono medio izquierda portada */
-  var HDRB='1B3A52';   /* cabecera tablas */
-  var WHT='FFFFFF';
-  var OFF='F2F2F2';
-  var GRN='1A6B2A';    /* verde oscuro de los donuts */
-  var RED='C00000';    /* rojo de donuts */
-  var BGTBL='F5F5F5';  /* fondo filas impares tabla */
-  var BOLD_HDR='003366'; /* cabecera columnas tablas */
+  /* ── Filtrar datos por mes ── */
+  var actFilt=(ACTIVIDADES||[]).filter(function(a){return mMatch(a.mes);});
+  var audFilt=(STORE.auditorias||[]).filter(function(a){
+    if(!a.mes&&!a.fecha)return false;
+    if(a.mes)return mMatch(a.mes);
+    var d=new Date(a.fecha);return MORD[d.getMonth()]===mesFilter;
+  });
+  var tarFilt=(STORE.tareas||[]).filter(function(t){
+    var d=t.fechaCreacion?new Date(t.fechaCreacion):null;
+    return d&&MORD[d.getMonth()]===mesFilter;
+  });
+  var finFilt=(FINALIZADAS||[]).filter(function(f){
+    if(f.mes)return mMatch(f.mes);
+    if(f.fecha_finalizacion){var d=new Date(f.fecha_finalizacion);return MORD[d.getMonth()]===mesFilter&&(!yMatch||String(d.getFullYear())===añoFilter);}
+    return false;
+  });
+  var ajFilt=(AJUSTES||[]).filter(function(a){return mMatch(a.mes)&&yMatch(a.año);});
+  var mrFilt=(MERMAS||[]).filter(function(m){return mMatch(m.mes)&&yMatch(m.año);});
+
+  /* ── Paleta (replica presentación) ── */
+  var DARK='0C2230', DARK2='0D3349', HDRB='1B3A52', WHT='FFFFFF';
+  var OFF='F2F2F2', GRN_D='1A6B2A', RED_D='C00000', BLU='1F497D';
+  var COLHDR='003366', TBL_ODD='F2F2F2', TBL_HDR='404040';
   var W=10, H=5.625;
 
   var pptx=new PptxGenJS();
   pptx.layout='LAYOUT_WIDE';
-  pptx.title='Programa de Auditoria '+periodo;
+  pptx.title=tituloAct+' '+periodo;
 
-  /* ══════════ SLIDE 1: PORTADA (replica exacta) ══════════ */
+  /* ══════════ SLIDE 1: PORTADA ══════════ */
   (function(){
     var s=pptx.addSlide();
-    /* Fondo completo azul marino oscuro */
     s.background={color:DARK};
-    /* Franja inferior azul más claro */
+    /* Curva decorativa sup-izq */
+    s.addShape(pptx.ShapeType.ellipse,{x:-2.3,y:-2.3,w:5.2,h:5.2,fill:{color:DARK2},line:{color:DARK2}});
+    /* Franja inferior */
     s.addShape(pptx.ShapeType.rect,{x:0,y:H-.18,w:W,h:.18,fill:{color:'1B4F72'},line:{color:'1B4F72'}});
-    /* Curva decorativa esquina sup-izq — simulada con círculo grande */
-    s.addShape(pptx.ShapeType.ellipse,{x:-2.2,y:-2.2,w:5,h:5,fill:{color:DARK2},line:{color:DARK2}});
-    /* Recuadro central con borde claro */
-    s.addShape(pptx.ShapeType.rect,{x:2.4,y:1.55,w:5.2,h:2.65,fill:{color:'00000000'},line:{color:'6B9AC4',pt:1.2}});
-    /* Texto título centrado */
-    s.addText('Programa de\nAuditoria\n'+mesFilter+' '+añoFilter,{
-      x:2.4,y:1.6,w:5.2,h:2.55,
+    /* Recuadro central */
+    s.addShape(pptx.ShapeType.rect,{x:2.2,y:1.5,w:5.6,h:2.7,fill:{color:'00000000'},line:{color:'6B9AC4',pt:1.2}});
+    s.addText(tituloAct+'\n'+mesFilter+' '+añoFilter,{
+      x:2.2,y:1.55,w:5.6,h:2.6,
       fontSize:30,color:WHT,align:'center',valign:'middle',
       fontFace:'Calibri Light',lineSpacingMultiple:1.15
     });
@@ -3226,197 +3237,410 @@ function generateActPpt(){
 
   /* ══════════ SLIDE 2: ACTIVIDADES ══════════ */
   (function(){
+    if(!actFilt.length)return;
     var s=pptx.addSlide();
     s.background={color:WHT};
-    /* Título con fondo azul marino — replica exacta */
-    s.addShape(pptx.ShapeType.rect,{x:.3,y:.18,w:9.4,h:.52,fill:{color:BOLD_HDR},line:{color:BOLD_HDR}});
-    s.addText('ACTIVIDADES '+periodo,{x:.3,y:.18,w:9.4,h:.52,fontSize:18,bold:true,color:WHT,align:'center',valign:'middle',fontFace:'Calibri'});
+    /* Cabecera */
+    s.addShape(pptx.ShapeType.rect,{x:.28,y:.15,w:9.44,h:.52,fill:{color:COLHDR},line:{color:COLHDR}});
+    s.addText('ACTIVIDADES '+periodo,{x:.28,y:.15,w:9.44,h:.52,fontSize:17,bold:true,color:WHT,align:'center',valign:'middle',fontFace:'Calibri'});
 
     var prog=actFilt.filter(function(a){return a.programada!==false;});
     var noP=actFilt.filter(function(a){return a.programada===false;});
-    var complet=actFilt.filter(function(a){return norm(a.estado).includes('completad');}).length;
-    var reprog=actFilt.filter(function(a){return norm(a.estado).includes('reprogramad');}).length;
+    var complet=actFilt.filter(function(a){return norm(a.estado||'').includes('completad');}).length;
     var pend=actFilt.length-complet;
 
-    /* ── Tabla izquierda (columnas de la referencia) ── */
-    /* Ancho tabla izq: x=.28 w=6.2, donut x=6.6 w=3.2 */
-    var TX=.28, TW=6.18;
-    var COLS=[{l:'Actividades Programadas',w:2.5},{l:'Estado',w:.9},{l:'Asignado a',w:1.22},{l:'Inicio',w:.73},{l:'Finalización',w:.83}];
+    /* Cols: Actividades, Estado, Asignado a, Inicio, Finalización */
+    var COLS=[{l:'Actividades',w:2.55},{l:'Estado',w:.92},{l:'Asignado a',w:1.24},{l:'Inicio',w:.72},{l:'Finalización',w:.72}];
+    var TX=.28,TW=6.15;
 
-    function drawActTable(arr,sy,catLabel){
+    function fmtD(d){if(!d)return'—';var p=String(d).split('T')[0].split('-');return p[2]+'/'+p[1]+'/'+p[0];}
+
+    function drawActTbl(arr,sy,lbl){
       if(!arr.length)return sy;
       var rh=.3;
-      /* Cabecera sección */
-      s.addShape(pptx.ShapeType.rect,{x:TX,y:sy,w:TW,h:.28,fill:{color:BOLD_HDR},line:{color:BOLD_HDR}});
-      s.addText(catLabel,{x:TX+.06,y:sy,w:TW-.12,h:.28,fontSize:8,bold:true,color:WHT,valign:'middle',fontFace:'Calibri'});
-      var hy=sy+.28;
-      /* Cabecera columnas — fondo gris oscuro */
-      s.addShape(pptx.ShapeType.rect,{x:TX,y:hy,w:TW,h:.25,fill:{color:'404040'},line:{color:'404040'}});
+      s.addShape(pptx.ShapeType.rect,{x:TX,y:sy,w:TW,h:.26,fill:{color:HDRB},line:{color:HDRB}});
+      s.addText(lbl,{x:TX+.05,y:sy,w:TW-.1,h:.26,fontSize:8,bold:true,color:WHT,valign:'middle',fontFace:'Calibri'});
+      var hy=sy+.26;
+      s.addShape(pptx.ShapeType.rect,{x:TX,y:hy,w:TW,h:.24,fill:{color:TBL_HDR},line:{color:TBL_HDR}});
       var cx=TX;
       COLS.forEach(function(col){
-        s.addText(col.l,{x:cx,y:hy,w:col.w,h:.25,fontSize:7,bold:true,color:WHT,align:'left',valign:'middle',margin:[0,3,0,3],fontFace:'Calibri'});
+        s.addText(col.l,{x:cx,y:hy,w:col.w,h:.24,fontSize:7,bold:true,color:WHT,align:'left',valign:'middle',margin:[0,3,0,3],fontFace:'Calibri'});
         cx+=col.w;
       });
-      arr.slice(0,7).forEach(function(a,ri){
-        var ry=hy+.25+ri*rh;
-        var bg=ri%2===0?WHT:'F0F0F0';
-        s.addShape(pptx.ShapeType.rect,{x:TX,y:ry,w:TW,h:rh-.02,fill:{color:bg},line:{color:'DDDDDD',pt:.4}});
+      arr.slice(0,8).forEach(function(a,ri){
+        var ry=hy+.24+ri*rh;
+        s.addShape(pptx.ShapeType.rect,{x:TX,y:ry,w:TW,h:rh-.02,fill:{color:ri%2===0?WHT:TBL_ODD},line:{color:'CCCCCC',pt:.3}});
         var n=norm(a.estado||'');
-        var stCol=n.includes('completad')?'006B21':n.includes('reprogramad')?'1F5C9E':'8B0000';
-        var stBg=n.includes('completad')?'92D050':n.includes('reprogramad')?'4472C4':'FF0000';
+        var sBg=n.includes('completad')?'92D050':n.includes('reprogramad')?'4472C4':'FF0000';
+        var sFg=n.includes('completad')?'375623':WHT;
         var cx2=TX;
-        var vals=[a.actividad||'—',a.estado||'—',a.asignado||'—',
-          a.estInicio?a.estInicio.split('T')[0].split('-').reverse().join('/'):'—',
-          a.estFin?a.estFin.split('T')[0].split('-').reverse().join('/'):'—'];
-        COLS.forEach(function(col,ci){
+        [a.actividad||'—',a.estado||'—',a.asignado||'—',fmtD(a.estInicio),fmtD(a.estFin)].forEach(function(v,ci){
           if(ci===1){
-            /* Badge de estado */
-            s.addShape(pptx.ShapeType.rect,{x:cx2+.03,y:ry+.04,w:col.w-.06,h:rh-.1,fill:{color:stBg},line:{color:stBg}});
-            s.addText(vals[ci],{x:cx2+.03,y:ry+.04,w:col.w-.06,h:rh-.1,fontSize:7,bold:true,color:ci===1&&n.includes('completad')?'006B21':WHT,align:'center',valign:'middle',fontFace:'Calibri'});
+            s.addShape(pptx.ShapeType.rect,{x:cx2+.03,y:ry+.04,w:COLS[ci].w-.06,h:rh-.1,fill:{color:sBg},line:{color:sBg}});
+            s.addText(v,{x:cx2+.03,y:ry+.04,w:COLS[ci].w-.06,h:rh-.1,fontSize:6.5,bold:true,color:sFg,align:'center',valign:'middle',fontFace:'Calibri'});
           }else{
-            s.addText(ci===0?vals[ci].slice(0,40):vals[ci],{x:cx2+.04,y:ry,w:col.w-.08,h:rh-.02,fontSize:ci===0?7.5:7,color:'111111',align:'left',valign:'middle',fontFace:'Calibri'});
+            s.addText(ci===0?v.slice(0,42):v,{x:cx2+.04,y:ry,w:COLS[ci].w-.08,h:rh-.02,fontSize:7,color:'111111',align:'left',valign:'middle',fontFace:'Calibri'});
           }
-          cx2+=col.w;
+          cx2+=COLS[ci].w;
         });
       });
-      return hy+.25+Math.min(arr.length,7)*rh+.08;
+      return hy+.24+Math.min(arr.length,8)*rh+.06;
     }
 
-    var nextY=.84;
-    nextY=drawActTable(prog,nextY,'Actividades Programadas');
-    drawActTable(noP,nextY,'Actividades No Programadas');
+    var ny=.82;
+    ny=drawActTbl(prog,ny,'Actividades Programadas');
+    drawActTbl(noP,ny,'Actividades No Programadas');
 
-    /* ── Donut derecha: Cumplimiento de Actividades ── */
-    var DX=6.58, DW=3.2, DY=.82, DH=3.2;
-    s.addText('Cumplimiento de Actividades',{x:DX,y:DY-.02,w:DW,h:.28,fontSize:10,bold:false,color:'111111',align:'center',fontFace:'Calibri'});
+    /* Donut derecha */
+    var DX=6.55,DY=.82,DW=3.25,DH=3.3;
+    s.addText('Cumplimiento de Actividades',{x:DX,y:DY,w:DW,h:.28,fontSize:9,color:'111111',align:'center',fontFace:'Calibri'});
     if(actFilt.length){
       s.addChart(pptx.ChartType.doughnut,[{name:'Cumplimiento',labels:['Realizada','Pendientes'],values:[complet,pend]}],{
-        x:DX,y:DY+.26,w:DW,h:DH-.26,
-        holeSize:0,               /* pie sólido como en la referencia */
+        x:DX,y:DY+.28,w:DW,h:DH,holeSize:0,
         showLegend:true,legendPos:'b',showLabel:true,showPercent:true,showValue:false,
-        chartColors:[GRN,RED],dataLabelFontSize:10,dataLabelFontBold:true,dataLabelColor:WHT
+        chartColors:[GRN_D,RED_D],dataLabelFontSize:11,dataLabelFontBold:true,dataLabelColor:WHT
       });
     }
   })();
 
-  /* ══════════ SLIDE 3: MERMAS + AJUSTES (slide único, 2 columnas) ══════════ */
+  /* ══════════ SLIDE 3: AUDITORIAS + TAREAS (replica slide 3 referencia) ══════════ */
+  /* Layout: izquierda panel oscuro con títulos, derecha gráfico barras + tabla */
+  /* Un bloque por clase: PROCESOS/COLABORACION y ORDEN Y LIMPIEZA */
+  (function(){
+    if(!audFilt.length&&!finFilt.length)return;
+
+    /* Agrupar auditorias por clase */
+    var clases=[
+      {key:'col', label:'Tareas Auditoría\nde Procesos',    match:function(c){var n=norm(c||'');return n.includes('colabor')||n.includes('cartera');}},
+      {key:'ol',  label:'Tareas Auditoría\nde Orden y\nLimpieza', match:function(c){var n=norm(c||'');return n.includes('orden')||n.includes('limpieza');}}
+    ];
+
+    /* Para cada clase construir lista de {tienda, mes, pctCumpl, pendientes, resueltos} */
+    function getClaseRows(matchFn){
+      /* Primero desde auditorias */
+      var audC=audFilt.filter(function(a){return matchFn(a.clase);});
+      /* Completar con finalizadas */
+      var finC=finFilt.filter(function(f){return matchFn(f.clase);});
+      /* Unir: preferir dato de finalizadas cuando exista */
+      var byTienda={};
+      audC.forEach(function(a){
+        var k=(a.tienda||a.centro||'?').toUpperCase();
+        if(!byTienda[k])byTienda[k]={tienda:k,mes:a.mes||mesUp,pct:a.pctCumpl||0,pend:a.pendientes||0,res:a.resueltas||0};
+        else{byTienda[k].pct=a.pctCumpl||byTienda[k].pct;}
+      });
+      finC.forEach(function(f){
+        var k=(f.tienda||'?').toUpperCase();
+        if(!byTienda[k])byTienda[k]={tienda:k,mes:f.mes||mesUp,pct:f.pct_cumpl||0,pend:(f.total_tareas||0)-(f.resueltas||0),res:f.resueltas||0};
+        else{byTienda[k].pend=(f.total_tareas||0)-(f.resueltas||0);byTienda[k].res=f.resueltas||0;byTienda[k].pct=f.pct_cumpl||byTienda[k].pct;}
+      });
+      /* Completar pendientes desde tareas filtradas */
+      tarFilt.forEach(function(t){
+        var k=(t.tienda||'?').toUpperCase();
+        if(!byTienda[k])return;
+        /* No sobreescribir si ya tenemos datos de auditoría */
+      });
+      return Object.values(byTienda);
+    }
+
+    var s=pptx.addSlide();
+    s.background={color:WHT};
+
+    /* Panel izquierdo oscuro */
+    s.addShape(pptx.ShapeType.rect,{x:0,y:0,w:3.4,h:H,fill:{color:DARK},line:{color:DARK}});
+    s.addShape(pptx.ShapeType.ellipse,{x:-1.8,y:-1.8,w:4.2,h:4.2,fill:{color:DARK2},line:{color:DARK2}});
+
+    /* Flecha doble horizontal en el panel izq */
+    var arrowY=H/2-.05;
+    s.addShape(pptx.ShapeType.line,{x:.3,y:arrowY,w:2.8,h:0,line:{color:WHT,pt:1.5}});
+    s.addShape(pptx.ShapeType.line,{x:.3,y:arrowY,w:.28,h:.12,line:{color:WHT,pt:1.5}});
+    s.addShape(pptx.ShapeType.line,{x:.3,y:arrowY,w:.28,h:-.12,line:{color:WHT,pt:1.5}});
+    s.addShape(pptx.ShapeType.line,{x:3.1,y:arrowY,w:-.28,h:.12,line:{color:WHT,pt:1.5}});
+    s.addShape(pptx.ShapeType.line,{x:3.1,y:arrowY,w:-.28,h:-.12,line:{color:WHT,pt:1.5}});
+
+    /* Texto clases en panel izq */
+    clases.forEach(function(cl,ci){
+      var ty=ci===0?.25:H/2+.1;
+      s.addText(cl.label,{x:.1,y:ty,w:3.15,h:ci===0?H/2-.35:H/2-.2,
+        fontSize:18,color:WHT,fontFace:'Calibri Light',valign:'middle',lineSpacingMultiple:1.1});
+    });
+
+    /* ── Contenido derecho: dos bloques verticales ── */
+    var RX=3.52, RW=6.35;
+    var blockH=(H-.12)/2;   /* altura de cada bloque */
+
+    clases.forEach(function(cl,bi){
+      var rows=getClaseRows(cl.match);
+      var BY=bi===0?.06:blockH+.06;
+      var chartTitle=bi===0?'CUMPLIMIENTO DE TAREAS - PROCESOS':'CUMPLIMIENTO DE TAREAS - ORDEN Y LIMPIEZA';
+
+      if(!rows.length){
+        s.addText('Sin datos de '+cl.label.replace('\n',' '),{x:RX,y:BY+blockH/2-.2,w:RW,h:.4,fontSize:9,color:'888888',align:'center'});
+        return;
+      }
+
+      /* Gráfico de barras (pendientes vs resueltos por tienda) */
+      var tiendas=rows.map(function(r){return r.tienda;});
+      var pcts=rows.map(function(r){return Math.round((r.pct||0)*100);});
+      var pends=rows.map(function(r){return r.pend||0;});
+      var ress=rows.map(function(r){return r.res||0;});
+      var CHH=blockH*.54, CHY=BY;
+      s.addChart(pptx.ChartType.bar,[
+        {name:'% Cumplimiento',labels:tiendas,values:pcts},
+        {name:'Resueltos',labels:tiendas,values:ress}
+      ],{
+        x:RX,y:CHY,w:RW,h:CHH,
+        barDir:'col',barGrouping:'clustered',
+        showTitle:true,title:chartTitle,titleFontSize:8,titleColor:'111111',titleFontBold:true,
+        showLegend:false,showValue:true,dataLabelFontSize:7,dataLabelColor:RED_D,
+        chartColors:[BLU,'1A6B2A'],valAxisMinVal:0,valAxisMaxVal:100,
+        catAxisLabelFontSize:7
+      });
+
+      /* Tabla debajo del gráfico */
+      var TY=BY+CHH+.02;
+      var TH=blockH-CHH-.04;
+      if(TH<.5)return;
+      /* Columnas: TIENDA | MES AUDITORIA | RESULTADO DE AUDITORIA | PENDIENTES | RESUELTOS | % RESUELTO */
+      var cws=[1.55,.8,.82,.72,.72,.74];
+      var hdrs=['TIENDA','MES AUDITORIA','RESULTADO\nDE AUDITORIA','CANTIDAD TAREAS','','PORCENTAJE\nRESUELTO'];
+
+      /* Cabecera nivel 1 */
+      s.addShape(pptx.ShapeType.rect,{x:RX,y:TY,w:RW,h:.24,fill:{color:COLHDR},line:{color:COLHDR}});
+      var cx=RX;
+      [1.55,.8,.82,1.44,0,.74].forEach(function(w,ci){
+        if(ci===4)return;
+        var lbl=hdrs[ci];
+        s.addText(lbl,{x:cx,y:TY,w:ci===3?cws[3]+cws[4]+cws[5]:w,h:.24,
+          fontSize:6,bold:true,color:WHT,align:'center',valign:'middle',fontFace:'Calibri'});
+        if(ci===3){cx+=cws[3]+cws[4];return;}
+        cx+=w;
+      });
+
+      /* Sub-cabecera para "Cantidad Tareas": PENDIENTES | RESUELTOS */
+      var subHY=TY+.24;
+      s.addShape(pptx.ShapeType.rect,{x:RX,y:subHY,w:RW,h:.22,fill:{color:'1F3864'},line:{color:'1F3864'}});
+      var cx2=RX;
+      ['','','','PENDIENTES','RESUELTOS',''].forEach(function(lbl,ci){
+        if(lbl){
+          s.addText(lbl,{x:cx2,y:subHY,w:cws[ci],h:.22,fontSize:5.5,bold:true,color:WHT,align:'center',valign:'middle',fontFace:'Calibri'});
+        }
+        cx2+=cws[ci];
+      });
+
+      /* Filas de datos */
+      var rh=.23;
+      var maxRows=Math.floor((TH-.46-.28)/rh);
+      rows.slice(0,maxRows).forEach(function(row,ri){
+        var ry=subHY+.22+ri*rh;
+        s.addShape(pptx.ShapeType.rect,{x:RX,y:ry,w:RW,h:rh-.02,fill:{color:ri%2===0?WHT:TBL_ODD},line:{color:'CCCCCC',pt:.3}});
+        var pct=row.pct>0?Math.round(row.pct*100)+'%':'—';
+        var pctRes=(row.res>0&&(row.pend+row.res)>0)?Math.round(row.res/(row.pend+row.res)*100)+'%':'0%';
+        var vals=[row.tienda,row.mes||mesUp,pct,String(row.pend||0),String(row.res||0),pctRes];
+        var cx3=RX;
+        vals.forEach(function(v,ci){
+          s.addText(v,{x:cx3+.03,y:ry,w:cws[ci]-.06,h:rh-.02,fontSize:7,
+            color:ci===2?RED_D:ci===5?GRN_D:'111111',bold:ci===0,
+            align:ci===0?'left':'center',valign:'middle',fontFace:'Calibri'});
+          cx3+=cws[ci];
+        });
+      });
+
+      /* Fila totales */
+      var tRow=subHY+.22+Math.min(rows.length,maxRows)*rh;
+      if(tRow+rh<=BY+blockH){
+        s.addShape(pptx.ShapeType.rect,{x:RX,y:tRow,w:RW,h:rh-.02,fill:{color:'1F3864'},line:{color:'1F3864'}});
+        var totP=rows.reduce(function(a,r){return a+(r.pend||0);},0);
+        var totR=rows.reduce(function(a,r){return a+(r.res||0);},0);
+        var totPct=(totR>0&&(totP+totR)>0)?Math.round(totR/(totP+totR)*100)+'%':'0%';
+        ['',' ',' ',String(totP),String(totR),totPct].forEach(function(v,ci){
+          var cx4=RX;for(var i=0;i<ci;i++)cx4+=cws[i];
+          s.addText(v,{x:cx4+.03,y:tRow,w:cws[ci]-.06,h:rh-.02,fontSize:7,bold:true,color:WHT,align:ci===0?'left':'center',valign:'middle',fontFace:'Calibri'});
+        });
+      }
+    });
+  })();
+
+  /* ══════════ SLIDE 4: MERMAS + AJUSTES ══════════ */
   (function(){
     var s=pptx.addSlide();
     s.background={color:WHT};
-    /* Cabecera oscura del slide */
+    /* Cabecera oscura con panel lateral */
     s.addShape(pptx.ShapeType.rect,{x:0,y:0,w:W,h:1.05,fill:{color:DARK},line:{color:DARK}});
-    /* franja lateral derecha en azul intermedio */
     s.addShape(pptx.ShapeType.rect,{x:6.9,y:0,w:3.1,h:1.05,fill:{color:'1B4F72'},line:{color:'1B4F72'}});
-    s.addText('Atención a mermas y\najustes',{x:.28,y:.1,w:6.4,h:.88,fontSize:22,color:WHT,fontFace:'Calibri Light',valign:'middle'});
+    s.addText('Atención a mermas y\najustes',{x:.28,y:.06,w:6.4,h:.9,fontSize:22,color:WHT,fontFace:'Calibri Light',valign:'middle'});
 
-    /* ── Layout: Merma IZQUIERDA x=.22 w=4.5 | Ajustes DERECHA x=5.0 w=4.78 ── */
-    /* Merma: donut arriba (y=1.12 h=2.4) + tabla abajo (y=3.6) */
-    /* Ajuste: donut arriba (y=1.12 h=2.4) + tabla abajo (y=3.6) */
-    var LX=.22, LW=4.52, RX=5.0, RW=4.78;
-    var DOY=1.12, DOH=2.4;
-    var TBY=3.56;
+    /* helper tabla tienda con donut arriba */
+    function drawSection(x,w,data,chartTitle,hasData,okCount,malCount){
+      var DOY=1.08, DOH=2.3;
+      /* Recuadro borde */
+      s.addShape(pptx.ShapeType.rect,{x:x,y:DOY-.06,w:w,h:DOH+.1,fill:{color:WHT},line:{color:'BBBBBB',pt:.7}});
+      s.addText(chartTitle,{x:x,y:DOY-.04,w:w,h:.26,fontSize:9,bold:true,color:'111111',align:'center',fontFace:'Calibri'});
+      if(hasData){
+        s.addChart(pptx.ChartType.doughnut,[{name:'e',labels:['A tiempo','A Destiempo'],values:[okCount,malCount]}],{
+          x:x,y:DOY+.22,w:w,h:DOH-.28,holeSize:0,
+          showLegend:true,legendPos:'b',showLabel:true,showPercent:true,showValue:false,
+          chartColors:[GRN_D,RED_D],dataLabelFontSize:10,dataLabelFontBold:true,dataLabelColor:WHT
+        });
+      }else{
+        s.addText('Sin datos',{x:x,y:DOY+.7,w:w,h:.3,fontSize:9,color:'888888',align:'center'});
+      }
 
-    /* helper tabla tienda */
-    function drawTiendaTable(x,w,data,titPeriodo){
-      var cols=[{l:'Tienda',cw:w*.48},{l:'Cantidad',cw:w*.18},{l:'A tiempo',cw:w*.17},{l:'A Destiempo',cw:w*.17}];
-      /* Cabecera centrada con periodo */
-      var hrow=TBY;
-      s.addShape(pptx.ShapeType.rect,{x:x,y:hrow,w:w,h:.28,fill:{color:BOLD_HDR},line:{color:BOLD_HDR}});
-      s.addText(titPeriodo,{x:x,y:hrow,w:w,h:.28,fontSize:8,bold:true,color:WHT,align:'center',valign:'middle',fontFace:'Calibri'});
+      /* Tabla debajo del donut */
+      var TY=DOY+DOH+.08;
+      var colW=[w*.45,w*.18,w*.19,w*.18];
+      var colL=['Tienda','Cantidad','A tiempo','A Destiempo'];
+      /* Cabecera periodo */
+      s.addShape(pptx.ShapeType.rect,{x:x,y:TY,w:w,h:.24,fill:{color:COLHDR},line:{color:COLHDR}});
+      s.addText(periodo,{x:x,y:TY,w:w,h:.24,fontSize:7.5,bold:true,color:WHT,align:'center',valign:'middle',fontFace:'Calibri'});
       /* Sub-cabecera columnas */
-      var chy=hrow+.28;
-      s.addShape(pptx.ShapeType.rect,{x:x,y:chy,w:w,h:.23,fill:{color:'404040'},line:{color:'404040'}});
-      var cx=x;
-      cols.forEach(function(col){
-        s.addText(col.l,{x:cx,y:chy,w:col.cw,h:.23,fontSize:7,bold:true,color:WHT,align:col.l==='Tienda'?'left':'center',valign:'middle',margin:[0,3,0,3],fontFace:'Calibri'});
-        cx+=col.cw;
+      var chy=TY+.24;
+      s.addShape(pptx.ShapeType.rect,{x:x,y:chy,w:w,h:.22,fill:{color:TBL_HDR},line:{color:TBL_HDR}});
+      var cxh=x;
+      colL.forEach(function(l,ci){
+        s.addText(l,{x:cxh,y:chy,w:colW[ci],h:.22,fontSize:7,bold:true,color:WHT,align:ci===0?'left':'center',valign:'middle',margin:[0,2,0,2],fontFace:'Calibri'});
+        cxh+=colW[ci];
       });
-      var rh=.24, totOk=0, totMal=0, totAll=0;
-      data.forEach(function(row,ri){
-        var ry=chy+.23+ri*rh;
-        if(ry+rh>H-.1)return;
-        s.addShape(pptx.ShapeType.rect,{x:x,y:ry,w:w,h:rh-.02,fill:{color:ri%2===0?WHT:'F2F2F2'},line:{color:'DDDDDD',pt:.3}});
-        var cx2=x;
+      /* Filas */
+      var rh=.24, totOk=0,totMal=0,totAll=0;
+      var maxR=Math.floor((H-TY-.46-.28)/rh);
+      data.slice(0,maxR).forEach(function(row,ri){
+        var ry=chy+.22+ri*rh;
+        s.addShape(pptx.ShapeType.rect,{x:x,y:ry,w:w,h:rh-.02,fill:{color:ri%2===0?WHT:TBL_ODD},line:{color:'DDDDDD',pt:.3}});
+        var cx5=x;
         [row.tienda,row.total,row.ok,row.mal].forEach(function(v,ci){
-          var isNum=ci>0;
-          s.addText(String(v),{x:cx2+.03,y:ry,w:cols[ci].cw-.06,h:rh-.02,fontSize:7.5,color:ci===3&&v>0?'C00000':'111111',bold:ci===3&&v>0,align:isNum?'center':'left',valign:'middle',fontFace:'Calibri'});
-          cx2+=cols[ci].cw;
+          s.addText(String(v),{x:cx5+.03,y:ry,w:colW[ci]-.06,h:rh-.02,fontSize:7.5,
+            color:ci===3&&v>0?RED_D:'111111',bold:ci===3&&v>0,
+            align:ci===0?'left':'center',valign:'middle',fontFace:'Calibri'});
+          cx5+=colW[ci];
           if(ci===1)totAll+=Number(v)||0;
           if(ci===2)totOk+=Number(v)||0;
           if(ci===3)totMal+=Number(v)||0;
         });
       });
-      /* Fila total */
-      var totY=chy+.23+data.length*rh;
+      /* Total */
+      var totY=chy+.22+Math.min(data.length,maxR)*rh;
       if(totY+rh<=H-.05){
         s.addShape(pptx.ShapeType.rect,{x:x,y:totY,w:w,h:rh-.02,fill:{color:'1F3864'},line:{color:'1F3864'}});
-        var cx3=x;
-        [{v:'',bold:true},{v:totAll,bold:true},{v:totOk,bold:true},{v:totMal,bold:totMal>0}].forEach(function(it,ci){
-          var col3=totMal>0&&ci===3?'FFD700':'FFFFFF';
-          s.addText(String(it.v),{x:cx3+.03,y:totY,w:cols[ci].cw-.06,h:rh-.02,fontSize:7.5,bold:it.bold,color:col3,align:ci===0?'left':'center',valign:'middle',fontFace:'Calibri'});
-          cx3+=cols[ci].cw;
+        var cx6=x;
+        [''  ,totAll,totOk,totMal].forEach(function(v,ci){
+          s.addText(String(v),{x:cx6+.03,y:totY,w:colW[ci]-.06,h:rh-.02,fontSize:7.5,bold:true,
+            color:WHT,align:ci===0?'left':'center',valign:'middle',fontFace:'Calibri'});
+          cx6+=colW[ci];
         });
       }
     }
 
-    /* ── MERMA izquierda ── */
+    /* Merma izquierda */
     var mrOk=mrFilt.filter(function(m){return m.condicion==='A tiempo';}).length;
     var mrMal=mrFilt.filter(function(m){return m.condicion==='Destiempo';}).length;
-    /* Recuadro borde gris */
-    s.addShape(pptx.ShapeType.rect,{x:LX,y:DOY-.04,w:LW,h:DOH+.08,fill:{color:WHT},line:{color:'BBBBBB',pt:.8}});
-    s.addText('Efectividad Merma',{x:LX,y:DOY-.04,w:LW,h:.3,fontSize:10,bold:true,color:'111111',align:'center',fontFace:'Calibri'});
-    if(mrFilt.length){
-      s.addChart(pptx.ChartType.doughnut,[{name:'Merma',labels:['A tiempo','A Destiempo'],values:[mrOk,mrMal]}],{
-        x:LX,y:DOY+.24,w:LW,h:DOH-.3,
-        holeSize:0,showLegend:true,legendPos:'b',
-        showLabel:true,showPercent:true,showValue:false,
-        chartColors:[GRN,RED],dataLabelFontSize:10,dataLabelFontBold:true,dataLabelColor:WHT
-      });
-    }else{s.addText('Sin datos de mermas',{x:LX,y:DOY+.8,w:LW,h:.4,fontSize:9,color:'888888',align:'center'});}
-
-    /* Tabla merma */
     var mrByT={};
-    mrFilt.forEach(function(m){
-      var k=m.tienda||'Sin tienda';
-      if(!mrByT[k])mrByT[k]={ok:0,mal:0};
-      if(m.condicion==='A tiempo')mrByT[k].ok++;else mrByT[k].mal++;
-    });
-    var mrRows=Object.entries(mrByT).sort(function(a,b){return(b[1].ok+b[1].mal)-(a[1].ok+a[1].mal);})
-      .map(function(e){return{tienda:e[0],total:e[1].ok+e[1].mal,ok:e[1].ok,mal:e[1].mal};});
-    drawTiendaTable(LX,LW,mrRows,periodo);
+    mrFilt.forEach(function(m){var k=m.tienda||'?';if(!mrByT[k])mrByT[k]={ok:0,mal:0};if(m.condicion==='A tiempo')mrByT[k].ok++;else mrByT[k].mal++;});
+    var mrRows=Object.entries(mrByT).sort(function(a,b){return(b[1].ok+b[1].mal)-(a[1].ok+a[1].mal);}).map(function(e){return{tienda:e[0],total:e[1].ok+e[1].mal,ok:e[1].ok,mal:e[1].mal};});
+    drawSection(.18,4.62,mrRows,'Efectividad Merma',mrFilt.length>0,mrOk,mrMal);
 
-    /* ── AJUSTE derecha ── */
+    /* Ajuste derecha */
     var ajOk=ajFilt.filter(function(a){return a.condicion==='A tiempo';}).length;
     var ajMal=ajFilt.filter(function(a){return a.condicion==='Destiempo';}).length;
-    s.addShape(pptx.ShapeType.rect,{x:RX,y:DOY-.04,w:RW,h:DOH+.08,fill:{color:WHT},line:{color:'BBBBBB',pt:.8}});
-    s.addText('Efectividad Ajustes',{x:RX,y:DOY-.04,w:RW,h:.3,fontSize:10,bold:true,color:'111111',align:'center',fontFace:'Calibri'});
-    if(ajFilt.length){
-      s.addChart(pptx.ChartType.doughnut,[{name:'Ajustes',labels:['A tiempo','A Destiempo'],values:[ajOk,ajMal]}],{
-        x:RX,y:DOY+.24,w:RW,h:DOH-.3,
-        holeSize:0,showLegend:true,legendPos:'b',
-        showLabel:true,showPercent:true,showValue:false,
-        chartColors:[GRN,RED],dataLabelFontSize:10,dataLabelFontBold:true,dataLabelColor:WHT
-      });
-    }else{s.addText('Sin datos de ajustes',{x:RX,y:DOY+.8,w:RW,h:.4,fontSize:9,color:'888888',align:'center'});}
-
-    /* Tabla ajustes */
     var ajByT={};
-    ajFilt.forEach(function(a){
-      var k=a.tienda||'Sin tienda';
-      if(!ajByT[k])ajByT[k]={ok:0,mal:0};
-      if(a.condicion==='A tiempo')ajByT[k].ok++;else ajByT[k].mal++;
-    });
-    var ajRows=Object.entries(ajByT).sort(function(a,b){return(b[1].ok+b[1].mal)-(a[1].ok+a[1].mal);})
-      .map(function(e){return{tienda:e[0],total:e[1].ok+e[1].mal,ok:e[1].ok,mal:e[1].mal};});
-    drawTiendaTable(RX,RW,ajRows,periodo);
+    ajFilt.forEach(function(a){var k=a.tienda||'?';if(!ajByT[k])ajByT[k]={ok:0,mal:0};if(a.condicion==='A tiempo')ajByT[k].ok++;else ajByT[k].mal++;});
+    var ajRows=Object.entries(ajByT).sort(function(a,b){return(b[1].ok+b[1].mal)-(a[1].ok+a[1].mal);}).map(function(e){return{tienda:e[0],total:e[1].ok+e[1].mal,ok:e[1].ok,mal:e[1].mal};});
+    drawSection(5.0,4.82,ajRows,'Efectividad Ajustes',ajFilt.length>0,ajOk,ajMal);
   })();
 
   closePptModal();
-  toast('\u23f3 Generando PPT Actividades\u2026');
-  var fname='Actividades_Auditoria_'+mesFilter+'_'+añoFilter+'_'+new Date().toISOString().slice(0,10)+'.pptx';
+  toast('\u23f3 Generando PPT\u2026');
+  var fname=(tituloAct+'_'+mesFilter+'_'+añoFilter+'_'+new Date().toISOString().slice(0,10)).replace(/\s+/g,'_')+'.pptx';
   pptx.writeFile({fileName:fname}).then(function(){toast('\u2713 PPT Actividades Auditoría descargado');});
 }
 
+
+
+
+/* ════════════════════════════════════════════════════════════════════
+   CIFRADO AES-GCM — Datos en reposo cifrados antes de llegar a Supabase
+   La clave se deriva de la contraseña del usuario con PBKDF2.
+   Campos de ID, fechas, números y condición NO se cifran (needed por Supabase).
+   Todo el texto sensible (tiendas, nombres, actividades, etc.) SÍ se cifra.
+════════════════════════════════════════════════════════════════════ */
+var _cryptoKey=null;  /* CryptoKey activa en memoria — se pierde al cerrar sesión */
+var _cryptoSalt=null; /* Salt fijo por instalación, guardado en localStorage */
+
+const CRYPTO_SALT_KEY='ksa_crypto_salt';
+const PBKDF2_ITER=200000;
+
+function getCryptoSalt(){
+  var s=localStorage.getItem(CRYPTO_SALT_KEY);
+  if(s)return Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+  var salt=crypto.getRandomValues(new Uint8Array(16));
+  localStorage.setItem(CRYPTO_SALT_KEY,btoa(String.fromCharCode(...salt)));
+  return salt;
+}
+
+async function initCryptoKey(password){
+  var salt=getCryptoSalt();
+  var enc=new TextEncoder();
+  var base=await crypto.subtle.importKey('raw',enc.encode(password),{name:'PBKDF2'},false,['deriveKey']);
+  _cryptoKey=await crypto.subtle.deriveKey(
+    {name:'PBKDF2',salt,iterations:PBKDF2_ITER,hash:'SHA-256'},
+    base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']
+  );
+}
+
+async function enc(text){
+  if(!_cryptoKey||text===null||text===undefined||text==='')return text;
+  var iv=crypto.getRandomValues(new Uint8Array(12));
+  var enc2=new TextEncoder();
+  var ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},_cryptoKey,enc2.encode(String(text)));
+  /* Guardar como "iv_b64:ct_b64" */
+  return btoa(String.fromCharCode(...iv))+':'+btoa(String.fromCharCode(...new Uint8Array(ct)));
+}
+
+async function dec(cipher){
+  if(!_cryptoKey||!cipher||typeof cipher!=='string'||!cipher.includes(':'))return cipher;
+  try{
+    var parts=cipher.split(':');
+    if(parts.length!==2)return cipher;
+    var iv=Uint8Array.from(atob(parts[0]),c=>c.charCodeAt(0));
+    var ct=Uint8Array.from(atob(parts[1]),c=>c.charCodeAt(0));
+    var pt=await crypto.subtle.decrypt({name:'AES-GCM',iv},_cryptoKey,ct);
+    return new TextDecoder().decode(pt);
+  }catch(e){
+    /* Si no se puede descifrar, devolver tal cual (dato no cifrado legacy) */
+    return cipher;
+  }
+}
+
+/* Cifrar un objeto — solo los campos especificados */
+async function encObj(obj,fields){
+  var r=Object.assign({},obj);
+  for(var f of fields){if(r[f]!=null&&r[f]!=='')r[f]=await enc(r[f]);}
+  return r;
+}
+
+/* Descifrar un objeto — solo los campos especificados */
+async function decObj(obj,fields){
+  var r=Object.assign({},obj);
+  for(var f of fields){if(r[f]!=null&&r[f]!=='')r[f]=await dec(r[f]);}
+  return r;
+}
+
+/* Descifrar array */
+async function decArr(arr,fields){
+  var res=[];
+  for(var obj of arr)res.push(await decObj(obj,fields));
+  return res;
+}
+
+/* Campos a cifrar por tabla */
+var FIELDS={
+  tareas:['tienda','area_resp','area_rev','actividad','nombre','tipo_tarea','estado','razon','centro'],
+  auditorias:['tienda','razon','centro','clase','mes'],
+  actividades:['actividad','estado','categoria','asignado','comentario','apoyos','mes'],
+  ajustes:['tienda','mes','condicion'],
+  mermas:['tienda','local_foranea','mes','condicion'],
+  tareas_finalizadas:['tienda','clase','mes'],
+  seguimiento_semanas:['tienda','clase','actividad']
+};
 
 /* ════════════════════════════════════════════════════════════════════
    SUPABASE + LOGIN + SYNC
@@ -3463,6 +3687,8 @@ async function doLogin(){
       if(data&&data.length>0){
         _session=data[0];
         localStorage.setItem(SB_SESSION_KEY,JSON.stringify(_session));
+        /* Derivar clave AES-GCM de la contraseña ANTES de cargar datos */
+        await initCryptoKey(pass);
         onLoginSuccess();return;
       } else {
         showLoginErr('Usuario o contraseña incorrectos');
@@ -3508,6 +3734,7 @@ function onLoginSuccess(){
 function doLogout(){
   localStorage.removeItem(SB_SESSION_KEY);
   _session=null;
+  _cryptoKey=null; /* Destruir clave de cifrado de memoria */
   document.getElementById('login-page').classList.remove('hidden');
   document.getElementById('lp-pass').value='';
   showLoginErr('');
@@ -3530,7 +3757,9 @@ async function loadDataFromSupabase(){
       _sb.from('auditorias').select('*').order('fecha',{ascending:false}).limit(5000),
       _sb.from('tareas').select('*').order('fecha_term',{ascending:true}).limit(10000)
     ]);
-    if(aud) STORE.auditorias=aud.map(function(a){return{
+    /* Descifrar auditorias */
+    var audDec=aud?await decArr(aud,FIELDS.auditorias):[];
+    STORE.auditorias=audDec.map(function(a){return{
       razon:a.razon||'',centro:a.centro||'',tienda:a.tienda||'',
       fecha:a.fecha,mes:a.mes||'',
       pctCumpl:parseFloat(a.pct_cumpl)||0,
@@ -3538,7 +3767,9 @@ async function loadDataFromSupabase(){
       resueltas:a.resueltas||0,pctResuelto:parseFloat(a.pct_resuelto)||0,
       clase:a.clase||''
     };});
-    if(tar) STORE.tareas=tar.map(function(t){return{
+    /* Descifrar tareas */
+    var tarDec=tar?await decArr(tar,FIELDS.tareas):[];
+    STORE.tareas=tarDec.map(function(t){return{
       id:t.tarea_id||t.id,sb_uuid:t.id,sb_updated:t.updated_at||null,razon:t.razon||'',centro:t.centro||'',
       tienda:t.tienda||'',areaResp:t.area_resp||'',areaRev:t.area_rev||'',
       actividad:t.actividad||'',nombre:t.nombre||'',tipoTarea:t.tipo_tarea||'',
@@ -3572,7 +3803,7 @@ async function syncToSupabase(parsed){
   var upload_id='upload_'+Date.now(), audOk=0, tarOk=0, errMsg=null;
   try{
     if(parsed.auditorias&&parsed.auditorias.length>0){
-      var arows=parsed.auditorias.filter(Boolean).map(function(a){return{
+      var arowsRaw=parsed.auditorias.filter(Boolean).map(function(a){return{
         razon:a.razon||null,centro:a.centro||null,tienda:a.tienda||null,
         fecha:a.fecha?String(a.fecha).split('T')[0]:null,
         mes:a.mes||null,pct_cumpl:parseFloat(a.pctCumpl)||0,
@@ -3581,6 +3812,7 @@ async function syncToSupabase(parsed){
         pct_resuelto:parseFloat(a.pctResuelto)||0,
         clase:a.clase||null,upload_id:upload_id
       };});
+      var arows=[];for(var _ai=0;_ai<arowsRaw.length;_ai++)arows.push(await encObj(arowsRaw[_ai],FIELDS.auditorias));
       if(arows.length){
         var ar=await client.from('auditorias').upsert(arows,{onConflict:'razon,centro,tienda,fecha',ignoreDuplicates:false});
         if(ar.error)errMsg='Aud: '+ar.error.message;
@@ -3588,7 +3820,7 @@ async function syncToSupabase(parsed){
       }
     }
     if(parsed.tareas&&parsed.tareas.length>0){
-      var trows=parsed.tareas.filter(Boolean).map(function(t){return{
+      var trowsRaw=parsed.tareas.filter(Boolean).map(function(t){return{
         tarea_id:String(t.id||t.tarea_id||''),
         razon:t.razon||null,centro:t.centro||null,tienda:t.tienda||null,
         area_resp:t.areaResp||null,area_rev:t.areaRev||null,
@@ -3599,6 +3831,7 @@ async function syncToSupabase(parsed){
         fecha_cumpl:t.fechaCumpl?String(t.fechaCumpl).split('T')[0]:null,
         upload_id:upload_id
       };});
+      var trows=[];for(var _ti=0;_ti<trowsRaw.length;_ti++)trows.push(await encObj(trowsRaw[_ti],FIELDS.tareas));
       for(var ci=0;ci<trows.length;ci+=500){
         var tr=await client.from('tareas').upsert(trows.slice(ci,ci+500),{onConflict:'tarea_id',ignoreDuplicates:false});
         if(tr.error){errMsg=(errMsg?errMsg+' | ':'')+'Tar: '+tr.error.message;break;}
@@ -4067,7 +4300,9 @@ async function loadAjustes(){
     if(r.error){toast('⚠ '+r.error.message);return;}
     var MN=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
       'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
-    AJUSTES=(r.data||[]).map(function(a){
+    var _ajDataRaw=r.data||[];
+    var _ajDataDec=await decArr(_ajDataRaw,FIELDS.ajustes);
+    AJUSTES=_ajDataDec.map(function(a){
       var dias=diasEntre(a.fecha_correo,a.fecha_ajuste);
       /* SIEMPRE derivar mes y año desde fecha_correo para evitar formatos sucios
          ("julio2023.", "agosto", etc.) que pueden estar en el campo mes de Supabase */
@@ -4255,8 +4490,9 @@ async function guardarNuevoAjuste(){
   if(!correo||!ajuste){errEl.textContent='Ambas fechas son obligatorias';return;}
   var dias=diasEntre(correo,ajuste);
   var año=parseInt(correo.split('-')[0]);
-  var row={tienda,mes:mes.toUpperCase(),año,fecha_correo:correo,fecha_ajuste:ajuste,
+  var _ajRaw={tienda,mes:mes.toUpperCase(),año,fecha_correo:correo,fecha_ajuste:ajuste,
     dias,condicion:condicionAjuste(dias)};
+  var row=await encObj(_ajRaw,FIELDS.ajustes);
   var client=getSbClient();
   if(!client){toast('⚠ Sin Supabase');return;}
   closeModal();
@@ -4315,7 +4551,8 @@ async function saveEditAjuste(id){
   var ajuste=dv('eaj-ajuste');
   var dias=diasEntre(correo,ajuste);
   var año=parseInt((correo||'').split('-')[0])||null;
-  var row={tienda,mes,año,fecha_correo:correo,fecha_ajuste:ajuste,dias,condicion:condicionAjuste(dias)};
+  var _ajUpdRaw={tienda,mes,año,fecha_correo:correo,fecha_ajuste:ajuste,dias,condicion:condicionAjuste(dias)};
+  var row=await encObj(_ajUpdRaw,FIELDS.ajustes);
   var client=getSbClient();if(!client)return;
   closeModal();
   try{
@@ -4442,7 +4679,9 @@ async function loadMermas(){
   try{
     var r=await client.from('mermas').select('*').order('fecha_autorizacion',{ascending:true}).order('fecha_validacion',{ascending:true}).limit(5000);
     if(r.error){toast('⚠ '+r.error.message);return;}
-    MERMAS=(r.data||[]).map(function(m){
+    var _mrDataRaw=r.data||[];
+    var _mrDataDec=await decArr(_mrDataRaw,FIELDS.mermas);
+    MERMAS=_mrDataDec.map(function(m){
       var dias=diasEntre(m.fecha_autorizacion,m.fecha_validacion);
       return{id:m.id,tienda:m.tienda||'',localForanea:m.local_foranea||'',
         mes:m.mes||'',año:m.año||'',
@@ -4616,8 +4855,9 @@ async function guardarNuevaMerma(){
   if(!aut||!val){errEl.textContent='Ambas fechas son obligatorias';return;}
   var dias=diasEntre(aut,val);
   var año=parseInt((aut||'').split('-')[0])||null;
-  var row={tienda,local_foranea:lf,mes:mes.toUpperCase(),año,
+  var _mrRaw={tienda,local_foranea:lf,mes:mes.toUpperCase(),año,
     fecha_autorizacion:aut,fecha_validacion:val,dias,condicion:condicionAjuste(dias)};
+  var row=await encObj(_mrRaw,FIELDS.mermas);
   var client=getSbClient();if(!client){toast('⚠ Sin Supabase');return;}
   closeModal();
   try{
@@ -4650,8 +4890,9 @@ async function saveEditMerma(id){
   var val=dv('mrf-val');
   var dias=diasEntre(aut,val);
   var año=parseInt((aut||'').split('-')[0])||null;
-  var row={tienda,local_foranea:lf,mes,año,fecha_autorizacion:aut,
+  var _mrUpdRaw={tienda,local_foranea:lf,mes,año,fecha_autorizacion:aut,
     fecha_validacion:val,dias,condicion:condicionAjuste(dias)};
+  var row=await encObj(_mrUpdRaw,FIELDS.mermas);
   var client=getSbClient();if(!client)return;
   closeModal();
   try{
@@ -4792,7 +5033,9 @@ async function loadFinalizadas(){
     var r=await client.from('tareas_finalizadas').select('*')
       .order('fecha_finalizacion',{ascending:false}).limit(5000);
     if(r.error){toast('⚠ '+r.error.message);return;}
-    FINALIZADAS=(r.data||[]).map(function(f){
+    var _finRaw=r.data||[];
+    var _finDec=await decArr(_finRaw,FIELDS.tareas_finalizadas);
+    FINALIZADAS=_finDec.map(function(f){
       /* duracion_dias: calcular desde fechas reales de tareas cuando sea posible */
       var fechaIni=f.fecha_inicio;
       var fechaFinRec=f.fecha_finalizacion;
@@ -5039,13 +5282,14 @@ async function registrarFinalizada(a){
   var pct=parseFloat(a.pctCumpl)||0;
   if(pct>1)pct=pct/100;
 
-  var row={
+  var _finRowRaw={
     aud_key:ak,tienda:a.tienda||'',mes:(a.mes||'').toUpperCase(),
     clase:a.clase||'',pct_cumpl:pct,
     total_tareas:totalTareas,resueltas:resueltas,
     fecha_inicio:fechaInicio,fecha_finalizacion:fechaFin,
     duracion_dias:duracion
   };
+  var row=await encObj(_finRowRaw,FIELDS.tareas_finalizadas);
   try{
     var r=await client.from('tareas_finalizadas').insert([row]).select();
     if(r.error){
