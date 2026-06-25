@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+  <!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -3640,7 +3640,7 @@ var FIELDS={
   actividades:['actividad','estado','categoria','asignado','comentario','apoyos','mes','creado_por'],
   ajustes:['tienda','mes','condicion','auditor'],
   mermas:['tienda','local_foranea','mes','condicion','auditor'],
-  tareas_finalizadas:['tienda','clase','mes'],
+  tareas_finalizadas:['tienda','clase','mes','completado_por'],
   seguimiento_semanas:['tienda','clase','actividad']
 };
 
@@ -3710,6 +3710,23 @@ function renderDesempeno(){
     if(n.includes('completad'))d.actOk++;
     else if(n.includes('reprogramad'))d.actRepr++;
     else d.actPend++;
+  });
+
+  /* Auditorías finalizadas — quién marcó "Completado" en una auditoría */
+  (FINALIZADAS||[]).filter(function(f){return mMatch(f.mes);}).forEach(function(f){
+    var aud=f.completadoPor||f.completado_por||'';
+    if(!aud)return;
+    var razon='—';
+    razList.forEach(function(r){if(norm(f.tienda||'').includes(norm(r)))razon=r;});
+    if(razon==='—')razon=f.tienda?f.tienda.substring(0,3):'—';
+    if(!rMatch(razon)&&razonFilter!=='ALL')return;
+    var d=ensure(aud,razon);
+    if(!d.audTotal)d.audTotal=0;
+    if(!d.audPct)d.audPct=0;
+    d.audTotal++;
+    d.audPct+=Math.round((f.pct_cumpl||0)*100);/* acumular para promedio */
+    if(!d.audClases)d.audClases=[];
+    d.audClases.push((f.clase||'?')+' '+Math.round((f.pct_cumpl||0)*100)+'%');
   });
 
   /* Ajustes — tienda como razon aproximada */
@@ -3800,7 +3817,7 @@ function renderDesempeno(){
           '<div style="font-size:11px;font-weight:800;color:'+col+';text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">'+
             '🏢 '+d.razon+
           '</div>'+
-          '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">'+
+          '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">'+
             /* Ajustes */
             (d.ajTotal>0?'<div style="background:var(--soft);border-radius:8px;padding:10px;border-top:3px solid #0d9488">'+
               '<div style="font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">⚖️ Ajustes</div>'+
@@ -3835,6 +3852,18 @@ function renderDesempeno(){
               bar(pAct,'#2563eb')+
               '<div style="font-size:9px;color:var(--muted);margin-top:3px;font-weight:600">'+pAct+'% completadas</div>'+
             '</div>':'<div style="background:var(--rowline);border-radius:8px;padding:10px;opacity:.4;display:flex;align-items:center;justify-content:center"><span style="font-size:9px;color:var(--muted)">Sin actividades</span></div>')+
+            /* Auditorías completadas */
+            (d.audTotal>0?'<div style="background:var(--soft);border-radius:8px;padding:10px;border-top:3px solid #d97706">'+
+              '<div style="font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">🔍 Auditorías</div>'+
+              '<div style="font-size:20px;font-weight:900;color:#d97706">'+d.audTotal+'</div>'+
+              '<div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap">'+
+                (d.audClases||[]).slice(0,3).map(function(cl){
+                  return'<span style="font-size:8.5px;background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:10px;font-weight:700">'+cl+'</span>';
+                }).join('')+
+              '</div>'+
+              bar(Math.round((d.audPct||0)/d.audTotal),'#d97706')+
+              '<div style="font-size:9px;color:var(--muted);margin-top:3px;font-weight:600">'+Math.round((d.audPct||0)/d.audTotal)+'% cumpl. prom.</div>'+
+            '</div>':'<div style="background:var(--rowline);border-radius:8px;padding:10px;opacity:.4;display:flex;align-items:center;justify-content:center"><span style="font-size:9px;color:var(--muted)">Sin auditorías</span></div>')+
           '</div>'+
         '</div>';
       }).join('')+
@@ -4861,7 +4890,7 @@ async function guardarNuevoAjuste(){
     var inserted=r.data[0]||row;
     AJUSTES.push({id:inserted.id,tienda:inserted.tienda,mes:inserted.mes,año:inserted.año,
       fechaCorreo:inserted.fecha_correo,fechaAjuste:inserted.fecha_ajuste,
-      dias:inserted.dias,condicion:inserted.condicion});
+      dias:inserted.dias,condicion:inserted.condicion,auditor:auditor||''});
     fillAjFilters();renderAjustes();
     toast('☁️ Ajuste guardado');
   }catch(e){toast('⚠ '+e.message);}
@@ -5226,7 +5255,7 @@ async function guardarNuevaMerma(){
     var ins=r.data[0]||row;
     MERMAS.push({id:ins.id,tienda:ins.tienda,localForanea:ins.local_foranea,
       mes:ins.mes,año:ins.año,fechaAut:ins.fecha_autorizacion,
-      fechaVal:ins.fecha_validacion,dias:ins.dias,condicion:ins.condicion});
+      fechaVal:ins.fecha_validacion,dias:ins.dias,condicion:ins.condicion,auditor:auditorMr||''});
     fillMrFilters();renderMermas();toast('☁️ Merma guardada');
   }catch(e){toast('⚠ '+e.message);}
 }
@@ -5439,7 +5468,8 @@ async function loadFinalizadas(){
         });
         if(td.length>0){total=td.length;res=td.filter(function(t){return!esPendiente(t);}).length;}
       }
-      return Object.assign({},f,{duracion_dias:dur,pct_cumpl:pct,total_tareas:total,resueltas:res});
+      return Object.assign({},f,{duracion_dias:dur,pct_cumpl:pct,total_tareas:total,resueltas:res,
+        completadoPor:f.completado_por||''});
     });
     _finLoaded=true;
     fillFinFilters();renderFinalizadas();
@@ -5648,7 +5678,8 @@ async function registrarFinalizada(a){
     clase:a.clase||'',pct_cumpl:pct,
     total_tareas:totalTareas,resueltas:resueltas,
     fecha_inicio:fechaInicio,fecha_finalizacion:fechaFin,
-    duracion_dias:duracion
+    duracion_dias:duracion,
+    completado_por:(_session&&(_session.nombre||_session.username))||null
   };
   var row=await encObj(_finRowRaw,FIELDS.tareas_finalizadas);
   try{
