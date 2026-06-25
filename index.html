@@ -915,6 +915,9 @@ table.seg tbody tr:hover{background:var(--soft)}
       </div>
     </div><!-- /view-finalizadas -->
 
+    <!-- ════════ VISTA DESEMPEÑO AUDITORES ════════ -->
+    <div id="view-desempeno" style="display:none;flex-direction:column;gap:14px"></div>
+
   </div>
 </div>
 
@@ -3664,20 +3667,7 @@ function getAuditores(){
 function renderDesempeno(){
   var el=document.getElementById('view-desempeno');
   if(!el)return;
-
-  /* ── DIAGNÓSTICO: mostrar qué hay en memoria ── */
-  var diagAj=AJUSTES.slice(0,3).map(function(a){return JSON.stringify({tienda:a.tienda,mes:a.mes,auditor:a.auditor,condicion:a.condicion});}).join('<br>');
-  var diagMr=MERMAS.slice(0,3).map(function(m){return JSON.stringify({tienda:m.tienda,mes:m.mes,auditor:m.auditor,condicion:m.condicion});}).join('<br>');
-  var diagFin=FINALIZADAS.slice(0,3).map(function(f){return JSON.stringify({tienda:f.tienda,mes:f.mes,completadoPor:f.completadoPor,completado_por:f.completado_por});}).join('<br>');
-  el.innerHTML='<div class="card" style="padding:16px;font-size:11px;font-family:monospace;line-height:1.8">'+
-    '<b style="color:var(--nav)">DIAGNÓSTICO MÓDULO DESEMPEÑO</b><br><br>'+
-    '<b>AJUSTES ('+AJUSTES.length+'):</b><br>'+(diagAj||'vacío')+'<br><br>'+
-    '<b>MERMAS ('+MERMAS.length+'):</b><br>'+(diagMr||'vacío')+'<br><br>'+
-    '<b>FINALIZADAS ('+FINALIZADAS.length+'):</b><br>'+(diagFin||'vacío')+'<br><br>'+
-    '<b>ACTIVIDADES ('+ACTIVIDADES.length+'):</b><br>'+(ACTIVIDADES.slice(0,2).map(function(a){return JSON.stringify({mes:a.mes,asignado:a.asignado,creadoPor:a.creadoPor,estado:a.estado});}).join('<br>')||'vacío')+
-    '<br><br><button class="btn btn-blue" onclick="document.getElementById(\'_desp_diag\').remove();renderDesempeno();" id="_desp_diag" style="font-size:11px">Continuar sin diagnóstico</button>'+
-  '</div>';
-  return; /* quitar este return para ver módulo real */
+  var MORD=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   var mesAct=MORD[new Date().getMonth()];
 
   /* Leer filtros — re-leer DESPUÉS de insertar el HTML para que persistan */
