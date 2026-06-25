@@ -1845,7 +1845,7 @@ function openEdit(id){
       <div class="form-field"><label>Fecha de cumplimiento</label><input type="date" id="e-fcumpl" value="${fmtInput(fromISO(v.fechaCumpl))}"></div>
     </div>`;
   const foot=[{label:'Cancelar',cls:'btn-ghost',fn:closeModal}];
-  if(!isNew&&_session&&_session.rol==='admin')foot.push({label:'Eliminar',cls:'btn-red',fn:()=>deleteTask(v.id)});
+  if(!isNew&&_session&&['admin','admin_auditor'].includes(_session.rol))foot.push({label:'Eliminar',cls:'btn-red',fn:()=>deleteTask(v.id)});
   foot.push({label:isNew?'Crear tarea':'Guardar cambios',cls:'btn-blue',fn:()=>saveTask(isNew)});
   openModal(isNew?'➕ Nueva tarea':`✎ Editar tarea <b>#${v.id}</b>`,html,foot);
 }
@@ -2819,7 +2819,7 @@ function openActividad(id){
     '<label style="grid-column:1/3;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--txt)"><input type="checkbox" id="a-programada"'+(a.programada?' checked':'')+'> Actividad programada (desmarcar si es NO PROGRAMADA)</label>'+
   '</div>';
   var foot=[{label:isNew?'Crear':'Guardar',cls:'btn-blue',fn:function(){saveActividad(a.id,isNew);}}];
-  if(!isNew&&_session&&_session.rol==='admin')foot.push({label:'Eliminar',cls:'btn-red',fn:function(){deleteActividad(a.id);}});
+  if(!isNew&&_session&&['admin','admin_auditor'].includes(_session.rol))foot.push({label:'Eliminar',cls:'btn-red',fn:function(){deleteActividad(a.id);}});
   openModal(isNew?'➕ Nueva actividad':'✎ Editar actividad',body,foot);
 }
 
@@ -4382,21 +4382,21 @@ function checkAdminUI(){
     addAct.style.display=canEditA?'':'none';
   }
   var audBtn=document.getElementById('btn-nueva-auditoria');
-  if(audBtn) audBtn.style.display=(_session&&_session.rol==='admin')?'':'none';
+  if(audBtn) audBtn.style.display=(_session&&['admin','admin_auditor'].includes(_session.rol))?'':'none';
   var ajBtn=document.getElementById('btn-nuevo-ajuste');
-  if(ajBtn) ajBtn.style.display=(_session&&_session.rol==='admin')?'':'none';
+  if(ajBtn) ajBtn.style.display=(_session&&['admin','admin_auditor','auditor'].includes(_session.rol))?'':'none';
   var ajExcel=document.getElementById('btn-excel-ajuste');
-  if(ajExcel) ajExcel.style.display=(_session&&_session.rol==='admin')?'':'none';
+  if(ajExcel) ajExcel.style.display=(_session&&['admin','admin_auditor','auditor'].includes(_session.rol))?'':'none';
   var ajTh=document.getElementById('aj-edit-th');
-  if(ajTh) ajTh.style.display=(_session&&_session.rol==='admin')?'':'none';
+  if(ajTh) ajTh.style.display=(_session&&['admin','admin_auditor','auditor'].includes(_session.rol))?'':'none';
   var mrBtn=document.getElementById('btn-nueva-merma');
-  if(mrBtn) mrBtn.style.display=(_session&&_session.rol==='admin')?'':'none';
+  if(mrBtn) mrBtn.style.display=(_session&&['admin','admin_auditor','auditor'].includes(_session.rol))?'':'none';
   var mrExcel=document.getElementById('btn-excel-merma');
-  if(mrExcel) mrExcel.style.display=(_session&&_session.rol==='admin')?'':'none';
+  if(mrExcel) mrExcel.style.display=(_session&&['admin','admin_auditor','auditor'].includes(_session.rol))?'':'none';
   var mrTh=document.getElementById('mr-edit-th');
-  if(mrTh) mrTh.style.display=(_session&&_session.rol==='admin')?'':'none';
+  if(mrTh) mrTh.style.display=(_session&&['admin','admin_auditor','auditor'].includes(_session.rol))?'':'none';
   var finTh=document.getElementById('fin-edit-th');
-  if(finTh) finTh.style.display=(_session&&_session.rol==='admin')?'':'none';
+  if(finTh) finTh.style.display=(_session&&['admin','admin_auditor'].includes(_session.rol))?'':'none';
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -4998,7 +4998,7 @@ async function deleteAjuste(id){
 /* ── Importar Excel de Ajustes ── */
 function importAjustesExcel(files){
   if(!files||!files.length)return;
-  if(!_session||_session.rol!=='admin'){toast('⚠ Solo administradores');return;}
+  if(!_session||!['admin','admin_auditor','auditor'].includes(_session.rol)){toast('⚠ Sin permisos');return;}
   var file=files[0];
   document.getElementById('aj-file-input').value='';
   var reader=new FileReader();
@@ -5257,7 +5257,7 @@ function mrfAutoCalc(){
 }
 
 function openNuevaMerma(){
-  if(!_session||_session.rol!=='admin'){toast('⚠ Solo administradores');return;}
+  if(!_session||!['admin','admin_auditor','auditor'].includes(_session.rol)){toast('⚠ Sin permisos');return;}
   openModal('➕ Nueva merma',mrFormHtml(),[
     {label:'Cancelar',cls:'btn-ghost',fn:closeModal},
     {label:'Guardar',cls:'btn-orange',fn:guardarNuevaMerma}
@@ -5342,7 +5342,7 @@ async function deleteMerma(id){
 /* ── Importar Excel Mermas ── */
 function importMermasExcel(files){
   if(!files||!files.length)return;
-  if(!_session||_session.rol!=='admin'){toast('⚠ Solo administradores');return;}
+  if(!_session||!['admin','admin_auditor','auditor'].includes(_session.rol)){toast('⚠ Sin permisos');return;}
   var file=files[0];
   document.getElementById('mr-file-input').value='';
   var reader=new FileReader();
