@@ -483,6 +483,7 @@ table.seg tbody tr:hover{background:var(--soft)}
   <div class="nav-item" id="nav-ajustes" title="Ajustes" onclick="setView('ajustes')">⚖️<span class="nav-lbl">Ajustes</span></div>
   <div class="nav-item" id="nav-mermas" title="Mermas" onclick="setView('mermas')">🗂️<span class="nav-lbl">Mermas</span></div>
   <div class="nav-item" id="nav-finalizadas" title="Tareas Finalizadas" onclick="setView('finalizadas')">✅<span class="nav-lbl">Finalizadas</span></div>
+  <div class="nav-item" id="nav-desempeno" title="Desempeño de Auditores" onclick="setView('desempeno')">📊<span class="nav-lbl">Desempeño</span></div>
   <div class="nav-sep"></div>
   <div class="nav-item" id="nav-usuarios" title="Gestión de usuarios" onclick="openUsuarios()" style="display:none">👥<span class="nav-lbl">Usuarios</span></div>
 </nav>
@@ -3636,11 +3637,175 @@ var FIELDS={
   tareas:['tienda','area_resp','area_rev','actividad','nombre','tipo_tarea','estado','razon','centro'],
   auditorias:['tienda','razon','centro','clase','mes'],
   actividades:['actividad','estado','categoria','asignado','comentario','apoyos','mes'],
-  ajustes:['tienda','mes','condicion'],
-  mermas:['tienda','local_foranea','mes','condicion'],
+  ajustes:['tienda','mes','condicion','auditor'],
+  mermas:['tienda','local_foranea','mes','condicion','auditor'],
   tareas_finalizadas:['tienda','clase','mes'],
   seguimiento_semanas:['tienda','clase','actividad']
 };
+
+
+/* ════════════════════════════════════════════════════════════════════
+   MÓDULO DESEMPEÑO DE AUDITORES
+════════════════════════════════════════════════════════════════════ */
+function getAuditores(){
+  /* Obtener lista de auditores: desde usuarios cargados o desde datos existentes */
+  var fromAct=ACTIVIDADES.map(function(a){return a.asignado||'';}).filter(Boolean);
+  var fromAj=AJUSTES.map(function(a){return a.auditor||'';}).filter(Boolean);
+  var fromMr=MERMAS.map(function(m){return m.auditor||'';}).filter(Boolean);
+  var all=[...new Set([...fromAct,...fromAj,...fromMr])].filter(Boolean).sort();
+  /* Si el usuario actual es auditor, incluirlo */
+  if(_session&&['auditor','admin_auditor'].includes(_session.rol)){
+    var me=_session.nombre||_session.username;
+    if(me&&!all.includes(me))all.unshift(me);
+  }
+  if(!all.length)all=['Sin auditores registrados'];
+  return all;
+}
+
+function renderDesempeno(){
+  var el=document.getElementById('view-desempeno');
+  if(!el)return;
+  var MORD=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  var mesAct=MORD[new Date().getMonth()];
+  var mesEl=document.getElementById('desp-mes');
+  var mesFilter=mesEl?mesEl.value:mesAct;
+
+  /* Agrupar datos por auditor */
+  var byAuditor={};
+  function getAud(a){return a.asignado||a.auditor||'Sin asignar';}
+
+  /* Actividades del mes */
+  ACTIVIDADES.filter(function(a){return !mesFilter||mesFilter==='ALL'||norm(a.mes||'')===norm(mesFilter);})
+    .forEach(function(a){
+      var k=getAud(a);
+      if(!byAuditor[k])byAuditor[k]={nombre:k,actTotal:0,actOk:0,actRepr:0,actPend:0,ajTotal:0,ajOk:0,mrTotal:0,mrOk:0};
+      byAuditor[k].actTotal++;
+      var n=norm(a.estado||'');
+      if(n.includes('completad'))byAuditor[k].actOk++;
+      else if(n.includes('reprogramad'))byAuditor[k].actRepr++;
+      else byAuditor[k].actPend++;
+    });
+
+  /* Ajustes del mes */
+  AJUSTES.filter(function(a){return !mesFilter||mesFilter==='ALL'||norm(a.mes||'')===norm(mesFilter);})
+    .forEach(function(a){
+      var k=a.auditor||'Sin asignar';
+      if(!byAuditor[k])byAuditor[k]={nombre:k,actTotal:0,actOk:0,actRepr:0,actPend:0,ajTotal:0,ajOk:0,mrTotal:0,mrOk:0};
+      byAuditor[k].ajTotal++;
+      if(a.condicion==='A tiempo')byAuditor[k].ajOk++;
+    });
+
+  /* Mermas del mes */
+  MERMAS.filter(function(m){return !mesFilter||mesFilter==='ALL'||norm(m.mes||'')===norm(mesFilter);})
+    .forEach(function(m){
+      var k=m.auditor||'Sin asignar';
+      if(!byAuditor[k])byAuditor[k]={nombre:k,actTotal:0,actOk:0,actRepr:0,actPend:0,ajTotal:0,ajOk:0,mrTotal:0,mrOk:0};
+      byAuditor[k].mrTotal++;
+      if(m.condicion==='A tiempo')byAuditor[k].mrOk++;
+    });
+
+  var auditores=Object.values(byAuditor).filter(function(a){return a.nombre!=='Sin asignar';});
+  if(!auditores.length)auditores=Object.values(byAuditor);
+
+  var colores=['#2563eb','#0d9488','#16a34a','#ea580c','#7c3aed','#dc2626'];
+
+  function pct(ok,tot){return tot>0?Math.round(ok/tot*100):0;}
+  function pill(ok,tot,label){
+    var p=pct(ok,tot);
+    var col=p>=80?'#16a34a':p>=50?'#d97706':'#dc2626';
+    return '<div style="text-align:center;min-width:70px">'+
+      '<div style="font-size:20px;font-weight:800;color:'+col+'">'+p+'%</div>'+
+      '<div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase">'+label+'</div>'+
+      '<div style="font-size:11px;color:var(--text)">'+ok+' / '+tot+'</div>'+
+    '</div>';
+  }
+
+  function barPct(p,col){
+    return '<div style="background:var(--rowline);border-radius:4px;height:8px;overflow:hidden;margin-top:6px">'+
+      '<div style="width:'+p+'%;background:'+col+';height:100%;border-radius:4px"></div></div>';
+  }
+
+  var cards=auditores.map(function(d,i){
+    var col=colores[i%colores.length];
+    var pctAct=pct(d.actOk,d.actTotal);
+    var pctAj=pct(d.ajOk,d.ajTotal);
+    var pctMr=pct(d.mrOk,d.mrTotal);
+    var pctGlobal=pct(d.actOk+d.ajOk+d.mrOk, d.actTotal+d.ajTotal+d.mrTotal);
+    var colG=pctGlobal>=80?'#16a34a':pctGlobal>=50?'#d97706':'#dc2626';
+
+    return '<div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:14px">'+
+      /* Header auditor */
+      '<div style="display:flex;align-items:center;gap:12px">'+
+        '<div style="width:40px;height:40px;border-radius:50%;background:'+col+';display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;flex-shrink:0">'+
+          d.nombre.charAt(0).toUpperCase()+
+        '</div>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="font-size:14px;font-weight:800;color:var(--nav);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+d.nombre+'</div>'+
+          '<div style="font-size:11px;color:var(--muted);font-weight:600">'+mesFilter+' · Auditor</div>'+
+        '</div>'+
+        '<div style="text-align:center">'+
+          '<div style="font-size:24px;font-weight:900;color:'+colG+'">'+pctGlobal+'%</div>'+
+          '<div style="font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase">Global</div>'+
+        '</div>'+
+      '</div>'+
+      /* KPIs */
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">'+
+        /* Actividades */
+        '<div style="background:var(--soft);border-radius:10px;padding:12px;border-left:3px solid #2563eb">'+
+          '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">📋 Actividades</div>'+
+          '<div style="font-size:22px;font-weight:900;color:#2563eb">'+d.actTotal+'</div>'+
+          '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">'+
+            '<span style="font-size:10px;background:#dcfce7;color:#15803d;padding:2px 7px;border-radius:12px;font-weight:700">✓ '+d.actOk+' complet.</span>'+
+            (d.actRepr?'<span style="font-size:10px;background:#dbeafe;color:#1d4ed8;padding:2px 7px;border-radius:12px;font-weight:700">↺ '+d.actRepr+' reprog.</span>':'')+
+            (d.actPend?'<span style="font-size:10px;background:#fee2e2;color:#b91c1c;padding:2px 7px;border-radius:12px;font-weight:700">⏳ '+d.actPend+' pend.</span>':'')+
+          '</div>'+
+          barPct(pctAct,'#2563eb')+
+          '<div style="font-size:10px;color:var(--muted);margin-top:3px;font-weight:600">'+pctAct+'% completadas</div>'+
+        '</div>'+
+        /* Ajustes */
+        '<div style="background:var(--soft);border-radius:10px;padding:12px;border-left:3px solid #0d9488">'+
+          '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">⚖️ Ajustes</div>'+
+          '<div style="font-size:22px;font-weight:900;color:#0d9488">'+d.ajTotal+'</div>'+
+          '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">'+
+            '<span style="font-size:10px;background:#ccfbf1;color:#0f766e;padding:2px 7px;border-radius:12px;font-weight:700">✓ '+d.ajOk+' a tiempo</span>'+
+            (d.ajTotal-d.ajOk>0?'<span style="font-size:10px;background:#fee2e2;color:#b91c1c;padding:2px 7px;border-radius:12px;font-weight:700">✗ '+(d.ajTotal-d.ajOk)+' tard.</span>':'')+
+          '</div>'+
+          barPct(pctAj,'#0d9488')+
+          '<div style="font-size:10px;color:var(--muted);margin-top:3px;font-weight:600">'+pctAj+'% efectividad</div>'+
+        '</div>'+
+        /* Mermas */
+        '<div style="background:var(--soft);border-radius:10px;padding:12px;border-left:3px solid #7c3aed">'+
+          '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">🗂️ Mermas</div>'+
+          '<div style="font-size:22px;font-weight:900;color:#7c3aed">'+d.mrTotal+'</div>'+
+          '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">'+
+            '<span style="font-size:10px;background:#ede9fe;color:#6d28d9;padding:2px 7px;border-radius:12px;font-weight:700">✓ '+d.mrOk+' a tiempo</span>'+
+            (d.mrTotal-d.mrOk>0?'<span style="font-size:10px;background:#fee2e2;color:#b91c1c;padding:2px 7px;border-radius:12px;font-weight:700">✗ '+(d.mrTotal-d.mrOk)+' tard.</span>':'')+
+          '</div>'+
+          barPct(pctMr,'#7c3aed')+
+          '<div style="font-size:10px;color:var(--muted);margin-top:3px;font-weight:600">'+pctMr+'% efectividad</div>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+
+  el.innerHTML='<div style="display:flex;flex-direction:column;gap:14px">'+
+    /* Filtro mes */
+    '<div class="card" style="padding:14px 18px">'+
+      '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">'+
+        '<span style="font-size:13px;font-weight:700;color:var(--nav)">📊 Desempeño de Auditores</span>'+
+        '<div class="fg" style="min-width:160px;margin:0">'+
+          '<select id="desp-mes" onchange="renderDesempeno()" style="padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft)">'+
+            '<option value="ALL">Todos los meses</option>'+
+            ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map(function(m){return'<option'+(m===mesAct?' selected':'')+'>'+m+'</option>';}).join('')+
+          '</select>'+
+        '</div>'+
+        '<span style="font-size:11px;color:var(--muted);font-weight:600">'+auditores.length+' auditor(es)</span>'+
+      '</div>'+
+    '</div>'+
+    /* Cards por auditor */
+    (cards||'<div class="card" style="padding:40px;text-align:center;color:var(--muted)">Sin datos de auditores para este mes.<br><small>Registra actividades con un auditor asignado, o ajustes/mermas con campo auditor.</small></div>')+
+  '</div>';
+}
 
 /* ════════════════════════════════════════════════════════════════════
    SUPABASE + LOGIN + SYNC
@@ -3946,6 +4111,8 @@ async function eliminarUsuario(id, username){
 function checkAdminUI(){
   var navBtn=document.getElementById('nav-usuarios');
   if(navBtn&&_session&&_session.rol==='admin') navBtn.style.display='';
+  var navDesp=document.getElementById('nav-desempeno');
+  if(navDesp)navDesp.style.display=(_session&&['admin','admin_auditor'].includes(_session.rol))?'':'none';
   var excelBtn=document.getElementById('btn-cargar-excel');
   if(excelBtn){
     var canUpload=_session&&['admin','editor'].includes(_session.rol);
@@ -4325,7 +4492,7 @@ async function loadAjustes(){
       if(!añoLimpio&&a.año)añoLimpio=parseInt(a.año);
       return{id:a.id,tienda:a.tienda||'',mes:mesLimpio,año:añoLimpio,
         fechaCorreo:a.fecha_correo,fechaAjuste:a.fecha_ajuste,
-        dias:dias,condicion:condicionAjuste(dias)};
+        dias:dias,condicion:condicionAjuste(dias),auditor:a.auditor||''};
     });
     fillAjFilters();renderAjustes();
     toast('✓ '+AJUSTES.length+' ajuste(s) cargados');
@@ -4446,12 +4613,15 @@ function renderAjDonut(arr){
 
 /* ── Modal nuevo ajuste ── */
 function openNuevoAjuste(){
-  if(!_session||_session.rol!=='admin'){toast('⚠ Solo administradores');return;}
+  if(!_session||!['admin','admin_auditor','auditor'].includes(_session.rol)){toast('⚠ Sin permisos');return;}
   var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio',
     'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   var tiendas=uniq(STORE.tareas.map(function(t){return t.tienda;})
     .concat(STORE.auditorias.map(function(a){return a.tienda;})));
+  var auditores=getAuditores();
   var html='<div class="form-grid">'+
+    '<div class="form-field"><label>Auditor *</label>'+
+      '<select id="naj-auditor"><option value="">— Selecciona —</option>'+auditores.map(function(a){return'<option value="'+esc(a)+'"'+(a===(_session.nombre||_session.username)?' selected':'')+'>'+esc(a)+'</option>';}).join('')+'</select></div>'+
     '<div class="form-field"><label>Tienda *</label>'+
       '<input id="naj-tienda" list="naj-tienda-list" placeholder="Nombre de tienda">'+
       '<datalist id="naj-tienda-list">'+tiendas.map(function(t){return'<option value="'+esc(t)+'">';}).join('')+'</datalist></div>'+
@@ -4482,6 +4652,7 @@ function najautoCalc(){
 
 async function guardarNuevoAjuste(){
   var errEl=document.getElementById('naj-err');errEl.textContent='';
+  var auditor=(document.getElementById('naj-auditor').value||'').trim();
   var tienda=document.getElementById('naj-tienda').value.trim().toUpperCase();
   var mes=document.getElementById('naj-mes').value;
   var correo=document.getElementById('naj-correo').value;
@@ -4491,7 +4662,7 @@ async function guardarNuevoAjuste(){
   var dias=diasEntre(correo,ajuste);
   var año=parseInt(correo.split('-')[0]);
   var _ajRaw={tienda,mes:mes.toUpperCase(),año,fecha_correo:correo,fecha_ajuste:ajuste,
-    dias,condicion:condicionAjuste(dias)};
+    dias,condicion:condicionAjuste(dias),auditor:auditor||null};
   var row=await encObj(_ajRaw,FIELDS.ajustes);
   var client=getSbClient();
   if(!client){toast('⚠ Sin Supabase');return;}
@@ -4686,7 +4857,7 @@ async function loadMermas(){
       return{id:m.id,tienda:m.tienda||'',localForanea:m.local_foranea||'',
         mes:m.mes||'',año:m.año||'',
         fechaAut:m.fecha_autorizacion,fechaVal:m.fecha_validacion,
-        dias:dias,condicion:condicionAjuste(dias)};
+        dias:dias,condicion:condicionAjuste(dias),auditor:m.auditor||''};
     });
     fillMrFilters();renderMermas();
     toast('✓ '+MERMAS.length+' merma(s) cargadas');
@@ -4806,7 +4977,10 @@ function mrFormHtml(m){
     'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   var tiendas=uniq(STORE.tareas.map(function(t){return t.tienda;})
     .concat(STORE.auditorias.map(function(a){return a.tienda;})));
+  var auditores2=getAuditores();
   return '<div class="form-grid">'+
+    '<div class="form-field"><label>Auditor</label>'+
+      '<select id="mrf-auditor"><option value="">— Selecciona —</option>'+auditores2.map(function(au){return'<option value="'+esc(au)+'"'+(au===(m.auditor||'')?' selected':'')+'>'+esc(au)+'</option>';}).join('')+'</select></div>'+
     '<div class="form-field"><label>Tienda *</label>'+
       '<input id="mrf-tienda" list="mrf-tienda-list" value="'+esc(m.tienda||'')+'" placeholder="Nombre de tienda">'+
       '<datalist id="mrf-tienda-list">'+tiendas.map(function(t){return'<option value="'+esc(t)+'">';}).join('')+'</datalist></div>'+
@@ -4846,6 +5020,7 @@ function openNuevaMerma(){
 
 async function guardarNuevaMerma(){
   var errEl=document.getElementById('mrf-err');errEl.textContent='';
+  var auditorMr=(document.getElementById('mrf-auditor').value||'').trim();
   var tienda=document.getElementById('mrf-tienda').value.trim().toUpperCase();
   var lf=document.getElementById('mrf-lf').value;
   var mes=document.getElementById('mrf-mes').value;
@@ -4856,7 +5031,7 @@ async function guardarNuevaMerma(){
   var dias=diasEntre(aut,val);
   var año=parseInt((aut||'').split('-')[0])||null;
   var _mrRaw={tienda,local_foranea:lf,mes:mes.toUpperCase(),año,
-    fecha_autorizacion:aut,fecha_validacion:val,dias,condicion:condicionAjuste(dias)};
+    fecha_autorizacion:aut,fecha_validacion:val,dias,condicion:condicionAjuste(dias),auditor:auditorMr||null};
   var row=await encObj(_mrRaw,FIELDS.mermas);
   var client=getSbClient();if(!client){toast('⚠ Sin Supabase');return;}
   closeModal();
@@ -5426,6 +5601,8 @@ async function deleteFinalizada(id){
           <div class="fg"><label>Nombre completo</label><input type="text" id="nu-nombre" placeholder="Nombre visible"></div>
           <div class="fg"><label>Rol / Permisos</label>
             <select id="nu-rol">
+              <option value="auditor">Auditor — Registro de actividades/ajustes/mermas</option>
+              <option value="admin_auditor">Admin Auditor — Auditor con gestión de usuarios auditores</option>
               <option value="viewer">Viewer — Solo lectura</option>
               <option value="editor">Editor — Puede cargar Excel</option>
               <option value="admin">Admin — Acceso total</option>
@@ -5443,3 +5620,6 @@ async function deleteFinalizada(id){
 </div>
 </body>
 </html>
+  else if(v==='desempeno'){
+    renderDesempeno();
+  }
