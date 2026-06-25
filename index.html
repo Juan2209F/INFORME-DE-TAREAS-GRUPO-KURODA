@@ -3666,144 +3666,205 @@ function renderDesempeno(){
   if(!el)return;
   var MORD=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   var mesAct=MORD[new Date().getMonth()];
-  var mesEl=document.getElementById('desp-mes');
-  var mesFilter=mesEl?mesEl.value:mesAct;
 
-  /* Agrupar datos por auditor */
+  /* Leer filtros — re-leer DESPUÉS de insertar el HTML para que persistan */
+  var mesFilter=(document.getElementById('desp-mes')||{}).value||mesAct;
+  var razonFilter=(document.getElementById('desp-razon')||{}).value||'ALL';
+
+  /* ── Helper: comparar mes ── */
+  function mMatch(m){ return mesFilter==='ALL'||norm(String(m||''))===norm(mesFilter); }
+  function rMatch(r){ return razonFilter==='ALL'||norm(String(r||'')).includes(norm(razonFilter))||norm(razonFilter).includes(norm(String(r||''))); }
+
+  /* ── Recopilar razones disponibles en datos ── */
+  var razSet=new Set();
+  AJUSTES.forEach(function(a){if(a.tienda)razSet.add((a.tienda.split(' ')[0]||a.tienda).substring(0,3));});
+  MERMAS.forEach(function(m){if(m.tienda)razSet.add((m.tienda.split(' ')[0]||m.tienda).substring(0,3));});
+  ACTIVIDADES.forEach(function(a){if(a.asignado)razSet.add('ACT');});
+  /* Usar razones de sesión si existen */
+  var sesRazones=(_session&&_session.razones_permitidas);
+  if(typeof sesRazones==='string'){try{sesRazones=JSON.parse(sesRazones);}catch(e){sesRazones=null;}}
+  var razList=sesRazones&&sesRazones.length?sesRazones:['KNO','KSC','KSA'];
+
+  /* ── Agrupar por auditor ── */
   var byAuditor={};
-  /* Usar creado_por (registro automático de sesión) como fuente de verdad */
-  function getAud(a){return a.creadoPor||a.auditor||a.asignado||'Sin asignar';}
+  function ensure(k,razon){
+    var key=k+'||'+(razon||'');
+    if(!byAuditor[key])byAuditor[key]={
+      nombre:k, razon:razon||'—',
+      actTotal:0,actOk:0,actRepr:0,actPend:0,
+      ajTotal:0,ajOk:0,ajTard:0,
+      mrTotal:0,mrOk:0,mrTard:0
+    };
+    return byAuditor[key];
+  }
 
-  /* Actividades del mes */
-  ACTIVIDADES.filter(function(a){return !mesFilter||mesFilter==='ALL'||norm(a.mes||'')===norm(mesFilter);})
-    .forEach(function(a){
-      var k=getAud(a);
-      if(!byAuditor[k])byAuditor[k]={nombre:k,actTotal:0,actOk:0,actRepr:0,actPend:0,ajTotal:0,ajOk:0,mrTotal:0,mrOk:0};
-      byAuditor[k].actTotal++;
-      var n=norm(a.estado||'');
-      if(n.includes('completad'))byAuditor[k].actOk++;
-      else if(n.includes('reprogramad'))byAuditor[k].actRepr++;
-      else byAuditor[k].actPend++;
-    });
+  /* Actividades — razón derivada de actividad.razon o primera palabra de asignado */
+  ACTIVIDADES.filter(function(a){return mMatch(a.mes);}).forEach(function(a){
+    var aud=a.creadoPor||a.asignado||'';
+    if(!aud)return;
+    var razon=a.razon||'ACT';
+    if(!rMatch(razon))return;
+    var d=ensure(aud,razon);
+    d.actTotal++;
+    var n=norm(a.estado||'');
+    if(n.includes('completad'))d.actOk++;
+    else if(n.includes('reprogramad'))d.actRepr++;
+    else d.actPend++;
+  });
 
-  /* Ajustes del mes */
-  AJUSTES.filter(function(a){return !mesFilter||mesFilter==='ALL'||norm(a.mes||'')===norm(mesFilter);})
-    .forEach(function(a){
-      var k=a.auditor||'Sin asignar';
-      if(!byAuditor[k])byAuditor[k]={nombre:k,actTotal:0,actOk:0,actRepr:0,actPend:0,ajTotal:0,ajOk:0,mrTotal:0,mrOk:0};
-      byAuditor[k].ajTotal++;
-      if(a.condicion==='A tiempo')byAuditor[k].ajOk++;
-    });
+  /* Ajustes — tienda como razon aproximada */
+  AJUSTES.filter(function(a){return mMatch(a.mes);}).forEach(function(a){
+    var aud=a.auditor||'';
+    if(!aud)return;
+    /* Buscar qué razón corresponde a esta tienda */
+    var razon='—';
+    razList.forEach(function(r){if(norm(a.tienda||'').includes(norm(r)))razon=r;});
+    if(razon==='—')razon=a.tienda?a.tienda.substring(0,3):'—';
+    if(!rMatch(razon)&&razonFilter!=='ALL')return;
+    var d=ensure(aud,razon);
+    d.ajTotal++;
+    if(a.condicion==='A tiempo')d.ajOk++;else d.ajTard++;
+  });
 
-  /* Mermas del mes */
-  MERMAS.filter(function(m){return !mesFilter||mesFilter==='ALL'||norm(m.mes||'')===norm(mesFilter);})
-    .forEach(function(m){
-      var k=m.auditor||'Sin asignar';
-      if(!byAuditor[k])byAuditor[k]={nombre:k,actTotal:0,actOk:0,actRepr:0,actPend:0,ajTotal:0,ajOk:0,mrTotal:0,mrOk:0};
-      byAuditor[k].mrTotal++;
-      if(m.condicion==='A tiempo')byAuditor[k].mrOk++;
-    });
+  /* Mermas */
+  MERMAS.filter(function(m){return mMatch(m.mes);}).forEach(function(m){
+    var aud=m.auditor||'';
+    if(!aud)return;
+    var razon='—';
+    razList.forEach(function(r){if(norm(m.tienda||'').includes(norm(r)))razon=r;});
+    if(razon==='—')razon=m.tienda?m.tienda.substring(0,3):'—';
+    if(!rMatch(razon)&&razonFilter!=='ALL')return;
+    var d=ensure(aud,razon);
+    d.mrTotal++;
+    if(m.condicion==='A tiempo')d.mrOk++;else d.mrTard++;
+  });
 
-  var auditores=Object.values(byAuditor).filter(function(a){return a.nombre!=='Sin asignar';});
-  if(!auditores.length)auditores=Object.values(byAuditor);
+  var entries=Object.values(byAuditor).filter(function(d){return d.nombre&&d.nombre!=='Sin asignar';})
+    .sort(function(a,b){return a.nombre.localeCompare(b.nombre)||a.razon.localeCompare(b.razon);});
 
   var colores=['#2563eb','#0d9488','#16a34a','#ea580c','#7c3aed','#dc2626'];
+  var audNombres=[...new Set(entries.map(function(e){return e.nombre;}))];
 
   function pct(ok,tot){return tot>0?Math.round(ok/tot*100):0;}
-  function pill(ok,tot,label){
-    var p=pct(ok,tot);
-    var col=p>=80?'#16a34a':p>=50?'#d97706':'#dc2626';
-    return '<div style="text-align:center;min-width:70px">'+
-      '<div style="font-size:20px;font-weight:800;color:'+col+'">'+p+'%</div>'+
-      '<div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase">'+label+'</div>'+
-      '<div style="font-size:11px;color:var(--text)">'+ok+' / '+tot+'</div>'+
-    '</div>';
+  function bar(p,col){
+    return '<div style="background:var(--rowline);border-radius:4px;height:7px;overflow:hidden;margin-top:5px">'+
+      '<div style="width:'+Math.min(p,100)+'%;background:'+col+';height:100%;border-radius:4px;transition:width .4s"></div></div>';
   }
+  function colPct(p){return p>=80?'#16a34a':p>=50?'#d97706':'#dc2626';}
 
-  function barPct(p,col){
-    return '<div style="background:var(--rowline);border-radius:4px;height:8px;overflow:hidden;margin-top:6px">'+
-      '<div style="width:'+p+'%;background:'+col+';height:100%;border-radius:4px"></div></div>';
-  }
+  /* Una sección por auditor, con sub-tarjetas por razón */
+  var html='';
+  audNombres.forEach(function(nombre,ai){
+    var col=colores[ai%colores.length];
+    var misRazones=entries.filter(function(e){return e.nombre===nombre;});
 
-  var cards=auditores.map(function(d,i){
-    var col=colores[i%colores.length];
-    var pctAct=pct(d.actOk,d.actTotal);
-    var pctAj=pct(d.ajOk,d.ajTotal);
-    var pctMr=pct(d.mrOk,d.mrTotal);
-    var pctGlobal=pct(d.actOk+d.ajOk+d.mrOk, d.actTotal+d.ajTotal+d.mrTotal);
-    var colG=pctGlobal>=80?'#16a34a':pctGlobal>=50?'#d97706':'#dc2626';
+    /* Totales globales del auditor */
+    var totAj=0,totAjOk=0,totMr=0,totMrOk=0,totAct=0,totActOk=0;
+    misRazones.forEach(function(d){
+      totAj+=d.ajTotal;totAjOk+=d.ajOk;
+      totMr+=d.mrTotal;totMrOk+=d.mrOk;
+      totAct+=d.actTotal;totActOk+=d.actOk;
+    });
+    var totAll=totAj+totMr+totAct;
+    var totOk=totAjOk+totMrOk+totActOk;
+    var pGlobal=pct(totOk,totAll);
+    var colG=colPct(pGlobal);
 
-    return '<div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:14px">'+
-      /* Header auditor */
-      '<div style="display:flex;align-items:center;gap:12px">'+
-        '<div style="width:40px;height:40px;border-radius:50%;background:'+col+';display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;flex-shrink:0">'+
-          d.nombre.charAt(0).toUpperCase()+
+    html+='<div class="card" style="padding:0;overflow:hidden">'+
+      /* Header del auditor */
+      '<div style="background:'+col+';padding:14px 18px;display:flex;align-items:center;gap:12px">'+
+        '<div style="width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:900;color:#fff;flex-shrink:0">'+
+          nombre.charAt(0).toUpperCase()+
         '</div>'+
         '<div style="flex:1;min-width:0">'+
-          '<div style="font-size:14px;font-weight:800;color:var(--nav);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+d.nombre+'</div>'+
-          '<div style="font-size:11px;color:var(--muted);font-weight:600">'+mesFilter+' · Auditor</div>'+
+          '<div style="font-size:15px;font-weight:800;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+nombre+'</div>'+
+          '<div style="font-size:11px;color:rgba(255,255,255,.75);font-weight:600">'+
+            (mesFilter==='ALL'?'Todos los meses':mesFilter)+
+            (misRazones.length>1?' · '+misRazones.length+' razones':'')+
+          '</div>'+
         '</div>'+
-        '<div style="text-align:center">'+
-          '<div style="font-size:24px;font-weight:900;color:'+colG+'">'+pctGlobal+'%</div>'+
-          '<div style="font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase">Global</div>'+
+        /* KPI global */
+        '<div style="text-align:center;background:rgba(255,255,255,.15);border-radius:10px;padding:8px 14px;flex-shrink:0">'+
+          '<div style="font-size:26px;font-weight:900;color:#fff">'+pGlobal+'%</div>'+
+          '<div style="font-size:9px;color:rgba(255,255,255,.8);font-weight:700;text-transform:uppercase">Global</div>'+
+          '<div style="font-size:10px;color:rgba(255,255,255,.7)">'+totOk+' / '+totAll+'</div>'+
         '</div>'+
       '</div>'+
-      /* KPIs */
-      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">'+
-        /* Actividades */
-        '<div style="background:var(--soft);border-radius:10px;padding:12px;border-left:3px solid #2563eb">'+
-          '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">📋 Actividades</div>'+
-          '<div style="font-size:22px;font-weight:900;color:#2563eb">'+d.actTotal+'</div>'+
-          '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">'+
-            '<span style="font-size:10px;background:#dcfce7;color:#15803d;padding:2px 7px;border-radius:12px;font-weight:700">✓ '+d.actOk+' complet.</span>'+
-            (d.actRepr?'<span style="font-size:10px;background:#dbeafe;color:#1d4ed8;padding:2px 7px;border-radius:12px;font-weight:700">↺ '+d.actRepr+' reprog.</span>':'')+
-            (d.actPend?'<span style="font-size:10px;background:#fee2e2;color:#b91c1c;padding:2px 7px;border-radius:12px;font-weight:700">⏳ '+d.actPend+' pend.</span>':'')+
+      /* Sub-tarjetas por razón */
+      '<div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px">'+
+      misRazones.map(function(d){
+        var pAj=pct(d.ajOk,d.ajTotal);
+        var pMr=pct(d.mrOk,d.mrTotal);
+        var pAct=pct(d.actOk,d.actTotal);
+        return '<div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px">'+
+          '<div style="font-size:11px;font-weight:800;color:'+col+';text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">'+
+            '🏢 '+d.razon+
           '</div>'+
-          barPct(pctAct,'#2563eb')+
-          '<div style="font-size:10px;color:var(--muted);margin-top:3px;font-weight:600">'+pctAct+'% completadas</div>'+
-        '</div>'+
-        /* Ajustes */
-        '<div style="background:var(--soft);border-radius:10px;padding:12px;border-left:3px solid #0d9488">'+
-          '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">⚖️ Ajustes</div>'+
-          '<div style="font-size:22px;font-weight:900;color:#0d9488">'+d.ajTotal+'</div>'+
-          '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">'+
-            '<span style="font-size:10px;background:#ccfbf1;color:#0f766e;padding:2px 7px;border-radius:12px;font-weight:700">✓ '+d.ajOk+' a tiempo</span>'+
-            (d.ajTotal-d.ajOk>0?'<span style="font-size:10px;background:#fee2e2;color:#b91c1c;padding:2px 7px;border-radius:12px;font-weight:700">✗ '+(d.ajTotal-d.ajOk)+' tard.</span>':'')+
+          '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">'+
+            /* Ajustes */
+            (d.ajTotal>0?'<div style="background:var(--soft);border-radius:8px;padding:10px;border-top:3px solid #0d9488">'+
+              '<div style="font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">⚖️ Ajustes</div>'+
+              '<div style="font-size:20px;font-weight:900;color:#0d9488">'+d.ajTotal+'</div>'+
+              '<div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap">'+
+                '<span style="font-size:9.5px;background:#ccfbf1;color:#0f766e;padding:1px 6px;border-radius:10px;font-weight:700">✓ '+d.ajOk+'</span>'+
+                (d.ajTard?'<span style="font-size:9.5px;background:#fee2e2;color:#b91c1c;padding:1px 6px;border-radius:10px;font-weight:700">✗ '+d.ajTard+'</span>':'')+
+              '</div>'+
+              bar(pAj,'#0d9488')+
+              '<div style="font-size:9px;color:var(--muted);margin-top:3px;font-weight:600">'+pAj+'% a tiempo</div>'+
+            '</div>':'<div style="background:var(--rowline);border-radius:8px;padding:10px;opacity:.4;display:flex;align-items:center;justify-content:center"><span style="font-size:9px;color:var(--muted)">Sin ajustes</span></div>')+
+            /* Mermas */
+            (d.mrTotal>0?'<div style="background:var(--soft);border-radius:8px;padding:10px;border-top:3px solid #7c3aed">'+
+              '<div style="font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">🗂️ Mermas</div>'+
+              '<div style="font-size:20px;font-weight:900;color:#7c3aed">'+d.mrTotal+'</div>'+
+              '<div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap">'+
+                '<span style="font-size:9.5px;background:#ede9fe;color:#6d28d9;padding:1px 6px;border-radius:10px;font-weight:700">✓ '+d.mrOk+'</span>'+
+                (d.mrTard?'<span style="font-size:9.5px;background:#fee2e2;color:#b91c1c;padding:1px 6px;border-radius:10px;font-weight:700">✗ '+d.mrTard+'</span>':'')+
+              '</div>'+
+              bar(pMr,'#7c3aed')+
+              '<div style="font-size:9px;color:var(--muted);margin-top:3px;font-weight:600">'+pMr+'% a tiempo</div>'+
+            '</div>':'<div style="background:var(--rowline);border-radius:8px;padding:10px;opacity:.4;display:flex;align-items:center;justify-content:center"><span style="font-size:9px;color:var(--muted)">Sin mermas</span></div>')+
+            /* Actividades */
+            (d.actTotal>0?'<div style="background:var(--soft);border-radius:8px;padding:10px;border-top:3px solid #2563eb">'+
+              '<div style="font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">📋 Actividades</div>'+
+              '<div style="font-size:20px;font-weight:900;color:#2563eb">'+d.actTotal+'</div>'+
+              '<div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap">'+
+                '<span style="font-size:9.5px;background:#dcfce7;color:#15803d;padding:1px 6px;border-radius:10px;font-weight:700">✓ '+d.actOk+'</span>'+
+                (d.actRepr?'<span style="font-size:9.5px;background:#dbeafe;color:#1d4ed8;padding:1px 6px;border-radius:10px;font-weight:700">↺ '+d.actRepr+'</span>':'')+
+                (d.actPend?'<span style="font-size:9.5px;background:#fee2e2;color:#b91c1c;padding:1px 6px;border-radius:10px;font-weight:700">⏳ '+d.actPend+'</span>':'')+
+              '</div>'+
+              bar(pAct,'#2563eb')+
+              '<div style="font-size:9px;color:var(--muted);margin-top:3px;font-weight:600">'+pAct+'% completadas</div>'+
+            '</div>':'<div style="background:var(--rowline);border-radius:8px;padding:10px;opacity:.4;display:flex;align-items:center;justify-content:center"><span style="font-size:9px;color:var(--muted)">Sin actividades</span></div>')+
           '</div>'+
-          barPct(pctAj,'#0d9488')+
-          '<div style="font-size:10px;color:var(--muted);margin-top:3px;font-weight:600">'+pctAj+'% efectividad</div>'+
-        '</div>'+
-        /* Mermas */
-        '<div style="background:var(--soft);border-radius:10px;padding:12px;border-left:3px solid #7c3aed">'+
-          '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">🗂️ Mermas</div>'+
-          '<div style="font-size:22px;font-weight:900;color:#7c3aed">'+d.mrTotal+'</div>'+
-          '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">'+
-            '<span style="font-size:10px;background:#ede9fe;color:#6d28d9;padding:2px 7px;border-radius:12px;font-weight:700">✓ '+d.mrOk+' a tiempo</span>'+
-            (d.mrTotal-d.mrOk>0?'<span style="font-size:10px;background:#fee2e2;color:#b91c1c;padding:2px 7px;border-radius:12px;font-weight:700">✗ '+(d.mrTotal-d.mrOk)+' tard.</span>':'')+
-          '</div>'+
-          barPct(pctMr,'#7c3aed')+
-          '<div style="font-size:10px;color:var(--muted);margin-top:3px;font-weight:600">'+pctMr+'% efectividad</div>'+
-        '</div>'+
+        '</div>';
+      }).join('')+
       '</div>'+
     '</div>';
-  }).join('');
+  });
+
+  /* Armar razones para el filtro */
+  var todasRazones=new Set();
+  Object.values(byAuditor).forEach(function(d){if(d.razon&&d.razon!=='—')todasRazones.add(d.razon);});
 
   el.innerHTML='<div style="display:flex;flex-direction:column;gap:14px">'+
-    /* Filtro mes */
     '<div class="card" style="padding:14px 18px">'+
-      '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">'+
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'+
         '<span style="font-size:13px;font-weight:700;color:var(--nav)">📊 Desempeño de Auditores</span>'+
-        '<div class="fg" style="min-width:160px;margin:0">'+
-          '<select id="desp-mes" onchange="renderDesempeno()" style="padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft)">'+
-            '<option value="ALL">Todos los meses</option>'+
-            ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map(function(m){return'<option'+(m===mesAct?' selected':'')+'>'+m+'</option>';}).join('')+
-          '</select>'+
-        '</div>'+
-        '<span style="font-size:11px;color:var(--muted);font-weight:600">'+auditores.length+' auditor(es)</span>'+
+        '<select id="desp-mes" onchange="renderDesempeno()" style="padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft)">'+
+          '<option value="ALL">Todos los meses</option>'+
+          MORD.map(function(m){return'<option'+(m===mesFilter?' selected':'')+'>'+m+'</option>';}).join('')+
+        '</select>'+
+        '<select id="desp-razon" onchange="renderDesempeno()" style="padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft)">'+
+          '<option value="ALL">Todas las razones</option>'+
+          [...todasRazones].sort().map(function(r){return'<option'+(r===razonFilter?' selected':'')+'>'+r+'</option>';}).join('')+
+        '</select>'+
+        '<span style="font-size:11px;color:var(--muted);font-weight:600">'+audNombres.length+' auditor(es) · '+entries.length+' registros</span>'+
       '</div>'+
     '</div>'+
-    /* Cards por auditor */
-    (cards||'<div class="card" style="padding:40px;text-align:center;color:var(--muted)">Sin datos de auditores para este mes.<br><small>Registra actividades con un auditor asignado, o ajustes/mermas con campo auditor.</small></div>')+
+    (html||'<div class="card" style="padding:40px;text-align:center;color:var(--muted)">'+
+      'Sin datos para este período.<br>'+
+      '<small>Los ajustes y mermas aparecen aquí cuando se guardan con sesión de auditor activa.</small>'+
+    '</div>')+
   '</div>';
 }
 
