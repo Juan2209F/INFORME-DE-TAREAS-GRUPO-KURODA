@@ -1314,13 +1314,7 @@ function getSbClient(){
    FILTROS
 ════════════════════════════════════════════════════════════════════ */
 function uniq(arr){return [...new Set(arr.filter(Boolean))].sort();}
-function fillFilters(){
-  const allT=STORE.tareas, allA=STORE.auditorias;
-  const razones=uniq([...allT.map(t=>t.razon),...allA.map(a=>a.razon)]);
-  const fr=document.getElementById('f-razon');
-  fr.innerHTML='<option value="ALL">Todas</option>'+razones.map(r=>`<option>${r}</option>`).join('');
-  fillCentroTienda();
-}
+function fillFilters(){patchedFillFilters();}
 function fillCentroTienda(){
   const razon=document.getElementById('f-razon').value;
   const filtA=STORE.tareas.filter(t=>razon==='ALL'||t.razon===razon);
@@ -2176,6 +2170,8 @@ function setView(v){
   if(vmr)vmr.style.display=v==='mermas'?'flex':'none';
   var vfin=document.getElementById('view-finalizadas');
   if(vfin)vfin.style.display=v==='finalizadas'?'flex':'none';
+  var vdesp=document.getElementById('view-desempeno');
+  if(vdesp)vdesp.style.display=v==='desempeno'?'block':'none';
   document.getElementById('nav-dash').classList.toggle('active',v==='dash');
   document.getElementById('nav-tareas').classList.toggle('active',v==='tareas');
   var na=document.getElementById('nav-actividades');
@@ -2188,6 +2184,8 @@ function setView(v){
   if(nmr)nmr.classList.toggle('active',v==='mermas');
   var nfin=document.getElementById('nav-finalizadas');
   if(nfin)nfin.classList.toggle('active',v==='finalizadas');
+  var ndesp=document.getElementById('nav-desempeno');
+  if(ndesp)ndesp.classList.toggle('active',v==='desempeno');
   if(v==='actividades'){ if(!ACTIVIDADES.length) loadActividades(); else{ fillActFilters(); renderActividades(); } }
   else if(v==='auditorias'){
     if(!STORE.auditorias.length) loadDataFromSupabase().then(renderAuditoriasView);
@@ -2196,6 +2194,7 @@ function setView(v){
   else if(v==='ajustes'){ if(!AJUSTES.length) loadAjustes(); else{ fillAjFilters(); renderAjustes(); } }
   else if(v==='mermas'){ if(!MERMAS.length) loadMermas(); else{ fillMrFilters(); renderMermas(); } }
   else if(v==='finalizadas'){ if(!FINALIZADAS.length) loadFinalizadas(); else renderFinalizadas(); }
+  else if(v==='desempeno'){ renderDesempeno(); }
   else render();
 }
 
@@ -2686,7 +2685,8 @@ async function loadActividades(){
       durReal:a.dur_real, pctAdicional:a.pct_adicional,
       cumplFechaInicio:a.cumpl_fecha_inicio, variacionDias:a.variacion_dias,
       comentario:a.comentario||'', apoyos:a.apoyos||'',
-      programada:a.programada!==false, sb_updated:a.updated_at||null
+      programada:a.programada!==false, sb_updated:a.updated_at||null,
+      creadoPor:a.creado_por||''
     };});
     fillActFilters();
     renderActividades();
@@ -2847,6 +2847,7 @@ async function saveActividad(id,isNew){
     estado:document.getElementById('a-estado').value||null,
     categoria:document.getElementById('a-categoria').value||null,
     asignado:document.getElementById('a-asignado').value.trim()||null,
+    creado_por:(_session&&(_session.nombre||_session.username))||null,
     est_inicio:dv('a-estinicio'), est_fin:dv('a-estfin'), dur_estimada:nv('a-durest'),
     real_inicio:dv('a-realinicio'), real_fin:dv('a-realfin'), dur_real:nv('a-durreal'),
     comentario:document.getElementById('a-comentario').value.trim()||null,
@@ -3636,7 +3637,7 @@ async function decArr(arr,fields){
 var FIELDS={
   tareas:['tienda','area_resp','area_rev','actividad','nombre','tipo_tarea','estado','razon','centro'],
   auditorias:['tienda','razon','centro','clase','mes'],
-  actividades:['actividad','estado','categoria','asignado','comentario','apoyos','mes'],
+  actividades:['actividad','estado','categoria','asignado','comentario','apoyos','mes','creado_por'],
   ajustes:['tienda','mes','condicion','auditor'],
   mermas:['tienda','local_foranea','mes','condicion','auditor'],
   tareas_finalizadas:['tienda','clase','mes'],
@@ -3647,19 +3648,17 @@ var FIELDS={
 /* ════════════════════════════════════════════════════════════════════
    MÓDULO DESEMPEÑO DE AUDITORES
 ════════════════════════════════════════════════════════════════════ */
+/* Lista de auditores conocidos (cargada al listar usuarios) */
+var _AUDITORES_CONOCIDOS=[];
+
 function getAuditores(){
-  /* Obtener lista de auditores: desde usuarios cargados o desde datos existentes */
-  var fromAct=ACTIVIDADES.map(function(a){return a.asignado||'';}).filter(Boolean);
+  /* Prioridad: lista de usuarios marcados como es_auditor */
+  if(_AUDITORES_CONOCIDOS.length)return _AUDITORES_CONOCIDOS;
+  /* Fallback: inferir desde datos existentes */
+  var fromAct=ACTIVIDADES.map(function(a){return a.creadoPor||'';}).filter(Boolean);
   var fromAj=AJUSTES.map(function(a){return a.auditor||'';}).filter(Boolean);
   var fromMr=MERMAS.map(function(m){return m.auditor||'';}).filter(Boolean);
-  var all=[...new Set([...fromAct,...fromAj,...fromMr])].filter(Boolean).sort();
-  /* Si el usuario actual es auditor, incluirlo */
-  if(_session&&['auditor','admin_auditor'].includes(_session.rol)){
-    var me=_session.nombre||_session.username;
-    if(me&&!all.includes(me))all.unshift(me);
-  }
-  if(!all.length)all=['Sin auditores registrados'];
-  return all;
+  return [...new Set([...fromAct,...fromAj,...fromMr])].filter(Boolean).sort();
 }
 
 function renderDesempeno(){
@@ -3672,7 +3671,8 @@ function renderDesempeno(){
 
   /* Agrupar datos por auditor */
   var byAuditor={};
-  function getAud(a){return a.asignado||a.auditor||'Sin asignar';}
+  /* Usar creado_por (registro automático de sesión) como fuente de verdad */
+  function getAud(a){return a.creadoPor||a.auditor||a.asignado||'Sin asignar';}
 
   /* Actividades del mes */
   ACTIVIDADES.filter(function(a){return !mesFilter||mesFilter==='ALL'||norm(a.mes||'')===norm(mesFilter);})
@@ -3890,10 +3890,53 @@ function onLoginSuccess(){
   const el=document.getElementById('topbar-user');
   if(el&&_session) el.textContent=_session.nombre||_session.username;
   checkAdminUI();
-  /* Siempre cargar desde Supabase — nunca localStorage */
+  /* Aplicar restricción de razones si el usuario tiene razones_permitidas */
+  applyRazonRestriction();
   if(!_sb)_sb=initSupabase();
   if(_sb) loadDataFromSupabase();
   else { STORE={auditorias:[],tareas:[]}; refreshAll(); setPill('offline'); toast('⚠ Sin conexión a Supabase'); }
+}
+
+function applyRazonRestriction(){
+  var fr=document.getElementById('f-razon');
+  if(!fr||!_session)return;
+  var razones=_session.razones_permitidas;
+  /* Parsear si viene como string JSON */
+  if(typeof razones==='string'){try{razones=JSON.parse(razones);}catch(e){razones=null;}}
+  if(!razones||!razones.length)return; /* Sin restricción — ve todo */
+  /* Ocultar el selector de razón y fijar la primera permitida si solo hay una */
+  if(razones.length===1){
+    fr.value=razones[0];
+    fr.disabled=true;
+    fr.title='Tu cuenta solo tiene acceso a '+razones[0];
+  } else {
+    /* Múltiples razones: filtrar las opciones disponibles */
+    fr.disabled=false;
+    /* Se aplica después de fillFilters — ver patchFillFilters */
+  }
+}
+
+function patchedFillFilters(){
+  var allT=STORE.tareas, allA=STORE.auditorias;
+  /* Si el usuario tiene razones restringidas, filtrar los datos antes de mostrar */
+  var razones=_session&&_session.razones_permitidas;
+  if(typeof razones==='string'){try{razones=JSON.parse(razones);}catch(e){razones=null;}}
+  if(razones&&razones.length){
+    allT=allT.filter(function(t){return razones.some(function(r){return norm(t.razon||'').includes(norm(r));});});
+    allA=allA.filter(function(a){return razones.some(function(r){return norm(a.razon||'').includes(norm(r));});});
+  }
+  var razonesList=uniq([...allT.map(function(t){return t.razon;}),...allA.map(function(a){return a.razon;})]);
+  var fr=document.getElementById('f-razon');
+  if(!fr)return;
+  /* Si solo una razón permitida, fijarla y deshabilitar */
+  if(razones&&razones.length===1){
+    fr.innerHTML='<option value="'+razones[0]+'">'+razones[0]+'</option>';
+    fr.disabled=true;
+  } else {
+    fr.disabled=false;
+    fr.innerHTML='<option value="ALL">Todas</option>'+razonesList.map(function(r){return'<option>'+r+'</option>';}).join('');
+  }
+  fillCentroTienda();
 }
 
 function doLogout(){
@@ -4043,22 +4086,47 @@ async function loadUsuarios(){
     const {data,error}=await _sb.rpc('listar_usuarios');
     if(error)throw error;
     if(!data||!data.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted)">Sin usuarios</td></tr>';return;}
+    /* Actualizar lista de auditores medibles */
+    _AUDITORES_CONOCIDOS=data.filter(function(u){return u.es_auditor&&u.activo;}).map(function(u){return u.nombre||u.username;});
     tbody.innerHTML=data.map(function(u){
       var rolClass='rol-'+u.rol;
+      var razones=u.razones_permitidas;
+      if(typeof razones==='string'){try{razones=JSON.parse(razones);}catch(e){razones=null;}}
+      var canEdit=_session&&['admin','admin_auditor'].includes(_session.rol);
+      var razonesLabel=razones&&razones.length?razones.join(', '):'Todas';
+      var esAuditorLabel=u.es_auditor?'<span style="color:var(--green);font-weight:700">✓</span>':'<span style="color:var(--muted)">—</span>';
+      /* serializar datos del usuario para pasar al modal edición */
+      var uData=encodeURIComponent(JSON.stringify({id:u.id,username:u.username,nombre:u.nombre||'',rol:u.rol,es_auditor:!!u.es_auditor,razones_permitidas:razones||[]}));
       return '<tr>'+
         '<td style="font-weight:700;font-family:monospace">'+u.username+'</td>'+
         '<td>'+(u.nombre||'—')+'</td>'+
         '<td><span class="rol-badge '+rolClass+'">'+u.rol+'</span></td>'+
+        '<td style="font-size:11px;color:var(--muted);font-weight:600">'+razonesLabel+'</td>'+
+        '<td style="text-align:center">'+esAuditorLabel+'</td>'+
         '<td><span style="color:'+(u.activo?'var(--green)':'var(--red)')+'">'+
           (u.activo?'✓ Activo':'✕ Inactivo')+'</span></td>'+
-        '<td style="display:flex;gap:6px">'+
+        '<td style="display:flex;gap:6px;flex-wrap:wrap">'+
+          (canEdit?'<button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;color:var(--blue)" onclick="openEditUsuario(\''+uData+'\')">Editar</button>':'')+
           '<button class="btn btn-ghost" style="padding:4px 8px;font-size:11px" onclick="toggleActivo(\''+u.id+'\','+(!u.activo)+')">'+
             (u.activo?'Desactivar':'Activar')+'</button>'+
-          (u.username!=='ADMIN'?'<button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;color:var(--red)" onclick="eliminarUsuario(\''+u.id+'\',\''+u.username+'\')">Eliminar</button>':'')+
+          (u.username!=='ADMIN'&&canEdit?'<button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;color:var(--red)" onclick="eliminarUsuario(\''+u.id+'\',\''+u.username+'\')">Eliminar</button>':'')+
         '</td></tr>';
     }).join('');
   }catch(e){
     tbody.innerHTML='<tr><td colspan="5" style="color:var(--red);text-align:center">Error: '+e.message+'</td></tr>';
+  }
+}
+
+function onRolChange(){
+  /* Mostrar/ocultar opciones de auditor según el rol */
+  var rol=document.getElementById('nu-rol').value;
+  var opts=document.getElementById('nu-auditor-opts');
+  if(opts)opts.style.display=['auditor','admin_auditor','viewer','editor'].includes(rol)?'flex':'none';
+}
+function onRazonAllChange(cb){
+  /* Si marca "Todas", desmarcar el resto */
+  if(cb.checked){
+    document.querySelectorAll('.nu-razon-cb').forEach(function(el){el.checked=false;});
   }
 }
 
@@ -4067,6 +4135,10 @@ async function crearUsuario(){
   var pass=document.getElementById('nu-pass').value;
   var nombre=document.getElementById('nu-nombre').value.trim();
   var rol=document.getElementById('nu-rol').value;
+  var esAuditor=document.getElementById('nu-es-auditor').checked;
+  var razonAll=document.getElementById('nu-razon-all').checked;
+  var razonesSel=[...document.querySelectorAll('.nu-razon-cb:checked')].map(function(el){return el.value;});
+  var razonesPermitidas=razonAll||!razonesSel.length?null:razonesSel;
   var errEl=document.getElementById('usr-err');
   errEl.textContent='';
   if(!user||!pass){errEl.textContent='Usuario y contraseña requeridos';return;}
@@ -4075,12 +4147,17 @@ async function crearUsuario(){
   try{
     const {data,error}=await _sb.rpc('crear_usuario',{
       p_username:user, p_password:pass, p_rol:rol,
-      p_nombre:nombre||null
+      p_nombre:nombre||null,
+      p_es_auditor:esAuditor,
+      p_razones_permitidas:razonesPermitidas?JSON.stringify(razonesPermitidas):null
     });
     if(error)throw error;
     document.getElementById('nu-user').value='';
     document.getElementById('nu-pass').value='';
     document.getElementById('nu-nombre').value='';
+    document.getElementById('nu-es-auditor').checked=false;
+    document.getElementById('nu-razon-all').checked=false;
+    document.querySelectorAll('.nu-razon-cb').forEach(function(el){el.checked=false;});
     toast('✓ Usuario '+user+' creado');
     loadUsuarios();
   }catch(e){
@@ -4095,6 +4172,59 @@ async function toggleActivo(id, nuevoEstado){
     loadUsuarios();
     toast('✓ Usuario '+(nuevoEstado?'activado':'desactivado'));
   }catch(e){toast('Error: '+e.message);}
+}
+
+function openEditUsuario(uDataEnc){
+  if(!_session||!['admin','admin_auditor'].includes(_session.rol)){toast('⚠ Sin permisos');return;}
+  var u=JSON.parse(decodeURIComponent(uDataEnc));
+  var ROLES=['auditor','admin_auditor','viewer','editor','admin'];
+  var RAZONES_OPT=['KNO','KSC','KSA'];
+  document.getElementById('eu-overlay').classList.add('show');
+  document.getElementById('eu-titulo').textContent='Editar — '+u.username;
+  document.getElementById('eu-id').value=u.id;
+  document.getElementById('eu-nombre').value=u.nombre||'';
+  var rolSel=document.getElementById('eu-rol');
+  rolSel.innerHTML=ROLES.map(function(r){return'<option value="'+r+'"'+(r===u.rol?' selected':'')+'>'+r+'</option>';}).join('');
+  document.getElementById('eu-es-auditor').checked=!!u.es_auditor;
+  var raz=u.razones_permitidas||[];
+  document.querySelectorAll('.eu-razon-cb').forEach(function(cb){cb.checked=raz.includes(cb.value);});
+  document.getElementById('eu-razon-all').checked=!raz.length;
+  document.getElementById('eu-pass').value='';
+  document.getElementById('eu-err').textContent='';
+}
+function closeEditUsuario(){
+  document.getElementById('eu-overlay').classList.remove('show');
+}
+function onEuRazonAllChange(cb){
+  if(cb.checked)document.querySelectorAll('.eu-razon-cb').forEach(function(el){el.checked=false;});
+}
+
+async function guardarEditUsuario(){
+  var id=document.getElementById('eu-id').value;
+  var nombre=document.getElementById('eu-nombre').value.trim();
+  var rol=document.getElementById('eu-rol').value;
+  var esAuditor=document.getElementById('eu-es-auditor').checked;
+  var razonAll=document.getElementById('eu-razon-all').checked;
+  var razonesSel=[...document.querySelectorAll('.eu-razon-cb:checked')].map(function(el){return el.value;});
+  var razonesPermitidas=razonAll||!razonesSel.length?null:razonesSel;
+  var newPass=document.getElementById('eu-pass').value;
+  var errEl=document.getElementById('eu-err');
+  errEl.textContent='';
+  if(!_sb){errEl.textContent='Sin conexión a Supabase';return;}
+  try{
+    var {error}=await _sb.rpc('actualizar_usuario',{
+      p_id:id,
+      p_nombre:nombre||null,
+      p_rol:rol,
+      p_es_auditor:esAuditor,
+      p_razones_permitidas:razonesPermitidas?JSON.stringify(razonesPermitidas):null,
+      p_password:newPass||null
+    });
+    if(error)throw error;
+    closeEditUsuario();
+    toast('✓ Usuario actualizado');
+    loadUsuarios();
+  }catch(e){errEl.textContent='Error: '+e.message;}
 }
 
 async function eliminarUsuario(id, username){
@@ -4618,10 +4748,7 @@ function openNuevoAjuste(){
     'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   var tiendas=uniq(STORE.tareas.map(function(t){return t.tienda;})
     .concat(STORE.auditorias.map(function(a){return a.tienda;})));
-  var auditores=getAuditores();
   var html='<div class="form-grid">'+
-    '<div class="form-field"><label>Auditor *</label>'+
-      '<select id="naj-auditor"><option value="">— Selecciona —</option>'+auditores.map(function(a){return'<option value="'+esc(a)+'"'+(a===(_session.nombre||_session.username)?' selected':'')+'>'+esc(a)+'</option>';}).join('')+'</select></div>'+
     '<div class="form-field"><label>Tienda *</label>'+
       '<input id="naj-tienda" list="naj-tienda-list" placeholder="Nombre de tienda">'+
       '<datalist id="naj-tienda-list">'+tiendas.map(function(t){return'<option value="'+esc(t)+'">';}).join('')+'</datalist></div>'+
@@ -4652,7 +4779,7 @@ function najautoCalc(){
 
 async function guardarNuevoAjuste(){
   var errEl=document.getElementById('naj-err');errEl.textContent='';
-  var auditor=(document.getElementById('naj-auditor').value||'').trim();
+  var auditor=(_session&&(_session.nombre||_session.username))||'Desconocido';
   var tienda=document.getElementById('naj-tienda').value.trim().toUpperCase();
   var mes=document.getElementById('naj-mes').value;
   var correo=document.getElementById('naj-correo').value;
@@ -4977,10 +5104,7 @@ function mrFormHtml(m){
     'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   var tiendas=uniq(STORE.tareas.map(function(t){return t.tienda;})
     .concat(STORE.auditorias.map(function(a){return a.tienda;})));
-  var auditores2=getAuditores();
   return '<div class="form-grid">'+
-    '<div class="form-field"><label>Auditor</label>'+
-      '<select id="mrf-auditor"><option value="">— Selecciona —</option>'+auditores2.map(function(au){return'<option value="'+esc(au)+'"'+(au===(m.auditor||'')?' selected':'')+'>'+esc(au)+'</option>';}).join('')+'</select></div>'+
     '<div class="form-field"><label>Tienda *</label>'+
       '<input id="mrf-tienda" list="mrf-tienda-list" value="'+esc(m.tienda||'')+'" placeholder="Nombre de tienda">'+
       '<datalist id="mrf-tienda-list">'+tiendas.map(function(t){return'<option value="'+esc(t)+'">';}).join('')+'</datalist></div>'+
@@ -5020,7 +5144,7 @@ function openNuevaMerma(){
 
 async function guardarNuevaMerma(){
   var errEl=document.getElementById('mrf-err');errEl.textContent='';
-  var auditorMr=(document.getElementById('mrf-auditor').value||'').trim();
+  var auditorMr=(_session&&(_session.nombre||_session.username))||'Desconocido';
   var tienda=document.getElementById('mrf-tienda').value.trim().toUpperCase();
   var lf=document.getElementById('mrf-lf').value;
   var mes=document.getElementById('mrf-mes').value;
@@ -5066,7 +5190,8 @@ async function saveEditMerma(id){
   var dias=diasEntre(aut,val);
   var año=parseInt((aut||'').split('-')[0])||null;
   var _mrUpdRaw={tienda,local_foranea:lf,mes,año,fecha_autorizacion:aut,
-    fecha_validacion:val,dias,condicion:condicionAjuste(dias)};
+    fecha_validacion:val,dias,condicion:condicionAjuste(dias),
+    auditor:(_session&&(_session.nombre||_session.username))||'Desconocido'};
   var row=await encObj(_mrUpdRaw,FIELDS.mermas);
   var client=getSbClient();if(!client)return;
   closeModal();
@@ -5587,7 +5712,7 @@ async function deleteFinalizada(id){
       <div class="table-wrap" style="margin-bottom:16px">
         <table class="usr-table" id="usr-table-body">
           <thead><tr>
-            <th>Usuario</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Acciones</th>
+            <th>Usuario</th><th>Nombre</th><th>Rol</th><th>Razones</th><th>Auditor</th><th>Estado</th><th>Acciones</th>
           </tr></thead>
           <tbody id="usr-tbody"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Cargando...</td></tr></tbody>
         </table>
@@ -5600,13 +5725,41 @@ async function deleteFinalizada(id){
           <div class="fg"><label>Contraseña</label><input type="password" id="nu-pass" placeholder="••••••••"></div>
           <div class="fg"><label>Nombre completo</label><input type="text" id="nu-nombre" placeholder="Nombre visible"></div>
           <div class="fg"><label>Rol / Permisos</label>
-            <select id="nu-rol">
-              <option value="auditor">Auditor — Registro de actividades/ajustes/mermas</option>
-              <option value="admin_auditor">Admin Auditor — Auditor con gestión de usuarios auditores</option>
+            <select id="nu-rol" onchange="onRolChange()">
+              <option value="auditor">Auditor — Registro actividades/ajustes/mermas</option>
+              <option value="admin_auditor">Admin Auditor — Auditor + gestión</option>
               <option value="viewer">Viewer — Solo lectura</option>
               <option value="editor">Editor — Puede cargar Excel</option>
               <option value="admin">Admin — Acceso total</option>
             </select>
+          </div>
+        </div>
+        <!-- Opciones adicionales para auditores -->
+        <div id="nu-auditor-opts" style="background:var(--soft);border-radius:var(--radius-sm);border:1px solid var(--border);padding:12px 14px;margin-bottom:10px;display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600">
+              <input type="checkbox" id="nu-es-auditor" style="width:16px;height:16px;cursor:pointer">
+              Incluir en medición de desempeño
+            </label>
+            <span style="font-size:11px;color:var(--muted)">(aparece en módulo Desempeño)</span>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Razones sociales visibles</div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:700;color:var(--blue)">
+                <input type="checkbox" class="nu-razon-cb" value="KNO" style="width:15px;height:15px;cursor:pointer"> KNO
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:700;color:var(--teal)">
+                <input type="checkbox" class="nu-razon-cb" value="KSC" style="width:15px;height:15px;cursor:pointer"> KSC
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:700;color:var(--green)">
+                <input type="checkbox" class="nu-razon-cb" value="KSA" style="width:15px;height:15px;cursor:pointer"> KSA
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--muted)">
+                <input type="checkbox" id="nu-razon-all" style="width:15px;height:15px;cursor:pointer" onchange="onRazonAllChange(this)"> Todas
+              </label>
+            </div>
+            <div style="font-size:10px;color:var(--muted);margin-top:6px">Sin selección = acceso a todas las razones</div>
           </div>
         </div>
         <button class="btn btn-blue" style="width:100%" onclick="crearUsuario()">✓ Crear usuario</button>
@@ -5618,8 +5771,58 @@ async function deleteFinalizada(id){
     </div>
   </div>
 </div>
+<!-- ═══════════ MODAL EDITAR USUARIO ═══════════ -->
+<div class="usr-overlay" id="eu-overlay" onclick="if(event.target===this)closeEditUsuario()">
+  <div class="kpi-cfg-modal" style="max-width:480px;width:95vw">
+    <div class="kpi-cfg-hdr">
+      <span style="font-size:18px">✏️</span>
+      <h3 id="eu-titulo">Editar usuario</h3>
+      <button class="btn btn-ghost" style="padding:5px 10px;font-size:12px" onclick="closeEditUsuario()">✕</button>
+    </div>
+    <div class="kpi-cfg-body" style="padding:16px 20px;display:flex;flex-direction:column;gap:12px">
+      <input type="hidden" id="eu-id">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="fg"><label>Nombre completo</label>
+          <input type="text" id="eu-nombre" placeholder="Nombre visible">
+        </div>
+        <div class="fg"><label>Rol</label>
+          <select id="eu-rol"></select>
+        </div>
+        <div class="fg" style="grid-column:1/-1"><label>Nueva contraseña <span style="font-weight:400;color:var(--muted)">(dejar vacío para no cambiar)</span></label>
+          <input type="password" id="eu-pass" placeholder="••••••••">
+        </div>
+      </div>
+      <div style="background:var(--soft);border-radius:var(--radius-sm);border:1px solid var(--border);padding:12px 14px;display:flex;flex-direction:column;gap:10px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600">
+          <input type="checkbox" id="eu-es-auditor" style="width:16px;height:16px;cursor:pointer">
+          Incluir en medición de desempeño
+        </label>
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Razones sociales visibles</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:700;color:var(--blue)">
+              <input type="checkbox" class="eu-razon-cb" value="KNO" style="width:15px;height:15px;cursor:pointer"> KNO
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:700;color:var(--teal)">
+              <input type="checkbox" class="eu-razon-cb" value="KSC" style="width:15px;height:15px;cursor:pointer"> KSC
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:700;color:var(--green)">
+              <input type="checkbox" class="eu-razon-cb" value="KSA" style="width:15px;height:15px;cursor:pointer"> KSA
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--muted)">
+              <input type="checkbox" id="eu-razon-all" style="width:15px;height:15px;cursor:pointer" onchange="onEuRazonAllChange(this)"> Todas
+            </label>
+          </div>
+          <div style="font-size:10px;color:var(--muted);margin-top:6px">Sin selección = acceso a todas las razones</div>
+        </div>
+      </div>
+      <div id="eu-err" style="font-size:12px;color:var(--red);min-height:16px"></div>
+    </div>
+    <div class="kpi-cfg-ftr">
+      <button class="btn btn-ghost" onclick="closeEditUsuario()">Cancelar</button>
+      <button class="btn btn-blue" onclick="guardarEditUsuario()">✓ Guardar cambios</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
-  else if(v==='desempeno'){
-    renderDesempeno();
-  }
