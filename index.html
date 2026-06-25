@@ -1812,8 +1812,8 @@ function editBtn(id){
   return '<span style="color:var(--border)">—</span>';
 }
 function openEditIfAllowed(id){
-  if(!_session||!['admin','editor'].includes(_session.rol)){
-    toast('⚠ Solo administradores y editores pueden editar tareas');return;
+  if(!_session||!['admin','admin_auditor','auditor'].includes(_session.rol)){  
+    toast('⚠ Sin permisos para editar tareas');return;
   }
   openEdit(id);
 }
@@ -1882,8 +1882,8 @@ function deleteTask(id){
   deleteTaskFromSupabase(String(id));
 }
 function openFileIfAllowed(){
-  if(!_session||!['admin','editor'].includes(_session.rol)){
-    toast('⚠ Solo administradores y editores pueden cargar archivos');return;
+  if(!_session||!['admin','admin_auditor','auditor'].includes(_session.rol)){  
+    toast('⚠ Sin permisos para cargar archivos');return;
   }
   document.getElementById('file-input').click();
 }
@@ -2317,7 +2317,7 @@ function pendColor(stats){
 }
 
 function audTablaPorClase(titulo,color,rows){
-  var isAdmin=_session&&_session.rol==='admin';
+  var isAdmin=_session&&['admin','admin_auditor'].includes(_session.rol);
   /* Cache global indexado por clave única (no por título que puede colisionar) */
   window._audItemCache=window._audItemCache||{};
   var filas=rows.map(function(a){
@@ -2366,7 +2366,7 @@ function audTablaPorClaseCartera(titulo,color,rows,esCartera){
 
 /* Tabla especial CARTERA — sin % cumplimiento, solo seguimiento de tareas */
 function audTablaPorClaseCarteraRender(titulo,color,rows){
-  var isAdmin=_session&&_session.rol==='admin';
+  var isAdmin=_session&&['admin','admin_auditor'].includes(_session.rol);
   window._audItemCache=window._audItemCache||{};
   var filas=rows.map(function(a){
     var tipoClase=tipoTareaDeClase(a.clase);
@@ -2412,7 +2412,7 @@ function openEditAuditoriaKey(el){
 
 /* ── Editar auditoría (solo admin) ── */
 function openEditAuditoria(akey){
-  if(!_session||_session.rol!=='admin'){toast('⚠ Solo administradores pueden editar auditorías');return;}
+  if(!_session||!['admin','admin_auditor'].includes(_session.rol)){toast('⚠ Sin permisos para editar auditorías');return;}
   var a=(window._audItemCache&&window._audItemCache[akey]);if(!a)return;
   var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   var html='<div class="form-grid">'+
@@ -2570,7 +2570,7 @@ function downloadAuditoriasPNG(){
    NUEVA AUDITORÍA (modal)
 ════════════════════════════════════════════════════════════════════ */
 function openNuevaAuditoriaIfAllowed(){
-  if(!_session||_session.rol!=='admin'){toast('⚠ Solo administradores pueden crear auditorías');return;}
+  if(!_session||!['admin','admin_auditor'].includes(_session.rol)){toast('⚠ Sin permisos para crear auditorías');return;}
   openNuevaAuditoria();
 }
 function openNuevaAuditoria(){
@@ -2741,7 +2741,7 @@ function fmtActFecha(d){if(!d)return'—';var x=fromISO(d);if(!x)return'—';ret
 function renderActividades(){
   var arr=filteredActividades();
   document.getElementById('act-count').textContent=arr.length+' actividad(es)';
-  var canEdit=_session&&['admin','editor'].includes(_session.rol);
+  var canEdit=_session&&['admin','admin_auditor'].includes(_session.rol);
   var cont=document.getElementById('actividades-table');
 
   if(!arr.length){cont.innerHTML='<div class="empty" style="padding:30px">Sin actividades. '+(canEdit?'Crea una con "Nueva actividad".':'')+'</div>';return;}
@@ -2788,8 +2788,8 @@ function renderActividades(){
 }
 
 function openActividadIfAllowed(id){
-  if(!_session||!['admin','editor'].includes(_session.rol)){
-    toast('⚠ Solo administradores y editores pueden editar actividades');return;
+  if(!_session||!['admin','admin_auditor','auditor'].includes(_session.rol)){  
+    toast('⚠ Sin permisos para editar actividades');return;
   }
   openActividad(id);
 }
@@ -3983,8 +3983,8 @@ function onLoginSuccess(){
   const el=document.getElementById('topbar-user');
   if(el&&_session) el.textContent=_session.nombre||_session.username;
   checkAdminUI();
-  /* Aplicar restricción de razones si el usuario tiene razones_permitidas */
   applyRazonRestriction();
+  applyVistasRestriction();
   if(!_sb)_sb=initSupabase();
   if(_sb) loadDataFromSupabase();
   else { STORE={auditorias:[],tareas:[]}; refreshAll(); setPill('offline'); toast('⚠ Sin conexión a Supabase'); }
@@ -3994,18 +3994,35 @@ function applyRazonRestriction(){
   var fr=document.getElementById('f-razon');
   if(!fr||!_session)return;
   var razones=_session.razones_permitidas;
-  /* Parsear si viene como string JSON */
   if(typeof razones==='string'){try{razones=JSON.parse(razones);}catch(e){razones=null;}}
-  if(!razones||!razones.length)return; /* Sin restricción — ve todo */
-  /* Ocultar el selector de razón y fijar la primera permitida si solo hay una */
+  if(!razones||!razones.length)return;
   if(razones.length===1){
     fr.value=razones[0];
     fr.disabled=true;
     fr.title='Tu cuenta solo tiene acceso a '+razones[0];
   } else {
-    /* Múltiples razones: filtrar las opciones disponibles */
     fr.disabled=false;
-    /* Se aplica después de fillFilters — ver patchFillFilters */
+  }
+}
+
+function applyVistasRestriction(){
+  if(!_session)return;
+  var vistas=_session.vistas_permitidas;
+  if(typeof vistas==='string'){try{vistas=JSON.parse(vistas);}catch(e){vistas=null;}}
+  if(!vistas||!vistas.length)return;
+  /* Mapa: nav-id → vista key */
+  var navMap={
+    'nav-dash':'dash','nav-tareas':'tareas','nav-pend':'sucursales',
+    'nav-actividades':'actividades','nav-auditorias':'auditorias',
+    'nav-ajustes':'ajustes','nav-mermas':'mermas','nav-finalizadas':'finalizadas'
+  };
+  Object.entries(navMap).forEach(function(e){
+    var navEl=document.getElementById(e[0]);
+    if(navEl)navEl.style.display=vistas.includes(e[1])?'':'none';
+  });
+  /* Si la vista activa no está permitida, ir a la primera permitida */
+  if(!vistas.includes(VIEW||'dash')){
+    setView(vistas[0]||'dash');
   }
 }
 
@@ -4162,7 +4179,7 @@ async function syncToSupabase(parsed){
    GESTIÓN DE USUARIOS (solo admin)
 ════════════════════════════════════════════════════════════════════ */
 function openUsuarios(){
-  if(!_session||_session.rol!=='admin'){toast('⚠ Solo administradores');return;}
+  if(!_session||!['admin','admin_auditor'].includes(_session.rol)){toast('⚠ Sin permisos');return;}
   document.getElementById('usr-overlay').classList.add('show');
   loadUsuarios();
 }
@@ -4180,6 +4197,8 @@ async function loadUsuarios(){
     if(error)throw error;
     if(!data||!data.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted)">Sin usuarios</td></tr>';return;}
     /* Actualizar lista de auditores medibles */
+    /* Mapa global para datos de edición — evita problemas con comillas en onclick */
+    window._usrEditMap={};
     _AUDITORES_CONOCIDOS=data.filter(function(u){return u.es_auditor&&u.activo;}).map(function(u){return u.nombre||u.username;});
     tbody.innerHTML=data.map(function(u){
       var rolClass='rol-'+u.rol;
@@ -4188,8 +4207,8 @@ async function loadUsuarios(){
       var canEdit=_session&&['admin','admin_auditor'].includes(_session.rol);
       var razonesLabel=razones&&razones.length?razones.join(', '):'Todas';
       var esAuditorLabel=u.es_auditor?'<span style="color:var(--green);font-weight:700">✓</span>':'<span style="color:var(--muted)">—</span>';
-      /* serializar datos del usuario para pasar al modal edición */
-      var uData=encodeURIComponent(JSON.stringify({id:u.id,username:u.username,nombre:u.nombre||'',rol:u.rol,es_auditor:!!u.es_auditor,razones_permitidas:razones||[]}));
+      /* Guardar datos en mapa global indexado por id */
+      window._usrEditMap[u.id]={id:u.id,username:u.username,nombre:u.nombre||'',rol:u.rol,es_auditor:!!u.es_auditor,razones_permitidas:razones||[],vistas_permitidas:u.vistas_permitidas?JSON.parse(u.vistas_permitidas):[]  };
       return '<tr>'+
         '<td style="font-weight:700;font-family:monospace">'+u.username+'</td>'+
         '<td>'+(u.nombre||'—')+'</td>'+
@@ -4199,7 +4218,7 @@ async function loadUsuarios(){
         '<td><span style="color:'+(u.activo?'var(--green)':'var(--red)')+'">'+
           (u.activo?'✓ Activo':'✕ Inactivo')+'</span></td>'+
         '<td style="display:flex;gap:6px;flex-wrap:wrap">'+
-          (canEdit?'<button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;color:var(--blue)" onclick="openEditUsuario(\''+uData+'\')">Editar</button>':'')+
+          (canEdit?'<button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;color:var(--blue)" onclick="openEditUsuario(\''+u.id+'\')">Editar</button>':'')+
           '<button class="btn btn-ghost" style="padding:4px 8px;font-size:11px" onclick="toggleActivo(\''+u.id+'\','+(!u.activo)+')">'+
             (u.activo?'Desactivar':'Activar')+'</button>'+
           (u.username!=='ADMIN'&&canEdit?'<button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;color:var(--red)" onclick="eliminarUsuario(\''+u.id+'\',\''+u.username+'\')">Eliminar</button>':'')+
@@ -4267,11 +4286,11 @@ async function toggleActivo(id, nuevoEstado){
   }catch(e){toast('Error: '+e.message);}
 }
 
-function openEditUsuario(uDataEnc){
+function openEditUsuario(uid){
   if(!_session||!['admin','admin_auditor'].includes(_session.rol)){toast('⚠ Sin permisos');return;}
-  var u=JSON.parse(decodeURIComponent(uDataEnc));
-  var ROLES=['auditor','admin_auditor','viewer','editor','admin'];
-  var RAZONES_OPT=['KNO','KSC','KSA'];
+  var u=(window._usrEditMap||{})[uid];
+  if(!u){toast('⚠ No se encontraron datos del usuario');return;}
+  var ROLES=['auditor','admin_auditor','viewer','admin'];
   document.getElementById('eu-overlay').classList.add('show');
   document.getElementById('eu-titulo').textContent='Editar — '+u.username;
   document.getElementById('eu-id').value=u.id;
@@ -4282,6 +4301,11 @@ function openEditUsuario(uDataEnc){
   var raz=u.razones_permitidas||[];
   document.querySelectorAll('.eu-razon-cb').forEach(function(cb){cb.checked=raz.includes(cb.value);});
   document.getElementById('eu-razon-all').checked=!raz.length;
+  /* Cargar vistas permitidas */
+  var vistas=u.vistas_permitidas||[];
+  document.querySelectorAll('.eu-vista-cb').forEach(function(cb){
+    cb.checked=!vistas.length||vistas.includes(cb.value);
+  });
   document.getElementById('eu-pass').value='';
   document.getElementById('eu-err').textContent='';
 }
@@ -4300,6 +4324,10 @@ async function guardarEditUsuario(){
   var razonAll=document.getElementById('eu-razon-all').checked;
   var razonesSel=[...document.querySelectorAll('.eu-razon-cb:checked')].map(function(el){return el.value;});
   var razonesPermitidas=razonAll||!razonesSel.length?null:razonesSel;
+  /* Vistas: si están todas marcadas = null (sin restricción), si hay desmarcadas = guardar solo las marcadas */
+  var todasVistas=['dash','tareas','sucursales','actividades','auditorias','ajustes','mermas','finalizadas'];
+  var vistasSel=[...document.querySelectorAll('.eu-vista-cb:checked')].map(function(el){return el.value;});
+  var vistasPermitidas=vistasSel.length===todasVistas.length?null:vistasSel;
   var newPass=document.getElementById('eu-pass').value;
   var errEl=document.getElementById('eu-err');
   errEl.textContent='';
@@ -4311,6 +4339,7 @@ async function guardarEditUsuario(){
       p_rol:rol,
       p_es_auditor:esAuditor,
       p_razones_permitidas:razonesPermitidas?JSON.stringify(razonesPermitidas):null,
+      p_vistas_permitidas:vistasPermitidas?JSON.stringify(vistasPermitidas):null,
       p_password:newPass||null
     });
     if(error)throw error;
@@ -4333,23 +4362,23 @@ async function eliminarUsuario(id, username){
 /* Mostrar botón admin solo si el usuario tiene rol admin */
 function checkAdminUI(){
   var navBtn=document.getElementById('nav-usuarios');
-  if(navBtn&&_session&&_session.rol==='admin') navBtn.style.display='';
+  if(navBtn&&_session&&['admin','admin_auditor'].includes(_session.rol)) navBtn.style.display='';
   var navDesp=document.getElementById('nav-desempeno');
   if(navDesp)navDesp.style.display=(_session&&['admin','admin_auditor'].includes(_session.rol))?'':'none';
   var excelBtn=document.getElementById('btn-cargar-excel');
   if(excelBtn){
-    var canUpload=_session&&['admin','editor'].includes(_session.rol);
+    var canUpload=_session&&['admin','admin_auditor','auditor'].includes(_session.rol);
     excelBtn.style.opacity=canUpload?'1':'0.4';
-    excelBtn.title=canUpload?'Cargar Excel':'Solo admin y editor pueden cargar archivos';
+    excelBtn.title=canUpload?'Cargar Excel':'Solo admin, admin_auditor y auditor pueden cargar archivos';
   }
   var addBtn=document.getElementById('btn-agregar-tarea');
   if(addBtn){
-    var canEdit=_session&&['admin','editor'].includes(_session.rol);
+    var canEdit=_session&&['admin','admin_auditor','auditor'].includes(_session.rol);
     addBtn.style.display=canEdit?'':'none';
   }
   var addAct=document.getElementById('btn-add-actividad');
   if(addAct){
-    var canEditA=_session&&['admin','editor'].includes(_session.rol);
+    var canEditA=_session&&['admin','admin_auditor','auditor'].includes(_session.rol);
     addAct.style.display=canEditA?'':'none';
   }
   var audBtn=document.getElementById('btn-nueva-auditoria');
@@ -4530,7 +4559,7 @@ async function initSegSemanas(ak,fechaAud){
 /* ── Renderizar tabla de seguimiento ── */
 function renderSeguimientoTable(rows,claseKey){
   if(!rows||!rows.length)return'';
-  var canEdit=_session&&_session.rol==='admin';
+  var canEdit=_session&&['admin','admin_auditor'].includes(_session.rol);
 
   /* Cabecera dinámica: máximo de semanas entre todas las filas de este grupo */
   var maxSems=0;
@@ -4773,7 +4802,7 @@ function renderAjustes(){
     var da=a.fechaCorreo||'';var db=b.fechaCorreo||'';
     return da<db?-1:da>db?1:0;
   });
-  var isAdmin=_session&&_session.rol==='admin';
+  var isAdmin=_session&&['admin','admin_auditor','auditor'].includes(_session.rol);
   document.getElementById('aj-count').textContent=arr.length+' registro(s)';
   var th=document.getElementById('aj-edit-th');
   if(th)th.style.display=isAdmin?'':'none';
@@ -4901,7 +4930,7 @@ async function guardarNuevoAjuste(){
 
 /* ── Modal editar ajuste (solo admin) ── */
 function openEditAjuste(id){
-  if(!_session||_session.rol!=='admin'){toast('⚠ Solo administradores');return;}
+  if(!_session||!['admin','admin_auditor','auditor'].includes(_session.rol)){toast('⚠ Sin permisos');return;}
   var a=AJUSTES.find(function(x){return x.id===id;});if(!a)return;
   var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio',
     'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -5128,7 +5157,7 @@ function renderMermas(){
     var da=a.fechaAut||'';var db=b.fechaAut||'';
     return da<db?-1:da>db?1:0;
   });
-  var isAdmin=_session&&_session.rol==='admin';
+  var isAdmin=_session&&['admin','admin_auditor','auditor'].includes(_session.rol);
   document.getElementById('mr-count').textContent=arr.length+' registro(s)';
   var th=document.getElementById('mr-edit-th');
   if(th)th.style.display=isAdmin?'':'none';
@@ -5264,7 +5293,7 @@ async function guardarNuevaMerma(){
 }
 
 function openEditMerma(id){
-  if(!_session||_session.rol!=='admin'){toast('⚠ Solo administradores');return;}
+  if(!_session||!['admin','admin_auditor','auditor'].includes(_session.rol)){toast('⚠ Sin permisos');return;}
   var m=MERMAS.find(function(x){return x.id===id;});if(!m)return;
   openModal('✎ Editar merma — '+esc(m.tienda),mrFormHtml(m),[
     {label:'Cancelar',cls:'btn-ghost',fn:closeModal},
@@ -5516,7 +5545,7 @@ function filteredFinalizadas(){
 
 function renderFinalizadas(){
   var arr=filteredFinalizadas();
-  var isAdmin=_session&&_session.rol==='admin';
+  var isAdmin=_session&&['admin','admin_auditor'].includes(_session.rol);
   document.getElementById('fin-count').textContent=arr.length+' finalizada(s)';
   var th=document.getElementById('fin-edit-th');if(th)th.style.display=isAdmin?'':'none';
   var tbody=document.getElementById('fin-tbody');
@@ -5821,10 +5850,10 @@ async function deleteFinalizada(id){
           <div class="fg"><label>Nombre completo</label><input type="text" id="nu-nombre" placeholder="Nombre visible"></div>
           <div class="fg"><label>Rol / Permisos</label>
             <select id="nu-rol" onchange="onRolChange()">
-              <option value="auditor">Auditor — Registro actividades/ajustes/mermas</option>
-              <option value="admin_auditor">Admin Auditor — Auditor + gestión</option>
-              <option value="viewer">Viewer — Solo lectura</option>
-              <option value="editor">Editor — Puede cargar Excel</option>
+              <option value="auditor">Auditor — Carga Excel, tareas, ajustes, mermas y actividades</option>
+              <option value="admin_auditor">Admin Auditor — Acceso total</option>
+              <option value="viewer">Viewer — Solo lectura (sin desempeño)</option>
+              <option value="admin">Admin — Acceso total</option>
               <option value="admin">Admin — Acceso total</option>
             </select>
           </div>
@@ -5910,6 +5939,37 @@ async function deleteFinalizada(id){
           </div>
           <div style="font-size:10px;color:var(--muted);margin-top:6px">Sin selección = acceso a todas las razones</div>
         </div>
+      </div>
+      <!-- Módulos visibles -->
+      <div style="background:var(--soft);border-radius:var(--radius-sm);border:1px solid var(--border);padding:12px 14px">
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Módulos que puede ver</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px">
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;font-weight:600">
+            <input type="checkbox" class="eu-vista-cb" value="dash" style="width:14px;height:14px;cursor:pointer"> ⊞ Inicio / Dashboard
+          </label>
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;font-weight:600">
+            <input type="checkbox" class="eu-vista-cb" value="tareas" style="width:14px;height:14px;cursor:pointer"> 📝 Tareas
+          </label>
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;font-weight:600">
+            <input type="checkbox" class="eu-vista-cb" value="sucursales" style="width:14px;height:14px;cursor:pointer"> 🏬 Sucursales
+          </label>
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;font-weight:600">
+            <input type="checkbox" class="eu-vista-cb" value="actividades" style="width:14px;height:14px;cursor:pointer"> 📋 Actividades
+          </label>
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;font-weight:600">
+            <input type="checkbox" class="eu-vista-cb" value="auditorias" style="width:14px;height:14px;cursor:pointer"> 🔍 Auditorías
+          </label>
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;font-weight:600">
+            <input type="checkbox" class="eu-vista-cb" value="ajustes" style="width:14px;height:14px;cursor:pointer"> ⚖️ Ajustes
+          </label>
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;font-weight:600">
+            <input type="checkbox" class="eu-vista-cb" value="mermas" style="width:14px;height:14px;cursor:pointer"> 🗂️ Mermas
+          </label>
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;font-weight:600">
+            <input type="checkbox" class="eu-vista-cb" value="finalizadas" style="width:14px;height:14px;cursor:pointer"> ✅ Finalizadas
+          </label>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:8px">Sin selección = puede ver todos los módulos permitidos por su rol</div>
       </div>
       <div id="eu-err" style="font-size:12px;color:var(--red);min-height:16px"></div>
     </div>
