@@ -2500,9 +2500,8 @@ async function deleteAuditoria(a){
 function renderAuditoriasView(){
   fillAudFilters();
   var arr=filteredAudByView();
-  /* Excluir auditorías ya finalizadas (sin pendientes y registradas en tareas_finalizadas) */
+  /* Excluir auditorías ya finalizadas */
   arr=arr.filter(function(a){
-    var ak=audSegKey(a);
     var tipoClase=tipoTareaDeClase(a.clase);
     var tareasDeAud=STORE.tareas.filter(function(t){
       if(norm(t.tienda)!==norm(a.tienda)||norm(t.centro)!==norm(a.centro))return false;
@@ -2510,8 +2509,9 @@ function renderAuditoriasView(){
       return true;
     });
     var sinPend=tareasDeAud.length>0&&tareasDeAud.filter(esPendiente).length===0;
-    /* Solo excluir si ya está confirmada en FINALIZADAS (no pending) */
     if(sinPend){
+      /* Generar la misma clave que usa registrarFinalizada */
+      var ak=[norm(a.tienda||''),norm(a.mes||''),norm(a.clase||''),a.fecha||''].join('|');
       var yaFin=FINALIZADAS.find(function(f){return f.aud_key===ak&&!f._pending;});
       if(yaFin)return false;
     }
@@ -4347,79 +4347,6 @@ function checkAdminUI(){
   if(finTh) finTh.style.display=(_session&&['admin','admin_auditor'].includes(_session.rol))?'':'none';
 }
 
-var SEG_LOADED=false;
-
-function isPast(iso){
-  if(!iso)return false;
-  var t=new Date();t.setHours(0,0,0,0);
-  return new Date(iso+'T00:00:00')<t;
-}function calcSugerida(fechaAud,n){
-  /* Normalizar: si viene con hora (2026-03-26T17:35:00), tomar solo la parte de fecha */
-  var dateStr=fechaAud?String(fechaAud).split('T')[0]:null;
-  var b=dateStr?new Date(dateStr+'T12:00:00'):new Date();
-  b.setDate(b.getDate()+n*7);
-  return b.toISOString().split('T')[0];
-}
-
-/* ── Cargar todos los seguimientos desde Supabase ── *//* ── Obtener semanas de una auditoría (del cache) ── */function maxSemana(ak){
-  var rows=getSegRows(ak);
-  if(!rows.length)return 0;
-  return Math.max.apply(null,rows.map(function(r){return r.num_semana;}));
-}
-
-/* ── Toggle completado ── */
-async function toggleSegCheck(ak,rowId,currentVal){
-  var client=getSbClient();if(!client){toast('⚠ Sin Supabase');return;}
-  var newVal=!currentVal;
-  /* Usar la fecha programada (fecha_prog) como fecha_completado, no today */
-  var row=window._segIndexId&&window._segIndexId[rowId];
-  var fechaComp=newVal?(row&&row.fecha_prog?row.fecha_prog:new Date().toISOString().split('T')[0]):null;
-  if(SEG_CACHE[ak]){
-    SEG_CACHE[ak].forEach(function(r){
-      if(r.id===rowId){r.completado=newVal;r.fecha_completado=fechaComp;}
-    });
-    /* Actualizar índice también */
-    if(window._segIndexId&&window._segIndexId[rowId]){
-      window._segIndexId[rowId].completado=newVal;
-      window._segIndexId[rowId].fecha_completado=fechaComp;
-    }
-  }
-  renderAuditoriasView();
-  try{
-    var upd={completado:newVal,fecha_completado:fechaComp};
-    var res=await client.from('seguimiento_semanas').update(upd).eq('id',rowId);
-    if(res.error){toast('⚠ '+res.error.message);renderAuditoriasView();}
-    else toast(newVal?'✓ Seguimiento registrado':'↩ Desmarcado');
-  }catch(e){toast('⚠ '+e.message);}
-}
-
-/* Wrapper para click en check usando data-attributes (evita escaping de strings en HTML) *//* Wrapper para cambio de fecha *//* Wrapper para agregar semana *//* ── Actualizar fecha programada ── */
-async function updateSegFecha(ak,rowId,newDate){
-  var client=getSbClient();if(!client)return;
-  if(SEG_CACHE[ak]){
-    SEG_CACHE[ak].forEach(function(r){if(r.id===rowId)r.fecha_prog=newDate;});
-  }
-  try{
-    await client.from('seguimiento_semanas').update({fecha_prog:newDate}).eq('id',rowId);
-  }catch(e){console.warn('updateSegFecha:',e.message);}
-}
-
-/* ── Agregar nueva semana ── */
-async function addSegSemana(ak,fechaAud){
-  var client=getSbClient();if(!client){toast('⚠ Sin Supabase');return;}
-  var next=(maxSemana(ak)||0)+1;
-  var fechaProg=calcSugerida(fechaAud,next);
-  var newRow={aud_key:ak,num_semana:next,fecha_prog:fechaProg,completado:false,fecha_completado:null};
-  try{
-    var r=await client.from('seguimiento_semanas').insert([newRow]).select();
-    if(r.error){toast('⚠ '+r.error.message);return;}
-    if(!SEG_CACHE[ak])SEG_CACHE[ak]=[];
-    SEG_CACHE[ak].push(r.data[0]||{...newRow,id:'tmp'+Date.now()});
-    renderAuditoriasView();
-    toast('✓ Semana '+(next)+' añadida');
-  }catch(e){toast('⚠ '+e.message);}
-}
-
 /* ── Inicializar semanas si no existen (crea 5 por defecto) ── *//* ════════════════════════════════════════════════════════════════════
    MÓDULO AJUSTES — Supabase
    Tabla: ajustes
@@ -5406,7 +5333,7 @@ async function updateFinFecha(el){
    duracion_dias = fecha_finalizacion - fecha_inicio */
 async function registrarFinalizada(a){
   var client=getSbClient();if(!client)return;
-  var ak=audSegKey(a);
+  var ak=[norm(a.tienda||""),norm(a.mes||""),norm(a.clase||""),a.fecha||""].join("|");
   var existe=FINALIZADAS.find(function(f){return f.aud_key===ak&&!f._pending;});
   if(existe)return;
   FINALIZADAS.unshift({aud_key:ak,_pending:true});
@@ -5437,11 +5364,7 @@ async function registrarFinalizada(a){
     if(fd&&(!fechaFin||fd>fechaFin))fechaFin=fd;
   });
   if(!fechaFin){
-    var semRows=getSegRows(ak);
-    if(semRows.length>0&&semRows[semRows.length-1].fecha_prog)
-      fechaFin=semRows[semRows.length-1].fecha_prog;
-    else
-      fechaFin=new Date().toISOString().split('T')[0];
+    fechaFin=new Date().toISOString().split('T')[0];
   }
 
   var duracion=(fechaInicio&&fechaFin)?diasEntre(fechaInicio,fechaFin):null;
