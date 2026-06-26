@@ -1421,7 +1421,27 @@ function estadoBadge(estado){
 /* ════════════════════════════════════════════════════════════════════
    RENDER PRINCIPAL
 ════════════════════════════════════════════════════════════════════ */
+
+/* Actualizar automáticamente tareas "Abierta" cuya fechaTerm ya venció → "Abierta atrasada" */
+function actualizarEstadosVencidos(){
+  var hoy=new Date();hoy.setHours(0,0,0,0);
+  var actualizadas=0;
+  STORE.tareas.forEach(function(t){
+    if(!esPendiente(t))return; /* solo abiertas */
+    if(norm(t.estado).includes('atrasad'))return; /* ya está atrasada */
+    var ft=fromISO(t.fechaTerm);
+    if(!ft)return;
+    var fechaTerm=new Date(ft);fechaTerm.setHours(0,0,0,0);
+    if(fechaTerm<hoy){
+      t.estado='Abierta atrasada';
+      actualizadas++;
+    }
+  });
+  if(actualizadas>0)console.log('[AUDITORIA] '+actualizadas+' tarea(s) actualizadas a Abierta atrasada');
+}
+
 function refreshAll(){
+  actualizarEstadosVencidos(); /* sincronizar estados antes de KPIs */
   document.getElementById('ds-aud').textContent=STORE.auditorias.length;
   document.getElementById('ds-tar').textContent=STORE.tareas.length;
   document.getElementById('ds-pend').textContent=STORE.tareas.filter(esPendiente).length;
@@ -2342,8 +2362,8 @@ function audTablaPorClase(titulo,color,rows){
       '<td><b>'+(a.tienda||'—')+'</b></td>'+
       '<td>'+(a.mes||'—')+'</td>'+
       '<td style="text-align:center">'+pctFmt(a.pctCumpl)+'</td>'+
-      '<td style="text-align:center">'+stats.tareas+'</td>'+
-      '<td style="text-align:center;color:'+pc+';font-weight:800">'+pend+'</td>'+
+      '<td style="text-align:center">'+pend+'</td>'+
+      '<td style="text-align:center;font-size:10px;color:var(--muted)">'+stats.abiertas+'↑ '+stats.abiertasAtrasadas+'🔴</td>'+
       '<td style="text-align:center">'+stats.resueltas+mark+'</td>'+
       '<td style="text-align:center">'+pctFmt(stats.pctResuelto)+mark+'</td>'+
       editBtn+
@@ -2360,7 +2380,7 @@ function audTablaPorClase(titulo,color,rows){
     ' <span style="font-weight:600;font-size:10px;color:var(--muted)">('+rows.length+')</span>'+
     leyenda+'</div>'+
     '<div class="card" style="padding:8px 10px;margin-bottom:10px"><div class="tbl-scroll"><table class="dt">'+
-    '<thead><tr><th>Tienda</th><th>Mes Auditoría</th><th class="c">% Cumplimiento</th><th class="c">Tareas</th><th class="c">Pendientes</th><th class="c">Resueltos</th><th class="c">% Resuelto</th>'+editTh+'</tr></thead>'+
+    '<thead><tr><th>Tienda</th><th>Mes Auditoría</th><th class="c">% Cumplimiento</th><th class="c">Pendientes</th><th class="c">Vigentes/Atraso</th><th class="c">Resueltos</th><th class="c">% Resuelto</th>'+editTh+'</tr></thead>'+
     '<tbody>'+(filas||'<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:18px">Sin registros</td></tr>')+'</tbody></table></div></div>';
 
   return tablaHTML+'<div style="margin-bottom:22px"></div>';
@@ -2517,7 +2537,12 @@ function renderAuditoriasView(){
     }
     return true;
   });
-  document.getElementById('aud-count').textContent=arr.length+' auditoría(s)';
+  /* Contar auditorías con al menos 1 tarea pendiente */
+  var audConPend=arr.filter(function(a){
+    var stats=calcAudStats(a,arr);
+    return stats.pendientes>0;
+  }).length;
+  document.getElementById('aud-count').textContent=audConPend+' con pendientes / '+arr.length+' total';
   var cont=document.getElementById('auditorias-tables');
   if(!arr.length){cont.innerHTML='<div class="empty" style="padding:30px">Sin auditorías. Verifica los filtros o carga datos desde el módulo principal.</div>';return;}
 
