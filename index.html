@@ -2192,7 +2192,7 @@ function setView(v){
   if(v==='actividades'){ if(!ACTIVIDADES.length) loadActividades(); else{ fillActFilters(); renderActividades(); } }
   else if(v==='auditorias'){
     if(!STORE.auditorias.length) loadDataFromSupabase().then(renderAuditoriasView);
-    else{ if(!SEG_LOADED)loadSeguimientos().then(renderAuditoriasView); else renderAuditoriasView(); }
+    else{ renderAuditoriasView(); }
   }
   else if(v==='ajustes'){ if(!AJUSTES.length) loadAjustes(); else{ fillAjFilters(); renderAjustes(); } }
   else if(v==='mermas'){ if(!MERMAS.length) loadMermas(); else{ fillMrFilters(); renderMermas(); } }
@@ -2363,8 +2363,7 @@ function audTablaPorClase(titulo,color,rows){
     '<thead><tr><th>Tienda</th><th>Mes Auditoría</th><th class="c">% Cumplimiento</th><th class="c">Tareas</th><th class="c">Pendientes</th><th class="c">Resueltos</th><th class="c">% Resuelto</th>'+editTh+'</tr></thead>'+
     '<tbody>'+(filas||'<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:18px">Sin registros</td></tr>')+'</tbody></table></div></div>';
 
-  var segHTML=renderSeguimientoTable(rows,titulo);
-  return tablaHTML+segHTML+'<div style="margin-bottom:22px"></div>';
+  return tablaHTML+'<div style="margin-bottom:22px"></div>';
 }
 
 /* Wrapper: decide si usar tabla normal o tabla cartera */
@@ -2408,8 +2407,7 @@ function audTablaPorClaseCarteraRender(titulo,color,rows){
     '<thead><tr><th>Tienda</th><th>Mes</th><th class="c">Total Tareas</th>'+
     '<th class="c">Pendientes</th><th class="c">Resueltas</th>'+editTh+'</tr></thead>'+
     '<tbody>'+(filas||'<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:18px">Sin registros</td></tr>')+'</tbody></table></div></div>';
-  var segHTML=renderSeguimientoTable(rows,titulo);
-  return tablaHTML+segHTML+'<div style="margin-bottom:22px"></div>';
+  return tablaHTML+'<div style="margin-bottom:22px"></div>';
 }
 
 function openEditAuditoriaKey(el){
@@ -3794,9 +3792,18 @@ function renderDesempeno(){
           '<div style="font-size:15px;font-weight:800;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+d.nombre+'</div>'+
           '<div style="font-size:11px;color:rgba(255,255,255,.75);font-weight:600">'+(mesFilter==='ALL'?'Todos los meses':mesFilter)+' · '+totAll+' registros</div>'+
         '</div>'+
-        '<div style="text-align:center;background:rgba(255,255,255,.18);border-radius:12px;padding:10px 16px;flex-shrink:0">'+
-          '<div style="font-size:28px;font-weight:900;color:#fff;line-height:1">'+pGlobal+'%</div>'+
-          '<div style="font-size:9px;color:rgba(255,255,255,.8);font-weight:700;text-transform:uppercase;margin-top:2px">Cumplimiento</div>'+
+        /* Mini-badges % por KPI */
+        '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;min-width:220px">'+
+          '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">'+
+            (d.ajTotal?'<div style="background:rgba(255,255,255,.18);border-radius:8px;padding:4px 10px;text-align:center"><div style="font-size:13px;font-weight:900;color:#fff">'+pAj+'%</div><div style="font-size:8px;color:rgba(255,255,255,.7);font-weight:700">AJU</div></div>':'')+
+            (d.mrTotal?'<div style="background:rgba(255,255,255,.18);border-radius:8px;padding:4px 10px;text-align:center"><div style="font-size:13px;font-weight:900;color:#fff">'+pMr+'%</div><div style="font-size:8px;color:rgba(255,255,255,.7);font-weight:700">MER</div></div>':'')+
+            (d.actProgTotal?'<div style="background:rgba(255,255,255,.18);border-radius:8px;padding:4px 10px;text-align:center"><div style="font-size:13px;font-weight:900;color:#fff">'+pActProg+'%</div><div style="font-size:8px;color:rgba(255,255,255,.7);font-weight:700">ACT-P</div></div>':'')+
+            (d.actNoPTotal?'<div style="background:rgba(255,255,255,.18);border-radius:8px;padding:4px 10px;text-align:center"><div style="font-size:13px;font-weight:900;color:#fff">'+pActNoP+'%</div><div style="font-size:8px;color:rgba(255,255,255,.7);font-weight:700">ACT-NP</div></div>':'')+
+          '</div>'+
+          '<div style="background:rgba(255,255,255,.25);border-radius:10px;padding:8px 14px;text-align:center">'+
+            '<div style="font-size:24px;font-weight:900;color:#fff;line-height:1">'+pGlobal+'%</div>'+
+            '<div style="font-size:9px;color:rgba(255,255,255,.8);font-weight:700;text-transform:uppercase;margin-top:1px">Global</div>'+
+          '</div>'+
         '</div>'+
       '</div>'+
       '<div style="padding:14px 16px;display:grid;grid-template-columns:repeat(3,1fr) repeat(2,1fr);gap:10px">'+
@@ -4039,7 +4046,6 @@ async function loadDataFromSupabase(){
     refreshAll();
     /* Cargar seguimientos y finalizadas en paralelo */
     Promise.all([
-      loadSeguimientos(),
       loadFinalizadas()
     ]).then(function(){if(VIEW==='auditorias')renderAuditoriasView();});
     setPill('supabase');toast('✓ Conectado a Supabase — '+STORE.tareas.length+' tareas, '+STORE.auditorias.length+' auditorías');
@@ -4341,34 +4347,13 @@ function checkAdminUI(){
   if(finTh) finTh.style.display=(_session&&['admin','admin_auditor'].includes(_session.rol))?'':'none';
 }
 
-/* ════════════════════════════════════════════════════════════════════
-   MÓDULO SEGUIMIENTO — Supabase
-   Tabla: seguimiento_semanas
-   Columnas: id (uuid PK), aud_key (text), num_semana (int),
-             fecha_prog (date), completado (bool), fecha_completado (date),
-             created_at (timestamptz default now())
-════════════════════════════════════════════════════════════════════ */
-
-/* Cache en memoria para evitar re-fetches innecesarios */
-var SEG_CACHE={};        /* {aud_key: [{id,num_semana,fecha_prog,completado,fecha_completado},...]} */
 var SEG_LOADED=false;
-
-/* Genera clave única para cada auditoría */
-function audSegKey(a){
-  return [norm(a.razon||''),norm(a.tienda||''),norm(a.centro||''),
-          (a.mes||'').toUpperCase(),norm(a.clase||'')].join('|');
-}
 
 function isPast(iso){
   if(!iso)return false;
   var t=new Date();t.setHours(0,0,0,0);
   return new Date(iso+'T00:00:00')<t;
-}
-function fmtSegShort(iso){
-  if(!iso)return'—';
-  var p=iso.split('-');return p[2]+'/'+p[1];
-}
-function calcSugerida(fechaAud,n){
+}function calcSugerida(fechaAud,n){
   /* Normalizar: si viene con hora (2026-03-26T17:35:00), tomar solo la parte de fecha */
   var dateStr=fechaAud?String(fechaAud).split('T')[0]:null;
   var b=dateStr?new Date(dateStr+'T12:00:00'):new Date();
@@ -4376,27 +4361,7 @@ function calcSugerida(fechaAud,n){
   return b.toISOString().split('T')[0];
 }
 
-/* ── Cargar todos los seguimientos desde Supabase ── */
-async function loadSeguimientos(){
-  var client=getSbClient();
-  if(!client){SEG_LOADED=true;return;}
-  try{
-    var r=await client.from('seguimiento_semanas').select('*').order('aud_key').order('num_semana');
-    if(r.error){console.warn('seguimiento_semanas:',r.error.message);SEG_LOADED=true;return;}
-    SEG_CACHE={};
-    (r.data||[]).forEach(function(row){
-      if(!SEG_CACHE[row.aud_key])SEG_CACHE[row.aud_key]=[];
-      SEG_CACHE[row.aud_key].push(row);
-    });
-    SEG_LOADED=true;
-  }catch(e){console.warn('loadSeguimientos:',e.message);SEG_LOADED=true;}
-}
-
-/* ── Obtener semanas de una auditoría (del cache) ── */
-function getSegRows(ak){
-  return (SEG_CACHE[ak]||[]).slice().sort(function(a,b){return a.num_semana-b.num_semana;});
-}
-function maxSemana(ak){
+/* ── Cargar todos los seguimientos desde Supabase ── *//* ── Obtener semanas de una auditoría (del cache) ── */function maxSemana(ak){
   var rows=getSegRows(ak);
   if(!rows.length)return 0;
   return Math.max.apply(null,rows.map(function(r){return r.num_semana;}));
@@ -4423,37 +4388,12 @@ async function toggleSegCheck(ak,rowId,currentVal){
   try{
     var upd={completado:newVal,fecha_completado:fechaComp};
     var res=await client.from('seguimiento_semanas').update(upd).eq('id',rowId);
-    if(res.error){toast('⚠ '+res.error.message);await loadSeguimientos();renderAuditoriasView();}
+    if(res.error){toast('⚠ '+res.error.message);renderAuditoriasView();}
     else toast(newVal?'✓ Seguimiento registrado':'↩ Desmarcado');
   }catch(e){toast('⚠ '+e.message);}
 }
 
-/* Wrapper para click en check usando data-attributes (evita escaping de strings en HTML) */
-function segCheckClick(el){
-  var rowId=el.getAttribute('data-rowid');
-  var done=el.getAttribute('data-done')==='true';
-  var ak=window._segIndexAk&&window._segIndexAk[rowId];
-  if(!ak||!rowId)return;
-  toggleSegCheck(ak,rowId,done);
-}
-
-/* Wrapper para cambio de fecha */
-function segFechaChange(el){
-  var rowId=el.getAttribute('data-id');
-  var ak=window._segIndexAk&&window._segIndexAk[rowId];
-  if(!ak||!rowId)return;
-  updateSegFecha(ak,rowId,el.value);
-}
-
-/* Wrapper para agregar semana */
-function segAddSemana(el){
-  var ak=el.getAttribute('data-ak');
-  var fecha=el.getAttribute('data-fecha');
-  if(!ak)return;
-  addSegSemana(ak,fecha);
-}
-
-/* ── Actualizar fecha programada ── */
+/* Wrapper para click en check usando data-attributes (evita escaping de strings en HTML) *//* Wrapper para cambio de fecha *//* Wrapper para agregar semana *//* ── Actualizar fecha programada ── */
 async function updateSegFecha(ak,rowId,newDate){
   var client=getSbClient();if(!client)return;
   if(SEG_CACHE[ak]){
@@ -4480,154 +4420,7 @@ async function addSegSemana(ak,fechaAud){
   }catch(e){toast('⚠ '+e.message);}
 }
 
-/* ── Inicializar semanas si no existen (crea 5 por defecto) ── */
-async function initSegSemanas(ak,fechaAud){
-  var client=getSbClient();if(!client)return;
-  var existing=getSegRows(ak);
-  if(existing.length>0)return; /* Ya tiene semanas */
-  var rows=[];
-  for(var i=1;i<=5;i++){
-    rows.push({aud_key:ak,num_semana:i,fecha_prog:calcSugerida(fechaAud,i),
-               completado:false,fecha_completado:null});
-  }
-  try{
-    var r=await client.from('seguimiento_semanas').insert(rows).select();
-    if(r.error){console.warn('initSegSemanas:',r.error.message);return;}
-    SEG_CACHE[ak]=r.data||rows.map(function(x,i){return{...x,id:'tmp'+i};});
-    renderAuditoriasView();
-  }catch(e){console.warn('initSegSemanas:',e.message);}
-}
-
-/* ── Renderizar tabla de seguimiento ── */
-function renderSeguimientoTable(rows,claseKey){
-  if(!rows||!rows.length)return'';
-  var canEdit=_session&&['admin','admin_auditor'].includes(_session.rol);
-
-  /* Cabecera dinámica: máximo de semanas entre todas las filas de este grupo */
-  var maxSems=0;
-  rows.forEach(function(a){
-    var ak=audSegKey(a);
-    var n=maxSemana(ak)||5;
-    if(n>maxSems)maxSems=n;
-  });
-  if(maxSems<5)maxSems=5;
-
-  var thCols='';
-  for(var s=1;s<=maxSems;s++)thCols+='<th>SEMANA '+s+'</th>';
-  var thead='<thead><tr><th style="text-align:left;min-width:130px">Tienda</th>'+thCols+'<th></th></tr></thead>';
-
-  /* Registrar índice de filas para acceso por data-attribute */
-  window._segIndexAk = window._segIndexAk||{};
-  window._segIndexId = window._segIndexId||{};
-
-  var tbody=rows.map(function(a){
-    var ak=audSegKey(a);
-    var semRows=getSegRows(ak);
-
-    /* Calcular si la tienda está sin pendientes */
-    var tipoClase=tipoTareaDeClase(a.clase);
-    var tareasDeAud=STORE.tareas.filter(function(t){
-      if(norm(t.tienda)!==norm(a.tienda)||norm(t.centro)!==norm(a.centro))return false;
-      if(tipoClase&&tipoNormLocal(t.tipoTarea)!==tipoClase)return false;
-      return true;
-    });
-    var sinPendientes=tareasDeAud.length>0&&tareasDeAud.filter(esPendiente).length===0;
-    var rowCls=sinPendientes?'seg-row-ok':'';
-
-    /* Auto-registrar finalizada solo si no está ya en cache */
-    if(sinPendientes&&SEG_LOADED&&_finLoaded){
-      var yaFin=FINALIZADAS.find(function(f){return f.aud_key===ak;});
-      if(!yaFin)registrarFinalizada(a);
-    }
-
-    /* Si no tiene semanas aún, inicializar de fondo */
-    if(SEG_LOADED&&semRows.length===0){
-      initSegSemanas(ak,a.fecha);
-      var placeholders='';
-      for(var pi=0;pi<maxSems;pi++){
-        placeholders+='<td><div class="seg-cell"><div class="seg-check pending" style="opacity:.4"></div>'+
-          '<div class="seg-date-gray">cargando…</div></div></td>';
-      }
-      return '<tr class="'+rowCls+'"><td><b>'+(a.tienda||'—')+'</b><br>'+
-        '<span style="font-size:10px">'+(a.mes||'')+'</span></td>'+
-        placeholders+'<td></td></tr>';
-    }
-
-    var semMap={};
-    semRows.forEach(function(r){
-      semMap[r.num_semana]=r;
-      /* Guardar en índice global para acceso por data-id */
-      window._segIndexAk[r.id]=ak;
-      window._segIndexId[r.id]=r;
-    });
-
-    var celdas='';
-    for(var col=1;col<=maxSems;col++){
-      var sr=semMap[col];
-      if(!sr){celdas+='<td>—</td>';continue;}
-      var done=!!sr.completado;
-      var fechaFinal=sr.fecha_prog||'';
-      var past=isPast(fechaFinal);
-      /* Admin puede marcar/desmarcar sin restricción de locked ni sinPendientes */
-      var checkCls=done?'done':(past&&!canEdit?'past':'pending');
-      var checkIcon=done?'✓':(past&&!canEdit?'✕':'');
-
-      /* Siempre clickeable para admin; bloqueado para no-admin si locked o sinPendientes */
-      var clickable=canEdit||((!past)&&!sinPendientes);
-      var checkStyle=clickable?'cursor:pointer':'cursor:default';
-
-      var inputEl='';
-      if(done){
-        /* Admin ve input editable; otros ven label */
-        if(canEdit){
-          inputEl='<input class="seg-date-input" type="date" value="'+(sr.fecha_completado||fechaFinal)+'" '+
-            'data-id="'+sr.id+'" onchange="segFechaChange(this)" title="Fecha semana '+col+'">';
-        }else{
-          inputEl='<div class="seg-date-label">'+fmtSegShort(sr.fecha_completado||fechaFinal)+'</div>';
-        }
-      }else if(past){
-        if(canEdit){
-          inputEl='<input class="seg-date-input" type="date" value="'+fechaFinal+'" '+
-            'data-id="'+sr.id+'" onchange="segFechaChange(this)" title="Fecha semana '+col+'">';
-        }else{
-          inputEl='<div class="seg-date-gray">'+fmtSegShort(fechaFinal)+'</div>';
-        }
-      }else if(sinPendientes&&!canEdit){
-        inputEl='<div class="seg-date-gray">'+fmtSegShort(fechaFinal)+'</div>';
-      }else{
-        inputEl='<input class="seg-date-input" type="date" value="'+fechaFinal+'" '+
-          'data-id="'+sr.id+'" onchange="segFechaChange(this)" title="Fecha semana '+col+'">';
-      }
-
-      var titCheck=done?'Desmarcar':(past&&!canEdit?'Fecha vencida':(sinPendientes&&!canEdit?'Sin pendientes':'Marcar como seguido'));
-      celdas+='<td><div class="seg-cell">'+
-        '<div class="seg-check '+checkCls+'" style="'+checkStyle+'" '+
-          (clickable?'data-rowid="'+sr.id+'" data-done="'+done+'" onclick="segCheckClick(this)" title="'+titCheck+'"':
-                     'title="'+titCheck+'"')+
-        '>'+checkIcon+'</div>'+
-        inputEl+'</div></td>';
-    }
-
-    var addBtn='<td></td>';
-    if(canEdit){
-      addBtn='<td style="vertical-align:middle"><button class="btn btn-ghost" style="padding:4px 9px;font-size:11px;white-space:nowrap" '+
-        'data-ak="'+ak+'" data-fecha="'+(a.fecha||'')+'" onclick="segAddSemana(this)" title="Agregar semana">+ Semana</button></td>';
-    }
-
-    return '<tr class="'+rowCls+'">'+
-      '<td><b>'+(a.tienda||'—')+'</b><br>'+
-        '<span style="font-size:10px">'+(a.mes||'')+'</span></td>'+
-      celdas+addBtn+'</tr>';
-  }).join('');
-
-  return '<div class="seg-wrap">'+
-    '<div class="seg-title">📅 Seguimiento — '+claseKey+
-      '<span style="font-size:10px;font-weight:500;color:var(--muted);margin-left:8px">'+
-      '🟢 Verde = sin pendientes · Admin puede editar todo · datos en Supabase</span></div>'+
-    '<div class="tbl-scroll"><table class="seg">'+thead+'<tbody>'+tbody+'</tbody></table></div>'+
-  '</div>';
-}
-/* ════════════════════════════════════════════════════════════════════
+/* ── Inicializar semanas si no existen (crea 5 por defecto) ── *//* ════════════════════════════════════════════════════════════════════
    MÓDULO AJUSTES — Supabase
    Tabla: ajustes
    Columnas: id (uuid PK), tienda (text), mes (text), año (int),
@@ -4641,7 +4434,15 @@ var _chartAjDonut=null;
 function diasEntre(d1,d2){
   if(!d1||!d2)return null;
   var a=new Date(d1+'T00:00:00'),b=new Date(d2+'T00:00:00');
-  return Math.round((b-a)/(1000*60*60*24));
+  if(b<a)return 0;
+  /* Contar solo días hábiles lunes-viernes */
+  var habil=0,cur=new Date(a);
+  while(cur<b){
+    cur.setDate(cur.getDate()+1);
+    var dw=cur.getDay();
+    if(dw!==0&&dw!==6)habil++;
+  }
+  return habil;
 }
 function condicionAjuste(dias){
   if(dias===null)return'—';
