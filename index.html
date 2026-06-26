@@ -3686,11 +3686,12 @@ function renderDesempeno(){
   var byAuditor={};
   var nombreReal={}; /* guardar el primer nombre encontrado con su capitalización original */
   function ensure(k){
-    var kn=norm(k); /* clave normalizada para evitar duplicados por mayúsculas */
+    var kn=norm(k);
     if(!byAuditor[kn]){
       byAuditor[kn]={
-        nombre:k, /* nombre como vino la primera vez */
-        actTotal:0,actOk:0,actRepr:0,actPend:0,
+        nombre:k,
+        actProgTotal:0,actProgOk:0,actProgRepr:0,actProgPend:0,
+        actNoPTotal:0,actNoPOk:0,actNoPRepr:0,actNoPPend:0,
         ajTotal:0,ajOk:0,ajTard:0,
         mrTotal:0,mrOk:0,mrTard:0,
         audTotal:0,audPct:0,audClases:[]
@@ -3699,16 +3700,23 @@ function renderDesempeno(){
     return byAuditor[kn];
   }
 
-  /* Actividades */
+  /* Actividades — usar campo asignado como fuente principal */
   ACTIVIDADES.filter(function(a){return mMatch(a.mes);}).forEach(function(a){
-    var aud=a.creadoPor||a.asignado||'';
+    var aud=a.asignado||a.creadoPor||'';
     if(!aud)return;
     var d=ensure(aud);
-    d.actTotal++;
     var n=norm(a.estado||'');
-    if(n.includes('completad'))d.actOk++;
-    else if(n.includes('reprogramad'))d.actRepr++;
-    else d.actPend++;
+    if(a.programada!==false){
+      d.actProgTotal++;
+      if(n.includes('completad'))d.actProgOk++;
+      else if(n.includes('reprogramad'))d.actProgRepr++;
+      else d.actProgPend++;
+    }else{
+      d.actNoPTotal++;
+      if(n.includes('completad'))d.actNoPOk++;
+      else if(n.includes('reprogramad'))d.actNoPRepr++;
+      else d.actNoPPend++;
+    }
   });
 
   /* Ajustes */
@@ -3753,65 +3761,48 @@ function renderDesempeno(){
     var col=colores[i%colores.length];
     var pAj=pct(d.ajOk,d.ajTotal);
     var pMr=pct(d.mrOk,d.mrTotal);
-    var pAct=pct(d.actOk,d.actTotal);
-    var totAll=d.ajTotal+d.mrTotal+d.actTotal+d.audTotal;
-    var totOk=d.ajOk+d.mrOk+d.actOk;
-    var pGlobal=pct(totOk,d.ajTotal+d.mrTotal+d.actTotal);
+    var pActProg=pct(d.actProgOk,d.actProgTotal);
+    var pActNoP=pct(d.actNoPOk,d.actNoPTotal);
+    var actTotal=d.actProgTotal+d.actNoPTotal;
+    var actOk=d.actProgOk+d.actNoPOk;
+    var totAll=d.ajTotal+d.mrTotal+actTotal+d.audTotal;
+    var totOk=d.ajOk+d.mrOk+actOk;
+    var pGlobal=pct(totOk,d.ajTotal+d.mrTotal+actTotal);
     var pAud=d.audTotal?Math.round(d.audPct/d.audTotal):0;
 
+    function kpiBlock(icon,label,total,ok,tard,repr,pend,pbar,col2,subfooter){
+      return '<div style="background:var(--soft);border-radius:10px;padding:12px;border-top:3px solid '+col2+'">'+
+        '<div style="font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">'+icon+' '+label+'</div>'+
+        '<div style="font-size:26px;font-weight:900;color:'+col2+';line-height:1">'+total+'</div>'+
+        '<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">'+
+          (ok!==null?'<span style="font-size:10px;background:#dcfce7;color:#15803d;padding:2px 7px;border-radius:10px;font-weight:700">✓ '+ok+'</span>':'')+
+          (tard?'<span style="font-size:10px;background:#fee2e2;color:#b91c1c;padding:2px 7px;border-radius:10px;font-weight:700">✗ '+tard+'</span>':'')+
+          (repr?'<span style="font-size:10px;background:#dbeafe;color:#1d4ed8;padding:2px 7px;border-radius:10px;font-weight:700">↺ '+repr+'</span>':'')+
+          (pend?'<span style="font-size:10px;background:#fee2e2;color:#b91c1c;padding:2px 7px;border-radius:10px;font-weight:700">⏳ '+pend+'</span>':'')+
+        '</div>'+
+        bar(pbar,col2)+
+        '<div style="font-size:10px;color:var(--muted);margin-top:4px;font-weight:700">'+subfooter+'</div>'+
+      '</div>';
+    }
+
     return '<div class="card" style="padding:0;overflow:hidden">'+
-      /* Header */
       '<div style="background:'+col+';padding:14px 18px;display:flex;align-items:center;gap:14px">'+
         '<div style="width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:#fff;flex-shrink:0">'+
           d.nombre.charAt(0).toUpperCase()+
         '</div>'+
         '<div style="flex:1;min-width:0">'+
           '<div style="font-size:15px;font-weight:800;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+d.nombre+'</div>'+
-          '<div style="font-size:11px;color:rgba(255,255,255,.75);font-weight:600">'+
-            (mesFilter==='ALL'?'Todos los meses':mesFilter)+' · '+totAll+' registros'+
-          '</div>'+
+          '<div style="font-size:11px;color:rgba(255,255,255,.75);font-weight:600">'+(mesFilter==='ALL'?'Todos los meses':mesFilter)+' · '+totAll+' registros</div>'+
         '</div>'+
         '<div style="text-align:center;background:rgba(255,255,255,.18);border-radius:12px;padding:10px 16px;flex-shrink:0">'+
           '<div style="font-size:28px;font-weight:900;color:#fff;line-height:1">'+pGlobal+'%</div>'+
           '<div style="font-size:9px;color:rgba(255,255,255,.8);font-weight:700;text-transform:uppercase;margin-top:2px">Cumplimiento</div>'+
         '</div>'+
       '</div>'+
-      /* KPIs en grid */
-      '<div style="padding:14px 16px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px">'+
-        /* Ajustes */
-        '<div style="background:var(--soft);border-radius:10px;padding:12px;border-top:3px solid #0d9488">'+
-          '<div style="font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">⚖️ Ajustes</div>'+
-          '<div style="font-size:26px;font-weight:900;color:#0d9488;line-height:1">'+d.ajTotal+'</div>'+
-          '<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">'+
-            '<span style="font-size:10px;background:#ccfbf1;color:#0f766e;padding:2px 7px;border-radius:10px;font-weight:700">✓ '+d.ajOk+'</span>'+
-            (d.ajTard?'<span style="font-size:10px;background:#fee2e2;color:#b91c1c;padding:2px 7px;border-radius:10px;font-weight:700">✗ '+d.ajTard+'</span>':'')+
-          '</div>'+
-          bar(pAj,'#0d9488')+
-          '<div style="font-size:10px;color:var(--muted);margin-top:4px;font-weight:700">'+pAj+'% a tiempo</div>'+
-        '</div>'+
-        /* Mermas */
-        '<div style="background:var(--soft);border-radius:10px;padding:12px;border-top:3px solid #7c3aed">'+
-          '<div style="font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">🗂️ Mermas</div>'+
-          '<div style="font-size:26px;font-weight:900;color:#7c3aed;line-height:1">'+d.mrTotal+'</div>'+
-          '<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">'+
-            '<span style="font-size:10px;background:#ede9fe;color:#6d28d9;padding:2px 7px;border-radius:10px;font-weight:700">✓ '+d.mrOk+'</span>'+
-            (d.mrTard?'<span style="font-size:10px;background:#fee2e2;color:#b91c1c;padding:2px 7px;border-radius:10px;font-weight:700">✗ '+d.mrTard+'</span>':'')+
-          '</div>'+
-          bar(pMr,'#7c3aed')+
-          '<div style="font-size:10px;color:var(--muted);margin-top:4px;font-weight:700">'+pMr+'% a tiempo</div>'+
-        '</div>'+
-        /* Actividades */
-        '<div style="background:var(--soft);border-radius:10px;padding:12px;border-top:3px solid #2563eb">'+
-          '<div style="font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">📋 Actividades</div>'+
-          '<div style="font-size:26px;font-weight:900;color:#2563eb;line-height:1">'+d.actTotal+'</div>'+
-          '<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">'+
-            '<span style="font-size:10px;background:#dcfce7;color:#15803d;padding:2px 7px;border-radius:10px;font-weight:700">✓ '+d.actOk+'</span>'+
-            (d.actRepr?'<span style="font-size:10px;background:#dbeafe;color:#1d4ed8;padding:2px 7px;border-radius:10px;font-weight:700">↺ '+d.actRepr+'</span>':'')+
-            (d.actPend?'<span style="font-size:10px;background:#fee2e2;color:#b91c1c;padding:2px 7px;border-radius:10px;font-weight:700">⏳ '+d.actPend+'</span>':'')+
-          '</div>'+
-          bar(pAct,'#2563eb')+
-          '<div style="font-size:10px;color:var(--muted);margin-top:4px;font-weight:700">'+pAct+'% completadas</div>'+
-        '</div>'+
+      '<div style="padding:14px 16px;display:grid;grid-template-columns:repeat(3,1fr) repeat(2,1fr);gap:10px">'+
+        /* Fila 1: Ajustes, Mermas, Auditorías */
+        kpiBlock('⚖️','Ajustes',d.ajTotal,d.ajOk,d.ajTard,0,0,pAj,'#0d9488',pAj+'% a tiempo')+
+        kpiBlock('🗂️','Mermas',d.mrTotal,d.mrOk,d.mrTard,0,0,pMr,'#7c3aed',pMr+'% a tiempo')+
         /* Auditorías */
         '<div style="background:var(--soft);border-radius:10px;padding:12px;border-top:3px solid #d97706">'+
           '<div style="font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">🔍 Auditorías</div>'+
@@ -3824,6 +3815,11 @@ function renderDesempeno(){
           bar(pAud,'#d97706')+
           '<div style="font-size:10px;color:var(--muted);margin-top:4px;font-weight:700">'+(d.audTotal?pAud+'% cumpl. prom.':'—')+'</div>'+
         '</div>'+
+      '</div>'+
+      /* Fila 2: Actividades Programadas y No Programadas */
+      '<div style="padding:0 16px 14px;display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
+        kpiBlock('📋','Act. Programadas',d.actProgTotal,d.actProgOk,0,d.actProgRepr,d.actProgPend,pActProg,'#2563eb',pActProg+'% completadas')+
+        kpiBlock('📌','Act. No Programadas',d.actNoPTotal,d.actNoPOk,0,d.actNoPRepr,d.actNoPPend,pActNoP,'#ea580c',pActNoP+'% completadas')+
       '</div>'+
     '</div>';
   }).join('');
