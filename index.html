@@ -3682,17 +3682,21 @@ function renderDesempeno(){
 
   function mMatch(m){ return mesFilter==='ALL'||norm(String(m||''))===norm(mesFilter); }
 
-  /* ── Agrupar SOLO por auditor (sin separar por razón) ── */
+  /* ── Agrupar SOLO por auditor (sin separar por razón) — clave normalizada ── */
   var byAuditor={};
+  var nombreReal={}; /* guardar el primer nombre encontrado con su capitalización original */
   function ensure(k){
-    if(!byAuditor[k])byAuditor[k]={
-      nombre:k,
-      actTotal:0,actOk:0,actRepr:0,actPend:0,
-      ajTotal:0,ajOk:0,ajTard:0,
-      mrTotal:0,mrOk:0,mrTard:0,
-      audTotal:0,audPct:0,audClases:[]
-    };
-    return byAuditor[k];
+    var kn=norm(k); /* clave normalizada para evitar duplicados por mayúsculas */
+    if(!byAuditor[kn]){
+      byAuditor[kn]={
+        nombre:k, /* nombre como vino la primera vez */
+        actTotal:0,actOk:0,actRepr:0,actPend:0,
+        ajTotal:0,ajOk:0,ajTard:0,
+        mrTotal:0,mrOk:0,mrTard:0,
+        audTotal:0,audPct:0,audClases:[]
+      };
+    }
+    return byAuditor[kn];
   }
 
   /* Actividades */
