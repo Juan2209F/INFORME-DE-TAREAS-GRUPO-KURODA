@@ -5169,6 +5169,29 @@ async function loadFinalizadas(){
     if(r.error){toast('⚠ '+r.error.message);return;}
     var _finRaw=r.data||[];
     var _finDec=await decArr(_finRaw,FIELDS.tareas_finalizadas);
+
+    /* Helper: recuperar nombre legible de tienda cruzando con auditorías y tareas */
+    function resolverTienda(f){
+      var t=f.tienda||'';
+      /* Si parece cifrado (contiene : y caracteres base64) búscala en STORE */
+      var parece_cifrado=/^[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+$/.test(t)&&t.length>40;
+      if(!parece_cifrado)return t;
+      /* Buscar en auditorías por aud_key */
+      if(f.aud_key){
+        var parts=f.aud_key.split('|');
+        var tiendaNorm=parts[0]||'';
+        /* Cruzar con STORE.auditorias */
+        var aud=STORE.auditorias.find(function(a){return norm(a.tienda||'')===tiendaNorm;});
+        if(aud&&aud.tienda)return aud.tienda;
+        /* Cruzar con STORE.tareas */
+        var tarea=STORE.tareas.find(function(ta){return norm(ta.tienda||'')===tiendaNorm;});
+        if(tarea&&tarea.tienda)return tarea.tienda;
+        /* Último recurso: capitalizar la clave normalizada */
+        if(tiendaNorm)return tiendaNorm.toUpperCase();
+      }
+      return t;
+    }
+
     FINALIZADAS=_finDec.map(function(f){
       /* duracion_dias: calcular desde fechas reales de tareas cuando sea posible */
       var fechaIni=f.fecha_inicio;
@@ -5212,7 +5235,11 @@ async function loadFinalizadas(){
         });
         if(td.length>0){total=td.length;res=td.filter(function(t){return!esPendiente(t);}).length;}
       }
-      return Object.assign({},f,{duracion_dias:dur,pct_cumpl:pct,total_tareas:total,resueltas:res,
+      return Object.assign({},f,{
+        tienda: resolverTienda(f),
+        mes: (f.mes&&f.mes.length<20)?f.mes:(f.aud_key?(f.aud_key.split('|')[1]||'').toUpperCase():f.mes),
+        clase: (f.clase&&f.clase.length<60)?f.clase:(f.aud_key?f.aud_key.split('|')[2]||f.clase:f.clase),
+        duracion_dias:dur,pct_cumpl:pct,total_tareas:total,resueltas:res,
         completadoPor:f.completado_por||''});
     });
     _finLoaded=true;
@@ -5452,12 +5479,10 @@ async function registrarFinalizada(a){
       return;
     }
     var ix=FINALIZADAS.findIndex(function(f){return f.aud_key===ak&&f._pending;});
-    /* Descifrar antes de guardar en memoria para que renderFinalizadas lo muestre bien */
-    var savedRaw=r.data[0]||row;
-    var saved=await decObj(savedRaw,FIELDS.tareas_finalizadas);
-    if(!saved||!saved.tienda)saved=Object.assign({},_finRowRaw); /* fallback: usar datos originales */
+    /* Siempre usar los datos originales sin cifrar para mostrar en UI */
+    var saved=Object.assign({},_finRowRaw);
+    saved.id=(r.data&&r.data[0])?r.data[0].id:('tmp_'+Date.now());
     if((saved.pct_cumpl||0)>1)saved.pct_cumpl=saved.pct_cumpl/100;
-    saved.id=savedRaw.id||saved.id;
     if(ix>=0)FINALIZADAS[ix]=saved;
     if(VIEW==='finalizadas'){fillFinFilters();renderFinalizadas();}
   }catch(e){
