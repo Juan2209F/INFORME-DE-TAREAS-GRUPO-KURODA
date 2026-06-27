@@ -2315,6 +2315,7 @@ function calcAudStats(a, rowsMismaClase){
 
   if(!tt.length){
     return {tareas:a.tareas||0,resueltas:a.resueltas||0,pendientes:a.pendientes||0,
+            abiertas:a.pendientes||0,abiertasAtrasadas:0,resueltasAtrasadas:0,
             pctResuelto:a.pctResuelto||0,tieneAtrasada:false,dinamico:false};
   }
 
@@ -2375,7 +2376,11 @@ function audTablaPorClase(titulo,color,rows){
       '<td>'+(a.mes||'—')+'</td>'+
       '<td style="text-align:center">'+pctFmt(a.pctCumpl)+'</td>'+
       '<td style="text-align:center">'+pend+'</td>'+
-      '<td style="text-align:center;font-size:10px;color:var(--muted)">'+stats.abiertas+'↑ '+stats.abiertasAtrasadas+'🔴</td>'+
+      '<td style="text-align:center;font-size:10px">'+
+      ((stats.abiertas||0)>0?'<span style="color:#2563eb;font-weight:700">'+(stats.abiertas||0)+'↑</span> ':'')+
+      ((stats.abiertasAtrasadas||0)>0?'<span style="color:#dc2626;font-weight:700">'+(stats.abiertasAtrasadas||0)+'🔴</span>':
+       (stats.abiertas||0)===0&&(stats.abiertasAtrasadas||0)===0?'<span style="color:#16a34a">✓</span>':'')+
+      '</td>'+
       '<td style="text-align:center">'+stats.resueltas+mark+'</td>'+
       '<td style="text-align:center">'+pctFmt(stats.pctResuelto)+mark+'</td>'+
       editBtn+
@@ -5447,8 +5452,12 @@ async function registrarFinalizada(a){
       return;
     }
     var ix=FINALIZADAS.findIndex(function(f){return f.aud_key===ak&&f._pending;});
-    var saved=Object.assign({},r.data[0]||row);
-    if(saved.pct_cumpl>1)saved.pct_cumpl=saved.pct_cumpl/100;
+    /* Descifrar antes de guardar en memoria para que renderFinalizadas lo muestre bien */
+    var savedRaw=r.data[0]||row;
+    var saved=await decObj(savedRaw,FIELDS.tareas_finalizadas);
+    if(!saved||!saved.tienda)saved=Object.assign({},_finRowRaw); /* fallback: usar datos originales */
+    if((saved.pct_cumpl||0)>1)saved.pct_cumpl=saved.pct_cumpl/100;
+    saved.id=savedRaw.id||saved.id;
     if(ix>=0)FINALIZADAS[ix]=saved;
     if(VIEW==='finalizadas'){fillFinFilters();renderFinalizadas();}
   }catch(e){
