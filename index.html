@@ -693,16 +693,17 @@ table.seg tbody tr:hover{background:var(--soft)}
     </div>
 
     <!-- ===================== VIEW: TAREAS (editable) ===================== -->
-    <div id="view-tareas" style="display:none;flex-direction:column;gap:14px">
-      <div class="slbl"><span class="dot" style="background:var(--blue)"></span>Gestión de tareas
-        <span style="font-weight:600;font-size:10px;color:var(--muted);text-transform:none;margin-left:6px">edita estado y fechas · se guarda automáticamente</span></div>
-      <p class="module-desc">Aquí puedes ver y editar el detalle de cada tarea: cambia su estado o fecha y los cambios se guardan al instante.</p>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn btn-blue" id="btn-agregar-tarea" onclick="openEditIfAllowed(null)">➕ Agregar tarea</button>
-        <button class="btn btn-teal" onclick="downloadTareasPNG()">🖼️ PNG de tareas filtradas</button>
-        <span id="tareas-count" style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600;align-self:center"></span>
+    <div id="view-tareas" style="display:none;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:2px 0">
+        <span style="font-size:13px;font-weight:800;color:var(--nav)">📝 Gestión de tareas</span>
+        <span style="font-size:10px;color:var(--muted);font-weight:600">edita estado y fechas · se guarda automáticamente</span>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+          <button class="btn btn-blue" id="btn-agregar-tarea" onclick="openEditIfAllowed(null)" style="padding:6px 12px;font-size:12px">➕ Agregar</button>
+          <button class="btn btn-teal" onclick="downloadTareasPNG()" style="padding:6px 12px;font-size:12px">🖼️ PNG</button>
+          <span id="tareas-count" style="font-size:12px;color:var(--muted);font-weight:600"></span>
+        </div>
       </div>
-      <div class="card" style="padding:8px 10px">
+      <div class="card" style="padding:4px 6px">
         <div class="tbl-scroll" id="tareas-table"></div>
       </div>
     </div>
@@ -1829,19 +1830,44 @@ function renderTareasView(tareas){
   const el=document.getElementById('tareas-table');
   if(!tareas.length){el.innerHTML='<div class="empty">Sin tareas para el filtro actual.</div>';return;}
   const sorted=[...tareas].sort((a,b)=>(fromISO(b.fechaCreacion)||0)-(fromISO(a.fechaCreacion)||0));
-  el.innerHTML=`<table class="dt" style="min-width:880px">
-    <thead><tr><th>ID</th><th>Tarea</th><th>Sucursal</th><th>Área</th><th>Tipo</th><th>Estado</th><th>F. Término</th><th>F. Cumplim.</th><th class="c">Editar</th></tr></thead>
-    <tbody>${sorted.map(t=>`<tr>
-      <td><b>${t.id}</b></td>
-      <td><div class="tname" style="max-width:280px;overflow:hidden;text-overflow:ellipsis" title="${(t.nombre||'').replace(/"/g,'&quot;')}">${t.nombre}</div><div class="tsub">${t.actividad||''}</div></td>
-      <td class="tname">${t.tienda}<div class="tsub">${t.centro}</div></td>
-      <td class="tsub">${t.areaResp}</td>
-      <td><span class="badge b-gray">${tipoNorm(t.tipoTarea)==='ol'?'O&L':tipoNorm(t.tipoTarea)==='cartera'?'Cartera':'Colab.'}</span></td>
-      <td>${estadoBadge(t.estado)}</td>
-      <td class="tsub">${fmtDate(fromISO(t.fechaTerm))}</td>
-      <td class="tsub">${fmtDate(fromISO(t.fechaCumpl))}</td>
-      <td class="cell-c">${editBtn(t.id)}</td>
-    </tr>`).join('')}</tbody></table>`;
+  el.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:var(--nav);color:#fff;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em">
+      <th style="padding:7px 8px;font-weight:700;white-space:nowrap">ID</th>
+      <th style="padding:7px 8px;font-weight:700;text-align:left">Tarea / Actividad</th>
+      <th style="padding:7px 8px;font-weight:700;text-align:left">Sucursal</th>
+      <th style="padding:7px 8px;font-weight:700;text-align:left">Área</th>
+      <th style="padding:7px 8px;font-weight:700;text-align:center">Tipo</th>
+      <th style="padding:7px 8px;font-weight:700;text-align:center">Estado</th>
+      <th style="padding:7px 8px;font-weight:700;text-align:center;white-space:nowrap">F. Término</th>
+      <th style="padding:7px 8px;font-weight:700;text-align:center;white-space:nowrap">F. Cumpl.</th>
+      <th style="padding:7px 8px;font-weight:700;text-align:center">✎</th>
+    </tr></thead>
+    <tbody>${sorted.map((t,i)=>{
+      const bg=i%2===0?'var(--bg)':'var(--soft)';
+      const tipo=tipoNorm(t.tipoTarea)==='ol'?'O&L':tipoNorm(t.tipoTarea)==='cartera'?'Cart.':'Colab.';
+      const tipoCls=tipoNorm(t.tipoTarea)==='ol'?'#16a34a':tipoNorm(t.tipoTarea)==='cartera'?'#7c3aed':'#2563eb';
+      const nEst=norm(t.estado||'');
+      const estCol=nEst.includes('atrasad')?'#dc2626':nEst.includes('resuelta')&&nEst.includes('atrasad')?'#d97706':nEst.includes('resuelta')?'#16a34a':'#2563eb';
+      const estTxt=nEst.includes('abierta')&&nEst.includes('atrasad')?'Ab. Atr.':nEst.includes('abierta')?'Abierta':nEst.includes('resuelta')&&nEst.includes('atrasad')?'Res. Atr.':'Resuelta';
+      const ftColor=fromISO(t.fechaTerm)&&fromISO(t.fechaTerm)<new Date()&&esPendiente(t)?'#dc2626':'var(--muted)';
+      return `<tr style="background:${bg};border-bottom:1px solid var(--rowline)">
+        <td style="padding:5px 8px;color:var(--muted);font-size:11px;white-space:nowrap;font-family:monospace">${t.id}</td>
+        <td style="padding:5px 8px;max-width:300px">
+          <div style="font-weight:700;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(t.nombre||'').replace(/"/g,'&quot;')}">${t.nombre||'—'}</div>
+          <div style="font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.actividad||''}</div>
+        </td>
+        <td style="padding:5px 8px;max-width:160px">
+          <div style="font-weight:700;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.tienda||'—'}</div>
+          <div style="font-size:10px;color:var(--muted)">${t.centro||''}</div>
+        </td>
+        <td style="padding:5px 8px;font-size:11px;color:var(--muted);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.areaResp||'—'}</td>
+        <td style="padding:5px 8px;text-align:center"><span style="font-size:10px;font-weight:700;color:${tipoCls};background:${tipoCls}18;padding:2px 6px;border-radius:8px">${tipo}</span></td>
+        <td style="padding:5px 8px;text-align:center"><span style="font-size:10px;font-weight:700;color:${estCol};background:${estCol}18;padding:2px 6px;border-radius:8px;white-space:nowrap">${estTxt}</span></td>
+        <td style="padding:5px 8px;text-align:center;font-size:11px;color:${ftColor};white-space:nowrap">${fmtDate(fromISO(t.fechaTerm))||'—'}</td>
+        <td style="padding:5px 8px;text-align:center;font-size:11px;color:var(--muted);white-space:nowrap">${fmtDate(fromISO(t.fechaCumpl))||'—'}</td>
+        <td style="padding:5px 8px;text-align:center">${editBtn(t.id)}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
 }
 
 const ESTADOS=['Abierta','Abierta atrasada','Resuelta','Resuelta Atrasada'];
@@ -2502,7 +2528,7 @@ function openEditAuditoria(akey){
 }
 
 async function saveEditAuditoria(original){
-  if(!_session||_session.rol!=='admin'){toast('⚠ Solo administradores');return;}
+  if(!_session||!['admin','admin_auditor'].includes(_session.rol)){toast('⚠ Solo administradores');return;}
   function dv(id){var e=document.getElementById(id);return e?e.value.trim():'';}
   var pct=parseFloat(dv('ea-pct'))||0;
   var updated={
@@ -2535,7 +2561,7 @@ async function saveEditAuditoria(original){
 }
 
 async function deleteAuditoria(a){
-  if(!_session||_session.rol!=='admin'){toast('⚠ Solo administradores');return;}
+  if(!_session||!['admin','admin_auditor'].includes(_session.rol)){toast('⚠ Solo administradores');return;}
   if(!confirm('¿Eliminar auditoría de '+a.tienda+' ('+a.mes+')?'))return;
   closeModal();
   STORE.auditorias=STORE.auditorias.filter(function(x){
@@ -3746,6 +3772,13 @@ function renderDesempeno(){
   var byAuditor={};
   var nombreReal={}; /* guardar el primer nombre encontrado con su capitalización original */
   function ensure(k){
+    /* Si el nombre parece cifrado, intentar resolverlo */
+    if(pareceCifrado(k)){
+      /* Buscar en auditores conocidos */
+      var conocido=_AUDITORES_CONOCIDOS.find(function(n){return !pareceCifrado(n);});
+      if(conocido)k=conocido;
+      else k='Auditor ('+k.substring(0,8)+'...)';
+    }
     var kn=norm(k);
     if(!byAuditor[kn]){
       byAuditor[kn]={
@@ -3958,6 +3991,11 @@ async function doLogin(){
         localStorage.setItem(SB_SESSION_KEY,JSON.stringify(_session));
         /* Derivar clave AES-GCM de la contraseña ANTES de cargar datos */
         await initCryptoKey(pass);
+        /* Descifrar campos de sesión que pueden venir cifrados */
+        if(_session.nombre)_session.nombre=await dec(_session.nombre);
+        if(_session.username)_session.username=await dec(_session.username);
+        /* Re-guardar sesión con datos descifrados */
+        localStorage.setItem(SB_SESSION_KEY,JSON.stringify(_session));
         onLoginSuccess();return;
       } else {
         showLoginErr('Usuario o contraseña incorrectos');
@@ -5422,7 +5460,7 @@ function finDeleteClick(el){
 }
 
 async function updateFinFecha(el){
-  if(!_session||_session.rol!=='admin')return;
+  if(!_session||!['admin','admin_auditor'].includes(_session.rol))return;
   var id=el.getAttribute('data-fid');
   var newDate=el.value;
   if(!id||!newDate)return;
@@ -5512,7 +5550,7 @@ async function registrarFinalizada(a){
 }
 
 async function deleteFinalizada(id){
-  if(!_session||_session.rol!=='admin'){toast('⚠ Solo administradores');return;}
+  if(!_session||!['admin','admin_auditor'].includes(_session.rol)){toast('⚠ Solo administradores');return;}
   if(!confirm('¿Eliminar este registro de finalización?'))return;
   var client=getSbClient();if(!client)return;
   try{
