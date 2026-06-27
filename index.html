@@ -534,7 +534,7 @@ table.seg tbody tr:hover{background:var(--soft)}
       <div class="fg"><label>Desde</label><input type="date" id="f-desde" onchange="onFilter('manual')"></div>
       <div class="fg"><label>Hasta</label><input type="date" id="f-hasta" onchange="onFilter('manual')"></div>
       <div class="fg">
-        <label>Tendencia agrupar por</label>
+        <label>Filtrar por mes</label>
         <select id="f-gran" onchange="onFilter()">
           <option value="month">Mes</option>
           <option value="quarter">Trimestre</option>
@@ -1318,12 +1318,20 @@ function getSbClient(){
 ════════════════════════════════════════════════════════════════════ */
 function uniq(arr){return [...new Set(arr.filter(Boolean))].sort();}
 function fillFilters(){patchedFillFilters();}
+/* Detectar si un valor parece cifrado (base64:base64 largo) */
+function pareceCifrado(v){
+  if(!v||typeof v!=='string')return false;
+  return /^[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+$/.test(v)&&v.length>30;
+}
+function limpiarOpciones(arr){
+  return arr.filter(function(v){return v&&!pareceCifrado(v);});
+}
 function fillCentroTienda(){
   const razon=document.getElementById('f-razon').value;
   const filtA=STORE.tareas.filter(t=>razon==='ALL'||t.razon===razon);
   const filtAud=STORE.auditorias.filter(a=>razon==='ALL'||a.razon===razon);
-  const centros=uniq([...filtA.map(t=>t.centro),...filtAud.map(a=>a.centro)]);
-  const tiendas=uniq([...filtA.map(t=>t.tienda),...filtAud.map(a=>a.tienda)]);
+  const centros=limpiarOpciones(uniq([...filtA.map(t=>t.centro),...filtAud.map(a=>a.centro)]));
+  const tiendas=limpiarOpciones(uniq([...filtA.map(t=>t.tienda),...filtAud.map(a=>a.tienda)]));
   const fc=document.getElementById('f-centro'),ft=document.getElementById('f-tienda');
   const cv=fc.value, tv=ft.value;
   fc.innerHTML='<option value="ALL">Todos</option>'+centros.map(c=>`<option>${c}</option>`).join('');
@@ -1343,14 +1351,9 @@ function setQuick(q,el){
   else if(q==='year'){desde=new Date(y,0,1);hasta=new Date(y,11,31);}
   document.getElementById('f-desde').value=fmtInput(desde);
   document.getElementById('f-hasta').value=fmtInput(hasta);
-  // sincroniza granularidad con el rango elegido
+  /* Al usar rango rápido, resetear filtro de mes a "Todos" */
   const g=document.getElementById('f-gran');
-  /* Auto-set granularity to match the range for meaningful trend buckets */
-  if(q==='all')g.value='month';
-  else if(q==='month')g.value='month';
-  else if(q==='quarter')g.value='month';
-  else if(q==='half')g.value='quarter';
-  else if(q==='year')g.value='quarter';
+  g.value='ALL';
   render();
 }
 function onFilter(src){
@@ -1365,7 +1368,8 @@ function getFilterState(){
     tipo:document.getElementById('f-tipo').value,
     desde:document.getElementById('f-desde').value?new Date(document.getElementById('f-desde').value+'T00:00:00'):null,
     hasta:document.getElementById('f-hasta').value?new Date(document.getElementById('f-hasta').value+'T23:59:59'):null,
-    gran:document.getElementById('f-gran').value
+    gran:'month',
+    mesGran:document.getElementById('f-gran').value /* 'ALL' o '01'-'12' */
   };
 }
 function matchTipo(t,tipo){
@@ -1380,12 +1384,19 @@ function inRange(d,f){
 }
 function filteredTareas(){
   const f=getFilterState();
+  const anio=new Date().getFullYear();
   return STORE.tareas.filter(t=>{
     if(f.razon!=='ALL'&&t.razon!==f.razon)return false;
     if(f.centro!=='ALL'&&t.centro!==f.centro)return false;
     if(f.tienda!=='ALL'&&t.tienda!==f.tienda)return false;
     if(!matchTipo(t,f.tipo))return false;
     if(f.desde||f.hasta){if(!inRange(fromISO(t.fechaCreacion),f))return false;}
+    /* Filtro por mes seleccionado */
+    if(f.mesGran&&f.mesGran!=='ALL'){
+      const cr=fromISO(t.fechaCreacion);
+      if(!cr)return false;
+      if(cr.getMonth()+1!==parseInt(f.mesGran)||cr.getFullYear()!==anio)return false;
+    }
     return true;
   });
 }
@@ -2242,8 +2253,8 @@ function fillAudFilters(){
   if(!sM)return;
   var vM=sM.value,vT=sT.value,vC=sC.value;
   sM.innerHTML='<option value="ALL">Todos</option>'+meses.map(m=>'<option>'+m+'</option>').join('');
-  sT.innerHTML='<option value="ALL">Todas</option>'+tiendas.map(t=>'<option>'+t+'</option>').join('');
-  sC.innerHTML='<option value="ALL">Todos</option>'+centros.map(c=>'<option>'+c+'</option>').join('');
+  sT.innerHTML='<option value="ALL">Todas</option>'+limpiarOpciones(tiendas).map(t=>'<option>'+t+'</option>').join('');
+  sC.innerHTML='<option value="ALL">Todos</option>'+limpiarOpciones(centros).map(c=>'<option>'+c+'</option>').join('');
   sM.value=vM;sT.value=vT;sC.value=vC;
 }
 
@@ -2627,8 +2638,8 @@ function openNuevaAuditoria(){
   var tiendas=uniq(STORE.auditorias.map(function(a){return a.tienda;}).concat(STORE.tareas.map(function(t){return t.tienda;})));
   var centros=uniq(STORE.auditorias.map(function(a){return a.centro;}).concat(STORE.tareas.map(function(t){return t.centro;})));
   var razones=uniq(STORE.auditorias.map(function(a){return a.razon;}).concat(STORE.tareas.map(function(t){return t.razon;})));
-  document.getElementById('na-tienda-list').innerHTML=tiendas.map(function(v){return'<option value="'+v+'">';}).join('');
-  document.getElementById('na-centro-list').innerHTML=centros.map(function(v){return'<option value="'+v+'">';}).join('');
+  document.getElementById('na-tienda-list').innerHTML=limpiarOpciones(tiendas).map(function(v){return'<option value="'+v+'">';}).join('');
+  document.getElementById('na-centro-list').innerHTML=limpiarOpciones(centros).map(function(v){return'<option value="'+v+'">';}).join('');
   document.getElementById('na-razon-list').innerHTML=razones.map(function(v){return'<option value="'+v+'">';}).join('');
   /* Reset campos */
   ['na-tienda','na-centro','na-razon','na-pct','na-tareas','na-pend','na-res'].forEach(function(id){
@@ -4480,7 +4491,7 @@ function fillAjFilters(){
   var vm=sm.value,va=sa.value,vt=st.value;
   sm.innerHTML='<option value="ALL">Todos</option>'+meses.map(function(m){return'<option value="'+m+'">'+m+'</option>';}).join('');
   sa.innerHTML='<option value="ALL">Todos</option>'+años.map(function(y){return'<option value="'+y+'">'+y+'</option>';}).join('');
-  st.innerHTML='<option value="ALL">Todas</option>'+tiendas.map(function(t){return'<option>'+t+'</option>';}).join('');
+  st.innerHTML='<option value="ALL">Todas</option>'+limpiarOpciones(tiendas).map(function(t){return'<option>'+t+'</option>';}).join('');
   /* Si había selección previa explícita, restaurarla; si era ALL (sin selección), poner mes/año actual */
   var mesHoy=MORD[new Date().getMonth()];
   var añoHoy=String(new Date().getFullYear());
@@ -4840,7 +4851,7 @@ function fillMrFilters(){
   var vm=sm.value,va=sa.value,vt=st.value;
   sm.innerHTML='<option value="ALL">Todos</option>'+meses.map(function(m){return'<option value="'+m+'">'+m+'</option>';}).join('');
   sa.innerHTML='<option value="ALL">Todos</option>'+años.map(function(y){return'<option value="'+y+'">'+y+'</option>';}).join('');
-  st.innerHTML='<option value="ALL">Todas</option>'+tiendas.map(function(t){return'<option>'+t+'</option>';}).join('');
+  st.innerHTML='<option value="ALL">Todas</option>'+limpiarOpciones(tiendas).map(function(t){return'<option>'+t+'</option>';}).join('');
   var mesHoy=MORD[new Date().getMonth()];
   var añoHoy=String(new Date().getFullYear());
   if(vm!=='ALL'&&[...sm.options].some(function(o){return o.value===vm;}))sm.value=vm;
@@ -5256,7 +5267,7 @@ function fillFinFilters(){
   var añoSet=[...new Set(FINALIZADAS.map(function(f){
     return f.fecha_finalizacion?f.fecha_finalizacion.split('-')[0]:'';
   }).filter(Boolean))].sort().reverse();
-  var tiendas=[...new Set(FINALIZADAS.map(function(f){return f.tienda;}).filter(Boolean))].sort();
+  var tiendas=limpiarOpciones([...new Set(FINALIZADAS.map(function(f){return f.tienda;}).filter(Boolean))].sort());
   var sm=document.getElementById('fin-f-mes');
   var sa=document.getElementById('fin-f-año');
   var st=document.getElementById('fin-f-tienda');
@@ -5264,7 +5275,7 @@ function fillFinFilters(){
   var vm=sm.value,va=sa.value,vt=st.value;
   sm.innerHTML='<option value="ALL">Todos</option>'+meses.map(function(m){return'<option value="'+m+'">'+m+'</option>';}).join('');
   sa.innerHTML='<option value="ALL">Todos</option>'+añoSet.map(function(y){return'<option value="'+y+'">'+y+'</option>';}).join('');
-  st.innerHTML='<option value="ALL">Todas</option>'+tiendas.map(function(t){return'<option>'+t+'</option>';}).join('');
+  st.innerHTML='<option value="ALL">Todas</option>'+limpiarOpciones(tiendas).map(function(t){return'<option>'+t+'</option>';}).join('');
   if([...sm.options].some(function(o){return o.value===vm;}))sm.value=vm;
   if([...sa.options].some(function(o){return o.value===va;}))sa.value=va;
   if([...st.options].some(function(o){return o.value===vt;}))st.value=vt;
