@@ -1826,8 +1826,8 @@ function renderTareasView(tareas){
 
 const ESTADOS=['Abierta','Abierta atrasada','Resuelta','Resuelta Atrasada'];
 function editBtn(id){
-  if(_session&&['admin','editor'].includes(_session.rol)){
-    return '<button class="icon-btn" onclick="openEdit(\''+String(id).replace(/\'/g,'')+'\')" >✎</button>';
+  if(_session&&['admin','admin_auditor','auditor'].includes(_session.rol)){
+    return '<button class="icon-btn" onclick="openEditIfAllowed(\''+String(id).replace(/\'/g,'')+'\')" >✎</button>';
   }
   return '<span style="color:var(--border)">—</span>';
 }
@@ -2015,6 +2015,7 @@ function pendientesPorSucursalHTML(){
   }).join('');
 }
 function openPendientes(){
+  actualizarEstadosVencidos(); /* actualizar Abierta→Abierta atrasada antes de mostrar */
   const html=`<div id="pend-content">${pendientesPorSucursalHTML()}</div>`;
   openModal('🏬 Tareas pendientes por sucursal',html,[
     {label:'🖼️ Descargar PNG',cls:'btn-teal',fn:()=>downloadPendientesPNG()},
@@ -2353,12 +2354,23 @@ function audTablaPorClase(titulo,color,rows){
     var stats=calcAudStats(a,rows);
     var pend=stats.pendientes;
     var pc=pendColor(stats);
+    /* Auto-enviar a finalizadas si resuelto al 100% */
+    if(stats.dinamico&&stats.pendientes===0&&stats.tareas>0){
+      registrarFinalizada(a);
+    }
     var mark=stats.dinamico?'<span style="font-size:9px;color:var(--teal);margin-left:3px" title="En tiempo real">⟳</span>':'';
+    /* Color de fila según estado leyenda */
+    var rowBg=stats.abiertasAtrasadas>0?'#fff5f5':
+              stats.abiertas>0?'#eff6ff':
+              (stats.resueltasAtrasadas||0)>0?'#fffbeb':'#f0fdf4';
+    var rowBd=stats.abiertasAtrasadas>0?'3px solid #dc2626':
+              stats.abiertas>0?'3px solid #2563eb':
+              (stats.resueltasAtrasadas||0)>0?'3px solid #d97706':'3px solid #16a34a';
     /* Clave única por auditoría */
     var akey=[norm(a.tienda||''),norm(a.mes||''),norm(a.clase||''),a.fecha||''].join('|');
     window._audItemCache[akey]=a;
     var editBtn=isAdmin?'<td style="text-align:center"><button class="icon-btn" onclick="openEditAuditoria(\''+akey+'\')" title="Editar auditoría">✎</button></td>':'<td></td>';
-    return '<tr>'+
+    return '<tr style="background:'+rowBg+';border-left:'+rowBd+'">'+ 
       '<td><b>'+(a.tienda||'—')+'</b></td>'+
       '<td>'+(a.mes||'—')+'</td>'+
       '<td style="text-align:center">'+pctFmt(a.pctCumpl)+'</td>'+
@@ -5251,7 +5263,6 @@ function renderFinalizadas(){
     return;
   }
 
-  /* Función local para obtener duración, buscando en tareas si es necesario */
   function getDur(f){
     if(f.duracion_dias!=null)return f.duracion_dias;
     var fi=f.fecha_inicio;var ff=f.fecha_finalizacion;
@@ -5274,61 +5285,83 @@ function renderFinalizadas(){
     return (fi&&ff)?diasEntre(fi,ff):null;
   }
 
-  /* ── Cálculos ── */
-  var arrConPct=arr.filter(function(f){return f.pct_cumpl>0;});
-  var promPct=arrConPct.length?
-    Math.round(arrConPct.reduce(function(s,f){return s+(f.pct_cumpl||0);},0)/arrConPct.length*100):null;
+  function claseGrupo(f){
+    var c=norm(f.clase||'');
+    if(c.includes('colaboracion')||c.includes('colab'))return{key:'colab',label:'COLABORACIÓN',color:'#2563eb',bg:'#eff6ff'};
+    if(c.includes('orden')||c.includes('limpieza'))return{key:'ol',label:'ORDEN Y LIMPIEZA',color:'#16a34a',bg:'#f0fdf4'};
+    if(c.includes('cartera'))return{key:'cartera',label:'CARTERA',color:'#7c3aed',bg:'#f5f3ff'};
+    return{key:'otro',label:(f.clase||'OTRO').toUpperCase(),color:'#7c8696',bg:'#f8fafc'};
+  }
 
-  var arrConDur=arr.filter(function(f){var d=getDur(f);return d!=null&&d>=0;});
-  var promDias=arrConDur.length?
-    Math.round(arrConDur.reduce(function(s,f){return s+getDur(f);},0)/arrConDur.length):null;
-  var promSems=promDias!=null?Math.round(promDias/7*10)/10:null;
+  /* Agrupar por tipo */
+  var grupos={};
+  var orden=['colab','ol','cartera','otro'];
+  arr.forEach(function(f){
+    var g=claseGrupo(f);
+    if(!grupos[g.key])grupos[g.key]={meta:g,filas:[]};
+    grupos[g.key].filas.push(f);
+  });
 
-  var totalTareasSum=arr.reduce(function(s,f){return s+(parseInt(f.total_tareas)||0);},0);
-  var totalResSum=arr.reduce(function(s,f){return s+(parseInt(f.resueltas)||0);},0);
+  function renderGrupo(g){
+    var filas=g.filas;
+    var meta=g.meta;
+    var arrConPct=filas.filter(function(f){return f.pct_cumpl>0;});
+    var promPct=arrConPct.length?Math.round(arrConPct.reduce(function(s,f){return s+(f.pct_cumpl||0);},0)/arrConPct.length*100):null;
+    var arrConDur=filas.filter(function(f){var d=getDur(f);return d!=null&&d>=0;});
+    var promDias=arrConDur.length?Math.round(arrConDur.reduce(function(s,f){return s+getDur(f);},0)/arrConDur.length):null;
+    var promSems=promDias!=null?Math.round(promDias/7*10)/10:null;
+    var totalTareasSum=filas.reduce(function(s,f){return s+(parseInt(f.total_tareas)||0);},0);
+    var totalResSum=filas.reduce(function(s,f){return s+(parseInt(f.resueltas)||0);},0);
 
-  /* ── Fila de totales/promedio ── */
-  var resumen='<tr style="background:#dcfce7;font-weight:800;border-top:2px solid #16a34a">'+
-    '<td style="color:#15803d;padding:9px 12px" colspan="2">📊 TOTALES / PROM.</td>'+
-    '<td style="text-align:center;color:var(--muted);font-size:10px">'+arr.length+' reg.</td>'+
-    '<td style="text-align:center;color:#16a34a">'+(promPct!=null?promPct+'%':'N/A')+'</td>'+
-    '<td style="text-align:center;color:#2563eb">'+totalTareasSum+'</td>'+
-    '<td style="text-align:center;color:#16a34a">'+totalResSum+'</td>'+
-    '<td style="text-align:center;color:#16a34a">'+(promDias!=null?promDias+' d':'—')+'</td>'+
-    '<td style="text-align:center;color:#16a34a">'+(promSems!=null?promSems+' sem':'—')+'</td>'+
-    (isAdmin?'<td></td><td></td>':'')+'</tr>';
+    var rows=filas.map(function(f,i){
+      var pct=(f.pct_cumpl>0)?Math.round(f.pct_cumpl*100)+'%':'—';
+      var dur=getDur(f);
+      var diasStr=dur!=null?dur+'d':'—';
+      var semsStr=dur!=null?(Math.round(dur/7*10)/10)+' sem':'—';
+      var editTd=isAdmin?'<td style="text-align:center"><button class="icon-btn" data-fid="'+esc(f.id||'')+'" onclick="finDeleteClick(this)" title="Eliminar">✕</button></td>':'';
+      var fechaCell=isAdmin?
+        '<td style="text-align:center"><input class="seg-date-input" type="date" value="'+(f.fecha_finalizacion||'')+'" '+
+          'data-fid="'+esc(f.id||'')+'" onchange="updateFinFecha(this)" style="width:110px"></td>':
+        '<td style="text-align:center">'+fmtFecha(f.fecha_finalizacion)+'</td>';
+      return '<tr style="background:'+meta.bg+'">'+
+        '<td style="color:var(--muted);font-size:11px">'+(i+1)+'</td>'+
+        '<td><b style="color:'+meta.color+'">'+esc(f.tienda||'—')+'</b></td>'+
+        '<td style="text-align:center;font-weight:700;color:#16a34a">'+pct+'</td>'+
+        '<td style="text-align:center;font-weight:700">'+(parseInt(f.total_tareas)||0)+'</td>'+
+        '<td style="text-align:center;color:#16a34a;font-weight:700">'+(parseInt(f.resueltas)||0)+'</td>'+
+        fechaCell+
+        '<td style="text-align:center;color:var(--muted)">'+diasStr+'</td>'+
+        '<td style="text-align:center;color:var(--muted)">'+semsStr+'</td>'+
+        editTd+'</tr>';
+    }).join('');
 
-  /* ── Filas de datos ── */
-  tbody.innerHTML=arr.map(function(f,i){
-    var pct=(f.pct_cumpl>0)?Math.round(f.pct_cumpl*100)+'%':'—';
-    var cls=norm(f.clase||'');
-    var claseLabel=cls.includes('colaboracion')||cls.includes('colab')?
-      '<span style="font-size:10px;color:#2563eb;font-weight:700">COLAB.</span>':
-      cls.includes('orden')||cls.includes('limpieza')?
-      '<span style="font-size:10px;color:#16a34a;font-weight:700">O&L</span>':
-      cls.includes('cartera')?
-      '<span style="font-size:10px;color:#7c3aed;font-weight:700">CARTERA</span>':
-      '<span style="font-size:10px;color:var(--muted)">'+esc(f.clase||'—')+'</span>';
-    var dur=getDur(f);
-    var diasStr=dur!=null?dur+'d':'—';
-    var semsStr=dur!=null?(Math.round(dur/7*10)/10)+' sem':'—';
-    var editTd=isAdmin?'<td style="text-align:center"><button class="icon-btn" data-fid="'+esc(f.id||'')+'" onclick="finDeleteClick(this)" title="Eliminar">✕</button></td>':'';
-    var fechaCell=isAdmin?
-      '<td style="text-align:center"><input class="seg-date-input" type="date" value="'+(f.fecha_finalizacion||'')+'" '+
-        'data-fid="'+esc(f.id||'')+'" onchange="updateFinFecha(this)" style="width:110px"></td>':
-      '<td style="text-align:center">'+fmtFecha(f.fecha_finalizacion)+'</td>';
-    return '<tr style="background:#f0fdf4">'+
-      '<td style="color:var(--muted);font-size:11px">'+(i+1)+'</td>'+
-      '<td><b style="color:#15803d">'+esc(f.tienda||'—')+'</b></td>'+
-      '<td>'+claseLabel+'</td>'+
-      '<td style="text-align:center;font-weight:700;color:#16a34a">'+pct+'</td>'+
-      '<td style="text-align:center;font-weight:700">'+(parseInt(f.total_tareas)||0)+'</td>'+
-      '<td style="text-align:center;color:#16a34a;font-weight:700">'+(parseInt(f.resueltas)||0)+'</td>'+
-      fechaCell+
-      '<td style="text-align:center;color:var(--muted)">'+diasStr+'</td>'+
-      '<td style="text-align:center;color:var(--muted)">'+semsStr+'</td>'+
-      editTd+'</tr>';
-  }).join('')+resumen;
+    var resumen='<tr style="background:'+meta.color+'22;font-weight:800;border-top:2px solid '+meta.color+'">'+
+      '<td colspan="2" style="color:'+meta.color+';padding:8px 12px">Subtotal '+meta.label+'</td>'+
+      '<td style="text-align:center;color:'+meta.color+'">'+(promPct!=null?promPct+'%':'N/A')+'</td>'+
+      '<td style="text-align:center;color:'+meta.color+'">'+totalTareasSum+'</td>'+
+      '<td style="text-align:center;color:'+meta.color+'">'+totalResSum+'</td>'+
+      '<td></td>'+
+      '<td style="text-align:center;color:'+meta.color+'">'+(promDias!=null?promDias+' d':'—')+'</td>'+
+      '<td style="text-align:center;color:'+meta.color+'">'+(promSems!=null?promSems+' sem':'—')+'</td>'+
+      (isAdmin?'<td></td><td></td>':'')+'</tr>';
+
+    return '<tr><td colspan="'+nCols+'" style="padding:10px 12px 4px;font-weight:800;font-size:12px;color:'+meta.color+';text-transform:uppercase;letter-spacing:.04em;border-top:2px solid '+meta.color+';background:var(--soft)">'+
+      '● '+meta.label+' ('+filas.length+')</td></tr>'+rows+resumen;
+  }
+
+  /* Header común */
+  var headerRow='<tr style="background:var(--nav);color:#fff;font-size:11px;font-weight:700">'+
+    '<th style="padding:8px 10px">#</th><th>Tienda</th>'+
+    '<th class="c">% Cumpl.</th><th class="c">Tareas</th>'+
+    '<th class="c">Resueltas</th><th class="c">'+(isAdmin?'Fecha Fin':'Fecha Fin')+'</th>'+
+    '<th class="c">Días</th><th class="c">Semanas</th>'+
+    (isAdmin?'<th class="c" id="fin-edit-th">✕</th><th></th>':'')+'</tr>';
+
+  var html=orden.map(function(k){
+    return grupos[k]?renderGrupo(grupos[k]):'';
+  }).join('');
+
+  tbody.innerHTML=headerRow+html;
 }
 
 function finDeleteClick(el){
