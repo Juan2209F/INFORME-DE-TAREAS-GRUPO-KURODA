@@ -309,10 +309,12 @@ table.seg tbody tr:hover{background:var(--soft)}
 .seg-check.past{background:#e2e5ee;border-color:#cbd0dd;color:#8392ab;cursor:not-allowed;pointer-events:none}
 .seg-check.pending{background:var(--white);border-color:var(--border)}
 .seg-check.pending:hover{border-color:var(--green);background:var(--green-soft)}
-.seg-date-input{border:1px solid var(--border);border-radius:7px;font-size:10px;
-  padding:3px 5px;color:var(--txt);font-family:inherit;width:98px;text-align:center}
+.seg-date-input{border:1px solid var(--border);border-radius:7px;font-size:11px;
+  padding:4px 6px;color:var(--txt);background:var(--white);font-family:inherit;width:98px;text-align:center;color-scheme:light dark}
 .seg-date-input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 2px var(--blue-soft)}
 .seg-date-input:disabled{background:var(--soft);color:var(--muted);cursor:not-allowed}
+[data-theme="dark"] .seg-date-input{background:rgba(255,255,255,.06)}
+[data-theme="dark"] .seg-date-input::-webkit-calendar-picker-indicator{filter:invert(1) opacity(.7)}
 .seg-date-label{font-size:10px;color:var(--green);font-weight:700}
 .seg-date-gray{font-size:10px;color:var(--muted);font-style:italic}
 .seg-row-ok{background:var(--green-soft)!important}
@@ -1539,6 +1541,8 @@ function render(){
   const tareas=filteredTareas(), aud=filteredAuditorias();
   document.getElementById('rec-count').textContent=`${tareas.length} tarea(s) · ${aud.length} auditoría(s)`;
   if(VIEW==='dash')renderDashboard(tareas,aud);
+  else if(VIEW==='evaluacion'){if(typeof renderEvaluacion==='function')renderEvaluacion();}
+  else if(VIEW==='desempeno'){if(typeof renderDesempeno==='function')renderDesempeno();}
   else renderTareasView(tareas);
 }
 
@@ -3844,6 +3848,11 @@ function renderDesempeno(){
   var MORD=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   var mesAct=MORD[new Date().getMonth()];
   var mesFilter=(document.getElementById('desp-mes')||{}).value||mesAct;
+  var buscar=norm(((document.getElementById('desp-buscar')||{}).value||'').trim());
+  /* preservar foco/caret del buscador entre re-renders */
+  var _bEl=document.getElementById('desp-buscar');
+  var _bFoco=_bEl&&document.activeElement===_bEl;
+  var _bCaret=_bEl?_bEl.selectionStart:null;
 
   function mMatch(m){ return mesFilter==='ALL'||norm(String(m||''))===norm(mesFilter); }
 
@@ -3920,6 +3929,8 @@ function renderDesempeno(){
   });
 
   var auditores=Object.values(byAuditor).sort(function(a,b){return a.nombre.localeCompare(b.nombre);});
+  var totalAuditores=auditores.length;
+  if(buscar)auditores=auditores.filter(function(d){return norm(d.nombre).includes(buscar);});
   var colores=['#2563eb','#0d9488','#16a34a','#ea580c','#7c3aed','#dc2626','#d97706'];
 
   function pct(ok,tot){return tot>0?Math.round(ok/tot*100):0;}
@@ -4013,13 +4024,24 @@ function renderDesempeno(){
           '<option value="ALL">Todos los meses</option>'+
           MORD.map(function(m){return'<option'+(m===mesFilter?' selected':'')+'>'+m+'</option>';}).join('')+
         '</select>'+
-        '<span style="font-size:11px;color:var(--muted);font-weight:600">'+auditores.length+' auditor(es)</span>'+
+        '<div style="position:relative;flex:1;min-width:160px;max-width:280px">'+
+          '<span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--muted);pointer-events:none">🔍</span>'+
+          '<input id="desp-buscar" type="search" placeholder="Buscar auditor…" value="'+esc(buscar)+'" oninput="renderDesempeno()" '+
+            'style="width:100%;padding:7px 10px 7px 30px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft)">'+
+        '</div>'+
+        '<span style="font-size:11px;color:var(--muted);font-weight:600">'+
+          (buscar?auditores.length+' de '+totalAuditores+' auditor(es)':totalAuditores+' auditor(es)')+
+        '</span>'+
       '</div>'+
     '</div>'+
     (cards||'<div class="card" style="padding:40px;text-align:center;color:var(--muted)">'+
-      'Sin datos para este período.<br><small>Los ajustes, mermas y actividades aparecen aquí cuando se guardan con sesión de auditor activa.</small>'+
+      (buscar
+        ? 'Ningún auditor coincide con “'+esc(buscar)+'”.'
+        : 'Sin datos para este período.<br><small>Los ajustes, mermas y actividades aparecen aquí cuando se guardan con sesión de auditor activa.</small>')+
     '</div>')+
   '</div>';
+
+  if(_bFoco){var nb=document.getElementById('desp-buscar');if(nb){nb.focus();try{nb.setSelectionRange(_bCaret,_bCaret);}catch(e){}}}
 }
 
 
@@ -5089,13 +5111,15 @@ function renderMrDonut(arr){
 var _evCharts={};
 function evDestroy(k){if(_evCharts[k]){_evCharts[k].destroy();_evCharts[k]=null;}}
 
-function evKpiCard(label,pct,n,color,icon){
+function evKpiCard(label,pct,n,color,icon,note){
   var safe=isFinite(pct)?Math.round(pct):0;
   return '<div class="ev-kpi-card">'+
     '<div class="ev-kpi-top"><span class="ev-kpi-icon" style="background:linear-gradient(135deg,'+color+',#1a1f3c)">'+icon+'</span>'+
     '<div><div class="ev-kpi-lbl">'+label+'</div><div class="ev-kpi-n">'+n+' registros</div></div></div>'+
     '<div class="ev-kpi-bar"><div class="ev-kpi-bar-fill" style="width:'+safe+'%;background:linear-gradient(90deg,'+color+',#0ce7fe)"></div></div>'+
-    '<div class="ev-kpi-pct" style="color:'+color+'">'+safe+'% cumplimiento</div></div>';
+    '<div class="ev-kpi-pct" style="color:'+color+'">'+safe+'% cumplimiento</div>'+
+    (note?'<div style="font-size:10px;color:var(--muted);font-weight:600;margin-top:6px">'+note+'</div>':'')+
+  '</div>';
 }
 
 function evMesesUltimos(n){
@@ -5117,7 +5141,13 @@ function renderEvaluacion(){
     host.innerHTML=
     '<div class="ev-hdr">'+
       '<div><h2>🎯 Evaluación de KPIs</h2><p>Cumplimiento de Mermas, Ajustes y Auditorías — actualizado en vivo</p></div>'+
-      '<button class="btn btn-blue" onclick="renderEvaluacion()">⟳ Actualizar</button>'+
+      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+        '<div style="position:relative">'+
+          '<span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--muted);pointer-events:none">🔍</span>'+
+          '<select id="ev-auditor" onchange="renderEvaluacion()" style="padding:7px 10px 7px 30px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft)"></select>'+
+        '</div>'+
+        '<button class="btn btn-blue" onclick="renderEvaluacion()">⟳ Actualizar</button>'+
+      '</div>'+
     '</div>'+
     '<div class="ev-kpi-grid" id="ev-kpi-grid"></div>'+
     '<div class="ev-chart-grid">'+
@@ -5128,17 +5158,57 @@ function renderEvaluacion(){
     '</div>';
   }
 
-  var ajOk=AJUSTES.filter(function(a){return a.condicion==='A tiempo';}).length;
-  var ajTot=AJUSTES.length;
-  var mrOk=MERMAS.filter(function(m){return m.condicion==='A tiempo';}).length;
-  var mrTot=MERMAS.length;
-  var audArr=STORE.auditorias||[];
-  var audProm=audArr.length?audArr.reduce(function(s,a){return s+(parseFloat(a.pct_resuelto)||0);},0)/audArr.length:0;
+  /* ── Filtros activos: barra global (razón/centro/tienda/fechas/mes) + auditor ── */
+  var gf=(typeof getFilterState==='function')?getFilterState():null;
+  function refDate(s){return s?new Date(String(s).split('T')[0]+'T12:00:00'):null;}
+  /* Coincidencia con la barra global para Ajustes/Mermas (tienda, mes y rango de fechas) */
+  function gMatch(rec,fechaRef){
+    if(!gf)return true;
+    if(gf.tienda&&gf.tienda!=='ALL'&&norm(rec.tienda||'')!==norm(gf.tienda))return false;
+    if(gf.mesGran&&gf.mesGran!=='ALL'){
+      if(!fechaRef||fechaRef.getMonth()+1!==parseInt(gf.mesGran))return false;
+    }
+    if(gf.desde||gf.hasta){
+      if(!fechaRef)return false;
+      if(gf.desde&&fechaRef<gf.desde)return false;
+      if(gf.hasta&&fechaRef>gf.hasta)return false;
+    }
+    return true;
+  }
+
+  /* Filtro por auditor (solo Ajustes y Mermas) */
+  var selEl=document.getElementById('ev-auditor');
+  var audSel=selEl?selEl.value:'ALL';
+  var auds=getAuditores();
+  if(selEl){
+    selEl.innerHTML='<option value="ALL">Todos los auditores</option>'+
+      auds.map(function(n){return'<option value="'+esc(n)+'"'+(norm(n)===norm(audSel)?' selected':'')+'>'+esc(n)+'</option>';}).join('');
+    if(audSel!=='ALL'&&!auds.some(function(n){return norm(n)===norm(audSel);}))audSel='ALL';
+    selEl.value=audSel;
+  }
+  function audMatch(name){return audSel==='ALL'||norm(name||'')===norm(audSel);}
+
+  var AJ=AJUSTES.filter(function(a){return audMatch(a.auditor)&&gMatch(a,refDate(a.fechaCorreo||a.fechaAjuste));});
+  var MR=MERMAS.filter(function(m){return audMatch(m.auditor)&&gMatch(m,refDate(m.fechaVal||m.fechaAut));});
+
+  var ajOk=AJ.filter(function(a){return a.condicion==='A tiempo';}).length;
+  var ajTot=AJ.length;
+  var mrOk=MR.filter(function(m){return m.condicion==='A tiempo';}).length;
+  var mrTot=MR.length;
+
+  /* Auditorías: aplican razón/centro/tienda/fechas de la barra global (vía filteredAuditorias) + mes */
+  var audArr=(typeof filteredAuditorias==='function')?filteredAuditorias():(STORE.auditorias||[]);
+  if(gf&&gf.mesGran&&gf.mesGran!=='ALL'){
+    audArr=audArr.filter(function(a){var d=refDate(a.fecha);return d&&d.getMonth()+1===parseInt(gf.mesGran);});
+  }
+  /* % resuelto: el campo en memoria es pctResuelto (fracción 0–1). Normalizar a 0–100 */
+  function prPct(a){var v=parseFloat(a.pctResuelto);if(!isFinite(v))v=0;return v>1.5?v:v*100;}
+  var audProm=audArr.length?audArr.reduce(function(s,a){return s+prPct(a);},0)/audArr.length:0;
 
   document.getElementById('ev-kpi-grid').innerHTML=
     evKpiCard('Ajustes',ajTot?ajOk/ajTot*100:0,ajTot,'#4318ff','⚖️')+
     evKpiCard('Mermas',mrTot?mrOk/mrTot*100:0,mrTot,'#0ce7fe','🗂️')+
-    evKpiCard('Auditorías',audProm,audArr.length,'#01b574','🔍');
+    evKpiCard('Auditorías',audProm,audArr.length,'#01b574','🔍',audSel!=='ALL'?'Global · sin desglose por auditor':'');
 
   /* Tendencia últimos 6 meses */
   var meses=evMesesUltimos(6);
@@ -5146,12 +5216,12 @@ function renderEvaluacion(){
   var serieAj=[],serieMr=[],serieAud=[],lbls=[];
   meses.forEach(function(m){
     lbls.push(m.key);
-    var ajM=AJUSTES.filter(function(a){return (a.mes||'').toUpperCase()===MNFULL[m.mesIdx]&&Number(a.año)===m.año;});
-    var mrM=MERMAS.filter(function(x){return (x.mes||'').toUpperCase()===MNFULL[m.mesIdx]&&Number(x.año)===m.año;});
+    var ajM=AJ.filter(function(a){return (a.mes||'').toUpperCase()===MNFULL[m.mesIdx]&&Number(a.año)===m.año;});
+    var mrM=MR.filter(function(x){return (x.mes||'').toUpperCase()===MNFULL[m.mesIdx]&&Number(x.año)===m.año;});
     var audM=audArr.filter(function(a){return (a.mes||'').toUpperCase().startsWith(MNFULL[m.mesIdx].slice(0,3));});
     serieAj.push(ajM.length?Math.round(ajM.filter(function(a){return a.condicion==='A tiempo';}).length/ajM.length*100):null);
     serieMr.push(mrM.length?Math.round(mrM.filter(function(x){return x.condicion==='A tiempo';}).length/mrM.length*100):null);
-    serieAud.push(audM.length?Math.round(audM.reduce(function(s,a){return s+(parseFloat(a.pct_resuelto)||0);},0)/audM.length):null);
+    serieAud.push(audM.length?Math.round(audM.reduce(function(s,a){return s+prPct(a);},0)/audM.length):null);
   });
 
   evDestroy('trend');
@@ -5186,7 +5256,7 @@ function renderEvaluacion(){
   audArr.forEach(function(a){
     var c=a.clase||'SIN CLASE';
     if(!porClase[c])porClase[c]={s:0,n:0};
-    porClase[c].s+=parseFloat(a.pct_resuelto)||0;porClase[c].n++;
+    porClase[c].s+=prPct(a);porClase[c].n++;
   });
   var clases=Object.keys(porClase);
   var datosClase=clases.map(function(c){return Math.round(porClase[c].s/porClase[c].n);});
