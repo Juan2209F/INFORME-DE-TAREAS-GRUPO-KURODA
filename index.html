@@ -1258,7 +1258,7 @@ async function generarImport(){
     askUpdatePermission(nuevas, idénticas, diferentes, audStaged);
   } else {
     /* Solo insertar nuevas, omitir idénticas */
-    await commitToSupabase(nuevas, [], audStaged, idénticas.length);
+    await commitToSupabase(nuevas, [], audStaged, idénticas.length, []);
   }
 }
 
@@ -1317,12 +1317,12 @@ function askUpdatePermission(nuevas, idénticas, diferentes, audStaged){
       '<b style="color:var(--muted)">Solo nuevas</b>: ignora los cambios y conserva lo que ya está en Supabase.</p>';
 
   openModal('🔄 Tareas existentes con cambios', html, [
-    {label:'Solo agregar nuevas',cls:'btn-ghost',fn:function(){commitToSupabase(nuevas,[],audStaged,idénticas.length);}},
-    {label:'Actualizar las que cambiaron',cls:'btn-orange',fn:function(){commitToSupabase(nuevas,diferentes.map(function(d){return d.nueva;}),audStaged,idénticas.length);}}
+    {label:'Solo agregar nuevas',cls:'btn-ghost',fn:function(){commitToSupabase(nuevas,[],audStaged,idénticas.length,[]);}},
+    {label:'Actualizar las que cambiaron',cls:'btn-orange',fn:function(){commitToSupabase(nuevas,diferentes.map(function(d){return d.nueva;}),audStaged,idénticas.length,diferentes.map(function(d){return d.actual;}));}}
   ]);
 }
 
-async function commitToSupabase(nuevas, actualizar, audStaged, omitidas){
+async function commitToSupabase(nuevas, actualizar, audStaged, omitidas, prevTareas){
   var client=getSbClient();
   if(!client){toast('⚠ Sin conexión a Supabase');return;}
   closeModal();
@@ -1376,8 +1376,41 @@ async function commitToSupabase(nuevas, actualizar, audStaged, omitidas){
   clearStaged();
   if(err){toast('⚠ '+err);return;}
 
+  /* ── Snapshot para poder revertir esta carga ──
+     STORE.* aún tiene el estado PREVIO (loadDataFromSupabase corre después). */
+  var snap=null;
+  try{
+    var tNew=(nuevas||[]).map(function(t){return String(t.id);});
+    var tPrev=(prevTareas||[]).map(function(rw){var cc=Object.assign({},rw);delete cc.updated_at;return cc;});
+    var aNew=[],aPrev=[];
+    if((audStaged||[]).length && typeof arows!=='undefined' && arows){
+      arows.forEach(function(ar){
+        var prev=(STORE.auditorias||[]).find(function(x){
+          return norm(x.razon)===norm(ar.razon)&&norm(x.centro)===norm(ar.centro)&&
+                 norm(x.tienda)===norm(ar.tienda)&&String(x.fecha||'').split('T')[0]===ar.fecha;
+        });
+        if(prev){
+          aPrev.push({razon:prev.razon||null,centro:prev.centro||null,tienda:prev.tienda||null,
+            fecha:prev.fecha?String(prev.fecha).split('T')[0]:null,mes:prev.mes||null,
+            pct_cumpl:parseFloat(prev.pctCumpl)||0,tareas:parseInt(prev.tareas)||0,
+            pendientes:parseInt(prev.pendientes)||0,resueltas:parseInt(prev.resueltas)||0,
+            pct_resuelto:parseFloat(prev.pctResuelto)||0,clase:prev.clase||null});
+        }else{
+          aNew.push({razon:ar.razon,centro:ar.centro,tienda:ar.tienda,fecha:ar.fecha});
+        }
+      });
+    }
+    if(tNew.length||tPrev.length||aNew.length||aPrev.length)
+      snap={t_new:tNew,t_prev:tPrev,a_new:aNew,a_prev:aPrev};
+  }catch(e){console.warn('snapshot:',e);}
+
+  /* Registrar esta carga (con respaldo) para el seguimiento de desempeño */
+  await registrarCargaExcel(insOk+updOk, audOk, snap);
+
   /* Recargar datos frescos desde Supabase */
   await loadDataFromSupabase();
+  await loadCargas();
+  if(VIEW==='desempeno')renderDesempeno();
   toast('✓ '+insOk+' nuevas · '+updOk+' actualizadas · '+omitidas+' omitidas (idénticas)');
 }
 
@@ -2344,6 +2377,7 @@ function setView(v){
     if(!MERMAS.length)  loaders.push(loadMermas());
     if(!ACTIVIDADES.length) loaders.push(loadActividades());
     if(!FINALIZADAS.length) loaders.push(loadFinalizadas());
+    if(!CARGAS.length) loaders.push(loadCargas());
     if(loaders.length) Promise.all(loaders).then(renderDesempeno);
     else renderDesempeno();
   }
@@ -3825,6 +3859,110 @@ var FIELDS={
   seguimiento_semanas:['tienda','clase','actividad']
 };
 
+/* ════════════════════════════════════════════════════════════════════
+   SEGUIMIENTO DE CARGAS EXCEL — atribuye cada importación al auditor
+   que la realizó (sesión activa), para reflejarlo en Desempeño.
+   Requiere la tabla public.cargas_excel (ver SQL entregado).
+   Degradación elegante: si la tabla no existe, CARGAS queda vacío.
+════════════════════════════════════════════════════════════════════ */
+var CARGAS=[];
+async function loadCargas(){
+  var client=getSbClient();
+  if(!client)return;
+  try{
+    var r=await client.from('cargas_excel').select('*').order('fecha',{ascending:false}).limit(5000);
+    if(r.error){console.warn('cargas_excel no disponible:',r.error.message);return;}
+    CARGAS=r.data||[];
+  }catch(e){console.warn('loadCargas:',e);}
+}
+async function registrarCargaExcel(nTareas,nAuditorias,snapshot){
+  try{
+    var aud=(_session&&(_session.nombre||_session.username))||null;
+    var nT=parseInt(nTareas)||0, nA=parseInt(nAuditorias)||0;
+    if(!aud||(nT+nA)===0)return;
+    var client=getSbClient();
+    if(!client)return;
+    var row={auditor:aud,n_tareas:nT,n_auditorias:nA,total:nT+nA};
+    if(snapshot){row.snapshot=snapshot;row.revertida=false;}
+    var r=await client.from('cargas_excel').insert([row]);
+    if(r.error){
+      /* Posible que falten las columnas snapshot/revertida → reintentar sin ellas
+         para no perder el registro de la carga */
+      var r2=await client.from('cargas_excel').insert([{auditor:aud,n_tareas:nT,n_auditorias:nA,total:nT+nA}]);
+      if(r2.error)console.warn('registrarCargaExcel:',r2.error.message);
+    }
+  }catch(e){console.warn('registrarCargaExcel:',e);}
+}
+
+/* ── Revertir una carga: deshace inserciones y restaura el estado previo ──
+   Solo la carga MÁS RECIENTE (para no pisar cambios posteriores), admin, con confirmación. */
+async function revertirCarga(id){
+  var rol=_session&&_session.rol;
+  if(!['admin','admin_auditor'].includes(rol)){toast('⚠ Solo administradores pueden revertir');return;}
+  var client=getSbClient();
+  if(!client){toast('⚠ Sin conexión a Supabase');return;}
+  toast('⏳ Verificando carga…');
+  var r=await client.from('cargas_excel').select('*').eq('id',id).limit(1);
+  if(r.error||!r.data||!r.data.length){toast('⚠ No se encontró la carga');return;}
+  var c=r.data[0];
+  if(c.revertida){toast('Esta carga ya fue revertida');return;}
+  if(!c.snapshot){toast('⚠ Esta carga no tiene respaldo (se hizo antes de activar esta función)');return;}
+  /* Verificar que sea la carga más reciente NO revertida */
+  var rl=await client.from('cargas_excel').select('id,fecha,revertida').eq('revertida',false).order('fecha',{ascending:false}).limit(1);
+  if(!rl.error&&rl.data&&rl.data.length&&String(rl.data[0].id)!==String(id)){
+    toast('⚠ Solo puede revertirse la última carga');return;
+  }
+  var s=c.snapshot;
+  var resumen='Se revertirá la carga del <b>'+(c.fecha?String(c.fecha).split('T')[0]:'—')+'</b> (por '+esc(c.auditor||'—')+'):<br><br>'+
+    '• <b>'+((s.t_new||[]).length)+'</b> tarea(s) nueva(s) se eliminarán<br>'+
+    '• <b>'+((s.t_prev||[]).length)+'</b> tarea(s) volverán a su valor anterior<br>'+
+    '• <b>'+((s.a_new||[]).length)+'</b> auditoría(s) nueva(s) se eliminarán<br>'+
+    '• <b>'+((s.a_prev||[]).length)+'</b> auditoría(s) volverán a su valor anterior<br><br>'+
+    '<b style="color:var(--k-red)">Esta acción no se puede deshacer.</b>';
+  openModal('↩ Revertir última carga','<p style="font-size:13px;color:var(--txt);line-height:1.7">'+resumen+'</p>',[
+    {label:'Cancelar',cls:'btn-ghost',fn:closeModal},
+    {label:'Sí, revertir',cls:'btn-red',fn:function(){ejecutarRevertCarga(id,s);}}
+  ]);
+}
+async function ejecutarRevertCarga(id,s){
+  closeModal();
+  var client=getSbClient();
+  if(!client){toast('⚠ Sin conexión a Supabase');return;}
+  toast('⏳ Revirtiendo…');
+  var err=null;
+  try{
+    var tn=(s.t_new||[]).map(String);
+    for(var i=0;i<tn.length&&!err;i+=200){
+      var d=await client.from('tareas').delete().in('tarea_id',tn.slice(i,i+200));
+      if(d.error)err='Eliminar tareas: '+d.error.message;
+    }
+    if(!err&&(s.t_prev||[]).length){
+      var up=await client.from('tareas').upsert(s.t_prev,{onConflict:'tarea_id'});
+      if(up.error)err='Restaurar tareas: '+up.error.message;
+    }
+    for(var k=0;k<(s.a_new||[]).length&&!err;k++){
+      var key=s.a_new[k];
+      var da=await client.from('auditorias').delete()
+        .eq('razon',key.razon).eq('centro',key.centro).eq('tienda',key.tienda).eq('fecha',key.fecha);
+      if(da.error)err='Eliminar auditorías: '+da.error.message;
+    }
+    if(!err&&(s.a_prev||[]).length){
+      var ua=await client.from('auditorias').upsert(s.a_prev,{onConflict:'razon,centro,tienda,fecha'});
+      if(ua.error)err='Restaurar auditorías: '+ua.error.message;
+    }
+    if(!err){
+      var mu=await client.from('cargas_excel').update({revertida:true}).eq('id',id);
+      if(mu.error)err='Marcar revertida: '+mu.error.message;
+    }
+  }catch(e){err=e.message;}
+  if(err){toast('⚠ '+err);return;}
+  await loadDataFromSupabase();
+  await loadCargas();
+  if(VIEW==='desempeno')renderDesempeno();
+  if(VIEW==='auditorias')renderAuditoriasView();
+  toast('✓ Carga revertida correctamente');
+}
+
 
 /* ════════════════════════════════════════════════════════════════════
    MÓDULO DESEMPEÑO DE AUDITORES
@@ -3875,7 +4013,8 @@ function renderDesempeno(){
         actNoPTotal:0,actNoPOk:0,actNoPRepr:0,actNoPPend:0,
         ajTotal:0,ajOk:0,ajTard:0,
         mrTotal:0,mrOk:0,mrTard:0,
-        audTotal:0,audPct:0,audClases:[]
+        audTotal:0,audPct:0,audClases:[],
+        cgTotal:0,cgTareas:0,cgAuditorias:0,cgRegistros:0,cgUltima:null
       };
     }
     return byAuditor[kn];
@@ -3928,6 +4067,23 @@ function renderDesempeno(){
     d.audClases.push((f.clase||'?')+' '+Math.round((f.pct_cumpl||0)*100)+'%');
   });
 
+  /* Cargas de Excel (seguimiento) — atribuidas a quien realizó la importación */
+  (CARGAS||[]).filter(function(c){
+    if(mesFilter==='ALL')return true;
+    var f=c.fecha?new Date(c.fecha):null;
+    return f&&!isNaN(f)&&norm(MORD[f.getMonth()])===norm(mesFilter);
+  }).forEach(function(c){
+    var aud=c.auditor||'';
+    if(!aud)return;
+    var d=ensure(aud);
+    var nT=parseInt(c.n_tareas)||0, nA=parseInt(c.n_auditorias)||0;
+    d.cgTotal++;
+    d.cgTareas+=nT; d.cgAuditorias+=nA;
+    d.cgRegistros+=(parseInt(c.total)|| (nT+nA));
+    var f=c.fecha?new Date(c.fecha):null;
+    if(f&&!isNaN(f)&&(!d.cgUltima||f>d.cgUltima))d.cgUltima=f;
+  });
+
   var auditores=Object.values(byAuditor).sort(function(a,b){return a.nombre.localeCompare(b.nombre);});
   var totalAuditores=auditores.length;
   if(buscar)auditores=auditores.filter(function(d){return norm(d.nombre).includes(buscar);});
@@ -3939,6 +4095,17 @@ function renderDesempeno(){
       '<div style="width:'+Math.min(p,100)+'%;background:'+col+';height:100%;border-radius:4px"></div></div>';
   }
   function colPct(p){return p>=80?'#16a34a':p>=50?'#d97706':'#dc2626';}
+  var _MCG=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  function fmtCargaFecha(f){try{return f.getDate()+' '+_MCG[f.getMonth()]+' '+f.getFullYear();}catch(e){return '—';}}
+  /* Última carga revertible (más reciente, no revertida, con respaldo) y rol admin */
+  var isAdminDesp=_session&&['admin','admin_auditor'].includes(_session.rol);
+  var _ultCarga=null;
+  (CARGAS||[]).forEach(function(c){
+    if(c.revertida||!c.snapshot)return;
+    var f=c.fecha?new Date(c.fecha):null;
+    if(!f||isNaN(f))return;
+    if(!_ultCarga||f>_ultCarga.f)_ultCarga={id:c.id,f:f,audKn:norm(c.auditor||'')};
+  });
 
   var cards=auditores.map(function(d,i){
     var col=colores[i%colores.length];
@@ -4013,6 +4180,26 @@ function renderDesempeno(){
         kpiBlock('📋','Act. Programadas',d.actProgTotal,d.actProgOk,0,d.actProgRepr,d.actProgPend,pActProg,'#2563eb',pActProg+'% completadas')+
         kpiBlock('📌','Act. No Programadas',d.actNoPTotal,d.actNoPOk,0,d.actNoPRepr,d.actNoPPend,pActNoP,'#ea580c',pActNoP+'% completadas')+
       '</div>'+
+      /* Fila 3: Seguimiento de cargas de Excel */
+      '<div style="padding:0 16px 14px">'+
+        '<div style="background:var(--soft);border-radius:10px;padding:12px;border-top:3px solid #0891b2">'+
+          '<div style="font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">📥 Seguimiento de cargas (Excel)</div>'+
+          (d.cgTotal>0?
+            '<div style="display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap">'+
+              '<div><div style="font-size:26px;font-weight:900;color:#0891b2;line-height:1">'+d.cgTotal+'</div><div style="font-size:9px;color:var(--muted);font-weight:700">CARGAS</div></div>'+
+              '<div><div style="font-size:20px;font-weight:800;color:var(--txt);line-height:1">'+d.cgRegistros+'</div><div style="font-size:9px;color:var(--muted);font-weight:700">REGISTROS</div></div>'+
+              '<div style="display:flex;gap:5px;flex-wrap:wrap">'+
+                (d.cgTareas?'<span style="font-size:10px;background:#e0f2fe;color:#075985;padding:2px 8px;border-radius:10px;font-weight:700">'+d.cgTareas+' tareas</span>':'')+
+                (d.cgAuditorias?'<span style="font-size:10px;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-weight:700">'+d.cgAuditorias+' auditorías</span>':'')+
+              '</div>'+
+              (d.cgUltima?'<div style="margin-left:auto;font-size:10px;color:var(--muted);font-weight:700">Última: '+fmtCargaFecha(d.cgUltima)+'</div>':'')+
+            '</div>'+
+            ((isAdminDesp&&_ultCarga&&_ultCarga.audKn===norm(d.nombre))?
+              '<button class="btn-ghost" style="font-size:11px;padding:5px 11px;margin-top:10px;border-radius:8px" onclick="revertirCarga('+_ultCarga.id+')" title="Deshace la última importación y restaura el estado anterior">↩ Revertir última carga</button>'
+              :'')
+          :'<div style="font-size:11px;color:var(--muted)">Sin cargas en este período</div>')+
+        '</div>'+
+      '</div>'+
     '</div>';
   }).join('');
 
@@ -4037,7 +4224,7 @@ function renderDesempeno(){
     (cards||'<div class="card" style="padding:40px;text-align:center;color:var(--muted)">'+
       (buscar
         ? 'Ningún auditor coincide con “'+esc(buscar)+'”.'
-        : 'Sin datos para este período.<br><small>Los ajustes, mermas y actividades aparecen aquí cuando se guardan con sesión de auditor activa.</small>')+
+        : 'Sin datos para este período.<br><small>Los ajustes, mermas, actividades y cargas de Excel aparecen aquí cuando se guardan con sesión de auditor activa.</small>')+
     '</div>')+
   '</div>';
 
