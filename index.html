@@ -28,9 +28,68 @@
   --shadow:0 20px 27px 0 rgba(0,0,0,.05);
   --shadow-lg:0 8px 26px -4px rgba(20,30,60,.12),0 8px 9px -5px rgba(20,30,60,.06);
   --shadow-colored:0 4px 20px 0 rgba(0,0,0,.14),0 7px 10px -5px rgba(94,114,228,.4);
-  --rowline:#f0f2f7;--soft:#f8f9fc;
+  --rowline:#f0f2f7;--soft:#f8f9fc;--nav:#1a1f3c;
+  --k-blue:#2563eb;--k-teal:#0d9488;--k-purple:#7c3aed;--k-orange:#d97706;--k-red:#dc2626;--k-greenok:#16a34a;
 }
+/* ===== Tema Vision UI (oscuro) ===== */
+[data-theme="dark"]{
+  --sidebar:#0f1535;--bg:#0a0e23;--white:#1a1f3c;--cream:#1a1f3c;
+  --border:rgba(255,255,255,.12);--txt:#f1f2f8;--muted:#bcc4d6;
+  --blue:#4318ff;--blue2:#9f7aea;--blue-soft:rgba(67,24,255,.15);
+  --red:#fc8181;--red2:#f56565;--red-soft:rgba(252,129,129,.12);
+  --orange:#fbb140;--orange2:#fb6340;--orange-soft:rgba(251,177,64,.12);
+  --teal:#0ce7fe;--teal2:#4318ff;--teal-soft:rgba(12,231,254,.12);
+  --green:#01b574;--green2:#01b574;--green-soft:rgba(1,181,116,.12);
+  --amber:#fbb140;--amber2:#fb6340;--amber-soft:rgba(251,177,64,.12);
+  --rowline:rgba(255,255,255,.06);--soft:rgba(255,255,255,.04);--nav:#e8e9f3;
+  --k-blue:#5e8aff;--k-teal:#2dd9c4;--k-purple:#b794f6;--k-orange:#ffb84d;--k-red:#ff7a7a;--k-greenok:#3ddc97;
+  --shadow:0 20px 27px 0 rgba(0,0,0,.3);
+  --shadow-lg:0 8px 26px -4px rgba(0,0,0,.4),0 8px 9px -5px rgba(0,0,0,.2);
+  --shadow-colored:0 4px 20px 0 rgba(67,24,255,.3),0 7px 10px -5px rgba(67,24,255,.4);
+}
+[data-theme="dark"] body{background:radial-gradient(circle at 20% 0%,#1a1f4d 0%,#0a0e23 55%) fixed}
+[data-theme="dark"] nav.sidebar,
+[data-theme="dark"] .topbar,
+[data-theme="dark"] .data-strip,
+[data-theme="dark"] .filters,
+[data-theme="dark"] .card,
+[data-theme="dark"] .kpi-cfg-modal{
+  background:rgba(255,255,255,.04);backdrop-filter:blur(14px);border:1px solid var(--border)
+}
+[data-theme="dark"] .fg select,[data-theme="dark"] .fg input{background:rgba(255,255,255,.05);color:var(--txt)}
+[data-theme="dark"] .btn-ghost{background:rgba(255,255,255,.05)}
+[data-theme="dark"] ::-webkit-scrollbar{width:8px;height:8px}
+[data-theme="dark"] ::-webkit-scrollbar-track{background:transparent}
+[data-theme="dark"] ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:8px}
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.25)}
+.theme-toggle{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;
+  border-radius:50%;border:1px solid var(--border);background:var(--soft);cursor:pointer;font-size:16px;
+  transition:transform .25s ease,background .25s ease}
+.theme-toggle:hover{transform:rotate(20deg) scale(1.08)}
+
+/* ===== Evaluación KPIs ===== */
+.ev-hdr{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.ev-hdr h2{font-size:18px;font-weight:800}
+.ev-hdr p{font-size:12px;color:var(--muted);margin-top:2px}
+.ev-kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.ev-kpi-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);
+  padding:18px;box-shadow:var(--shadow)}
+.ev-kpi-top{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.ev-kpi-icon{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  font-size:18px;box-shadow:var(--shadow-colored);flex-shrink:0}
+.ev-kpi-lbl{font-size:13.5px;font-weight:700;color:var(--txt)}
+.ev-kpi-n{font-size:11px;color:var(--muted);font-weight:600}
+.ev-kpi-bar{height:8px;border-radius:8px;background:var(--soft);overflow:hidden;margin-bottom:8px}
+.ev-kpi-bar-fill{height:100%;border-radius:8px;transition:width .6s ease}
+.ev-kpi-pct{font-size:13px;font-weight:800}
+.ev-chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ev-chart-card h3{font-size:13px;font-weight:700;margin-bottom:10px;color:var(--txt)}
+.ev-chart-box{position:relative}
+@media (max-width:900px){.ev-kpi-grid,.ev-chart-grid{grid-template-columns:1fr}.ev-chart-card[style]{grid-column:auto!important}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
 html,body{height:100%;overflow:hidden}
+body,nav.sidebar,.topbar,.data-strip,.filters,.card,.kpi-cfg-modal,.fg select,.fg input,.btn-ghost{
+  transition:background .35s ease,border-color .35s ease,color .35s ease}
 body{font-family:'Poppins','Inter','Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--txt);display:flex}
 
 /* SIDEBAR — soft ui floating card */
@@ -417,9 +476,9 @@ table.seg tbody tr:hover{background:var(--soft)}
 .rol-viewer{background:#f1f3f9;color:#65748a}
 
 </style>
-</head>
-<body>
-
+</head><body>
+<script>(function(){var t=localStorage.getItem('kg-theme');if(t!=='light')document.documentElement.setAttribute('data-theme','dark')})()</script>
+<script>if(window.Chart){var dk=document.documentElement.getAttribute('data-theme')==='dark';Chart.defaults.color=dk?'#a0aec0':'#344767';Chart.defaults.borderColor=dk?'rgba(255,255,255,.08)':'#eef1f7';}</script>
 
 <!-- ═══════════ PÁGINA DE LOGIN ═══════════ -->
 <div id="login-page">
@@ -462,6 +521,7 @@ table.seg tbody tr:hover{background:var(--soft)}
         Mostrar contraseña
       </label>
 
+      <div id="login-hint" style="font-size:11px;color:var(--blue);font-weight:600;text-align:center;margin-bottom:10px;min-height:14px"></div>
       <button class="lp-btn" id="lp-btn" onclick="doLogin()">Ingresar</button>
       <div class="lp-err" id="lp-err"></div>
 
@@ -484,6 +544,7 @@ table.seg tbody tr:hover{background:var(--soft)}
   <div class="nav-item" id="nav-mermas" title="Mermas" onclick="setView('mermas')">🗂️<span class="nav-lbl">Mermas</span></div>
   <div class="nav-item" id="nav-finalizadas" title="Tareas Finalizadas" onclick="setView('finalizadas')">✅<span class="nav-lbl">Finalizadas</span></div>
   <div class="nav-item" id="nav-desempeno" title="Desempeño de Auditores" onclick="setView('desempeno')">📊<span class="nav-lbl">Desempeño</span></div>
+  <div class="nav-item" id="nav-evaluacion" title="Evaluación KPIs" onclick="setView('evaluacion')">🎯<span class="nav-lbl">Evaluación KPIs</span></div>
   <div class="nav-sep"></div>
   <div class="nav-item" id="nav-usuarios" title="Gestión de usuarios" onclick="openUsuarios()" style="display:none">👥<span class="nav-lbl">Usuarios</span></div>
 </nav>
@@ -500,6 +561,7 @@ table.seg tbody tr:hover{background:var(--soft)}
         <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px" onclick="doLogout()">Salir</button>
       </div>
     <div class="live-pill" id="conn-pill"><span class="dot-live" id="conn-dot"></span><span id="conn-label">Conectando...</span></div>
+    <button class="theme-toggle" id="theme-btn" title="Cambiar tema" onclick="toggleTheme()">🌙</button>
   </div>
 
   <div class="content">
@@ -927,6 +989,9 @@ table.seg tbody tr:hover{background:var(--soft)}
 
     <!-- ════════ VISTA DESEMPEÑO AUDITORES ════════ -->
     <div id="view-desempeno" style="display:none;flex-direction:column;gap:14px"></div>
+
+    <!-- ════════ VISTA EVALUACIÓN KPIs (Mermas / Ajustes / Auditorías) ════════ -->
+    <div id="view-evaluacion" style="display:none;flex-direction:column;gap:16px"></div>
 
   </div>
 </div>
@@ -1831,7 +1896,7 @@ function renderTareasView(tareas){
   if(!tareas.length){el.innerHTML='<div class="empty">Sin tareas para el filtro actual.</div>';return;}
   const sorted=[...tareas].sort((a,b)=>(fromISO(b.fechaCreacion)||0)-(fromISO(a.fechaCreacion)||0));
   el.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:12px">
-    <thead><tr style="background:var(--nav);color:#fff;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em">
+    <thead><tr style="background:#1a1f3c;color:#fff;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em">
       <th style="padding:7px 8px;font-weight:700;white-space:nowrap">ID</th>
       <th style="padding:7px 8px;font-weight:700;text-align:left">Tarea / Actividad</th>
       <th style="padding:7px 8px;font-weight:700;text-align:left">Sucursal</th>
@@ -2161,7 +2226,7 @@ function downloadDashboardPNG(){
   const kpiHTML=`<div class="kpi-row">
     <div class="kpi-b" style="border-left-color:#2563eb"><div class="l">Cumplimiento prom.</div><div class="v">${avgCumpl}%</div><div class="s">${aud.length} auditorías</div></div>
     <div class="kpi-b" style="border-left-color:#0d9488"><div class="l">Tareas</div><div class="v">${tareas.length}</div><div class="s">en período</div></div>
-    <div class="kpi-b" style="border-left-color:#16a34a"><div class="l">Resueltas</div><div class="v">${res}</div><div class="s">${tareas.length?Math.round(res/tareas.length*100):0}%</div></div>
+    <div class="kpi-b" style="border-left-color:var(--k-greenok)"><div class="l">Resueltas</div><div class="v">${res}</div><div class="s">${tareas.length?Math.round(res/tareas.length*100):0}%</div></div>
     <div class="kpi-b" style="border-left-color:#dc2626"><div class="l">Pendientes</div><div class="v">${pend}</div><div class="s">${venc} vencidas</div></div>
   </div>`;
   // ranking de sucursales menor cumplimiento
@@ -2242,6 +2307,8 @@ function setView(v){
   if(vfin)vfin.style.display=v==='finalizadas'?'flex':'none';
   var vdesp=document.getElementById('view-desempeno');
   if(vdesp)vdesp.style.display=v==='desempeno'?'block':'none';
+  var vev=document.getElementById('view-evaluacion');
+  if(vev)vev.style.display=v==='evaluacion'?'flex':'none';
   document.getElementById('nav-dash').classList.toggle('active',v==='dash');
   document.getElementById('nav-tareas').classList.toggle('active',v==='tareas');
   var na=document.getElementById('nav-actividades');
@@ -2256,6 +2323,8 @@ function setView(v){
   if(nfin)nfin.classList.toggle('active',v==='finalizadas');
   var ndesp=document.getElementById('nav-desempeno');
   if(ndesp)ndesp.classList.toggle('active',v==='desempeno');
+  var nev=document.getElementById('nav-evaluacion');
+  if(nev)nev.classList.toggle('active',v==='evaluacion');
   if(v==='actividades'){ if(!ACTIVIDADES.length) loadActividades(); else{ fillActFilters(); renderActividades(); } }
   else if(v==='auditorias'){
     if(!STORE.auditorias.length) loadDataFromSupabase().then(renderAuditoriasView);
@@ -2273,6 +2342,14 @@ function setView(v){
     if(!FINALIZADAS.length) loaders.push(loadFinalizadas());
     if(loaders.length) Promise.all(loaders).then(renderDesempeno);
     else renderDesempeno();
+  }
+  else if(v==='evaluacion'){
+    var loaders2=[];
+    if(!AJUSTES.length) loaders2.push(loadAjustes());
+    if(!MERMAS.length) loaders2.push(loadMermas());
+    if(!STORE.auditorias.length) loaders2.push(loadDataFromSupabase());
+    if(loaders2.length) Promise.all(loaders2).then(renderEvaluacion);
+    else renderEvaluacion();
   }
   else render();
 }
@@ -2406,10 +2483,12 @@ function audTablaPorClase(titulo,color,rows){
       registrarFinalizada(a);
     }
     var mark=stats.dinamico?'<span style="font-size:9px;color:var(--teal);margin-left:3px" title="En tiempo real">⟳</span>':'';
-    /* Color de fila según estado leyenda */
-    var rowBg=stats.abiertasAtrasadas>0?'#fff5f5':
-              stats.abiertas>0?'#eff6ff':
-              (stats.resueltasAtrasadas||0)>0?'#fffbeb':'#f0fdf4';
+    /* Color de fila según estado leyenda — adaptado a modo oscuro */
+    var _isDark=document.documentElement.getAttribute('data-theme')==='dark';
+    var rowBg=stats.abiertasAtrasadas>0?(_isDark?'rgba(252,129,129,.10)':'#fff5f5'):
+              stats.abiertas>0?(_isDark?'rgba(67,24,255,.12)':'#eff6ff'):
+              (stats.resueltasAtrasadas||0)>0?(_isDark?'rgba(251,177,64,.10)':'#fffbeb'):
+              (_isDark?'rgba(1,181,116,.10)':'#f0fdf4');
     var rowBd=stats.abiertasAtrasadas>0?'3px solid #dc2626':
               stats.abiertas>0?'3px solid #2563eb':
               (stats.resueltasAtrasadas||0)>0?'3px solid #d97706':'3px solid #16a34a';
@@ -2423,9 +2502,9 @@ function audTablaPorClase(titulo,color,rows){
       '<td style="text-align:center">'+pctFmt(a.pctCumpl)+'</td>'+
       '<td style="text-align:center">'+pend+'</td>'+
       '<td style="text-align:center;font-size:10px">'+
-      ((stats.abiertas||0)>0?'<span style="color:#2563eb;font-weight:700">'+(stats.abiertas||0)+'↑</span> ':'')+
-      ((stats.abiertasAtrasadas||0)>0?'<span style="color:#dc2626;font-weight:700">'+(stats.abiertasAtrasadas||0)+'🔴</span>':
-       (stats.abiertas||0)===0&&(stats.abiertasAtrasadas||0)===0?'<span style="color:#16a34a">✓</span>':'')+
+      ((stats.abiertas||0)>0?'<span style="color:var(--k-blue);font-weight:700">'+(stats.abiertas||0)+'↑</span> ':'')+
+      ((stats.abiertasAtrasadas||0)>0?'<span style="color:var(--k-red);font-weight:700">'+(stats.abiertasAtrasadas||0)+'🔴</span>':
+       (stats.abiertas||0)===0&&(stats.abiertasAtrasadas||0)===0?'<span style="color:var(--k-greenok)">✓</span>':'')+
       '</td>'+
       '<td style="text-align:center">'+stats.resueltas+mark+'</td>'+
       '<td style="text-align:center">'+pctFmt(stats.pctResuelto)+mark+'</td>'+
@@ -2434,10 +2513,10 @@ function audTablaPorClase(titulo,color,rows){
   }).join('');
   var editTh=isAdmin?'<th class="c"></th>':'<th></th>';
   var leyenda='<span style="font-size:10px;font-weight:600;color:var(--muted);margin-left:8px;display:inline-flex;align-items:center;gap:10px">'+
-    '<span><span style="color:#dc2626;font-weight:800">●</span> Atrasada</span>'+
-    '<span><span style="color:#2563eb;font-weight:800">●</span> Vigente</span>'+
-    '<span><span style="color:#d97706;font-weight:800">●</span> Resuelta c/atraso</span>'+
-    '<span><span style="color:#16a34a;font-weight:800">●</span> Al corriente</span></span>';
+    '<span><span style="color:var(--k-red);font-weight:800">●</span> Atrasada</span>'+
+    '<span><span style="color:var(--k-blue);font-weight:800">●</span> Vigente</span>'+
+    '<span><span style="color:var(--k-orange);font-weight:800">●</span> Resuelta c/atraso</span>'+
+    '<span><span style="color:var(--k-greenok);font-weight:800">●</span> Al corriente</span></span>';
   var tablaHTML='<div class="slbl" style="margin:4px 0 4px;color:'+color+'">'+
     '<span class="dot" style="background:'+color+'"></span>'+titulo+
     ' <span style="font-weight:600;font-size:10px;color:var(--muted)">('+rows.length+')</span>'+
@@ -2478,14 +2557,14 @@ function audTablaPorClaseCarteraRender(titulo,color,rows){
       '<td>'+(a.mes||'—')+'</td>'+
       '<td style="text-align:center">'+total+'</td>'+
       '<td style="text-align:center;color:'+pc+';font-weight:800">'+pend+'</td>'+
-      '<td style="text-align:center;color:#16a34a;font-weight:700">'+resu+'</td>'+
+      '<td style="text-align:center;color:var(--k-greenok);font-weight:700">'+resu+'</td>'+
       editBtn+'</tr>';
   }).join('');
   var editTh=isAdmin?'<th class="c"></th>':'<th></th>';
   var tablaHTML='<div class="slbl" style="margin:4px 0 4px;color:'+color+'">'+
     '<span class="dot" style="background:'+color+'"></span>'+titulo+
     ' <span style="font-weight:600;font-size:10px;color:var(--muted)">('+rows.length+')</span>'+
-    '<span style="font-size:10px;font-weight:600;color:#7c3aed;margin-left:10px">Sin % cumplimiento · solo seguimiento</span></div>'+
+    '<span style="font-size:10px;font-weight:600;color:var(--k-purple);margin-left:10px">Sin % cumplimiento · solo seguimiento</span></div>'+
     '<div class="card" style="padding:8px 10px;margin-bottom:10px"><div class="tbl-scroll"><table class="dt">'+
     '<thead><tr><th>Tienda</th><th>Mes</th><th class="c">Total Tareas</th>'+
     '<th class="c">Pendientes</th><th class="c">Resueltas</th>'+editTh+'</tr></thead>'+
@@ -2641,9 +2720,9 @@ function renderAuditoriasView(){
 
   /* Si hay 0 auditorías en colab o en orden, mostrar sección vacía informativa */
   if(!grupos['__colab']||!grupos['__colab'].length)
-    html+='<div class="slbl" style="color:#2563eb;margin-bottom:8px"><span class="dot" style="background:#2563eb"></span>AUDITORIAS DE COLABORACION <span style="font-size:10px;color:var(--muted);font-weight:500">(0 con los filtros actuales)</span></div>';
+    html+='<div class="slbl" style="color:var(--k-blue);margin-bottom:8px"><span class="dot" style="background:var(--k-blue)"></span>AUDITORIAS DE COLABORACION <span style="font-size:10px;color:var(--muted);font-weight:500">(0 con los filtros actuales)</span></div>';
   if(!grupos['__orden']||!grupos['__orden'].length)
-    html+='<div class="slbl" style="color:#16a34a;margin-bottom:8px"><span class="dot" style="background:#16a34a"></span>ORDEN Y LIMPIEZA <span style="font-size:10px;color:var(--muted);font-weight:500">(0 con los filtros actuales)</span></div>';
+    html+='<div class="slbl" style="color:var(--k-greenok);margin-bottom:8px"><span class="dot" style="background:var(--k-greenok)"></span>ORDEN Y LIMPIEZA <span style="font-size:10px;color:var(--muted);font-weight:500">(0 con los filtros actuales)</span></div>';
 
   cont.innerHTML=html;
 }
@@ -3908,7 +3987,7 @@ function renderDesempeno(){
         /* Auditorías */
         '<div style="background:var(--soft);border-radius:10px;padding:12px;border-top:3px solid #d97706">'+
           '<div style="font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">🔍 Auditorías</div>'+
-          '<div style="font-size:26px;font-weight:900;color:#d97706;line-height:1">'+d.audTotal+'</div>'+
+          '<div style="font-size:26px;font-weight:900;color:var(--k-orange);line-height:1">'+d.audTotal+'</div>'+
           (d.audClases.length?
             '<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">'+
               d.audClases.slice(0,3).map(function(cl){return'<span style="font-size:9.5px;background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:10px;font-weight:700">'+cl+'</span>';}).join('')+
@@ -4126,23 +4205,30 @@ async function loadDataFromSupabase(){
     ]);
     /* Descifrar auditorias */
     var audDec=aud?await decArr(aud,FIELDS.auditorias):[];
-    STORE.auditorias=audDec.map(function(a){return{
-      razon:a.razon||'',centro:a.centro||'',tienda:a.tienda||'',
-      fecha:a.fecha,mes:a.mes||'',
-      pctCumpl:parseFloat(a.pct_cumpl)||0,
-      tareas:a.tareas||0,pendientes:a.pendientes||0,
-      resueltas:a.resueltas||0,pctResuelto:parseFloat(a.pct_resuelto)||0,
-      clase:a.clase||''
-    };});
+    STORE.auditorias=audDec.map(function(a){
+      function safe(v){return(v&&!pareceCifrado(v))?v:'';}
+      return{
+        razon:safe(a.razon)||'',centro:safe(a.centro)||'',tienda:safe(a.tienda)||'',
+        fecha:a.fecha,mes:safe(a.mes)||'',
+        pctCumpl:parseFloat(a.pct_cumpl)||0,
+        tareas:a.tareas||0,pendientes:a.pendientes||0,
+        resueltas:a.resueltas||0,pctResuelto:parseFloat(a.pct_resuelto)||0,
+        clase:safe(a.clase)||''
+      };
+    });
     /* Descifrar tareas */
     var tarDec=tar?await decArr(tar,FIELDS.tareas):[];
-    STORE.tareas=tarDec.map(function(t){return{
-      id:t.tarea_id||t.id,sb_uuid:t.id,sb_updated:t.updated_at||null,razon:t.razon||'',centro:t.centro||'',
-      tienda:t.tienda||'',areaResp:t.area_resp||'',areaRev:t.area_rev||'',
-      actividad:t.actividad||'',nombre:t.nombre||'',tipoTarea:t.tipo_tarea||'',
-      estado:t.estado||'',
-      fechaCreacion:t.fecha_creacion,fechaTerm:t.fecha_term,fechaCumpl:t.fecha_cumpl
-    };});
+    STORE.tareas=tarDec.map(function(t){
+      function safe(v){return(v&&!pareceCifrado(v))?v:'';}
+      return{
+        id:t.tarea_id||t.id,sb_uuid:t.id,sb_updated:t.updated_at||null,
+        razon:safe(t.razon)||'',centro:safe(t.centro)||'',
+        tienda:safe(t.tienda)||'',areaResp:safe(t.area_resp)||'',areaRev:safe(t.area_rev)||'',
+        actividad:safe(t.actividad)||'',nombre:safe(t.nombre)||'',tipoTarea:safe(t.tipo_tarea)||'',
+        estado:safe(t.estado)||'Abierta',
+        fechaCreacion:t.fecha_creacion,fechaTerm:t.fecha_term,fechaCumpl:t.fecha_cumpl
+      };
+    });
     refreshAll();
     /* Cargar seguimientos y finalizadas en paralelo */
     Promise.all([
@@ -4217,7 +4303,14 @@ async function syncToSupabase(parsed){
   initSupabase();
   try{
     const raw=localStorage.getItem(SB_SESSION_KEY);
-    if(raw&&_sb){_session=JSON.parse(raw);onLoginSuccess();return;}
+    if(raw&&_sb){
+      /* Pre-rellenar usuario para que solo ingrese contraseña — necesaria para descifrar datos */
+      var sess=JSON.parse(raw);
+      var uInput=document.getElementById('lp-user');
+      if(uInput&&sess.username)uInput.value=sess.username;
+      var hint=document.getElementById('login-hint');
+      if(hint)hint.textContent='Sesión guardada — ingresa tu contraseña para continuar';
+    }
   }catch(e){}
 })();
 
@@ -4939,7 +5032,7 @@ function renderMermas(){
     tbody.innerHTML=arr.map(function(m,i){
       var cls=m.condicion==='A tiempo'?'b-atiempo':'b-destiempo';
       var lf=m.localForanea||'—';
-      var lfColor=norm(lf).includes('foranea')||norm(lf).includes('foránea')?'color:#ea580c;font-weight:700':'color:#2563eb;font-weight:700';
+      var lfColor=norm(lf).includes('foranea')||norm(lf).includes('foránea')?'color:#ea580c;font-weight:700':'color:var(--k-blue);font-weight:700';
       var editTd=isAdmin?'<td style="text-align:center"><button class="icon-btn" onclick="openEditMerma(\''+m.id+'\')" title="Editar">✎</button></td>':'';
       return '<tr>'+
         '<td style="color:var(--muted);font-size:11px">'+(i+1)+'</td>'+
@@ -4988,6 +5081,124 @@ function renderMrDonut(arr){
     '<span class="legend-lbl">A tiempo</span><span class="legend-val" style="margin-left:12px">'+ok+'</span></div>'+
     '<div class="legend-item"><span class="legend-dot" style="background:#dc2626"></span>'+
     '<span class="legend-lbl">Destiempo</span><span class="legend-val" style="margin-left:12px">'+mal+'</span></div>';
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   MÓDULO EVALUACIÓN KPIs — Mermas · Ajustes · Auditorías (dinámico)
+════════════════════════════════════════════════════════════════════ */
+var _evCharts={};
+function evDestroy(k){if(_evCharts[k]){_evCharts[k].destroy();_evCharts[k]=null;}}
+
+function evKpiCard(label,pct,n,color,icon){
+  var safe=isFinite(pct)?Math.round(pct):0;
+  return '<div class="ev-kpi-card">'+
+    '<div class="ev-kpi-top"><span class="ev-kpi-icon" style="background:linear-gradient(135deg,'+color+',#1a1f3c)">'+icon+'</span>'+
+    '<div><div class="ev-kpi-lbl">'+label+'</div><div class="ev-kpi-n">'+n+' registros</div></div></div>'+
+    '<div class="ev-kpi-bar"><div class="ev-kpi-bar-fill" style="width:'+safe+'%;background:linear-gradient(90deg,'+color+',#0ce7fe)"></div></div>'+
+    '<div class="ev-kpi-pct" style="color:'+color+'">'+safe+'% cumplimiento</div></div>';
+}
+
+function evMesesUltimos(n){
+  var MN=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+  var out=[],d=new Date();
+  d.setDate(1);
+  for(var i=n-1;i>=0;i--){
+    var dd=new Date(d.getFullYear(),d.getMonth()-i,1);
+    out.push({key:MN[dd.getMonth()],año:dd.getFullYear(),mesIdx:dd.getMonth()});
+  }
+  return out;
+}
+
+function renderEvaluacion(){
+  var host=document.getElementById('view-evaluacion');
+  if(!host)return;
+  if(!host.dataset.built){
+    host.dataset.built='1';
+    host.innerHTML=
+    '<div class="ev-hdr">'+
+      '<div><h2>🎯 Evaluación de KPIs</h2><p>Cumplimiento de Mermas, Ajustes y Auditorías — actualizado en vivo</p></div>'+
+      '<button class="btn btn-blue" onclick="renderEvaluacion()">⟳ Actualizar</button>'+
+    '</div>'+
+    '<div class="ev-kpi-grid" id="ev-kpi-grid"></div>'+
+    '<div class="ev-chart-grid">'+
+      '<div class="card ev-chart-card"><h3>Tendencia de cumplimiento por mes</h3><div class="ev-chart-box" style="height:240px"><canvas id="ev-trend"></canvas></div></div>'+
+      '<div class="card ev-chart-card"><h3>Ajustes: a tiempo vs destiempo</h3><div class="ev-chart-box" style="height:240px"><canvas id="ev-aj-donut"></canvas></div></div>'+
+      '<div class="card ev-chart-card"><h3>Mermas: a tiempo vs destiempo</h3><div class="ev-chart-box" style="height:240px"><canvas id="ev-mr-donut"></canvas></div></div>'+
+      '<div class="card ev-chart-card" style="grid-column:span 2"><h3>Auditorías: % resuelto promedio por clase</h3><div class="ev-chart-box" style="height:260px"><canvas id="ev-aud-bar"></canvas></div></div>'+
+    '</div>';
+  }
+
+  var ajOk=AJUSTES.filter(function(a){return a.condicion==='A tiempo';}).length;
+  var ajTot=AJUSTES.length;
+  var mrOk=MERMAS.filter(function(m){return m.condicion==='A tiempo';}).length;
+  var mrTot=MERMAS.length;
+  var audArr=STORE.auditorias||[];
+  var audProm=audArr.length?audArr.reduce(function(s,a){return s+(parseFloat(a.pct_resuelto)||0);},0)/audArr.length:0;
+
+  document.getElementById('ev-kpi-grid').innerHTML=
+    evKpiCard('Ajustes',ajTot?ajOk/ajTot*100:0,ajTot,'#4318ff','⚖️')+
+    evKpiCard('Mermas',mrTot?mrOk/mrTot*100:0,mrTot,'#0ce7fe','🗂️')+
+    evKpiCard('Auditorías',audProm,audArr.length,'#01b574','🔍');
+
+  /* Tendencia últimos 6 meses */
+  var meses=evMesesUltimos(6);
+  var MNFULL=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+  var serieAj=[],serieMr=[],serieAud=[],lbls=[];
+  meses.forEach(function(m){
+    lbls.push(m.key);
+    var ajM=AJUSTES.filter(function(a){return (a.mes||'').toUpperCase()===MNFULL[m.mesIdx]&&Number(a.año)===m.año;});
+    var mrM=MERMAS.filter(function(x){return (x.mes||'').toUpperCase()===MNFULL[m.mesIdx]&&Number(x.año)===m.año;});
+    var audM=audArr.filter(function(a){return (a.mes||'').toUpperCase().startsWith(MNFULL[m.mesIdx].slice(0,3));});
+    serieAj.push(ajM.length?Math.round(ajM.filter(function(a){return a.condicion==='A tiempo';}).length/ajM.length*100):null);
+    serieMr.push(mrM.length?Math.round(mrM.filter(function(x){return x.condicion==='A tiempo';}).length/mrM.length*100):null);
+    serieAud.push(audM.length?Math.round(audM.reduce(function(s,a){return s+(parseFloat(a.pct_resuelto)||0);},0)/audM.length):null);
+  });
+
+  evDestroy('trend');
+  _evCharts.trend=new Chart(document.getElementById('ev-trend'),{
+    type:'line',
+    data:{labels:lbls,datasets:[
+      {label:'Ajustes',data:serieAj,borderColor:'#4318ff',backgroundColor:'rgba(67,24,255,.15)',tension:.4,fill:true,spanGaps:true},
+      {label:'Mermas',data:serieMr,borderColor:'#0ce7fe',backgroundColor:'rgba(12,231,254,.15)',tension:.4,fill:true,spanGaps:true},
+      {label:'Auditorías',data:serieAud,borderColor:'#01b574',backgroundColor:'rgba(1,181,116,.15)',tension:.4,fill:true,spanGaps:true}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:600},
+      scales:{y:{min:0,max:100,ticks:{callback:function(v){return v+'%';}}}},
+      plugins:{legend:{position:'bottom',labels:{boxWidth:10}}}}
+  });
+
+  evDestroy('ajdonut');
+  _evCharts.ajdonut=new Chart(document.getElementById('ev-aj-donut'),{
+    type:'doughnut',
+    data:{labels:['A tiempo','Destiempo'],datasets:[{data:[ajOk,ajTot-ajOk],backgroundColor:['#4318ff','#fc8181'],borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'70%',animation:{duration:500},plugins:{legend:{position:'bottom',labels:{boxWidth:10}}}}
+  });
+
+  evDestroy('mrdonut');
+  _evCharts.mrdonut=new Chart(document.getElementById('ev-mr-donut'),{
+    type:'doughnut',
+    data:{labels:['A tiempo','Destiempo'],datasets:[{data:[mrOk,mrTot-mrOk],backgroundColor:['#0ce7fe','#fbb140'],borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'70%',animation:{duration:500},plugins:{legend:{position:'bottom',labels:{boxWidth:10}}}}
+  });
+
+  /* Auditorías por clase */
+  var porClase={};
+  audArr.forEach(function(a){
+    var c=a.clase||'SIN CLASE';
+    if(!porClase[c])porClase[c]={s:0,n:0};
+    porClase[c].s+=parseFloat(a.pct_resuelto)||0;porClase[c].n++;
+  });
+  var clases=Object.keys(porClase);
+  var datosClase=clases.map(function(c){return Math.round(porClase[c].s/porClase[c].n);});
+  evDestroy('audbar');
+  _evCharts.audbar=new Chart(document.getElementById('ev-aud-bar'),{
+    type:'bar',
+    data:{labels:clases.map(function(c){return c.length>22?c.slice(0,22)+'…':c;}),
+      datasets:[{label:'% resuelto promedio',data:datosClase,backgroundColor:'#9f7aea',borderRadius:8,maxBarThickness:38}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:600},
+      scales:{y:{min:0,max:100,ticks:{callback:function(v){return v+'%';}}}},
+      plugins:{legend:{display:false}}}
+  });
 }
 
 function mrFormHtml(m){
@@ -5377,10 +5588,11 @@ function renderFinalizadas(){
 
   function claseGrupo(f){
     var c=norm(f.clase||'');
-    if(c.includes('colaboracion')||c.includes('colab'))return{key:'colab',label:'COLABORACIÓN',color:'#2563eb',bg:'#eff6ff'};
-    if(c.includes('orden')||c.includes('limpieza'))return{key:'ol',label:'ORDEN Y LIMPIEZA',color:'#16a34a',bg:'#f0fdf4'};
-    if(c.includes('cartera'))return{key:'cartera',label:'CARTERA',color:'#7c3aed',bg:'#f5f3ff'};
-    return{key:'otro',label:(f.clase||'OTRO').toUpperCase(),color:'#7c8696',bg:'#f8fafc'};
+    var _isDark=document.documentElement.getAttribute('data-theme')==='dark';
+    if(c.includes('colaboracion')||c.includes('colab'))return{key:'colab',label:'COLABORACIÓN',color:'#2563eb',bg:_isDark?'rgba(67,24,255,.12)':'#eff6ff'};
+    if(c.includes('orden')||c.includes('limpieza'))return{key:'ol',label:'ORDEN Y LIMPIEZA',color:'#16a34a',bg:_isDark?'rgba(1,181,116,.10)':'#f0fdf4'};
+    if(c.includes('cartera'))return{key:'cartera',label:'CARTERA',color:'#7c3aed',bg:_isDark?'rgba(159,122,234,.12)':'#f5f3ff'};
+    return{key:'otro',label:(f.clase||'OTRO').toUpperCase(),color:'#7c8696',bg:_isDark?'rgba(255,255,255,.04)':'#f8fafc'};
   }
 
   /* Agrupar por tipo */
@@ -5416,9 +5628,9 @@ function renderFinalizadas(){
       return '<tr style="background:'+meta.bg+'">'+
         '<td style="color:var(--muted);font-size:11px">'+(i+1)+'</td>'+
         '<td><b style="color:'+meta.color+'">'+esc(f.tienda||'—')+'</b></td>'+
-        '<td style="text-align:center;font-weight:700;color:#16a34a">'+pct+'</td>'+
+        '<td style="text-align:center;font-weight:700;color:var(--k-greenok)">'+pct+'</td>'+
         '<td style="text-align:center;font-weight:700">'+(parseInt(f.total_tareas)||0)+'</td>'+
-        '<td style="text-align:center;color:#16a34a;font-weight:700">'+(parseInt(f.resueltas)||0)+'</td>'+
+        '<td style="text-align:center;color:var(--k-greenok);font-weight:700">'+(parseInt(f.resueltas)||0)+'</td>'+
         fechaCell+
         '<td style="text-align:center;color:var(--muted)">'+diasStr+'</td>'+
         '<td style="text-align:center;color:var(--muted)">'+semsStr+'</td>'+
@@ -5440,7 +5652,7 @@ function renderFinalizadas(){
   }
 
   /* Header común */
-  var headerRow='<tr style="background:var(--nav);color:#fff;font-size:11px;font-weight:700">'+
+  var headerRow='<tr style="background:#1a1f3c;color:#fff;font-size:11px;font-weight:700">'+
     '<th style="padding:8px 10px">#</th><th>Tienda</th>'+
     '<th class="c">% Cumpl.</th><th class="c">Tareas</th>'+
     '<th class="c">Resueltas</th><th class="c">'+(isAdmin?'Fecha Fin':'Fecha Fin')+'</th>'+
@@ -5791,9 +6003,17 @@ async function deleteFinalizada(id){
     </div>
     <div class="kpi-cfg-ftr">
       <button class="btn btn-ghost" onclick="closeEditUsuario()">Cancelar</button>
-      <button class="btn btn-blue" onclick="guardarEditUsuario()">✓ Guardar cambios</button>
-    </div>
   </div>
 </div>
+<script>
+function setThemeBtn(){var d=document.documentElement.getAttribute('data-theme')==='dark';var b=document.getElementById('theme-btn');if(b)b.textContent=d?'☀️':'🌙'}
+function toggleTheme(){
+  var html=document.documentElement,dark=html.getAttribute('data-theme')==='dark';
+  html.setAttribute('data-theme',dark?'light':'dark');
+  localStorage.setItem('kg-theme',dark?'light':'dark');
+  setThemeBtn();
+}
+setThemeBtn();
+</script>
 </body>
 </html>
