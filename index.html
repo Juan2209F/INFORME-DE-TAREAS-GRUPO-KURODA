@@ -1104,6 +1104,40 @@ function bucketKeyEx(d,gran){
    PARSEO DE EXCEL (detección por encabezado, tolerante a variaciones)
 ════════════════════════════════════════════════════════════════════ */
 function norm(s){return String(s||'').toLowerCase().replace(/\s+/g,' ').replace(/[áàä]/g,'a').replace(/[éèë]/g,'e').replace(/[íìï]/g,'i').replace(/[óòö]/g,'o').replace(/[úùü]/g,'u').trim();}
+
+/* ════════════════════════════════════════════════════════════════════
+   DICCIONARIO DE SUCURSALES (nombre canónico por CÓDIGO DE CENTRO)
+   El código de centro es la llave confiable; el nombre de tienda varía.
+   Al cargar e importar, el nombre se normaliza a partir del centro para
+   que auditorías↔tareas emparejen y las cargas actualicen correctamente.
+   Para agregar/corregir: edita una línea aquí.
+════════════════════════════════════════════════════════════════════ */
+var CENTRO_TIENDA={
+  'KN00':'KN 20 DE NOV MENUDEO',
+  'KN01':'KN EXPRESS',
+  'KN03':'KN ENSENADA MAYOREO',
+  'KN04':'KN ENSENADA MENUDEO',
+  'KN05':'KN MEXICALI MENUDEO',
+  'KN06':'KN MEXICALI MAYOREO',
+  'KN07':'KN PEÑASCO',
+  'KN09':'KN DESIGN',
+  'KN14':'KN TIJUANA PROYECTOS',
+  'KN15':'KN BO VALLE DE GPE.',
+  'KN16':'KN CEDIS TECATE',
+  'KN17':'KN ROSARITO',
+  'KN18':'KN PEDREGAL',
+  'KN19':'KN TECATE',
+  'KN20':'NOGALES'
+};
+function canonCentro(c){return String(c||'').toUpperCase().replace(/\s+/g,'').trim();}
+/* Devuelve el nombre canónico de la sucursal a partir del centro; si el
+   centro no está en el diccionario, conserva el nombre recibido. */
+function canonTienda(centro,raw){
+  var cc=canonCentro(centro);
+  if(cc&&CENTRO_TIENDA[cc])return CENTRO_TIENDA[cc];
+  return String(raw||'').trim();
+}
+function centroConocido(centro){return !!CENTRO_TIENDA[canonCentro(centro)];}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function findCol(headers,keys){
   for(let i=0;i<headers.length;i++){const h=norm(headers[i]);
@@ -1226,8 +1260,16 @@ function renderStaged(){
   const box=document.getElementById('staged-box');
   const n=STAGED.tareas.length+STAGED.auditorias.length;
   if(!n){box.innerHTML='';document.getElementById('btn-generar').disabled=true;return;}
+  /* Validar centros contra el diccionario de sucursales */
+  var centros=[...new Set([...STAGED.tareas,...STAGED.auditorias]
+    .map(function(r){return canonCentro(r.centro);}).filter(Boolean))];
+  var desconocidos=centros.filter(function(c){return !CENTRO_TIENDA[c];});
+  var okCount=centros.length-desconocidos.length;
+  var valida='<span class="staged-chip" style="background:#dcfce7;color:#166534;margin-left:8px">✓ '+okCount+' centro(s) reconocido(s)</span>';
+  var alerta=desconocidos.length?
+    '<span class="staged-chip" style="background:#fef3c7;color:#92400e;margin-left:8px" title="Estos centros no están en el diccionario; se usará el nombre tal cual venga y podrían no empatar">⚠ Sin diccionario: '+desconocidos.join(', ')+'</span>':'';
   box.innerHTML=`<span class="staged-chip">📥 En cola: ${STAGED.tareas.length} tareas · ${STAGED.auditorias.length} auditorías
-    <span class="x" onclick="clearStaged()" title="Descartar cola">✕</span></span>`;
+    <span class="x" onclick="clearStaged()" title="Descartar cola">✕</span></span>`+valida+alerta;
   document.getElementById('btn-generar').disabled=false;
 }
 function clearStaged(){STAGED={auditorias:[],tareas:[],files:[]};renderStaged();}
@@ -1373,7 +1415,8 @@ async function commitToSupabase(nuevas, actualizar, audStaged, omitidas, prevTar
         updOk++;
       }
     }
-    /* Auditorías — upsert por clave compuesta */
+    /* Auditorías — dedup por CENTRO (razón+centro+fecha+clase), independiente del
+       nombre de tienda: actualiza en vez de duplicar cuando el nombre varía. */
     if(!err&&audStaged.length){
       var arows=audStaged.filter(Boolean).map(function(a){return{
         razon:a.razon||null,centro:a.centro||null,tienda:a.tienda||null,
@@ -1382,9 +1425,31 @@ async function commitToSupabase(nuevas, actualizar, audStaged, omitidas, prevTar
         pendientes:parseInt(a.pendientes)||0,resueltas:parseInt(a.resueltas)||0,
         pct_resuelto:parseFloat(a.pctResuelto)||0,clase:a.clase||null
       };});
-      var ra=await client.from('auditorias').upsert(arows,{onConflict:'razon,centro,tienda,fecha',ignoreDuplicates:false});
-      if(ra.error)err='Aud: '+ra.error.message;
-      else audOk=arows.length;
+      var _kAud=function(razon,centro,fecha,clase){
+        return [norm(razon),canonCentro(centro),String(fecha||'').split('T')[0],norm(clase)].join('|');
+      };
+      /* dedup dentro del mismo archivo (conserva la última ocurrencia) */
+      var _seen={},arows2=[];
+      for(var z=arows.length-1;z>=0;z--){
+        var kk=_kAud(arows[z].razon,arows[z].centro,arows[z].fecha,arows[z].clase);
+        if(_seen[kk])continue;_seen[kk]=1;arows2.unshift(arows[z]);
+      }
+      arows=arows2;
+      /* traer existentes para emparejar por centro (no por nombre) */
+      var exAud=[];
+      try{var re=await client.from('auditorias').select('id,razon,centro,fecha,clase').limit(20000);if(!re.error)exAud=re.data||[];}catch(_e){}
+      var exMap={};
+      exAud.forEach(function(x){exMap[_kAud(x.razon,x.centro,x.fecha,x.clase)]=x.id;});
+      for(var ai=0;ai<arows.length&&!err;ai++){
+        var ar=arows[ai];var k=_kAud(ar.razon,ar.centro,ar.fecha,ar.clase);
+        if(exMap[k]){
+          var ru2=await client.from('auditorias').update(ar).eq('id',exMap[k]);
+          if(ru2.error)err='Aud upd: '+ru2.error.message;else audOk++;
+        }else{
+          var ri2=await client.from('auditorias').insert([ar]).select('id');
+          if(ri2.error)err='Aud ins: '+ri2.error.message;else{audOk++;if(ri2.data&&ri2.data[0])exMap[k]=ri2.data[0].id;}
+        }
+      }
     }
   }catch(e){err=e.message;}
 
@@ -1401,8 +1466,8 @@ async function commitToSupabase(nuevas, actualizar, audStaged, omitidas, prevTar
     if((audStaged||[]).length && typeof arows!=='undefined' && arows){
       arows.forEach(function(ar){
         var prev=(STORE.auditorias||[]).find(function(x){
-          return norm(x.razon)===norm(ar.razon)&&norm(x.centro)===norm(ar.centro)&&
-                 norm(x.tienda)===norm(ar.tienda)&&String(x.fecha||'').split('T')[0]===ar.fecha;
+          return norm(x.razon)===norm(ar.razon)&&canonCentro(x.centro)===canonCentro(ar.centro)&&
+                 String(x.fecha||'').split('T')[0]===ar.fecha&&norm(x.clase)===norm(ar.clase);
         });
         if(prev){
           aPrev.push({razon:prev.razon||null,centro:prev.centro||null,tienda:prev.tienda||null,
@@ -2481,11 +2546,16 @@ function calcAudStats(a, rowsMismaClase){
     return true;
   });
 
-  /* Si hay 2+ auditorías de la misma tienda/clase, filtrar además por mes */
-  if(multiAud && mesMes>=0){
+  /* Acotar SIEMPRE al mes (y año) de la auditoría para no mezclar tareas de otros
+     periodos — antes solo se acotaba con 2+ auditorías, lo que inflaba las resueltas. */
+  if(mesMes>=0){
+    var _fa=a.fecha?fromISO(a.fecha):null;
+    var anioAud=_fa?_fa.getFullYear():null;
     tt=tt.filter(function(t){
       var d=fromISO(t.fechaCreacion);
-      return d && d.getMonth()===mesMes;
+      if(!d||d.getMonth()!==mesMes)return false;
+      if(anioAud&&d.getFullYear()!==anioAud)return false;
+      return true;
     });
   }
 
@@ -2932,10 +3002,23 @@ function fillActFilters(){
   selA.value=vA;
   /* Auto-seleccionar mes en curso si el filtro no tiene selección explícita */
   var MORD_ACT=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  /* Mes por defecto: en curso si tiene datos; si no, el más reciente con datos
+     (evita que quede vacío cuando el mes actual aún no tiene actividades). */
   var sm=document.getElementById('act-f-mes');
-  if(sm){
+  if(sm&&sm.value==='ALL'){
     var mesHoy=MORD_ACT[new Date().getMonth()];
-    if(sm.value==='ALL'&&[...sm.options].some(function(o){return o.value===mesHoy;}))sm.value=mesHoy;
+    var hayHoy=ACTIVIDADES.some(function(a){return norm(a.mes)===norm(mesHoy);});
+    var tgt=null;
+    if(hayHoy)tgt=mesHoy;
+    else{
+      var bi=-1;
+      ACTIVIDADES.forEach(function(a){var i=MORD_ACT.map(norm).indexOf(norm(a.mes));if(i>bi)bi=i;});
+      if(bi>=0)tgt=MORD_ACT[bi];
+    }
+    if(tgt){
+      var opt=[...sm.options].find(function(o){return norm(o.value)===norm(tgt);});
+      if(opt)sm.value=opt.value;
+    }
   }
 }
 
@@ -4432,7 +4515,7 @@ async function loadDataFromSupabase(){
     STORE.auditorias=audDec.map(function(a){
       function safe(v){return(v&&!pareceCifrado(v))?v:'';}
       return{
-        razon:safe(a.razon)||'',centro:safe(a.centro)||'',tienda:safe(a.tienda)||'',
+        razon:safe(a.razon)||'',centro:safe(a.centro)||'',tienda:canonTienda(safe(a.centro),safe(a.tienda)),
         fecha:a.fecha,mes:safe(a.mes)||'',
         pctCumpl:parseFloat(a.pct_cumpl)||0,
         tareas:a.tareas||0,pendientes:a.pendientes||0,
@@ -4447,7 +4530,7 @@ async function loadDataFromSupabase(){
       return{
         id:t.tarea_id||t.id,sb_uuid:t.id,sb_updated:t.updated_at||null,
         razon:safe(t.razon)||'',centro:safe(t.centro)||'',
-        tienda:safe(t.tienda)||'',areaResp:safe(t.area_resp)||'',areaRev:safe(t.area_rev)||'',
+        tienda:canonTienda(safe(t.centro),safe(t.tienda)),areaResp:safe(t.area_resp)||'',areaRev:safe(t.area_rev)||'',
         actividad:safe(t.actividad)||'',nombre:safe(t.nombre)||'',tipoTarea:safe(t.tipo_tarea)||'',
         estado:safe(t.estado)||'Abierta',
         fechaCreacion:t.fecha_creacion,fechaTerm:t.fecha_term,fechaCumpl:t.fecha_cumpl
@@ -4856,13 +4939,26 @@ function fillAjFilters(){
   sm.innerHTML='<option value="ALL">Todos</option>'+meses.map(function(m){return'<option value="'+m+'">'+m+'</option>';}).join('');
   sa.innerHTML='<option value="ALL">Todos</option>'+años.map(function(y){return'<option value="'+y+'">'+y+'</option>';}).join('');
   st.innerHTML='<option value="ALL">Todas</option>'+limpiarOpciones(tiendas).map(function(t){return'<option>'+t+'</option>';}).join('');
-  /* Si había selección previa explícita, restaurarla; si era ALL (sin selección), poner mes/año actual */
+  /* Período objetivo: mes/año en curso si hay datos; si no, el más reciente con datos.
+     Nunca "Todos" (para no volcar todo el histórico). */
   var mesHoy=MORD[new Date().getMonth()];
   var añoHoy=String(new Date().getFullYear());
+  function _tienePer(m,y){return AJUSTES.some(function(a){return (a.mes||'').toUpperCase()===m&&String(a.año||'')===String(y);});}
+  var tgtMes=mesHoy, tgtAño=añoHoy;
+  if(!_tienePer(mesHoy,añoHoy)){
+    var best=null;
+    AJUSTES.forEach(function(a){
+      var mi=MORD.indexOf((a.mes||'').toUpperCase()); var y=parseInt(a.año)||0;
+      if(mi<0||!y)return;
+      var key=y*100+mi;
+      if(!best||key>best.key)best={key:key,mes:(a.mes||'').toUpperCase(),año:String(a.año)};
+    });
+    if(best){tgtMes=best.mes;tgtAño=best.año;}
+  }
   if(vm!=='ALL'&&[...sm.options].some(function(o){return o.value===vm;}))sm.value=vm;
-  else if([...sm.options].some(function(o){return o.value===mesHoy;}))sm.value=mesHoy;
+  else if([...sm.options].some(function(o){return o.value===tgtMes;}))sm.value=tgtMes;
   if(va!=='ALL'&&[...sa.options].some(function(o){return o.value===va;}))sa.value=va;
-  else if([...sa.options].some(function(o){return o.value===añoHoy;}))sa.value=añoHoy;
+  else if([...sa.options].some(function(o){return o.value===tgtAño;}))sa.value=tgtAño;
   if(vt!=='ALL'&&[...st.options].some(function(o){return o.value===vt;}))st.value=vt;
 }
 
@@ -5218,10 +5314,22 @@ function fillMrFilters(){
   st.innerHTML='<option value="ALL">Todas</option>'+limpiarOpciones(tiendas).map(function(t){return'<option>'+t+'</option>';}).join('');
   var mesHoy=MORD[new Date().getMonth()];
   var añoHoy=String(new Date().getFullYear());
+  function _tienePerM(m,y){return MERMAS.some(function(x){return (x.mes||'').toUpperCase()===m&&String(x.año||'')===String(y);});}
+  var tgtMes=mesHoy, tgtAño=añoHoy;
+  if(!_tienePerM(mesHoy,añoHoy)){
+    var best=null;
+    MERMAS.forEach(function(x){
+      var mi=MORD.indexOf((x.mes||'').toUpperCase()); var y=parseInt(x.año)||0;
+      if(mi<0||!y)return;
+      var key=y*100+mi;
+      if(!best||key>best.key)best={key:key,mes:(x.mes||'').toUpperCase(),año:String(x.año)};
+    });
+    if(best){tgtMes=best.mes;tgtAño=best.año;}
+  }
   if(vm!=='ALL'&&[...sm.options].some(function(o){return o.value===vm;}))sm.value=vm;
-  else if([...sm.options].some(function(o){return o.value===mesHoy;}))sm.value=mesHoy;
+  else if([...sm.options].some(function(o){return o.value===tgtMes;}))sm.value=tgtMes;
   if(va!=='ALL'&&[...sa.options].some(function(o){return o.value===va;}))sa.value=va;
-  else if([...sa.options].some(function(o){return o.value===añoHoy;}))sa.value=añoHoy;
+  else if([...sa.options].some(function(o){return o.value===tgtAño;}))sa.value=tgtAño;
   if(vt!=='ALL'&&[...st.options].some(function(o){return o.value===vt;}))st.value=vt;
 }
 
