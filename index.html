@@ -1183,6 +1183,25 @@ function canonTienda(centro,raw){
 }
 function centroConocido(centro){return !!CENTRO_TIENDA[canonCentro(centro)];}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+/* Normaliza el Estado de una tarea al importar desde Excel. Acepta tanto los
+   textos en español ("Abierta", "Abierta atrasada", "Resuelta", "Resuelta
+   Atrasada") como los códigos en inglés/snake_case usados por otros sistemas
+   de exportación: open, open_and_late, resolved, resolved_and_late (también
+   con espacios o guiones en vez de guión bajo, y sin importar mayúsculas). */
+var ESTADO_CODIGOS={
+  'open':'Abierta',
+  'open_and_late':'Abierta atrasada',
+  'resolved':'Resuelta',
+  'resolved_and_late':'Resuelta Atrasada'
+};
+function normalizarEstadoTarea(raw){
+  var s=String(raw||'').replace(/\u00a0/g,' ').trim();
+  if(!s)return s;
+  var key=s.toLowerCase().replace(/[\s\-]+/g,'_');
+  if(ESTADO_CODIGOS[key])return ESTADO_CODIGOS[key];
+  return s; /* ya viene en español u otro texto: se deja tal cual */
+}
 function findCol(headers,keys){
   for(let i=0;i<headers.length;i++){const h=norm(headers[i]);
     if(keys.some(k=>h.includes(k)))return i;}
@@ -1241,7 +1260,7 @@ function parseWorkbook(buf){
           tienda:String(r[c.tienda]||'').trim(),
           areaResp:String(r[c.areaResp]||'').trim(),areaRev:String(r[c.areaRev]||'').trim(),
           actividad:String(r[c.act]||'').trim(),nombre:String(r[c.nombre]||'').trim(),
-          estado:String(r[c.estado]||'').replace(/\u00a0/g,' ').trim(),
+          estado:normalizarEstadoTarea(r[c.estado]),
           fechaTerm:toISO(parseDate(r[c.term])),fechaCumpl:toISO(parseDate(r[c.cumpl])),
           tipoTarea:String(r[c.tipo]||'').trim()
         });
