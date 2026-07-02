@@ -1249,6 +1249,20 @@ function parseWorkbook(buf){
   const out={auditorias:[],tareas:[]};
   wb.SheetNames.forEach(sn=>{
     const raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:'',raw:false,cellDates:true});
+    /* Copia "cruda" de la misma hoja: si una celda es una fecha real de Excel,
+       raw:true la entrega como objeto Date verdadero (basado en el valor interno,
+       sin pasar por texto). Esto evita que raw:false la reformatee a un string
+       cuyo orden día/mes puede ser ambiguo o distinto al de la plantilla. */
+    const rawTyped=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:'',raw:true,cellDates:true});
+    function fechaCelda(i,idx,fallbackIdx){
+      const rt=rawTyped[i]||[];
+      if(idx!=null&&idx>=0&&rt[idx]instanceof Date)return rt[idx];
+      const r=raw[i]||[];
+      const v=valCol(r,idx,fallbackIdx);
+      if(v!==undefined&&v!==null&&String(v).trim()!=='')return v;
+      if(fallbackIdx!=null&&fallbackIdx>=0&&rt[fallbackIdx]instanceof Date)return rt[fallbackIdx];
+      return v;
+    }
     if(raw.length<2)return;
     // localizar fila de encabezado (la que tenga "razon" o "id" o "tienda")
     let hi=0;
@@ -1291,12 +1305,12 @@ function parseWorkbook(buf){
         out.tareas.push({
           razon:String(r[c.razon]||'').trim(),centro:String(r[c.centro]||'').trim(),
           id:isNaN(Number(idv))?String(idv).trim():Number(num),
-          fechaCreacion:toISO(parseDate(valCol(r,c.fechaCre,c.pegaCre))),
+          fechaCreacion:toISO(parseDate(fechaCelda(i,c.fechaCre,c.pegaCre))),
           tienda:String(r[c.tienda]||'').trim(),
           areaResp:String(r[c.areaResp]||'').trim(),areaRev:String(r[c.areaRev]||'').trim(),
           actividad:String(r[c.act]||'').trim(),nombre:String(r[c.nombre]||'').trim(),
           estado:normalizarEstadoTarea(r[c.estado]),
-          fechaTerm:toISO(parseDate(valCol(r,c.term,c.pegaTerm))),fechaCumpl:toISO(parseDate(valCol(r,c.cumpl,c.pegaCumpl))),
+          fechaTerm:toISO(parseDate(fechaCelda(i,c.term,c.pegaTerm))),fechaCumpl:toISO(parseDate(fechaCelda(i,c.cumpl,c.pegaCumpl))),
           tipoTarea:String(r[c.tipo]||'').trim()
         });
       }
@@ -1311,7 +1325,7 @@ function parseWorkbook(buf){
         const r=raw[i];const tienda=String(r[c.tienda]||'').trim();
         const razon=String(r[c.razon]||'').trim();
         if(!tienda&&!razon)continue;
-        const f=parseDate(valCol(r,c.fecha,c.pegaFecha));
+        const f=parseDate(fechaCelda(i,c.fecha,c.pegaFecha));
         out.auditorias.push({
           razon,centro:String(r[c.centro]||'').trim(),tienda,
           fecha:toISO(f),mes:String(r[c.mes]||'').trim(),
