@@ -577,7 +577,7 @@ table.seg tbody tr:hover{background:var(--soft)}
       <div class="filters-spacer"></div>
       <span id="staged-box"></span>
       <button class="btn btn-ghost" id="btn-recargar" onclick="recargarDatos()" title="Traer los últimos cambios desde Supabase">🔄 Recargar</button>
-      <button class="btn btn-ghost" id="btn-cargar-excel" onclick="openFileIfAllowed()">📂 Cargar Excel</button>
+      <button class="btn btn-ghost" id="btn-cargar-excel" onclick="openFileIfAllowed()" title="Acepta la plantilla de Kuroda o el reporte del sistema (StoreAction) tal cual se exporta">📂 Cargar Excel</button>
       <button class="btn btn-blue" id="btn-generar" onclick="generarImport()" disabled>⚙ Generar / Combinar</button>
       <input type="file" id="file-input" accept=".xlsx,.xls" multiple onchange="stageFiles(this.files)">
     </div>
@@ -1108,8 +1108,9 @@ function parseDate(v){
   /* ISO yyyy-mm-dd (con o sin hora) → interpretación directa */
   var m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ].*)?$/);
   if(m){var dt=new Date(+m[1],+m[2]-1,+m[3],12,0,0);return isNaN(dt)?null:dt;}
-  /* dd/mm/yyyy o dd-mm-yyyy (formato del Excel) → DÍA / MES / AÑO */
-  m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  /* dd/mm/yyyy o dd-mm-yyyy (con o sin hora al final) → DÍA / MES / AÑO
+     Acepta " 15:42:54" u otro texto tras la fecha (p.ej. exportación del sistema). */
+  m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})(?:[ T].*)?$/);
   if(m){
     var d=+m[1], mo=+m[2], y=+m[3];
     if(y<100)y+=2000;
@@ -1268,9 +1269,63 @@ function parseWorkbook(buf){
     let hi=0;
     for(let i=0;i<Math.min(6,raw.length);i++){
       const joined=raw[i].map(norm).join('|');
-      if(joined.includes('razon')||joined.includes('tienda')||joined.includes('centro')||joined.includes('nombre de tarea')){hi=i;break;}
+      if(joined.includes('razon')||joined.includes('tienda')||joined.includes('centro')||joined.includes('nombre de tarea')
+         ||joined.includes('id ticket')||joined.includes('codigo del local')||joined.includes('nombre del local')){hi=i;break;}
     }
     const H=raw[hi];
+
+    /* ═══ Formato NATIVO del sistema (exportación "StoreAction") ═══
+       Se detecta por sus encabezados propios. Permite cargar el reporte
+       tal cual sale del sistema, sin pasar por la plantilla. */
+    const idxIdTicket=findCol(H,['id ticket']);
+    const idxCodLocal=findCol(H,['codigo del local','codigo local']);
+    const idxNomLocal=findCol(H,['nombre del local','nombre local']);
+    const esStoreAction=(idxIdTicket>=0 && idxCodLocal>=0);
+    if(esStoreAction){
+      const c={
+        id:idxIdTicket,
+        centro:idxCodLocal,
+        tienda:idxNomLocal,
+        razon:findCol(H,['cadena']),
+        titulo:findCol(H,['titulo del ticket','titulo ticket']),
+        descripcion:findCol(H,['descripcion ticket','descripcion del ticket']),
+        areaResp:findCol(H,['area responsable']),
+        areaRev:findCol(H,['area que revisa','area revisa']),
+        estado:findCol(H,['estado']),
+        fechaCre:findCol(H,['fecha de creacion','fecha creacion']),
+        fechaCierre:findCol(H,['fecha de cierre','fecha cierre']),
+        actividad:findCol(H,['nombre actividad','nombre de actividad'])
+      };
+      for(let i=hi+1;i<raw.length;i++){
+        const r=raw[i];const idv=r[c.id];
+        if(idv===''||idv===undefined||idv===null)continue;
+        if(norm(idv)==='id ticket')continue;
+        const num=String(idv).replace(/\D/g,'');
+        if(!num)continue;
+        const nombreAct=String(r[c.actividad]||'').trim();
+        /* Regla: actividad en blanco = Auditoría de Colaboración;
+           si trae texto, ese texto define el tipo (Orden y Limpieza, etc.) */
+        const tipoTarea=nombreAct?nombreAct:'TAREAS AUDITORIA COL';
+        /* El centro trae el nombre canónico de tienda; se respeta el del diccionario */
+        const centro=String(r[c.centro]||'').trim();
+        out.tareas.push({
+          razon:String(r[c.razon]||'').trim(),
+          centro,
+          id:isNaN(Number(idv))?String(idv).trim():Number(num),
+          fechaCreacion:toISO(parseDate(fechaCelda(i,c.fechaCre,-1))),
+          tienda:canonTienda(centro,r[c.tienda]),
+          areaResp:String(r[c.areaResp]||'').trim(),
+          areaRev:String(r[c.areaRev]||'').trim(),
+          actividad:nombreAct||String(r[c.descripcion]||'').trim(),
+          nombre:String(r[c.titulo]||'').trim(),
+          estado:normalizarEstadoTarea(r[c.estado]),
+          fechaTerm:null,   /* pendiente: aún no aparece en el reporte del sistema */
+          fechaCumpl:toISO(parseDate(fechaCelda(i,c.fechaCierre,-1))),
+          tipoTarea
+        });
+      }
+      return; /* hoja procesada como StoreAction */
+    }
     const idxId=findCol(H,['id ','id']);
     const idxNombreTarea=findCol(H,['nombre de tarea','nombre tarea']);
     const idxTipoTarea=findCol(H,['tipo tarea','tipo de tarea']);
