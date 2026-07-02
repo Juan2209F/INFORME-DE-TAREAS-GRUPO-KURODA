@@ -1090,12 +1090,21 @@ function confirmWipe(){
 ════════════════════════════════════════════════════════════════════ */
 function parseDate(v){
   if(v===null||v===undefined||v==='')return null;
-  if(v instanceof Date)return isNaN(v)?null:v;
-  if(typeof v==='number'&&isFinite(v))return new Date(Math.round((v-25569)*86400*1000));
+  /* Fecha real de Excel (SheetJS con cellDates:true la entrega anclada en UTC
+     medianoche). Si se deja tal cual, al leerla de vuelta con toISOString()+
+     new Date() en una zona horaria negativa (ej. Tijuana UTC-8) se recorre un
+     día hacia atrás. Se reconstruye a partir de los componentes UTC pero
+     anclada a mediodía LOCAL, para que sobreviva el viaje de ida y vuelta
+     sin importar el huso horario del navegador. */
+  if(v instanceof Date){
+    if(isNaN(v))return null;
+    return new Date(v.getUTCFullYear(),v.getUTCMonth(),v.getUTCDate(),12,0,0);
+  }
+  if(typeof v==='number'&&isFinite(v))return excelSerialToDate(v);
   var s=String(v).trim();
   if(s==='')return null;
   /* Serial de Excel como texto */
-  if(/^\d+(\.\d+)?$/.test(s))return new Date(Math.round((parseFloat(s)-25569)*86400*1000));
+  if(/^\d+(\.\d+)?$/.test(s))return excelSerialToDate(parseFloat(s));
   /* ISO yyyy-mm-dd (con o sin hora) → interpretación directa */
   var m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ].*)?$/);
   if(m){var dt=new Date(+m[1],+m[2]-1,+m[3],12,0,0);return isNaN(dt)?null:dt;}
@@ -1110,6 +1119,12 @@ function parseDate(v){
     return isNaN(dt2)?null:dt2;
   }
   var d3=new Date(s);return isNaN(d3)?null:d3;
+}
+/* Serial de Excel (días desde 1899-12-30 en UTC) -> Date anclada a mediodía LOCAL
+   sobre el mismo día calendario, para evitar el corrimiento de zona horaria. */
+function excelSerialToDate(serial){
+  var u=new Date(Math.round((serial-25569)*86400*1000));
+  return new Date(u.getUTCFullYear(),u.getUTCMonth(),u.getUTCDate(),12,0,0);
 }
 function toISO(d){return d?d.toISOString():null;}
 function fromISO(s){
@@ -1207,6 +1222,21 @@ function findCol(headers,keys){
     if(keys.some(k=>h.includes(k)))return i;}
   return -1;
 }
+/* Devuelve el valor de la columna principal; si viene vacío (p.ej. una fórmula
+   sin recalcular en la plantilla), usa la columna de respaldo "PEGA AQUÍ ↴". */
+function findColRe(headers,re){
+  for(let i=0;i<headers.length;i++){if(re.test(norm(headers[i])))return i;}
+  return -1;
+}
+function valCol(row,mainIdx,fallbackIdx){
+  var v=mainIdx>=0?row[mainIdx]:undefined;
+  if(v!==undefined&&v!==null&&String(v).trim()!=='')return v;
+  if(fallbackIdx!=null&&fallbackIdx>=0){
+    var fb=row[fallbackIdx];
+    if(fb!==undefined&&fb!==null&&String(fb).trim()!=='')return fb;
+  }
+  return v;
+}
 function tipoNorm(t){
   const n=norm(t);
   if(n.includes('orden')||n.includes('limpieza'))return 'ol';
@@ -1246,7 +1276,12 @@ function parseWorkbook(buf){
         areaRev:findCol(H,['area revisora','revisora']),act:findCol(H,['actividad']),
         nombre:idxNombreTarea,estado:idxEstado,
         term:findCol(H,['fecha de termino','fecha termino']),
-        cumpl:findCol(H,['fecha de cumplimiento','fecha cumplimiento']),tipo:idxTipoTarea};
+        cumpl:findCol(H,['fecha de cumplimiento','fecha cumplimiento']),tipo:idxTipoTarea,
+        /* Columnas "PEGA AQUÍ ↴" de la plantilla: respaldo cuando la columna
+           principal viene vacía (p.ej. si trae una fórmula sin recalcular). */
+        pegaCre:findColRe(H,/pega aqui.*creacion/),
+        pegaTerm:findColRe(H,/pega aqui.*termino/),
+        pegaCumpl:findColRe(H,/pega aqui.*cumplimiento/)};
       for(let i=hi+1;i<raw.length;i++){
         const r=raw[i];const idv=r[c.id];
         if(idv===''||idv===undefined||idv===null)continue;
@@ -1256,12 +1291,12 @@ function parseWorkbook(buf){
         out.tareas.push({
           razon:String(r[c.razon]||'').trim(),centro:String(r[c.centro]||'').trim(),
           id:isNaN(Number(idv))?String(idv).trim():Number(num),
-          fechaCreacion:toISO(parseDate(r[c.fechaCre])),
+          fechaCreacion:toISO(parseDate(valCol(r,c.fechaCre,c.pegaCre))),
           tienda:String(r[c.tienda]||'').trim(),
           areaResp:String(r[c.areaResp]||'').trim(),areaRev:String(r[c.areaRev]||'').trim(),
           actividad:String(r[c.act]||'').trim(),nombre:String(r[c.nombre]||'').trim(),
           estado:normalizarEstadoTarea(r[c.estado]),
-          fechaTerm:toISO(parseDate(r[c.term])),fechaCumpl:toISO(parseDate(r[c.cumpl])),
+          fechaTerm:toISO(parseDate(valCol(r,c.term,c.pegaTerm))),fechaCumpl:toISO(parseDate(valCol(r,c.cumpl,c.pegaCumpl))),
           tipoTarea:String(r[c.tipo]||'').trim()
         });
       }
@@ -1270,12 +1305,13 @@ function parseWorkbook(buf){
         fecha:findCol(H,['fecha de creacion','fecha creacion']),mes:findCol(H,['mes auditoria','mes']),
         pct:idxPctCumpl,tareas:findCol(H,['tareas']),
         pend:findCol(H,['pendientes']),res:findCol(H,['resueltos','resueltas']),
-        pctRes:findCol(H,['porcentaje resuelto','% resuelto']),clase:idxClase};
+        pctRes:findCol(H,['porcentaje resuelto','% resuelto']),clase:idxClase,
+        pegaFecha:findColRe(H,/pega aqui.*creacion/)};
       for(let i=hi+1;i<raw.length;i++){
         const r=raw[i];const tienda=String(r[c.tienda]||'').trim();
         const razon=String(r[c.razon]||'').trim();
         if(!tienda&&!razon)continue;
-        const f=parseDate(r[c.fecha]);
+        const f=parseDate(valCol(r,c.fecha,c.pegaFecha));
         out.auditorias.push({
           razon,centro:String(r[c.centro]||'').trim(),tienda,
           fecha:toISO(f),mes:String(r[c.mes]||'').trim(),
