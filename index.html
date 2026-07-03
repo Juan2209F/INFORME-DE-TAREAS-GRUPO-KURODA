@@ -4398,8 +4398,26 @@ function renderDesempeno(){
     var actOk=d.actProgOk+d.actNoPOk;
     var totAll=d.ajTotal+d.mrTotal+actTotal+d.audTotal;
     var totOk=d.ajOk+d.mrOk+actOk;
-    var pGlobal=pct(totOk,d.ajTotal+d.mrTotal+actTotal);
     var pAud=d.audTotal?Math.round(d.audPct/d.audTotal):0;
+    var pAct=pct(actOk,actTotal);
+
+    /* ── Global ponderado (Opción A) ──
+       Prioriza el CUMPLIMIENTO A TIEMPO: Ajustes y Mermas (métricas puras de
+       puntualidad) pesan el doble que Actividades y Auditorías. Solo se
+       promedian las áreas donde el auditor SÍ tiene registros (no se le
+       castiga por un área en la que no participó). Ahora incluye Auditorías,
+       que antes quedaban fuera del Global. */
+    var PESO={aj:2, mr:2, act:1, aud:1};
+    var gSuma=0, gPeso=0;
+    if(d.ajTotal){ gSuma+=pAj*PESO.aj; gPeso+=PESO.aj; }
+    if(d.mrTotal){ gSuma+=pMr*PESO.mr; gPeso+=PESO.mr; }
+    if(actTotal){ gSuma+=pAct*PESO.act; gPeso+=PESO.act; }
+    if(d.audTotal){ gSuma+=pAud*PESO.aud; gPeso+=PESO.aud; }
+    var pGlobal=gPeso>0?Math.round(gSuma/gPeso):0;
+    /* Muestra chica: menos de 5 registros totales medibles → el % es poco
+       representativo; se marca para no premiar un 100% con 1-2 registros. */
+    var medibles=d.ajTotal+d.mrTotal+actTotal+d.audTotal;
+    var muestraChica=medibles>0&&medibles<5;
 
     function kpiBlock(icon,label,total,ok,tard,repr,pend,pbar,col2,subfooter){
       return '<div style="background:var(--soft);border-radius:10px;padding:12px;border-top:3px solid '+col2+'">'+
@@ -4433,9 +4451,11 @@ function renderDesempeno(){
             (d.actProgTotal?'<div style="background:rgba(255,255,255,.18);border-radius:8px;padding:4px 10px;text-align:center"><div style="font-size:13px;font-weight:900;color:#fff">'+pActProg+'%</div><div style="font-size:8px;color:rgba(255,255,255,.7);font-weight:700">ACT-P</div></div>':'')+
             (d.actNoPTotal?'<div style="background:rgba(255,255,255,.18);border-radius:8px;padding:4px 10px;text-align:center"><div style="font-size:13px;font-weight:900;color:#fff">'+pActNoP+'%</div><div style="font-size:8px;color:rgba(255,255,255,.7);font-weight:700">ACT-NP</div></div>':'')+
           '</div>'+
-          '<div style="background:rgba(255,255,255,.25);border-radius:10px;padding:8px 14px;text-align:center">'+
-            '<div style="font-size:24px;font-weight:900;color:#fff;line-height:1">'+pGlobal+'%</div>'+
-            '<div style="font-size:9px;color:rgba(255,255,255,.8);font-weight:700;text-transform:uppercase;margin-top:1px">Global</div>'+
+          '<div style="background:rgba(255,255,255,.25);border-radius:10px;padding:8px 14px;text-align:center" title="Global ponderado: prioriza cumplimiento a tiempo (Ajustes y Mermas pesan doble). Solo promedia las áreas con registros.">'+
+            '<div style="font-size:24px;font-weight:900;color:#fff;line-height:1">'+pGlobal+'%'+
+              (muestraChica?'<span style="font-size:11px;font-weight:700;vertical-align:super" title="Muestra chica: menos de 5 registros, el % es poco representativo">*</span>':'')+
+            '</div>'+
+            '<div style="font-size:9px;color:rgba(255,255,255,.8);font-weight:700;text-transform:uppercase;margin-top:1px">Global'+(muestraChica?' · muestra chica':' ponderado')+'</div>'+
           '</div>'+
         '</div>'+
       '</div>'+
