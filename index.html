@@ -4401,22 +4401,22 @@ function renderDesempeno(){
     var pAud=d.audTotal?Math.round(d.audPct/d.audTotal):0;
     var pAct=pct(actOk,actTotal);
 
-    /* ── Global ponderado (Opción A) ──
-       Prioriza el CUMPLIMIENTO A TIEMPO: Ajustes y Mermas (métricas puras de
-       puntualidad) pesan el doble que Actividades y Auditorías. Solo se
-       promedian las áreas donde el auditor SÍ tiene registros (no se le
-       castiga por un área en la que no participó). Ahora incluye Auditorías,
-       que antes quedaban fuera del Global. */
-    var PESO={aj:2, mr:2, act:1, aud:1};
+    /* ── Global de desempeño del auditor ──
+       Se evalúa SOLO lo que es responsabilidad directa del auditor:
+       Ajustes, Mermas y Actividades. Las Auditorías y las Tareas son
+       soporte de seguimiento y NO cuentan para el score.
+       Prioriza el CUMPLIMIENTO A TIEMPO: Ajustes y Mermas (puntualidad)
+       pesan el doble que Actividades (completadas en el mes). Solo se
+       promedian las áreas donde el auditor SÍ tiene registros. */
+    var PESO={aj:2, mr:2, act:1};
     var gSuma=0, gPeso=0;
     if(d.ajTotal){ gSuma+=pAj*PESO.aj; gPeso+=PESO.aj; }
     if(d.mrTotal){ gSuma+=pMr*PESO.mr; gPeso+=PESO.mr; }
     if(actTotal){ gSuma+=pAct*PESO.act; gPeso+=PESO.act; }
-    if(d.audTotal){ gSuma+=pAud*PESO.aud; gPeso+=PESO.aud; }
     var pGlobal=gPeso>0?Math.round(gSuma/gPeso):0;
-    /* Muestra chica: menos de 5 registros totales medibles → el % es poco
-       representativo; se marca para no premiar un 100% con 1-2 registros. */
-    var medibles=d.ajTotal+d.mrTotal+actTotal+d.audTotal;
+    /* Muestra chica: menos de 5 registros evaluables (ajustes+mermas+actividades)
+       → el % es poco representativo; se marca para no premiar un 100% con 1-2. */
+    var medibles=d.ajTotal+d.mrTotal+actTotal;
     var muestraChica=medibles>0&&medibles<5;
 
     function kpiBlock(icon,label,total,ok,tard,repr,pend,pbar,col2,subfooter){
@@ -4451,7 +4451,7 @@ function renderDesempeno(){
             (d.actProgTotal?'<div style="background:rgba(255,255,255,.18);border-radius:8px;padding:4px 10px;text-align:center"><div style="font-size:13px;font-weight:900;color:#fff">'+pActProg+'%</div><div style="font-size:8px;color:rgba(255,255,255,.7);font-weight:700">ACT-P</div></div>':'')+
             (d.actNoPTotal?'<div style="background:rgba(255,255,255,.18);border-radius:8px;padding:4px 10px;text-align:center"><div style="font-size:13px;font-weight:900;color:#fff">'+pActNoP+'%</div><div style="font-size:8px;color:rgba(255,255,255,.7);font-weight:700">ACT-NP</div></div>':'')+
           '</div>'+
-          '<div style="background:rgba(255,255,255,.25);border-radius:10px;padding:8px 14px;text-align:center" title="Global ponderado: prioriza cumplimiento a tiempo (Ajustes y Mermas pesan doble). Solo promedia las áreas con registros.">'+
+          '<div style="background:rgba(255,255,255,.25);border-radius:10px;padding:8px 14px;text-align:center" title="Global de desempeño: solo Ajustes, Mermas y Actividades. Prioriza cumplimiento a tiempo (Ajustes y Mermas pesan doble). Auditorías y Tareas son seguimiento, no cuentan.">'+
             '<div style="font-size:24px;font-weight:900;color:#fff;line-height:1">'+pGlobal+'%'+
               (muestraChica?'<span style="font-size:11px;font-weight:700;vertical-align:super" title="Muestra chica: menos de 5 registros, el % es poco representativo">*</span>':'')+
             '</div>'+
@@ -4465,7 +4465,7 @@ function renderDesempeno(){
         kpiBlock('🗂️','Mermas',d.mrTotal,d.mrOk,d.mrTard,0,0,pMr,'#7c3aed',pMr+'% a tiempo')+
         /* Auditorías */
         '<div style="background:var(--soft);border-radius:10px;padding:12px;border-top:3px solid #d97706">'+
-          '<div style="font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">🔍 Auditorías</div>'+
+          '<div style="font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">🔍 Auditorías <span style="font-weight:600;text-transform:none;font-size:8.5px;color:var(--muted);opacity:.75">· seguimiento</span></div>'+
           '<div style="font-size:26px;font-weight:900;color:var(--k-orange);line-height:1">'+d.audTotal+'</div>'+
           (d.audClases.length?
             '<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">'+
@@ -5257,7 +5257,13 @@ function openNuevoAjuste(){
     'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   var tiendas=uniq(STORE.tareas.map(function(t){return t.tienda;})
     .concat(STORE.auditorias.map(function(a){return a.tienda;})));
+  var yoSesion=(_session&&(_session.nombre||_session.username))||'';
+  var auditoresLista=uniq((getAuditores()||[]).concat(yoSesion?[yoSesion]:[]));
   var html='<div class="form-grid">'+
+    '<div class="form-field full"><label>Realizado por (auditor) *</label>'+
+      '<input id="naj-auditor" list="naj-auditor-list" value="'+esc(yoSesion)+'" placeholder="Nombre del auditor" autocomplete="off">'+
+      '<datalist id="naj-auditor-list">'+auditoresLista.map(function(a){return'<option value="'+esc(a)+'">';}).join('')+'</datalist>'+
+      '<div style="font-size:10px;color:var(--muted);margin-top:3px">Se rellena con tu usuario; puedes cambiarlo si el ajuste lo hizo otra persona.</div></div>'+
     '<div class="form-field"><label>Tienda *</label>'+
       '<input id="naj-tienda" list="naj-tienda-list" placeholder="Nombre de tienda">'+
       '<datalist id="naj-tienda-list">'+tiendas.map(function(t){return'<option value="'+esc(t)+'">';}).join('')+'</datalist></div>'+
@@ -5288,7 +5294,8 @@ function najautoCalc(){
 
 async function guardarNuevoAjuste(){
   var errEl=document.getElementById('naj-err');errEl.textContent='';
-  var auditor=(_session&&(_session.nombre||_session.username))||'Desconocido';
+  var auditor=(document.getElementById('naj-auditor').value||'').trim()
+              ||(_session&&(_session.nombre||_session.username))||'Desconocido';
   var tienda=document.getElementById('naj-tienda').value.trim().toUpperCase();
   var mes=document.getElementById('naj-mes').value;
   var correo=document.getElementById('naj-correo').value;
@@ -5321,7 +5328,13 @@ function openEditAjuste(id){
   var a=AJUSTES.find(function(x){return x.id===id;});if(!a)return;
   var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio',
     'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  var yoSesion=(_session&&(_session.nombre||_session.username))||'';
+  var auditorVal=(a.auditor!==undefined&&a.auditor!==null&&a.auditor!=='')?a.auditor:yoSesion;
+  var auditoresLista=uniq((getAuditores()||[]).concat(yoSesion?[yoSesion]:[]));
   var html='<div class="form-grid">'+
+    '<div class="form-field full"><label>Realizado por (auditor)</label>'+
+      '<input id="eaj-auditor" list="eaj-auditor-list" value="'+esc(auditorVal)+'" placeholder="Nombre del auditor" autocomplete="off">'+
+      '<datalist id="eaj-auditor-list">'+auditoresLista.map(function(x){return'<option value="'+esc(x)+'">';}).join('')+'</datalist></div>'+
     '<div class="form-field"><label>Tienda</label><input id="eaj-tienda" value="'+esc(a.tienda)+'"></div>'+
     '<div class="form-field"><label>Mes</label><select id="eaj-mes">'+
       meses.map(function(m){return'<option'+(norm(a.mes)===norm(m)?' selected':'')+'>'+m+'</option>';}).join('')+'</select></div>'+
@@ -5356,9 +5369,11 @@ async function saveEditAjuste(id){
   var mes=dv('eaj-mes').toUpperCase();
   var correo=dv('eaj-correo');
   var ajuste=dv('eaj-ajuste');
+  var _ajActual=AJUSTES.find(function(x){return x.id===id;})||{};
+  var auditor=dv('eaj-auditor')||_ajActual.auditor||(_session&&(_session.nombre||_session.username))||'Desconocido';
   var dias=diasEntre(correo,ajuste);
   var año=parseInt((correo||'').split('-')[0])||null;
-  var _ajUpdRaw={tienda,mes,año,fecha_correo:correo,fecha_ajuste:ajuste,dias,condicion:condicionAjuste(dias)};
+  var _ajUpdRaw={tienda,mes,año,fecha_correo:correo,fecha_ajuste:ajuste,dias,condicion:condicionAjuste(dias),auditor:auditor};
   var row=await encObj(_ajUpdRaw,FIELDS.ajustes);
   var client=getSbClient();if(!client)return;
   closeModal();
@@ -5366,7 +5381,7 @@ async function saveEditAjuste(id){
     var r=await client.from('ajustes').update(row).eq('id',id);
     if(r.error){toast('⚠ '+r.error.message);return;}
     var idx=AJUSTES.findIndex(function(x){return x.id===id;});
-    if(idx>=0)AJUSTES[idx]=Object.assign({},AJUSTES[idx],{tienda,mes,año,fechaCorreo:correo,fechaAjuste:ajuste,dias,condicion:condicionAjuste(dias)});
+    if(idx>=0)AJUSTES[idx]=Object.assign({},AJUSTES[idx],{tienda,mes,año,fechaCorreo:correo,fechaAjuste:ajuste,dias,condicion:condicionAjuste(dias),auditor:auditor});
     fillAjFilters();renderAjustes();toast('☁️ Ajuste actualizado');
   }catch(e){toast('⚠ '+e.message);}
 }
@@ -5791,7 +5806,15 @@ function mrFormHtml(m){
     'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   var tiendas=uniq(STORE.tareas.map(function(t){return t.tienda;})
     .concat(STORE.auditorias.map(function(a){return a.tienda;})));
+  var yoSesion=(_session&&(_session.nombre||_session.username))||'';
+  /* En nuevo: pre-llena con la sesión. En editar: conserva el auditor guardado. */
+  var auditorVal=(m.auditor!==undefined&&m.auditor!==null&&m.auditor!=='')?m.auditor:yoSesion;
+  var auditoresLista=uniq((getAuditores()||[]).concat(yoSesion?[yoSesion]:[]));
   return '<div class="form-grid">'+
+    '<div class="form-field full"><label>Realizado por (auditor) *</label>'+
+      '<input id="mrf-auditor" list="mrf-auditor-list" value="'+esc(auditorVal)+'" placeholder="Nombre del auditor" autocomplete="off">'+
+      '<datalist id="mrf-auditor-list">'+auditoresLista.map(function(a){return'<option value="'+esc(a)+'">';}).join('')+'</datalist>'+
+      '<div style="font-size:10px;color:var(--muted);margin-top:3px">Se rellena con tu usuario; puedes cambiarlo si la merma la revisó otra persona.</div></div>'+
     '<div class="form-field"><label>Tienda *</label>'+
       '<input id="mrf-tienda" list="mrf-tienda-list" value="'+esc(m.tienda||'')+'" placeholder="Nombre de tienda">'+
       '<datalist id="mrf-tienda-list">'+tiendas.map(function(t){return'<option value="'+esc(t)+'">';}).join('')+'</datalist></div>'+
@@ -5831,7 +5854,8 @@ function openNuevaMerma(){
 
 async function guardarNuevaMerma(){
   var errEl=document.getElementById('mrf-err');errEl.textContent='';
-  var auditorMr=(_session&&(_session.nombre||_session.username))||'Desconocido';
+  var auditorMr=(document.getElementById('mrf-auditor').value||'').trim()
+                ||(_session&&(_session.nombre||_session.username))||'Desconocido';
   var tienda=document.getElementById('mrf-tienda').value.trim().toUpperCase();
   var lf=document.getElementById('mrf-lf').value;
   var mes=document.getElementById('mrf-mes').value;
@@ -5874,11 +5898,12 @@ async function saveEditMerma(id){
   var mes=dv('mrf-mes').toUpperCase();
   var aut=dv('mrf-aut');
   var val=dv('mrf-val');
+  var auditor=dv('mrf-auditor')||(_session&&(_session.nombre||_session.username))||'Desconocido';
   var dias=diasEntre(aut,val);
   var año=parseInt((aut||'').split('-')[0])||null;
   var _mrUpdRaw={tienda,local_foranea:lf,mes,año,fecha_autorizacion:aut,
     fecha_validacion:val,dias,condicion:condicionAjuste(dias),
-    auditor:(_session&&(_session.nombre||_session.username))||'Desconocido'};
+    auditor:auditor};
   var row=await encObj(_mrUpdRaw,FIELDS.mermas);
   var client=getSbClient();if(!client)return;
   closeModal();
@@ -5887,7 +5912,7 @@ async function saveEditMerma(id){
     if(r.error){toast('⚠ '+r.error.message);return;}
     var idx=MERMAS.findIndex(function(x){return x.id===id;});
     if(idx>=0)MERMAS[idx]=Object.assign({},MERMAS[idx],{tienda,localForanea:lf,mes,año,
-      fechaAut:aut,fechaVal:val,dias,condicion:condicionAjuste(dias)});
+      fechaAut:aut,fechaVal:val,dias,condicion:condicionAjuste(dias),auditor:auditor});
     fillMrFilters();renderMermas();toast('☁️ Merma actualizada');
   }catch(e){toast('⚠ '+e.message);}
 }
