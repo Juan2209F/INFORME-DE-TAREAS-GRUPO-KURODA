@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -5313,10 +5313,12 @@ async function guardarNuevoAjuste(){
   try{
     var r=await client.from('ajustes').insert([row]).select();
     if(r.error){toast('⚠ '+r.error.message);return;}
-    var inserted=r.data[0]||row;
-    AJUSTES.push({id:inserted.id,tienda:inserted.tienda,mes:inserted.mes,año:inserted.año,
-      fechaCorreo:inserted.fecha_correo,fechaAjuste:inserted.fecha_ajuste,
-      dias:inserted.dias,condicion:inserted.condicion,auditor:auditor||''});
+    var inserted=(r.data&&r.data[0])||{};
+    /* Guardar en memoria los valores EN CLARO (no los que devuelve Supabase,
+       que vienen cifrados). Solo se toma el id del registro insertado. */
+    AJUSTES.push({id:inserted.id,tienda:tienda,mes:mes.toUpperCase(),año:año,
+      fechaCorreo:correo,fechaAjuste:ajuste,
+      dias:dias,condicion:condicionAjuste(dias),auditor:auditor||''});
     fillAjFilters();renderAjustes();
     toast('☁️ Ajuste guardado');
   }catch(e){toast('⚠ '+e.message);}
@@ -5873,10 +5875,12 @@ async function guardarNuevaMerma(){
   try{
     var r=await client.from('mermas').insert([row]).select();
     if(r.error){toast('⚠ '+r.error.message);return;}
-    var ins=r.data[0]||row;
-    MERMAS.push({id:ins.id,tienda:ins.tienda,localForanea:ins.local_foranea,
-      mes:ins.mes,año:ins.año,fechaAut:ins.fecha_autorizacion,
-      fechaVal:ins.fecha_validacion,dias:ins.dias,condicion:ins.condicion,auditor:auditorMr||''});
+    var ins=(r.data&&r.data[0])||{};
+    /* Guardar en memoria los valores EN CLARO (no los cifrados que devuelve
+       Supabase). Solo se toma el id del registro insertado. */
+    MERMAS.push({id:ins.id,tienda:tienda,localForanea:lf,
+      mes:mes.toUpperCase(),año:año,fechaAut:aut,
+      fechaVal:val,dias:dias,condicion:condicionAjuste(dias),auditor:auditorMr||''});
     fillMrFilters();renderMermas();toast('☁️ Merma guardada');
   }catch(e){toast('⚠ '+e.message);}
 }
