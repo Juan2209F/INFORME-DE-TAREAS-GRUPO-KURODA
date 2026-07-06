@@ -834,7 +834,9 @@ table.seg tbody tr:hover{background:var(--soft)}
 
       <!-- Filtros estructura del generador -->
       <div class="card" style="padding:16px">
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px">
+          <div class="fg"><label>RAZÓN SOCIAL</label>
+            <select id="act-f-razon" onchange="renderActividades()"></select></div>
           <div class="fg"><label>MES</label>
             <select id="act-f-mes" onchange="renderActividades()">
               <option value="ALL">Todos</option>
@@ -861,8 +863,10 @@ table.seg tbody tr:hover{background:var(--soft)}
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-blue" id="btn-add-actividad" onclick="openActividadIfAllowed(null)">➕ Nueva actividad</button>
         <button class="btn btn-ghost" onclick="loadActividades()">🔄 Recargar</button>
+        <button class="btn btn-ghost" id="btn-asignar-razon" onclick="openAsignarRazonMasiva()" style="display:none">🏷️ Asignar razón masiva</button>
         <span id="act-count" style="font-size:12px;color:var(--muted);font-weight:600;align-self:center;margin-left:auto"></span>
       </div>
+
 
             <div class="card" style="padding:8px 10px">
         <div class="tbl-scroll" id="actividades-table"></div>
@@ -3339,6 +3343,34 @@ function fillActFilters(){
   var vA=selA.value;
   selA.innerHTML='<option value="ALL">Todos</option>'+asigs.map(a=>'<option>'+a+'</option>').join('');
   selA.value=vA;
+  /* Filtro RAZÓN SOCIAL: separa las actividades entre las 3 razones y permite
+     detectar rápidamente las que quedaron sin razón asignada (invisibles para
+     personal restringido). Si la cuenta está fija a una sola razón, se bloquea. */
+  var _rzAsigFF=_razonesAsignadas();
+  var selR=document.getElementById('act-f-razon');
+  if(selR){
+    var vR=selR.value;
+    var hayBlancas=ACTIVIDADES.some(function(a){return!a.razon;});
+    var razonesDetectadas=[...new Set(['KNO','KSC','KSA'].concat(ACTIVIDADES.map(a=>a.razon).filter(Boolean)))];
+    if(_rzAsigFF&&_rzAsigFF.length===1){
+      selR.innerHTML='<option value="'+_rzAsigFF[0]+'">'+_rzAsigFF[0]+'</option>';
+      selR.disabled=true;
+    }else{
+      selR.disabled=false;
+      selR.innerHTML='<option value="ALL">Todas</option>'+
+        razonesDetectadas.map(function(r){return'<option value="'+r+'">'+r+'</option>';}).join('')+
+        (hayBlancas?'<option value="SIN_RAZON">⚠ Sin razón</option>':'');
+      if(vR&&[...selR.options].some(function(o){return o.value===vR;}))selR.value=vR;
+    }
+  }
+  /* Botón de asignación masiva: solo admin/admin_auditor, y solo si hay
+     actividades sin razón que reclasificar */
+  var btnAR=document.getElementById('btn-asignar-razon');
+  if(btnAR){
+    var esAdminFF=_session&&['admin','admin_auditor'].includes(_session.rol);
+    var hayBlancas2=ACTIVIDADES.some(function(a){return!a.razon;});
+    btnAR.style.display=(esAdminFF&&hayBlancas2)?'':'none';
+  }
   /* Auto-seleccionar mes en curso si el filtro no tiene selección explícita */
   var MORD_ACT=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   /* Mes por defecto: en curso si tiene datos; si no, el más reciente con datos
@@ -3366,11 +3398,15 @@ function filteredActividades(){
   var est=document.getElementById('act-f-estado').value;
   var cat=document.getElementById('act-f-categoria').value;
   var asig=document.getElementById('act-f-asignado').value;
+  var selR=document.getElementById('act-f-razon');
+  var raz=selR?selR.value:'ALL';
   return ACTIVIDADES.filter(function(a){
     if(mes!=='ALL'&&norm(a.mes)!==norm(mes))return false;
     if(est!=='ALL'&&norm(a.estado)!==norm(est))return false;
     if(cat!=='ALL'&&a.categoria!==cat)return false;
     if(asig!=='ALL'&&a.asignado!==asig)return false;
+    if(raz==='SIN_RAZON'){if(a.razon)return false;}
+    else if(raz!=='ALL'&&razKey(a.razon)!==razKey(raz))return false;
     return true;
   });
 }
@@ -3450,17 +3486,22 @@ function openActividad(id){
   /* Razón social: si el usuario tiene UNA sola asignada, se fija; si tiene
      varias, elige entre ellas; acceso total puede escribir cualquiera. */
   var _rzAsig=_razonesAsignadas();
-  var _rzVal=a.razon||((_rzAsig&&_rzAsig.length===1)?_rzAsig[0]:'');
-  var _rzOpts=[...new Set((_rzAsig||[]).concat(STORE.tareas.map(function(t){return t.razon;})).concat(STORE.auditorias.map(function(x){return x.razon;})).filter(Boolean))];
+  var _rzVal=(a.razon||((_rzAsig&&_rzAsig.length===1)?_rzAsig[0]:'')||'').toUpperCase();
+  var _RAZONES_FIJAS=['KNO','KSC','KSA'];
+  var _rzOpts=[...new Set(_RAZONES_FIJAS.concat(_rzAsig||[]).concat(STORE.tareas.map(function(t){return t.razon;})).concat(STORE.auditorias.map(function(x){return x.razon;})).filter(Boolean).map(function(r){return r.toUpperCase();}))];
   function di(d){if(!d)return'';var x=fromISO(d);return x?fmtInput(x):'';}
   var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   var cats=['Evaluacion','Auditoria','Entrega','Inventario','Apoyo Juridico','Apoyo a RH'];
   var estados=['Completado','En curso','Reprogramado','Sin comenzar'];
+  var _rzBloqueada=_rzAsig&&_rzAsig.length===1;
   var body='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
     '<div class="fg" style="grid-column:1/3"><label>Actividad / Proyecto *</label><input id="a-actividad" value="'+esc(a.actividad)+'" placeholder="Nombre de la actividad"></div>'+
-    '<div class="fg"><label>Razón social '+((_rzAsig&&_rzAsig.length===1)?'':'*')+'</label><input id="a-razon" list="a-razon-list" value="'+esc(_rzVal)+'" placeholder="KNO, KSA…"'+((_rzAsig&&_rzAsig.length===1)?' readonly style="background:#f1f5f9" title="Tu cuenta está asignada a '+esc(_rzAsig[0])+'"':'')+'>'+
-      ((_rzAsig&&_rzAsig.length===1)?'':'<div style="font-size:10px;color:var(--muted);margin-top:4px">Obligatorio: sin razón, la actividad queda oculta para el personal con acceso restringido.</div>')+
-      '<datalist id="a-razon-list">'+_rzOpts.map(function(r){return'<option value="'+esc(r)+'">';}).join('')+'</datalist></div>'+
+    '<div class="fg"><label>Razón social '+(_rzBloqueada?'':'*')+'</label><select id="a-razon"'+(_rzBloqueada?' disabled title="Tu cuenta está asignada a '+esc(_rzAsig[0])+'"':'')+'>'+
+      (_rzBloqueada?'':'<option value="">— Selecciona —</option>')+
+      _rzOpts.map(function(r){return'<option value="'+esc(r)+'"'+(r===_rzVal?' selected':'')+'>'+esc(r)+'</option>';}).join('')+
+      '</select>'+
+      (_rzBloqueada?'':'<div style="font-size:10px;color:var(--muted);margin-top:4px">Obligatorio: sin razón, la actividad queda oculta para el personal con acceso restringido. Elige la razón del equipo (senior + jr) que la captura.</div>')+
+      '</div>'+
     '<div class="fg"><label>Mes</label><select id="a-mes">'+['<option value="">—</option>'].concat(meses.map(m=>'<option'+(norm(a.mes)===norm(m)?' selected':'')+'>'+m+'</option>')).join('')+'</select></div>'+
     '<div class="fg"><label>Estado</label><select id="a-estado">'+estados.map(e=>'<option'+(norm(a.estado)===norm(e)?' selected':'')+'>'+e+'</option>').join('')+'</select></div>'+
     '<div class="fg"><label>Categoría</label><select id="a-categoria"><option value="">—</option>'+cats.map(c=>'<option'+(norm(a.categoria)===norm(c)?' selected':'')+'>'+c+'</option>').join('')+'</select></div>'+
@@ -3549,6 +3590,58 @@ async function deleteActividad(id){
     toast('☁️ Actividad eliminada');
     await loadActividades();
   }catch(e){toast('⚠ Error: '+e.message);}
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   ASIGNACIÓN MASIVA DE RAZÓN SOCIAL (Actividades sin razón)
+   Permite a un admin reclasificar de un tirón las actividades antiguas
+   que se cargaron sin razón (por eso quedaban ocultas para el personal
+   restringido a KNO/KSC/KSA), opcionalmente acotando por "asignado".
+════════════════════════════════════════════════════════════════════ */
+function _actividadesSinRazon(){return ACTIVIDADES.filter(function(a){return!a.razon;});}
+function openAsignarRazonMasiva(){
+  var pend=_actividadesSinRazon();
+  var asigs=[...new Set(pend.map(function(a){return a.asignado;}).filter(Boolean))].sort();
+  var sel=document.getElementById('ar-asignado');
+  sel.innerHTML='<option value="ALL">Todos los pendientes ('+pend.length+')</option>'+
+    asigs.map(function(a){var n=pend.filter(function(x){return x.asignado===a;}).length;return'<option value="'+esc(a)+'">'+esc(a)+' ('+n+')</option>';}).join('');
+  document.getElementById('ar-razon').value='';
+  document.getElementById('ar-err').textContent='';
+  refreshAsignarRazonCount();
+  document.getElementById('ar-overlay').classList.add('show');
+}
+function closeAsignarRazonMasiva(){document.getElementById('ar-overlay').classList.remove('show');}
+function refreshAsignarRazonCount(){
+  var asig=document.getElementById('ar-asignado').value;
+  var pend=_actividadesSinRazon().filter(function(a){return asig==='ALL'||a.asignado===asig;});
+  document.getElementById('ar-count').textContent=pend.length+' actividad(es) se actualizarán con la razón elegida.';
+}
+async function ejecutarAsignarRazonMasiva(){
+  var razon=(document.getElementById('ar-razon').value||'').trim().toUpperCase();
+  var asig=document.getElementById('ar-asignado').value;
+  var err=document.getElementById('ar-err');
+  if(!razon){err.textContent='⚠ Elige una razón social destino';return;}
+  var pend=_actividadesSinRazon().filter(function(a){return asig==='ALL'||a.asignado===asig;});
+  if(!pend.length){err.textContent='⚠ No hay actividades pendientes con ese filtro';return;}
+  var client=getSbClient();
+  if(!client){err.textContent='⚠ Sin conexión a Supabase';return;}
+  var btn=document.getElementById('ar-btn-aplicar');
+  btn.disabled=true;btn.textContent='⏳ Asignando…';
+  try{
+    var okN=0, failN=0;
+    for(var i=0;i<pend.length;i++){
+      try{
+        var row=await encObj({razon:razon},FIELDS.actividades);
+        var r=await client.from('actividades').update(row).eq('id',pend[i].id);
+        if(r.error)failN++; else okN++;
+      }catch(e){failN++;}
+    }
+    closeAsignarRazonMasiva();
+    toast('☁️ '+okN+' actividad(es) asignadas a '+razon+(failN?(' — '+failN+' con error'):''));
+    await loadActividades();
+  }finally{
+    btn.disabled=false;btn.textContent='✓ Asignar razón';
+  }
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -7053,6 +7146,38 @@ async function deleteFinalizada(id){
     <div class="kpi-cfg-ftr">
       <button class="btn btn-ghost" onclick="closeEditUsuario()">Cancelar</button>
       <button class="btn btn-blue" onclick="guardarEditUsuario()">✓ Guardar cambios</button>
+    </div>
+  </div>
+</div>
+<!-- ═══════════ MODAL ASIGNAR RAZÓN MASIVA (Actividades) ═══════════ -->
+<div class="usr-overlay" id="ar-overlay" onclick="if(event.target===this)closeAsignarRazonMasiva()">
+  <div class="kpi-cfg-modal" style="max-width:460px;width:95vw">
+    <div class="kpi-cfg-hdr">
+      <span style="font-size:18px">🏷️</span>
+      <h3>Asignar razón social masiva</h3>
+      <button class="btn btn-ghost" style="padding:5px 10px;font-size:12px" onclick="closeAsignarRazonMasiva()">✕</button>
+    </div>
+    <div class="kpi-cfg-body" style="padding:16px 20px;display:flex;flex-direction:column;gap:12px">
+      <p style="font-size:12.5px;color:var(--muted);line-height:1.5">
+        Estas actividades no tienen razón social asignada, por lo que quedan <b>ocultas</b> para el personal
+        con acceso restringido (KNO/KSC/KSA). Elige la razón del equipo (auditor senior + jr) que las capturó
+        y, si quieres, acota por la persona asignada antes de aplicar el cambio a todas las que cumplan el filtro.
+      </p>
+      <div class="fg"><label>Asignado a (opcional)</label>
+        <select id="ar-asignado" onchange="refreshAsignarRazonCount()"><option value="ALL">Todos los pendientes</option></select>
+      </div>
+      <div class="fg"><label>Razón social destino *</label>
+        <select id="ar-razon" onchange="refreshAsignarRazonCount()">
+          <option value="">— Selecciona —</option>
+          <option value="KNO">KNO</option><option value="KSC">KSC</option><option value="KSA">KSA</option>
+        </select>
+      </div>
+      <div id="ar-count" style="font-size:12.5px;font-weight:700;color:var(--txt);background:var(--soft);border-radius:var(--radius-sm);padding:10px 12px"></div>
+      <div id="ar-err" style="font-size:12px;color:var(--red);min-height:16px"></div>
+    </div>
+    <div class="kpi-cfg-ftr">
+      <button class="btn btn-ghost" onclick="closeAsignarRazonMasiva()">Cancelar</button>
+      <button class="btn btn-blue" id="ar-btn-aplicar" onclick="ejecutarAsignarRazonMasiva()">✓ Asignar razón</button>
     </div>
   </div>
 </div>
