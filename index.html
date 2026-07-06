@@ -1306,10 +1306,29 @@ function razonVisible(razon){
    centro desde la tienda con el diccionario, y se compara el prefijo del
    centro (KN/KS/KC…) con el prefijo de la razón asignada (KNO→KN, KSA→KS). */
 var _TIENDA_CENTRO=null;
+var _TIENDA_CENTRO_KEYS=null;
+function _buildTiendaCentroIndex(){
+  if(_TIENDA_CENTRO)return;
+  _TIENDA_CENTRO={};_TIENDA_CENTRO_KEYS=[];
+  Object.keys(CENTRO_TIENDA).forEach(function(c){
+    var full=CENTRO_TIENDA[c];
+    var corto=full.replace(/^(KC|KN|KS|VM)\s+/i,'');
+    var nf=norm(full), nc=norm(corto);
+    if(!_TIENDA_CENTRO[nf])_TIENDA_CENTRO[nf]=c;
+    if(!_TIENDA_CENTRO[nc])_TIENDA_CENTRO[nc]=c;
+    _TIENDA_CENTRO_KEYS.push({nf:nf,nc:nc,c:c});
+  });
+}
 function centroDeTienda(t){
-  if(!_TIENDA_CENTRO){_TIENDA_CENTRO={};
-    Object.keys(CENTRO_TIENDA).forEach(function(c){_TIENDA_CENTRO[norm(CENTRO_TIENDA[c])]=c;});}
-  return _TIENDA_CENTRO[norm(t)]||'';
+  _buildTiendaCentroIndex();
+  var nt=norm(t);
+  if(!nt)return'';
+  if(_TIENDA_CENTRO[nt])return _TIENDA_CENTRO[nt];
+  for(var i=0;i<_TIENDA_CENTRO_KEYS.length;i++){
+    var k=_TIENDA_CENTRO_KEYS[i];
+    if(k.nf.indexOf(nt)>=0||nt.indexOf(k.nf)>=0||k.nc.indexOf(nt)>=0||nt.indexOf(k.nc)>=0)return k.c;
+  }
+  return '';
 }
 function tiendaVisible(tienda){
   if(!_session||_session.rol==='admin')return true;
@@ -3439,7 +3458,8 @@ function openActividad(id){
   var estados=['Completado','En curso','Reprogramado','Sin comenzar'];
   var body='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
     '<div class="fg" style="grid-column:1/3"><label>Actividad / Proyecto *</label><input id="a-actividad" value="'+esc(a.actividad)+'" placeholder="Nombre de la actividad"></div>'+
-    '<div class="fg"><label>Razón social</label><input id="a-razon" list="a-razon-list" value="'+esc(_rzVal)+'" placeholder="KNO, KSA…"'+((_rzAsig&&_rzAsig.length===1)?' readonly style="background:#f1f5f9" title="Tu cuenta está asignada a '+esc(_rzAsig[0])+'"':'')+'>'+
+    '<div class="fg"><label>Razón social '+((_rzAsig&&_rzAsig.length===1)?'':'*')+'</label><input id="a-razon" list="a-razon-list" value="'+esc(_rzVal)+'" placeholder="KNO, KSA…"'+((_rzAsig&&_rzAsig.length===1)?' readonly style="background:#f1f5f9" title="Tu cuenta está asignada a '+esc(_rzAsig[0])+'"':'')+'>'+
+      ((_rzAsig&&_rzAsig.length===1)?'':'<div style="font-size:10px;color:var(--muted);margin-top:4px">Obligatorio: sin razón, la actividad queda oculta para el personal con acceso restringido.</div>')+
       '<datalist id="a-razon-list">'+_rzOpts.map(function(r){return'<option value="'+esc(r)+'">';}).join('')+'</datalist></div>'+
     '<div class="fg"><label>Mes</label><select id="a-mes">'+['<option value="">—</option>'].concat(meses.map(m=>'<option'+(norm(a.mes)===norm(m)?' selected':'')+'>'+m+'</option>')).join('')+'</select></div>'+
     '<div class="fg"><label>Estado</label><select id="a-estado">'+estados.map(e=>'<option'+(norm(a.estado)===norm(e)?' selected':'')+'>'+e+'</option>').join('')+'</select></div>'+
@@ -3480,6 +3500,11 @@ function calcDurReal(){
 async function saveActividad(id,isNew){
   var actividad=document.getElementById('a-actividad').value.trim();
   if(!actividad){toast('⚠ La actividad es obligatoria');return;}
+  /* Razón social obligatoria: sin ella la actividad queda invisible para
+     cualquier usuario con acceso restringido (ver razonVisible/_razonesAsignadas) */
+  var _razonFinal=(function(){var v=(document.getElementById('a-razon')||{value:''}).value.trim().toUpperCase();
+    if(v)return v;var rs=_razonesAsignadas();return(rs&&rs.length===1)?rs[0]:'';})();
+  if(!_razonFinal){toast('⚠ La razón social es obligatoria');return;}
   function dv(elId){var v=document.getElementById(elId).value;return v||null;}
   function nv(elId){var v=document.getElementById(elId).value;return v!==''?parseFloat(v):null;}
   var _rowActRaw={
@@ -3487,8 +3512,7 @@ async function saveActividad(id,isNew){
     estado:document.getElementById('a-estado').value||null,
     categoria:document.getElementById('a-categoria').value||null,
     asignado:document.getElementById('a-asignado').value.trim()||null,
-    razon:(function(){var v=(document.getElementById('a-razon')||{value:''}).value.trim();
-      if(v)return v;var rs=_razonesAsignadas();return(rs&&rs.length===1)?rs[0]:null;})(),
+    razon:_razonFinal,
     creado_por:(_session&&(_session.nombre||_session.username))||null,
     est_inicio:dv('a-estinicio'), est_fin:dv('a-estfin'), dur_estimada:nv('a-durest'),
     real_inicio:dv('a-realinicio'), real_fin:dv('a-realfin'), dur_real:nv('a-durreal'),
@@ -4430,15 +4454,17 @@ function renderDesempeno(){
   /* ── Agrupar SOLO por auditor (sin separar por razón) — clave normalizada ── */
   var byAuditor={};
   var nombreReal={}; /* guardar el primer nombre encontrado con su capitalización original */
-  function ensure(k){
-    /* Si el nombre parece cifrado, intentar resolverlo */
+  function resolveAuditorKey(k){
     if(pareceCifrado(k)){
-      /* Buscar en auditores conocidos */
       var conocido=_AUDITORES_CONOCIDOS.find(function(n){return !pareceCifrado(n);});
       if(conocido)k=conocido;
       else k='Auditor ('+k.substring(0,8)+'...)';
     }
-    var kn=norm(k);
+    return {k:k,kn:norm(k)};
+  }
+  function ensure(k){
+    var _rk=resolveAuditorKey(k);k=_rk.k;
+    var kn=_rk.kn;
     if(!byAuditor[kn]){
       byAuditor[kn]={
         nombre:k,
@@ -4500,7 +4526,11 @@ function renderDesempeno(){
     d.audClases.push((f.clase||'?')+' '+Math.round((f.pct_cumpl||0)*100)+'%');
   });
 
-  /* Cargas de Excel (seguimiento) — atribuidas a quien realizó la importación */
+  /* Cargas de Excel: cargas_excel no tiene columna de razón/tienda. Para no
+     mostrar auditores de otras razones a un usuario restringido, solo se
+     suman cargas a auditores que YA tengan registros visibles de otras
+     fuentes (sí filtradas por razón); nunca se crea tarjeta nueva por esto. */
+  var _restringidoDesp=!!_razonesAsignadas()&&!(_session&&_session.rol==='admin');
   (CARGAS||[]).filter(function(c){
     if(mesFilter==='ALL')return true;
     var f=c.fecha?new Date(c.fecha):null;
@@ -4508,6 +4538,8 @@ function renderDesempeno(){
   }).forEach(function(c){
     var aud=c.auditor||'';
     if(!aud)return;
+    var _rk=resolveAuditorKey(aud);
+    if(_restringidoDesp&&!byAuditor[_rk.kn])return;
     var d=ensure(aud);
     var nT=parseInt(c.n_tareas)||0, nA=parseInt(c.n_auditorias)||0;
     d.cgTotal++;
