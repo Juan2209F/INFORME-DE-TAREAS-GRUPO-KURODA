@@ -4768,10 +4768,32 @@ function setPill(state){
     lbl.textContent='Sin conexión a Supabase';
   }
 }
+/* Etiqueta legible de cada rol (según definición de Grupo Kuroda) */
+function rolLabel(rol){
+  return {admin:'Administrador',admin_auditor:'Auditor Señior',
+          auditor:'Auditor Jr',viewer:'Viewer · solo lectura'}[rol]||rol;
+}
+/* ¿El usuario tiene otorgada explícitamente una vista? (vistas_permitidas) */
+function tieneVista(v){
+  var l=_session&&_session.vistas_permitidas;
+  if(typeof l==='string'){try{l=JSON.parse(l);}catch(e){l=null;}}
+  return !!(l&&l.includes(v));
+}
+/* ¿Puede modificar un módulo restringido? admin/señior siempre; Auditor Jr
+   solo si se le dio el acceso a ese módulo al crear/editar su usuario. */
+function puedeModificarModulo(v){
+  if(!_session)return false;
+  if(['admin','admin_auditor'].includes(_session.rol))return true;
+  return _session.rol==='auditor'&&tieneVista(v);
+}
+
 function onLoginSuccess(){
   document.getElementById('login-page').classList.add('hidden');
   const el=document.getElementById('topbar-user');
-  if(el&&_session) el.textContent=_session.nombre||_session.username;
+  if(el&&_session){
+    el.innerHTML='<span style="display:block;line-height:1.15">'+esc(_session.nombre||_session.username)+'</span>'+
+      '<span style="display:block;font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--blue);line-height:1.1">'+esc(rolLabel(_session.rol))+'</span>';
+  }
   checkAdminUI();
   applyRazonRestriction();
   applyVistasRestriction();
@@ -4799,21 +4821,35 @@ function applyVistasRestriction(){
   if(!_session)return;
   var vistas=_session.vistas_permitidas;
   if(typeof vistas==='string'){try{vistas=JSON.parse(vistas);}catch(e){vistas=null;}}
-  if(!vistas||!vistas.length)return;
-  /* Mapa: nav-id → vista key */
+  var lista=(vistas&&vistas.length)?vistas:null;
   var navMap={
     'nav-dash':'dash','nav-tareas':'tareas','nav-pend':'sucursales',
     'nav-actividades':'actividades','nav-auditorias':'auditorias',
     'nav-ajustes':'ajustes','nav-mermas':'mermas','nav-finalizadas':'finalizadas',
-    'nav-archivo':'archivo'
+    'nav-archivo':'archivo','nav-desempeno':'desempeno','nav-evaluacion':'evaluacion',
+    'nav-usuarios':'usuarios'
   };
+  /* Módulos restringidos para Auditor Jr: solo con acceso explícito */
+  var RESTRINGIDAS_JR=['finalizadas','archivo','desempeno','evaluacion','usuarios'];
+  var visibles=[];
   Object.entries(navMap).forEach(function(e){
+    var key=e[1],permitido;
+    if(key==='usuarios'){
+      /* Usuarios: admin y Auditor Señior siempre; Auditor Jr solo con acceso */
+      permitido=['admin','admin_auditor'].includes(_session.rol)||
+                (_session.rol==='auditor'&&!!(lista&&lista.includes('usuarios')));
+    }else if(_session.rol==='auditor'&&RESTRINGIDAS_JR.includes(key)){
+      permitido=!!(lista&&lista.includes(key));
+    }else{
+      permitido=!lista||lista.includes(key);
+    }
+    if(permitido&&key!=='usuarios')visibles.push(key);
     var navEl=document.getElementById(e[0]);
-    if(navEl)navEl.style.display=vistas.includes(e[1])?'':'none';
+    if(navEl)navEl.style.display=permitido?'':'none';
   });
-  /* Si la vista activa no está permitida, ir a la primera permitida */
-  if(!vistas.includes(VIEW||'dash')){
-    setView(vistas[0]||'dash');
+  /* Si la vista activa quedó oculta, ir a la primera visible */
+  if(visibles.length&&!visibles.includes(VIEW||'dash')){
+    setView(visibles[0]||'dash');
   }
 }
 
@@ -4984,7 +5020,7 @@ async function syncToSupabase(parsed){
    GESTIÓN DE USUARIOS (solo admin)
 ════════════════════════════════════════════════════════════════════ */
 function openUsuarios(){
-  if(!_session||!['admin','admin_auditor'].includes(_session.rol)){toast('⚠ Sin permisos');return;}
+  if(!puedeModificarModulo('usuarios')){toast('⚠ Sin permisos');return;}
   document.getElementById('usr-overlay').classList.add('show');
   loadUsuarios();
 }
@@ -5166,10 +5202,9 @@ async function eliminarUsuario(id, username){
 
 /* Mostrar botón admin solo si el usuario tiene rol admin */
 function checkAdminUI(){
-  var navBtn=document.getElementById('nav-usuarios');
-  if(navBtn&&_session&&['admin','admin_auditor'].includes(_session.rol)) navBtn.style.display='';
-  var navDesp=document.getElementById('nav-desempeno');
-  if(navDesp)navDesp.style.display=(_session&&['admin','admin_auditor'].includes(_session.rol))?'':'none';
+  /* nav-usuarios y nav-desempeno se gobiernan en applyVistasRestriction
+     (Auditor Jr puede tenerlos SI se le dio el acceso). */
+  applyVistasRestriction();
   var excelBtn=document.getElementById('btn-cargar-excel');
   if(excelBtn){
     var canUpload=_session&&['admin','admin_auditor','auditor'].includes(_session.rol);
@@ -6506,7 +6541,7 @@ function filteredFinalizadas(){
 
 function renderFinalizadas(){
   var arr=filteredFinalizadas();
-  var isAdmin=_session&&['admin','admin_auditor'].includes(_session.rol);
+  var isAdmin=puedeModificarModulo('finalizadas');
   document.getElementById('fin-count').textContent=arr.length+' finalizada(s)';
   var th=document.getElementById('fin-edit-th');if(th)th.style.display=isAdmin?'':'none';
   var tbody=document.getElementById('fin-tbody');
@@ -6849,11 +6884,10 @@ async function deleteFinalizada(id){
           <div class="fg"><label>Nombre completo</label><input type="text" id="nu-nombre" placeholder="Nombre visible"></div>
           <div class="fg"><label>Rol / Permisos</label>
             <select id="nu-rol" onchange="onRolChange()">
-              <option value="auditor">Auditor — Carga Excel, tareas, ajustes, mermas y actividades</option>
-              <option value="admin_auditor">Admin Auditor — Acceso total</option>
-              <option value="viewer">Viewer — Solo lectura (sin desempeño)</option>
-              <option value="admin">Admin — Acceso total</option>
-              <option value="admin">Admin — Acceso total</option>
+              <option value="auditor">Auditor Jr — Carga Excel, tareas, ajustes, mermas y actividades (módulos restringidos solo con acceso)</option>
+              <option value="admin_auditor">Auditor Señior — Acceso total, restringido por su razón social</option>
+              <option value="viewer">Viewer — Solo lectura (vistas configurables)</option>
+              <option value="admin">Admin — Acceso total sin restricciones</option>
             </select>
           </div>
         </div>
@@ -6969,6 +7003,15 @@ async function deleteFinalizada(id){
           </label>
           <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;font-weight:600">
             <input type="checkbox" class="eu-vista-cb" value="archivo" style="width:14px;height:14px;cursor:pointer"> 🗄️ Archivo
+          </label>
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;font-weight:600">
+            <input type="checkbox" class="eu-vista-cb" value="desempeno" style="width:14px;height:14px;cursor:pointer"> 📊 Desempeño
+          </label>
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;font-weight:600">
+            <input type="checkbox" class="eu-vista-cb" value="evaluacion" style="width:14px;height:14px;cursor:pointer"> 🎯 Evaluación KPIs
+          </label>
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;font-weight:600">
+            <input type="checkbox" class="eu-vista-cb" value="usuarios" style="width:14px;height:14px;cursor:pointer"> 👥 Usuarios (crear/editar)
           </label>
         </div>
         <div style="font-size:10px;color:var(--muted);margin-top:8px">Sin selección = puede ver todos los módulos permitidos por su rol</div>
