@@ -382,7 +382,56 @@ table.seg tbody tr:hover{background:var(--soft)}
 .lp-panel-tag{font-size:11px;color:rgba(255,255,255,.85);text-align:center;line-height:1.5}
 .lp-panel-foot{margin-top:auto;font-size:10px;color:rgba(255,255,255,.7);letter-spacing:.08em;text-transform:uppercase}
 .lp-right{flex:1;display:flex;align-items:center;justify-content:center;padding:32px;background:var(--bg)}
-.lp-card{background:#fff;border-radius:var(--radius);border:none;box-shadow:var(--shadow-lg);padding:38px 38px 30px;width:100%;max-width:420px;display:flex;flex-direction:column}
+.lp-card{background:transparent;border-radius:var(--radius);border:none;box-shadow:var(--shadow-lg);padding:38px 38px 30px;width:100%;max-width:420px;display:flex;flex-direction:column;position:relative;overflow:hidden;isolation:isolate;max-height:168px;cursor:pointer;transition:max-height .6s cubic-bezier(.4,0,.2,1)}
+/* ── Login cerrado por defecto: solo se ve el encabezado. Al pasar el cursor
+   (o al enfocar un campo, para que no se cierre mientras escriben) la tarjeta
+   se expande verticalmente y revela el formulario. ── */
+.lp-card:hover,.lp-card:focus-within,.lp-card.lp-open{max-height:720px;cursor:default}
+.lp-badge{font-size:11px;font-weight:800;letter-spacing:.18em;color:var(--blue);margin-top:10px;padding:5px 0;border-top:1px dashed var(--border);text-transform:uppercase}
+/* :where() no suma especificidad: así las reglas de "mostrar" sí ganan */
+.lp-card>:where(:not(.lp-title):not(.lp-sub):not(.lp-badge)){opacity:0;transition:opacity .35s ease .18s}
+.lp-card:hover>*,.lp-card:focus-within>*,.lp-card.lp-open>*{opacity:1}
+.lp-sub::after{content:' · pasa el cursor o toca para ingresar';font-size:11px;color:var(--muted);opacity:.8}
+.lp-card:hover .lp-sub::after,.lp-card:focus-within .lp-sub::after,.lp-card.lp-open .lp-sub::after{content:''}
+/* Táctil/móvil: no hay cursor, así que la tarjeta inicia cerrada y se
+   expande al TOCARLA (clase lp-open puesta por onclick). focus-within la
+   mantiene abierta mientras escriben. */
+@media(max-width:768px),(hover:none),(pointer:coarse){
+  .lp-card{max-height:174px;cursor:pointer}
+  .lp-card.lp-open,.lp-card:focus-within{max-height:none;cursor:default}
+  .lp-card.lp-open>*,.lp-card:focus-within>*{opacity:1}
+  .lp-sub::after{content:' · toca para ingresar'}
+  .lp-card.lp-open .lp-sub::after,.lp-card:focus-within .lp-sub::after{content:''}
+}
+/* ── Efecto neón: gradiente cónico de 4 segmentos sobre un cuadro giratorio ──
+   Colores del personaje/marca Kuroda: rojo #e02128, azul #1b82c5 y un
+   resplandor ámbar #e8a33d (guantes). Reconstruido del CSS de referencia
+   (from 0deg, segmentos de 12°, @keyframes neon-rotate). El ::before es el
+   cuadro gigante que gira detrás; el ::after tapa el centro. */
+.lp-card::before{
+  content:"";position:absolute;inset:50%;
+  width:170cqmax;height:170cqmax;translate:-50% -50%;rotate:0deg;
+  background:conic-gradient(from 0deg,
+    transparent 0deg 36deg,
+    #e02128 36deg 48deg,
+    transparent 48deg 126deg,
+    #1b82c5 126deg 138deg,
+    transparent 138deg 216deg,
+    #e02128 216deg 228deg,
+    transparent 228deg 306deg,
+    #1b82c5 306deg 318deg,
+    transparent 318deg 360deg);
+  filter:blur(1px) drop-shadow(0 0 12px #e8a33d);
+  animation:neon-rotate 5s linear infinite;
+  z-index:-2;
+}
+.lp-card::after{
+  content:"";position:absolute;inset:3px;
+  background:var(--white,#fff);border-radius:calc(var(--radius) - 3px);
+  z-index:-1;
+}
+@keyframes neon-rotate{to{rotate:360deg}}
+@media (prefers-reduced-motion:reduce){.lp-card::before{animation:none}.lp-card{transition:none}}
 .lp-title{font-size:25px;font-weight:700;color:var(--txt);letter-spacing:-.01em;margin-bottom:4px}
 .lp-sub{font-size:12.5px;color:var(--muted);margin-bottom:0}
 .lp-divider{height:1px;background:var(--border);margin:18px 0}
@@ -405,15 +454,18 @@ table.seg tbody tr:hover{background:var(--soft)}
 .lp-foot-txt{font-size:10.5px;color:#c0c8d4}
 .lp-foot-logo{width:18px;height:18px;object-fit:contain;opacity:.5}
 
-@media(max-width:640px){
-  #login-page{flex-direction:column}
-  .lp-panel{width:100%;min-width:0;flex-direction:row;padding:20px 24px;gap:16px;min-height:auto;justify-content:flex-start}
-  .lp-panel-logo{width:52px;height:52px;min-width:52px;margin-bottom:0}
-  .lp-panel-logo img{width:46px;height:46px}
+@media(max-width:768px){
+  #login-page{flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .lp-panel{width:100%;min-width:0;flex-direction:row;padding:16px 20px;gap:14px;min-height:auto;justify-content:flex-start;flex-shrink:0}
+  .lp-panel-logo{width:48px;height:48px;min-width:48px;margin-bottom:0}
+  .lp-panel-logo img{width:42px;height:42px}
   .lp-panel-name{font-size:16px;margin-bottom:0}
   .lp-panel-div,.lp-panel-tag,.lp-panel-foot{display:none}
-  .lp-right{padding:20px 16px}
-  .lp-card{padding:24px 20px 20px}
+  .lp-right{padding:18px 14px;align-items:flex-start}
+  .lp-card{padding:24px 20px 20px;max-width:100%}
+  /* 16px evita que iOS haga zoom automático al enfocar un campo */
+  .lp-field input{font-size:16px;padding:12px 14px}
+  .lp-btn{padding:14px;font-size:15px}
 }
 
 /* MODULE DESCRIPTIONS */
@@ -496,9 +548,10 @@ table.seg tbody tr:hover{background:var(--soft)}
   </div>
   <!-- Panel derecho formulario -->
   <div class="lp-right">
-    <div class="lp-card">
+    <div class="lp-card" onclick="this.classList.add('lp-open')">
       <div class="lp-title">Bienvenido</div>
       <div class="lp-sub">Ingresa tus credenciales para continuar</div>
+      <div class="lp-badge">INICIO DE SESIÓN</div>
       <div class="lp-divider"></div>
 
       <div class="lp-field">
@@ -5418,9 +5471,11 @@ function importAjustesExcel(files){
       var iT=fc(['tienda','sucursal']);
       var iC=fc(['correo','fecha correo','fecha_correo','f correo','fcorreo']);
       var iA=fc(['ajuste','fecha ajuste','fecha_ajuste','f ajuste','fajuste']);
+      var iAud=fc(['auditor','realizado por','realizadopor','responsable']);
       if(iT<0||iC<0||iA<0){
         toast('⚠ Columnas no encontradas. Necesita: Tienda, Correo, Ajuste');return;
       }
+      var yoSesion=(_session&&(_session.nombre||_session.username))||'';
       var MN=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
               'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
       /* Convierte serial Excel numérico O string de fecha a 'yyyy-mm-dd' */
@@ -5459,8 +5514,9 @@ function importAjustesExcel(files){
         var año=parseInt(parts[0]);
         var mes=MN[parseInt(parts[1])-1]||'';
         var dias=diasEntre(fechaC,fechaA);
+        var auditor=(iAud>=0?String(r[iAud]||'').trim():'')||yoSesion||'Desconocido';
         rows.push({tienda,mes,año,fecha_correo:fechaC,fecha_ajuste:fechaA,
-          dias,condicion:condicionAjuste(dias)});
+          dias,condicion:condicionAjuste(dias),auditor:auditor});
       }
       if(!rows.length){toast('⚠ Sin filas válidas en el Excel');return;}
       toast('⏳ Importando '+rows.length+' registros…');
@@ -5474,15 +5530,32 @@ async function commitAjustesExcel(rows){
   var client=getSbClient();
   if(!client){toast('⚠ Sin Supabase');return;}
   try{
-    /* Insertar en lotes de 500 */
-    var ok=0;
-    for(var i=0;i<rows.length;i+=500){
-      var batch=rows.slice(i,i+500);
-      var r=await client.from('ajustes').insert(batch);
-      if(r.error){toast('⚠ '+r.error.message);return;}
-      ok+=batch.length;
+    /* Traer existentes para actualizar en vez de duplicar. Clave: tienda +
+       fecha_correo + fecha_ajuste (las fechas no están cifradas). */
+    var ex=[];
+    try{var re=await client.from('ajustes').select('id,fecha_correo,fecha_ajuste,tienda').limit(20000);if(!re.error)ex=re.data||[];}catch(_e){}
+    var exDec=await decArr(ex,FIELDS.ajustes);
+    var _k=function(t,fc,fa){return norm(t)+'|'+String(fc||'')+'|'+String(fa||'');};
+    var exMap={};
+    exDec.forEach(function(x){exMap[_k(x.tienda,x.fecha_correo,x.fecha_ajuste)]=x.id;});
+    /* dedup dentro del mismo archivo (conserva la última) */
+    var seen={},dedup=[];
+    for(var z=rows.length-1;z>=0;z--){var kk=_k(rows[z].tienda,rows[z].fecha_correo,rows[z].fecha_ajuste);if(seen[kk])continue;seen[kk]=1;dedup.unshift(rows[z]);}
+    var ins=0,upd=0,err=null;
+    for(var i=0;i<dedup.length&&!err;i++){
+      var raw=dedup[i];
+      var row=await encObj(raw,FIELDS.ajustes);   /* ← CIFRAR antes de guardar */
+      var k=_k(raw.tienda,raw.fecha_correo,raw.fecha_ajuste);
+      if(exMap[k]){
+        var ru=await client.from('ajustes').update(row).eq('id',exMap[k]);
+        if(ru.error)err=ru.error.message;else upd++;
+      }else{
+        var ri=await client.from('ajustes').insert([row]).select('id');
+        if(ri.error)err=ri.error.message;else{ins++;if(ri.data&&ri.data[0])exMap[k]=ri.data[0].id;}
+      }
     }
-    toast('☁️ '+ok+' ajuste(s) importados');
+    if(err){toast('⚠ '+err);return;}
+    toast('☁️ '+ins+' nuevos · '+upd+' actualizados');
     await loadAjustes();
   }catch(e){toast('⚠ '+e.message);}
 }
@@ -5963,10 +6036,12 @@ function importMermasExcel(files){
       /* "Autoriacion" es error tipográfico en el Excel — aceptar sin z */
       var iA=fc(['autorizacion','autoriacion','autoriacion','fecha autorizacion','fecha_autorizacion']);
       var iV=fc(['validacion','fecha validacion','fecha_validacion']);
+      var iAud=fc(['auditor','realizado por','realizadopor','responsable']);
       if(iT<0||iA<0||iV<0){
         toast('⚠ Columnas detectadas: '+H.join(' | '));
         return;
       }
+      var yoSesion=(_session&&(_session.nombre||_session.username))||'';
       /* Convertir serial de Excel (número) o string a yyyy-mm-dd */
       function toISOfecha(v){
         if(!v&&v!==0)return null;
@@ -6005,8 +6080,9 @@ function importMermasExcel(files){
         if(!mes&&fechaA)mes=mNames[parseInt(fechaA.split('-')[1])-1]||'';
         var año=parseInt((fechaA||'').split('-')[0])||null;
         var dias=diasEntre(fechaA,fechaV);
+        var auditor=(iAud>=0?String(r[iAud]||'').trim():'')||yoSesion||'Desconocido';
         rows.push({tienda,local_foranea:lf,mes,año,fecha_autorizacion:fechaA,
-          fecha_validacion:fechaV,dias,condicion:condicionAjuste(dias)});
+          fecha_validacion:fechaV,dias,condicion:condicionAjuste(dias),auditor:auditor});
       }
       if(!rows.length){toast('⚠ Sin filas válidas. Revisa que las columnas de fecha tengan datos');return;}
       toast('⏳ Importando '+rows.length+' registros…');
@@ -6019,14 +6095,31 @@ function importMermasExcel(files){
 async function commitMermasExcel(rows){
   var client=getSbClient();if(!client){toast('⚠ Sin Supabase');return;}
   try{
-    var ok=0;
-    for(var i=0;i<rows.length;i+=500){
-      var batch=rows.slice(i,i+500);
-      var r=await client.from('mermas').insert(batch);
-      if(r.error){toast('⚠ '+r.error.message);return;}
-      ok+=batch.length;
+    /* Traer existentes para actualizar en vez de duplicar. Clave: tienda +
+       fecha_autorizacion + fecha_validacion (las fechas no están cifradas). */
+    var ex=[];
+    try{var re=await client.from('mermas').select('id,fecha_autorizacion,fecha_validacion,tienda').limit(20000);if(!re.error)ex=re.data||[];}catch(_e){}
+    var exDec=await decArr(ex,FIELDS.mermas);
+    var _k=function(t,fa,fv){return norm(t)+'|'+String(fa||'')+'|'+String(fv||'');};
+    var exMap={};
+    exDec.forEach(function(x){exMap[_k(x.tienda,x.fecha_autorizacion,x.fecha_validacion)]=x.id;});
+    var seen={},dedup=[];
+    for(var z=rows.length-1;z>=0;z--){var kk=_k(rows[z].tienda,rows[z].fecha_autorizacion,rows[z].fecha_validacion);if(seen[kk])continue;seen[kk]=1;dedup.unshift(rows[z]);}
+    var ins=0,upd=0,err=null;
+    for(var i=0;i<dedup.length&&!err;i++){
+      var raw=dedup[i];
+      var row=await encObj(raw,FIELDS.mermas);   /* ← CIFRAR antes de guardar */
+      var k=_k(raw.tienda,raw.fecha_autorizacion,raw.fecha_validacion);
+      if(exMap[k]){
+        var ru=await client.from('mermas').update(row).eq('id',exMap[k]);
+        if(ru.error)err=ru.error.message;else upd++;
+      }else{
+        var ri=await client.from('mermas').insert([row]).select('id');
+        if(ri.error)err=ri.error.message;else{ins++;if(ri.data&&ri.data[0])exMap[k]=ri.data[0].id;}
+      }
     }
-    toast('☁️ '+ok+' merma(s) importadas');
+    if(err){toast('⚠ '+err);return;}
+    toast('☁️ '+ins+' nuevas · '+upd+' actualizadas');
     await loadMermas();
   }catch(e){toast('⚠ '+e.message);}
 }
@@ -6796,3 +6889,4 @@ setThemeBtn();
 </script>
 </body>
 </html>
+ 
