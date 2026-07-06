@@ -3302,8 +3302,12 @@ async function loadActividades(){
       cumplFechaInicio:a.cumpl_fecha_inicio, variacionDias:a.variacion_dias,
       comentario:a.comentario||'', apoyos:a.apoyos||'',
       programada:a.programada!==false, sb_updated:a.updated_at||null,
-      creadoPor:a.creado_por||''
+      creadoPor:a.creado_por||'', razon:(a.razon&&!pareceCifrado(a.razon))?a.razon:''
     };});
+    /* Visibilidad por razón social: usuarios restringidos solo ven las
+       actividades de su(s) razón(es). Las antiguas sin razón quedan visibles
+       solo para cuentas con acceso total (para poder asignarles razón). */
+    ACTIVIDADES=ACTIVIDADES.filter(function(a){return razonVisible(a.razon);});
     fillActFilters();
     renderActividades();
     toast('✓ '+ACTIVIDADES.length+' actividades cargadas');
@@ -3423,13 +3427,20 @@ function openActividadIfAllowed(id){
 function openActividad(id){
   var a=id?ACTIVIDADES.find(x=>String(x.id)===String(id)):null;
   var isNew=!a;
-  if(!a)a={mes:'',actividad:'',estado:'Sin comenzar',categoria:'',asignado:'',estInicio:'',estFin:'',durEstimada:'',realInicio:'',realFin:'',durReal:'',comentario:'',apoyos:'',programada:true};
+  if(!a)a={mes:'',actividad:'',estado:'Sin comenzar',categoria:'',asignado:'',estInicio:'',estFin:'',durEstimada:'',realInicio:'',realFin:'',durReal:'',comentario:'',apoyos:'',programada:true,razon:''};
+  /* Razón social: si el usuario tiene UNA sola asignada, se fija; si tiene
+     varias, elige entre ellas; acceso total puede escribir cualquiera. */
+  var _rzAsig=_razonesAsignadas();
+  var _rzVal=a.razon||((_rzAsig&&_rzAsig.length===1)?_rzAsig[0]:'');
+  var _rzOpts=[...new Set((_rzAsig||[]).concat(STORE.tareas.map(function(t){return t.razon;})).concat(STORE.auditorias.map(function(x){return x.razon;})).filter(Boolean))];
   function di(d){if(!d)return'';var x=fromISO(d);return x?fmtInput(x):'';}
   var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   var cats=['Evaluacion','Auditoria','Entrega','Inventario','Apoyo Juridico','Apoyo a RH'];
   var estados=['Completado','En curso','Reprogramado','Sin comenzar'];
   var body='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
     '<div class="fg" style="grid-column:1/3"><label>Actividad / Proyecto *</label><input id="a-actividad" value="'+esc(a.actividad)+'" placeholder="Nombre de la actividad"></div>'+
+    '<div class="fg"><label>Razón social</label><input id="a-razon" list="a-razon-list" value="'+esc(_rzVal)+'" placeholder="KNO, KSA…"'+((_rzAsig&&_rzAsig.length===1)?' readonly style="background:#f1f5f9" title="Tu cuenta está asignada a '+esc(_rzAsig[0])+'"':'')+'>'+
+      '<datalist id="a-razon-list">'+_rzOpts.map(function(r){return'<option value="'+esc(r)+'">';}).join('')+'</datalist></div>'+
     '<div class="fg"><label>Mes</label><select id="a-mes">'+['<option value="">—</option>'].concat(meses.map(m=>'<option'+(norm(a.mes)===norm(m)?' selected':'')+'>'+m+'</option>')).join('')+'</select></div>'+
     '<div class="fg"><label>Estado</label><select id="a-estado">'+estados.map(e=>'<option'+(norm(a.estado)===norm(e)?' selected':'')+'>'+e+'</option>').join('')+'</select></div>'+
     '<div class="fg"><label>Categoría</label><select id="a-categoria"><option value="">—</option>'+cats.map(c=>'<option'+(norm(a.categoria)===norm(c)?' selected':'')+'>'+c+'</option>').join('')+'</select></div>'+
@@ -3476,6 +3487,8 @@ async function saveActividad(id,isNew){
     estado:document.getElementById('a-estado').value||null,
     categoria:document.getElementById('a-categoria').value||null,
     asignado:document.getElementById('a-asignado').value.trim()||null,
+    razon:(function(){var v=(document.getElementById('a-razon')||{value:''}).value.trim();
+      if(v)return v;var rs=_razonesAsignadas();return(rs&&rs.length===1)?rs[0]:null;})(),
     creado_por:(_session&&(_session.nombre||_session.username))||null,
     est_inicio:dv('a-estinicio'), est_fin:dv('a-estfin'), dur_estimada:nv('a-durest'),
     real_inicio:dv('a-realinicio'), real_fin:dv('a-realfin'), dur_real:nv('a-durreal'),
@@ -4266,7 +4279,7 @@ async function decArr(arr,fields){
 var FIELDS={
   tareas:['tienda','area_resp','area_rev','actividad','nombre','tipo_tarea','estado','razon','centro'],
   auditorias:['tienda','razon','centro','clase','mes'],
-  actividades:['actividad','estado','categoria','asignado','comentario','apoyos','mes','creado_por'],
+  actividades:['actividad','estado','categoria','asignado','comentario','apoyos','mes','creado_por','razon'],
   ajustes:['tienda','mes','condicion','auditor'],
   mermas:['tienda','local_foranea','mes','condicion','auditor'],
   tareas_finalizadas:['tienda','clase','mes','completado_por'],
