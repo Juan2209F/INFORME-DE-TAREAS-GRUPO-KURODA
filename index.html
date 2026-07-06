@@ -1282,6 +1282,42 @@ function canonTienda(centro,raw){
   return String(raw||'').trim();
 }
 function centroConocido(centro){return !!CENTRO_TIENDA[canonCentro(centro)];}
+
+/* ════════ RAZÓN SOCIAL: clave compuesta y visibilidad ════════
+   La llave única de una tarea es ID + RAZÓN (una misma tarea puede existir
+   en dos razones sociales distintas). razKey normaliza igual que el backfill
+   SQL (minúsculas, espacios colapsados). */
+function razKey(s){return String(s||'').replace(/\s+/g,' ').trim().toLowerCase();}
+function tareaKey(id,razon){return String(id)+'|'+razKey(razon);}
+function _razonesAsignadas(){
+  var r=_session&&_session.razones_permitidas;
+  if(typeof r==='string'){try{r=JSON.parse(r);}catch(e){r=null;}}
+  return (r&&r.length)?r:null;
+}
+/* Visibilidad por razón social: usuarios con razones asignadas (auditores,
+   viewers restringidos) solo ven su(s) razón(es). admin ve todo; usuarios
+   sin razones asignadas ("vista a todo") ven todo. */
+function razonVisible(razon){
+  if(!_session||_session.rol==='admin')return true;
+  var rs=_razonesAsignadas();if(!rs)return true;
+  return rs.some(function(x){return razKey(x)===razKey(razon);});
+}
+/* Para módulos sin campo razón (ajustes/mermas/finalizadas): se deriva el
+   centro desde la tienda con el diccionario, y se compara el prefijo del
+   centro (KN/KS/KC…) con el prefijo de la razón asignada (KNO→KN, KSA→KS). */
+var _TIENDA_CENTRO=null;
+function centroDeTienda(t){
+  if(!_TIENDA_CENTRO){_TIENDA_CENTRO={};
+    Object.keys(CENTRO_TIENDA).forEach(function(c){_TIENDA_CENTRO[norm(CENTRO_TIENDA[c])]=c;});}
+  return _TIENDA_CENTRO[norm(t)]||'';
+}
+function tiendaVisible(tienda){
+  if(!_session||_session.rol==='admin')return true;
+  var rs=_razonesAsignadas();if(!rs)return true;
+  var c=canonCentro(centroDeTienda(tienda));
+  if(!c)return false; /* tienda no identificable: se oculta por seguridad */
+  return rs.some(function(x){var p=String(x).trim().toUpperCase().slice(0,2);return c.indexOf(p)===0;});
+}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 /* Normaliza el Estado de una tarea al importar desde Excel. Acepta tanto los
@@ -1544,15 +1580,16 @@ async function generarImport(){
       var chunk=stagedIds.slice(i,i+200);
       var r=await client.from('tareas').select('*').in('tarea_id',chunk);
       if(r.error){toast('⚠ Error consultando Supabase: '+r.error.message);return;}
-      (r.data||[]).forEach(function(row){existentes[String(row.tarea_id)]=row;});
+      /* Descifrar para comparar y para armar la clave ID+RAZÓN */
+      var rDec=await decArr(r.data||[],FIELDS.tareas);
+      rDec.forEach(function(row){existentes[tareaKey(row.tarea_id,row.razon)]=row;});
     }
   }catch(e){toast('⚠ Error: '+e.message);return;}
 
   /* ── Clasificar cada tarea staged ── */
   var nuevas=[], idénticas=[], diferentes=[];
   STAGED.tareas.forEach(function(t){
-    var id=String(t.id);
-    var ex=existentes[id];
+    var ex=existentes[tareaKey(t.id,t.razon)];
     if(!ex){nuevas.push(t);return;}
     /* Comparar campo por campo */
     if(tareaIgualSupabase(t,ex)){idénticas.push(t);}
@@ -1640,7 +1677,8 @@ async function commitToSupabase(nuevas, actualizar, audStaged, omitidas, prevTar
   var insOk=0, updOk=0, audOk=0, err=null;
 
   function toRow(t){return{
-    tarea_id:String(t.id),razon:t.razon||null,centro:t.centro||null,tienda:t.tienda||null,
+    tarea_id:String(t.id),tarea_key:tareaKey(t.id,t.razon),
+    razon:t.razon||null,centro:t.centro||null,tienda:t.tienda||null,
     area_resp:t.areaResp||null,area_rev:t.areaRev||null,actividad:t.actividad||null,
     nombre:t.nombre||null,tipo_tarea:t.tipoTarea||null,estado:t.estado||null,
     fecha_creacion:t.fechaCreacion?String(t.fechaCreacion).split('T')[0]:null,
@@ -1649,11 +1687,20 @@ async function commitToSupabase(nuevas, actualizar, audStaged, omitidas, prevTar
   };}
 
   try{
-    /* INSERT nuevas */
+    /* INSERT nuevas — con upsert por tarea_id: si alguna ya existiera en
+       Supabase (o viniera repetida en el archivo), se actualiza en vez de
+       chocar con la restricción única tareas_tarea_id_unique. */
     if(nuevas.length){
       var rows=nuevas.map(toRow);
+      /* dedup por tarea_id dentro del mismo lote (conserva la última) */
+      var _seenIds={},_rows2=[];
+      for(var z=rows.length-1;z>=0;z--){
+        if(_seenIds[rows[z].tarea_key])continue;
+        _seenIds[rows[z].tarea_key]=1;_rows2.unshift(rows[z]);
+      }
+      rows=_rows2;
       for(var i=0;i<rows.length;i+=500){
-        var r=await client.from('tareas').insert(rows.slice(i,i+500));
+        var r=await client.from('tareas').upsert(rows.slice(i,i+500),{onConflict:'tarea_key',ignoreDuplicates:false});
         if(r.error){err='Insert: '+r.error.message;break;}
         insOk+=Math.min(500,rows.length-i);
       }
@@ -1662,7 +1709,7 @@ async function commitToSupabase(nuevas, actualizar, audStaged, omitidas, prevTar
     if(!err&&actualizar.length){
       for(var j=0;j<actualizar.length;j++){
         var row=toRow(actualizar[j]);
-        var ru=await client.from('tareas').update(row).eq('tarea_id',row.tarea_id);
+        var ru=await client.from('tareas').update(row).eq('tarea_key',row.tarea_key);
         if(ru.error){err='Update: '+ru.error.message;break;}
         updOk++;
       }
@@ -1712,7 +1759,7 @@ async function commitToSupabase(nuevas, actualizar, audStaged, omitidas, prevTar
      STORE.* aún tiene el estado PREVIO (loadDataFromSupabase corre después). */
   var snap=null;
   try{
-    var tNew=(nuevas||[]).map(function(t){return String(t.id);});
+    var tNew=(nuevas||[]).map(function(t){return tareaKey(t.id,t.razon);});
     var tPrev=(prevTareas||[]).map(function(rw){var cc=Object.assign({},rw);delete cc.updated_at;return cc;});
     var aNew=[],aPrev=[];
     if((audStaged||[]).length && typeof arows!=='undefined' && arows){
@@ -2345,7 +2392,7 @@ function openEdit(id){
       <div class="form-field"><label>Fecha de cumplimiento</label><input type="date" id="e-fcumpl" value="${fmtInput(fromISO(v.fechaCumpl))}"></div>
     </div>`;
   const foot=[{label:'Cancelar',cls:'btn-ghost',fn:closeModal}];
-  if(!isNew&&_session&&['admin','admin_auditor'].includes(_session.rol))foot.push({label:'Eliminar',cls:'btn-red',fn:()=>deleteTask(v.id)});
+  if(!isNew&&_session&&['admin','admin_auditor'].includes(_session.rol))foot.push({label:'Eliminar',cls:'btn-red',fn:()=>deleteTask(v.id,v.razon)});
   foot.push({label:isNew?'Crear tarea':'Guardar cambios',cls:'btn-blue',fn:()=>saveTask(isNew)});
   openModal(isNew?'➕ Nueva tarea':`✎ Editar tarea <b>#${v.id}</b>`,html,foot);
 }
@@ -2375,11 +2422,13 @@ function saveTask(isNew){
   /* Sync to Supabase */
   syncTaskToSupabase(rec, isNew);
 }
-function deleteTask(id){
-  STORE.tareas=STORE.tareas.filter(t=>String(t.id)!==String(id));
+function deleteTask(id,razon){
+  STORE.tareas=STORE.tareas.filter(function(t){
+    return !(String(t.id)===String(id)&&razKey(t.razon)===razKey(razon));
+  });
   saveStore();closeModal();refreshAll();toast('Tarea eliminada');
-  /* Delete from Supabase */
-  deleteTaskFromSupabase(String(id));
+  /* Delete from Supabase — por clave compuesta ID+RAZÓN */
+  deleteTaskFromSupabase(String(id),razon);
 }
 function openFileIfAllowed(){
   if(!_session||!['admin','admin_auditor','auditor'].includes(_session.rol)){  
@@ -2396,7 +2445,7 @@ async function syncTaskToSupabase(rec, isNew){
   });}catch(e){return;}}
   var tid=String(rec.id);
   var _rowRaw={
-    tarea_id:tid,razon:rec.razon||null,centro:rec.centro||null,
+    tarea_id:tid,tarea_key:tareaKey(tid,rec.razon),razon:rec.razon||null,centro:rec.centro||null,
     tienda:rec.tienda||null,area_resp:rec.areaResp||null,area_rev:rec.areaRev||null,
     actividad:rec.actividad||null,nombre:rec.nombre||null,
     tipo_tarea:rec.tipoTarea||null,estado:rec.estado||null,
@@ -2424,19 +2473,19 @@ async function syncTaskToSupabase(rec, isNew){
       if(rec.sb_uuid){
         ru=await client.from('tareas').update(row).eq('id',rec.sb_uuid);
       } else {
-        ru=await client.from('tareas').update(row).eq('tarea_id',tid);
+        ru=await client.from('tareas').update(row).eq('tarea_key',_rowRaw.tarea_key);
       }
       if(ru.error){
         /* Error on update — try insert */
-        ri=await client.from('tareas').insert([row]);
+        ri=await client.from('tareas').upsert([row],{onConflict:'tarea_key'});
         if(ri.error)toast('⚠ Supabase: '+ri.error.message);
         else toast('☁️ Tarea sincronizada en Supabase');
       } else {
         /* Check if update actually affected rows via select */
-        var chk=await client.from('tareas').select('tarea_id',{count:'exact',head:true}).eq('tarea_id',tid);
+        var chk=await client.from('tareas').select('tarea_id',{count:'exact',head:true}).eq('tarea_key',_rowRaw.tarea_key);
         if(chk.count===0){
           /* Row didn't exist — insert */
-          ri=await client.from('tareas').insert([row]);
+          ri=await client.from('tareas').upsert([row],{onConflict:'tarea_key'});
           if(ri.error)toast('⚠ Supabase insert: '+ri.error.message);
           else{toast('☁️ Tarea creada en Supabase');}
         } else {
@@ -2445,13 +2494,13 @@ async function syncTaskToSupabase(rec, isNew){
       }
     } else {
       /* Nueva tarea — INSERT */
-      ri=await client.from('tareas').insert([row]);
+      ri=await client.from('tareas').upsert([row],{onConflict:'tarea_key'});
       if(ri.error)toast('⚠ Supabase: '+ri.error.message);
       else toast('☁️ Tarea guardada en Supabase');
     }
   }catch(e){toast('⚠ Error Supabase: '+e.message);console.error('syncTaskToSupabase:',e);}
 }
-async function deleteTaskFromSupabase(taskId){
+async function deleteTaskFromSupabase(taskId,razon){
   var client=_sb;
   if(!client){try{client=supabase.createClient(SB_URL,SB_KEY,{
     auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
@@ -2459,8 +2508,8 @@ async function deleteTaskFromSupabase(taskId){
     global:{headers:{'x-client-info':'monitor-cumplimiento'}}
   });}catch(e){return;}}
   try{
-    /* Try delete by tarea_id */
-    var r=await client.from('tareas').delete().eq('tarea_id',taskId);
+    /* Delete por clave compuesta ID+RAZÓN (no toca la misma tarea de otra razón) */
+    var r=await client.from('tareas').delete().eq('tarea_key',tareaKey(taskId,razon));
     if(r.error)toast('⚠ Supabase delete: '+r.error.message);
     else toast('☁️ Tarea eliminada de Supabase');
   }catch(e){console.warn('deleteTaskFromSupabase:',e);}
@@ -4297,12 +4346,18 @@ async function ejecutarRevertCarga(id,s){
   var err=null;
   try{
     var tn=(s.t_new||[]).map(String);
-    for(var i=0;i<tn.length&&!err;i+=200){
-      var d=await client.from('tareas').delete().in('tarea_id',tn.slice(i,i+200));
+    var tnKeys=tn.filter(function(x){return x.indexOf('|')>=0;});
+    var tnIds=tn.filter(function(x){return x.indexOf('|')<0;}); /* snapshots antiguos */
+    for(var i=0;i<tnKeys.length&&!err;i+=200){
+      var d=await client.from('tareas').delete().in('tarea_key',tnKeys.slice(i,i+200));
       if(d.error)err='Eliminar tareas: '+d.error.message;
     }
+    for(var i2=0;i2<tnIds.length&&!err;i2+=200){
+      var d2=await client.from('tareas').delete().in('tarea_id',tnIds.slice(i2,i2+200));
+      if(d2.error)err='Eliminar tareas: '+d2.error.message;
+    }
     if(!err&&(s.t_prev||[]).length){
-      var up=await client.from('tareas').upsert(s.t_prev,{onConflict:'tarea_id'});
+      var up=await client.from('tareas').upsert(s.t_prev,{onConflict:'tarea_key'});
       if(up.error)err='Restaurar tareas: '+up.error.message;
     }
     for(var k=0;k<(s.a_new||[]).length&&!err;k++){
@@ -4869,6 +4924,7 @@ async function syncToSupabase(parsed){
     if(parsed.tareas&&parsed.tareas.length>0){
       var trowsRaw=parsed.tareas.filter(Boolean).map(function(t){return{
         tarea_id:String(t.id||t.tarea_id||''),
+        tarea_key:tareaKey(String(t.id||t.tarea_id||''),t.razon),
         razon:t.razon||null,centro:t.centro||null,tienda:t.tienda||null,
         area_resp:t.areaResp||null,area_rev:t.areaRev||null,
         actividad:t.actividad||null,nombre:t.nombre||null,
@@ -4880,7 +4936,7 @@ async function syncToSupabase(parsed){
       };});
       var trows=[];for(var _ti=0;_ti<trowsRaw.length;_ti++)trows.push(await encObj(trowsRaw[_ti],FIELDS.tareas));
       for(var ci=0;ci<trows.length;ci+=500){
-        var tr=await client.from('tareas').upsert(trows.slice(ci,ci+500),{onConflict:'tarea_id',ignoreDuplicates:false});
+        var tr=await client.from('tareas').upsert(trows.slice(ci,ci+500),{onConflict:'tarea_key',ignoreDuplicates:false});
         if(tr.error){errMsg=(errMsg?errMsg+' | ':'')+'Tar: '+tr.error.message;break;}
         tarOk+=Math.min(500,trows.length-ci);
       }
@@ -5204,6 +5260,7 @@ async function loadAjustes(){
         fechaCorreo:a.fecha_correo,fechaAjuste:a.fecha_ajuste,
         dias:dias,condicion:condicionAjuste(dias),auditor:a.auditor||''};
     });
+    AJUSTES=AJUSTES.filter(function(a){return tiendaVisible(a.tienda);});
     fillAjFilters();renderAjustes();
     toast('✓ '+AJUSTES.length+' ajuste(s) cargados');
   }catch(e){toast('⚠ '+e.message);}
@@ -5616,6 +5673,7 @@ async function loadMermas(){
         fechaAut:m.fecha_autorizacion,fechaVal:m.fecha_validacion,
         dias:dias,condicion:condicionAjuste(dias),auditor:m.auditor||''};
     });
+    MERMAS=MERMAS.filter(function(m){return tiendaVisible(m.tienda);});
     fillMrFilters();renderMermas();
     toast('✓ '+MERMAS.length+' merma(s) cargadas');
   }catch(e){toast('⚠ '+e.message);}
@@ -6240,6 +6298,7 @@ async function loadArchivo(){
       var pct=parseFloat(f.pct_cumpl)||0;if(pct>1)pct=pct/100;
       return Object.assign({},f,{pct_cumpl:pct});
     });
+    ARCHIVO=ARCHIVO.filter(function(f){return tiendaVisible(f.tienda);});
     fillArcFilters();renderArchivo();
   }catch(e){toast('⚠ '+e.message);}
 }
@@ -6390,6 +6449,7 @@ async function loadFinalizadas(){
         duracion_dias:dur,pct_cumpl:pct,total_tareas:total,resueltas:res,
         completadoPor:f.completado_por||''});
     });
+    FINALIZADAS=FINALIZADAS.filter(function(f){return f._pending||tiendaVisible(f.tienda);});
     _finLoaded=true;
     await purgarFinalizadasAntiguas();
     fillFinFilters();renderFinalizadas();
