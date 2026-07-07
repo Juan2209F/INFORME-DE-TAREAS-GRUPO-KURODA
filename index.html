@@ -5858,8 +5858,16 @@ function importAjustesExcel(files){
       var wb=XLSX.read(e.target.result,{type:'array',cellDates:false});
       var _pk=pickSheet(wb,['ajustes'],['tienda','ajuste','correo']);var ws=_pk.ws,raw=_pk.raw;
       if(raw.length<2){toast('⚠ Excel vacío o sin datos');return;}
-      var H=raw[0].map(function(c){return String(c||'').toLowerCase().trim();});
-      function fc(keys){var k=keys.find(function(k){return H.indexOf(k)>=0;});return k?H.indexOf(k):-1;}
+      /* Normalizar cabeceras: minúsculas + sin tildes + sin asteriscos/símbolos + sin espacios extra */
+      function normH(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();}
+      var H=raw[0].map(normH);
+      /* Buscar columna por lista de variantes, con coincidencia parcial como respaldo */
+      function fc(keys){
+        var nk=keys.map(normH);
+        for(var ki=0;ki<nk.length;ki++)for(var hi=0;hi<H.length;hi++)if(H[hi]===nk[ki])return hi;
+        for(var ki=0;ki<nk.length;ki++)for(var hi=0;hi<H.length;hi++)if(H[hi].includes(nk[ki])||nk[ki].includes(H[hi]))return hi;
+        return -1;
+      }
       var iT=fc(['tienda','sucursal']);
       var iC=fc(['correo','fecha correo','fecha_correo','f correo','fcorreo']);
       var iA=fc(['ajuste','fecha ajuste','fecha_ajuste','f ajuste','fajuste']);
