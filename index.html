@@ -914,9 +914,9 @@ table.seg tbody tr:hover{background:var(--soft)}
       <div class="card" style="padding:14px 16px">
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-items:end">
           <div class="fg"><label>MES</label>
-            <select id="aj-f-mes" onchange="renderAjustes()"><option value="ALL">Todos</option></select></div>
+            <select id="aj-f-mes" onchange="ajPerChanged()"><option value="ALL">Todos</option></select></div>
           <div class="fg"><label>AÑO</label>
-            <select id="aj-f-año" onchange="renderAjustes()"><option value="ALL">Todos</option></select></div>
+            <select id="aj-f-año" onchange="ajPerChanged()"><option value="ALL">Todos</option></select></div>
           <div class="fg"><label>TIENDA</label>
             <select id="aj-f-tienda" onchange="renderAjustes()"><option value="ALL">Todas</option></select></div>
           <div style="display:flex;gap:8px;align-items:end">
@@ -966,9 +966,9 @@ table.seg tbody tr:hover{background:var(--soft)}
       <div class="card" style="padding:14px 16px">
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-items:end">
           <div class="fg"><label>MES</label>
-            <select id="mr-f-mes" onchange="renderMermas()"><option value="ALL">Todos</option></select></div>
+            <select id="mr-f-mes" onchange="mrPerChanged()"><option value="ALL">Todos</option></select></div>
           <div class="fg"><label>AÑO</label>
-            <select id="mr-f-año" onchange="renderMermas()"><option value="ALL">Todos</option></select></div>
+            <select id="mr-f-año" onchange="mrPerChanged()"><option value="ALL">Todos</option></select></div>
           <div class="fg"><label>TIENDA</label>
             <select id="mr-f-tienda" onchange="renderMermas()"><option value="ALL">Todas</option></select></div>
           <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
@@ -5538,6 +5538,7 @@ function checkAdminUI(){
              created_at (timestamptz)
 ════════════════════════════════════════════════════════════════════ */
 var AJUSTES=[];
+var _ajPerManual=false; /* true cuando el usuario elige mes/año a mano: la carga no lo reescribe */
 var _chartAjDonut=null;
 
 function diasEntre(d1,d2){
@@ -5638,13 +5639,19 @@ function fillAjFilters(){
     });
     if(best){tgtMes=best.mes;tgtAño=best.año;}
   }
-  if(vm!=='ALL'&&[...sm.options].some(function(o){return o.value===vm;}))sm.value=vm;
-  else if([...sm.options].some(function(o){return o.value===tgtMes;}))sm.value=tgtMes;
-  if(va!=='ALL'&&[...sa.options].some(function(o){return o.value===va;}))sa.value=va;
-  else if([...sa.options].some(function(o){return o.value===tgtAño;}))sa.value=tgtAño;
+  /* Mes/año por defecto = período en curso si tiene datos; si no, el más reciente
+     con datos. Se recalcula en cada carga salvo que el usuario haya elegido a mano
+     (_ajPerManual), para que el mes en curso aparezca solo (incl. tras importar). */
+  if(_ajPerManual){
+    if(vm!=='ALL'&&[...sm.options].some(function(o){return o.value===vm;}))sm.value=vm;
+    if(va!=='ALL'&&[...sa.options].some(function(o){return o.value===va;}))sa.value=va;
+  }else{
+    sm.value=[...sm.options].some(function(o){return o.value===tgtMes;})?tgtMes:'ALL';
+    sa.value=[...sa.options].some(function(o){return o.value===tgtAño;})?tgtAño:'ALL';
+  }
   if(vt!=='ALL'&&[...st.options].some(function(o){return o.value===vt;}))st.value=vt;
 }
-
+function ajPerChanged(){_ajPerManual=true;renderAjustes();}
 function filteredAjustes(){
   var mes=(document.getElementById('aj-f-mes').value||'ALL');
   var año=(document.getElementById('aj-f-año').value||'ALL');
@@ -5981,6 +5988,7 @@ async function commitAjustesExcel(rows){
     }
     if(err){toast('⚠ '+err);return;}
     toast('☁️ '+ins+' nuevos · '+upd+' actualizados');
+    _ajPerManual=false; /* tras importar, volver al mes en curso */
     await loadAjustes();
   }catch(e){toast('⚠ '+e.message);}
 }
@@ -5993,6 +6001,7 @@ async function commitAjustesExcel(rows){
              created_at, updated_at
 ════════════════════════════════════════════════════════════════════ */
 var MERMAS=[];
+var _mrPerManual=false; /* true cuando el usuario elige mes/año a mano: la carga no lo reescribe */
 var _chartMrDonut=null;
 
 async function loadMermas(){
@@ -6046,13 +6055,18 @@ function fillMrFilters(){
     });
     if(best){tgtMes=best.mes;tgtAño=best.año;}
   }
-  if(vm!=='ALL'&&[...sm.options].some(function(o){return o.value===vm;}))sm.value=vm;
-  else if([...sm.options].some(function(o){return o.value===tgtMes;}))sm.value=tgtMes;
-  if(va!=='ALL'&&[...sa.options].some(function(o){return o.value===va;}))sa.value=va;
-  else if([...sa.options].some(function(o){return o.value===tgtAño;}))sa.value=tgtAño;
+  /* Mes/año por defecto = período en curso si tiene datos; si no, el más reciente.
+     Se recalcula en cada carga salvo elección manual (_mrPerManual). */
+  if(_mrPerManual){
+    if(vm!=='ALL'&&[...sm.options].some(function(o){return o.value===vm;}))sm.value=vm;
+    if(va!=='ALL'&&[...sa.options].some(function(o){return o.value===va;}))sa.value=va;
+  }else{
+    sm.value=[...sm.options].some(function(o){return o.value===tgtMes;})?tgtMes:'ALL';
+    sa.value=[...sa.options].some(function(o){return o.value===tgtAño;})?tgtAño:'ALL';
+  }
   if(vt!=='ALL'&&[...st.options].some(function(o){return o.value===vt;}))st.value=vt;
 }
-
+function mrPerChanged(){_mrPerManual=true;renderMermas();}
 function filteredMermas(){
   var mes=(document.getElementById('mr-f-mes').value||'ALL');
   var año=(document.getElementById('mr-f-año').value||'ALL');
@@ -6194,9 +6208,14 @@ function renderEvaluacion(){
   /* Coincidencia con la barra global para Ajustes/Mermas (tienda, mes y rango de fechas) */
   function gMatch(rec,fechaRef){
     if(!gf)return true;
+    /* Razón social: Ajustes/Mermas no la traen → derivar de la tienda. Nunca mezclar razones. */
+    if(gf.razon&&gf.razon!=='ALL'){
+      var _rz=rec.razon||razonDeCentro(centroDeTienda(rec.tienda||''));
+      if(razKey(_rz)!==razKey(gf.razon))return false;
+    }
     if(gf.tienda&&gf.tienda!=='ALL'&&norm(rec.tienda||'')!==norm(gf.tienda))return false;
     if(gf.mesGran&&gf.mesGran!=='ALL'){
-      if(!fechaRef||fechaRef.getMonth()+1!==parseInt(gf.mesGran))return false;
+      if(!fechaRef||fechaRef.getMonth()+1!==parseInt(gf.mesGran)||fechaRef.getFullYear()!==new Date().getFullYear())return false;
     }
     if(gf.desde||gf.hasta){
       if(!fechaRef)return false;
@@ -6545,6 +6564,7 @@ async function commitMermasExcel(rows){
     }
     if(err){toast('⚠ '+err);return;}
     toast('☁️ '+ins+' nuevas · '+upd+' actualizadas');
+    _mrPerManual=false; /* tras importar, volver al mes en curso */
     await loadMermas();
   }catch(e){toast('⚠ '+e.message);}
 }
