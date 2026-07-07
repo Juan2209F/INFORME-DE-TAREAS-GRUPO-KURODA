@@ -862,6 +862,8 @@ table.seg tbody tr:hover{background:var(--soft)}
 
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-blue" id="btn-add-actividad" onclick="openActividadIfAllowed(null)">➕ Nueva actividad</button>
+        <button class="btn btn-teal" id="btn-excel-actividad" onclick="document.getElementById('act-file-input').click()" style="display:none" title="Cargar Excel de actividades">📥 Cargar Excel</button>
+        <input type="file" id="act-file-input" accept=".xlsx,.xls" style="display:none" onchange="importActividadesExcel(this.files)">
         <button class="btn btn-ghost" onclick="loadActividades()">🔄 Recargar</button>
         <button class="btn btn-ghost" id="btn-asignar-razon" onclick="openAsignarRazonMasiva()" style="display:none">🏷️ Asignar razón masiva</button>
         <span id="act-count" style="font-size:12px;color:var(--muted);font-weight:600;align-self:center;margin-left:auto"></span>
@@ -1260,7 +1262,7 @@ var CENTRO_TIENDA={
   'KN17':'KN ROSARITO',
   'KN18':'KN PEDREGAL',
   'KN19':'KN TECATE',
-  'KN20':'NOGALES',
+  'KN21':'NOGALES',
   'KS00':'KS MATRIZ',
   'KS01':'KS PROYECTOS',
   'KS02':'KS PLOMELEC PERIFERICO',
@@ -1274,8 +1276,7 @@ var CENTRO_TIENDA={
   'KS15':'KS SAN JOSE DEL CABO',
   'KS16':'KS CABOS SAN LUCAS',
   'KS17':'KS TIANGUIS OBREGON',
-  'KS21':'KS PLOMELEC EXPRESS',
-  'VM03':'VITRO IDEAL DE ACAB'
+  'KS21':'KS PLOMELEC EXPRESS'
 };
 function canonCentro(c){return String(c||'').toUpperCase().replace(/\s+/g,'').trim();}
 /* Devuelve el nombre canónico de la sucursal a partir del centro; si el
@@ -1286,6 +1287,10 @@ function canonTienda(centro,raw){
   return String(raw||'').trim();
 }
 function centroConocido(centro){return !!CENTRO_TIENDA[canonCentro(centro)];}
+/* Razón social por prefijo de centro (hoja "Tiendas válidas"):
+   KC→KSA · KN→KNO · KS→KSC. Relación única centro↔razón. */
+var PREFIJO_RAZON={KC:'KSA',KN:'KNO',KS:'KSC'};
+function razonDeCentro(c){return PREFIJO_RAZON[canonCentro(c).slice(0,2)]||'';}
 
 /* ════════ RAZÓN SOCIAL: clave compuesta y visibilidad ════════
    La llave única de una tarea es ID + RAZÓN (una misma tarea puede existir
@@ -1307,8 +1312,8 @@ function razonVisible(razon){
   return rs.some(function(x){return razKey(x)===razKey(razon);});
 }
 /* Para módulos sin campo razón (ajustes/mermas/finalizadas): se deriva el
-   centro desde la tienda con el diccionario, y se compara el prefijo del
-   centro (KN/KS/KC…) con el prefijo de la razón asignada (KNO→KN, KSA→KS). */
+   centro desde la tienda con el diccionario y de ahí la razón social exacta
+   (KC→KSA, KN→KNO, KS→KSC), evitando el choque entre KSA y KSC. */
 var _TIENDA_CENTRO=null;
 var _TIENDA_CENTRO_KEYS=null;
 function _buildTiendaCentroIndex(){
@@ -1316,7 +1321,7 @@ function _buildTiendaCentroIndex(){
   _TIENDA_CENTRO={};_TIENDA_CENTRO_KEYS=[];
   Object.keys(CENTRO_TIENDA).forEach(function(c){
     var full=CENTRO_TIENDA[c];
-    var corto=full.replace(/^(KC|KN|KS|VM)\s+/i,'');
+    var corto=full.replace(/^(KC|KN|KS)\s+/i,'');
     var nf=norm(full), nc=norm(corto);
     if(!_TIENDA_CENTRO[nf])_TIENDA_CENTRO[nf]=c;
     if(!_TIENDA_CENTRO[nc])_TIENDA_CENTRO[nc]=c;
@@ -1337,9 +1342,9 @@ function centroDeTienda(t){
 function tiendaVisible(tienda){
   if(!_session||_session.rol==='admin')return true;
   var rs=_razonesAsignadas();if(!rs)return true;
-  var c=canonCentro(centroDeTienda(tienda));
-  if(!c)return false; /* tienda no identificable: se oculta por seguridad */
-  return rs.some(function(x){var p=String(x).trim().toUpperCase().slice(0,2);return c.indexOf(p)===0;});
+  var raz=razonDeCentro(centroDeTienda(tienda));
+  if(!raz)return false; /* tienda no identificable: se oculta por seguridad */
+  return rs.some(function(x){return razKey(x)===razKey(raz);});
 }
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
@@ -3579,6 +3584,123 @@ async function saveActividad(id,isNew){
   }catch(e){toast('⚠ Error: '+e.message);}
 }
 
+/* ════════════════════════════════════════════════════════════════════
+   IMPORTAR ACTIVIDADES DESDE EXCEL
+   Columnas esperadas (ver plantilla): Razón, Actividad, Mes, Categoría,
+   Asignado, Estado, Programada, Fecha Est Inicio, Fecha Est Fin,
+   Duración Estimada, Fecha Real Inicio, Fecha Real Fin, Duración Real,
+   Comentario, Apoyos.
+   La razón es OBLIGATORIA por fila salvo que la cuenta tenga una sola
+   razón asignada (entonces se usa esa automáticamente para todas).
+════════════════════════════════════════════════════════════════════ */
+function importActividadesExcel(files){
+  if(!files||!files.length)return;
+  if(!_session||!['admin','admin_auditor','auditor'].includes(_session.rol)){toast('⚠ Sin permisos');return;}
+  var file=files[0];
+  document.getElementById('act-file-input').value='';
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var wb=XLSX.read(e.target.result,{type:'array',cellDates:false});
+      var ws=wb.Sheets[wb.SheetNames[0]];
+      var raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      if(raw.length<2){toast('⚠ Excel vacío o sin datos');return;}
+      function normH(s){return String(s||'').toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'');}
+      var H=raw[0].map(normH);
+      function fc(keys){
+        var nk=keys.map(normH);
+        for(var ki=0;ki<nk.length;ki++)for(var hi=0;hi<H.length;hi++)if(H[hi]===nk[ki])return hi;
+        for(var ki=0;ki<nk.length;ki++)for(var hi=0;hi<H.length;hi++)if(H[hi].includes(nk[ki]))return hi;
+        return -1;
+      }
+      var iRz=fc(['razon','razon social']);
+      var iAc=fc(['actividad','actividad/proyecto','actividad proyecto','proyecto']);
+      var iMe=fc(['mes']);
+      var iCa=fc(['categoria']);
+      var iAs=fc(['asignado','asignado a']);
+      var iEs=fc(['estado']);
+      var iPr=fc(['programada']);
+      var iEI=fc(['fecha est inicio','est inicio','fecha estimada inicio']);
+      var iEF=fc(['fecha est fin','est fin','fecha estimada fin']);
+      var iDE=fc(['duracion estimada','dur estimada']);
+      var iRI=fc(['fecha real inicio','real inicio']);
+      var iRF=fc(['fecha real fin','real fin']);
+      var iDR=fc(['duracion real','dur real']);
+      var iCo=fc(['comentario']);
+      var iAp=fc(['apoyos']);
+      if(iAc<0){toast('⚠ No se encontró la columna "Actividad". Usa la plantilla oficial.');return;}
+      var _rzAsigImp=_razonesAsignadas();
+      var _rzUnica=(_rzAsigImp&&_rzAsigImp.length===1)?_rzAsigImp[0]:null;
+      if(iRz<0&&!_rzUnica){toast('⚠ Falta la columna "Razón" (KNO/KSC/KSA). Usa la plantilla oficial.');return;}
+      function toISOfecha(v){
+        if(!v&&v!==0)return null;
+        var n=Number(v);
+        if(!isNaN(n)&&n>30000&&n<80000){
+          var ms=(n-25569)*86400*1000;var d=new Date(ms);
+          return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
+        }
+        var s=String(v).trim();
+        var m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+        if(m)return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+        if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+        var dt=new Date(s);
+        if(!isNaN(dt))return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+        return null;
+      }
+      var yoSesion=(_session&&(_session.nombre||_session.username))||'';
+      var rows=[], omitidas=0;
+      for(var i=1;i<raw.length;i++){
+        var r=raw[i];
+        var actividad=String(r[iAc]||'').trim();
+        if(!actividad)continue;
+        var razon=(iRz>=0?String(r[iRz]||'').trim().toUpperCase():'')||_rzUnica||'';
+        if(!razon){omitidas++;continue;}
+        var progRaw=iPr>=0?norm(String(r[iPr]||'')):'';
+        var programada=iPr<0?true:!(progRaw==='no'||progRaw==='false'||progRaw==='0');
+        rows.push({
+          razon:razon,
+          actividad:actividad,
+          mes:iMe>=0?String(r[iMe]||'').trim():'',
+          categoria:iCa>=0?String(r[iCa]||'').trim():'',
+          asignado:iAs>=0?String(r[iAs]||'').trim():'',
+          estado:iEs>=0?String(r[iEs]||'').trim()||'Sin comenzar':'Sin comenzar',
+          programada:programada,
+          est_inicio:iEI>=0?toISOfecha(r[iEI]):null,
+          est_fin:iEF>=0?toISOfecha(r[iEF]):null,
+          dur_estimada:iDE>=0&&r[iDE]!==''?parseFloat(r[iDE]):null,
+          real_inicio:iRI>=0?toISOfecha(r[iRI]):null,
+          real_fin:iRF>=0?toISOfecha(r[iRF]):null,
+          dur_real:iDR>=0&&r[iDR]!==''?parseFloat(r[iDR]):null,
+          comentario:iCo>=0?String(r[iCo]||'').trim():'',
+          apoyos:iAp>=0?String(r[iAp]||'').trim():'',
+          creado_por:yoSesion||null
+        });
+      }
+      if(!rows.length){toast('⚠ Sin filas válidas'+(omitidas?' ('+omitidas+' omitidas por falta de razón)':''));return;}
+      toast('⏳ Importando '+rows.length+' actividad(es)'+(omitidas?' — '+omitidas+' omitidas sin razón':'')+'…');
+      commitActividadesExcel(rows);
+    }catch(err){toast('⚠ Error: '+err.message);console.error(err);}
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function commitActividadesExcel(rows){
+  var client=getSbClient();
+  if(!client){toast('⚠ Sin Supabase');return;}
+  try{
+    var okN=0,failN=0;
+    for(var i=0;i<rows.length;i++){
+      try{
+        var row=await encObj(rows[i],FIELDS.actividades);
+        var r=await client.from('actividades').insert([row]);
+        if(r.error)failN++; else okN++;
+      }catch(e){failN++;}
+    }
+    toast('☁️ '+okN+' actividad(es) importadas'+(failN?(' — '+failN+' con error'):''));
+    await loadActividades();
+  }catch(e){toast('⚠ Error: '+e.message);}
+}
+
 async function deleteActividad(id){
   if(!confirm('¿Eliminar esta actividad permanentemente?'))return;
   var client=getSbClient();
@@ -5346,6 +5468,8 @@ function checkAdminUI(){
     var canEditA=_session&&['admin','admin_auditor','auditor'].includes(_session.rol);
     addAct.style.display=canEditA?'':'none';
   }
+  var actExcel=document.getElementById('btn-excel-actividad');
+  if(actExcel) actExcel.style.display=(_session&&['admin','admin_auditor','auditor'].includes(_session.rol))?'':'none';
   var audBtn=document.getElementById('btn-nueva-auditoria');
   if(audBtn) audBtn.style.display=(_session&&['admin','admin_auditor'].includes(_session.rol))?'':'none';
   var ajBtn=document.getElementById('btn-nuevo-ajuste');
