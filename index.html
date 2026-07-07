@@ -1919,11 +1919,18 @@ function filteredTareas(){
 }
 function filteredAuditorias(){
   const f=getFilterState();
+  const anio=new Date().getFullYear();
   return STORE.auditorias.filter(a=>{
     if(f.razon!=='ALL'&&a.razon!==f.razon)return false;
     if(f.centro!=='ALL'&&a.centro!==f.centro)return false;
     if(f.tienda!=='ALL'&&a.tienda!==f.tienda)return false;
     if(f.desde||f.hasta){if(!inRange(fromISO(a.fecha),f))return false;}
+    /* Filtro por mes seleccionado (igual que tareas) */
+    if(f.mesGran&&f.mesGran!=='ALL'){
+      const fa=fromISO(a.fecha);
+      if(!fa)return false;
+      if(fa.getMonth()+1!==parseInt(f.mesGran)||fa.getFullYear()!==anio)return false;
+    }
     return true;
   });
 }
@@ -4685,6 +4692,16 @@ function renderDesempeno(){
 
   function mMatch(m){ return mesFilter==='ALL'||norm(String(m||''))===norm(mesFilter); }
 
+  /* Respetar el filtro global de RAZÓN social: nunca mezclar razones. La razón
+     se toma del registro; si no la trae (ajustes/mermas/finalizadas), se deriva
+     de la tienda vía el diccionario de centros. */
+  var _razonSelDesp=(document.getElementById('f-razon')||{}).value||'ALL';
+  function rzOk(rec){
+    if(_razonSelDesp==='ALL')return true;
+    var r=rec.razon||razonDeCentro(centroDeTienda(rec.tienda||''));
+    return razKey(r)===razKey(_razonSelDesp);
+  }
+
   /* ── Agrupar SOLO por auditor (sin separar por razón) — clave normalizada ── */
   var byAuditor={};
   var nombreReal={}; /* guardar el primer nombre encontrado con su capitalización original */
@@ -4714,7 +4731,7 @@ function renderDesempeno(){
   }
 
   /* Actividades — usar campo asignado como fuente principal */
-  ACTIVIDADES.filter(function(a){return mMatch(a.mes);}).forEach(function(a){
+  ACTIVIDADES.filter(function(a){return mMatch(a.mes)&&rzOk(a);}).forEach(function(a){
     var aud=a.asignado||a.creadoPor||'';
     if(!aud)return;
     var d=ensure(aud);
@@ -4733,7 +4750,7 @@ function renderDesempeno(){
   });
 
   /* Ajustes */
-  AJUSTES.filter(function(a){return mMatch(a.mes);}).forEach(function(a){
+  AJUSTES.filter(function(a){return mMatch(a.mes)&&rzOk(a);}).forEach(function(a){
     var aud=a.auditor||'';
     if(!aud)return;
     var d=ensure(aud);
@@ -4742,7 +4759,7 @@ function renderDesempeno(){
   });
 
   /* Mermas */
-  MERMAS.filter(function(m){return mMatch(m.mes);}).forEach(function(m){
+  MERMAS.filter(function(m){return mMatch(m.mes)&&rzOk(m);}).forEach(function(m){
     var aud=m.auditor||'';
     if(!aud)return;
     var d=ensure(aud);
@@ -4751,7 +4768,7 @@ function renderDesempeno(){
   });
 
   /* Auditorías finalizadas */
-  (FINALIZADAS||[]).filter(function(f){return mMatch(f.mes);}).forEach(function(f){
+  (FINALIZADAS||[]).filter(function(f){return mMatch(f.mes)&&rzOk(f);}).forEach(function(f){
     var aud=f.completadoPor||f.completado_por||'';
     if(!aud)return;
     var d=ensure(aud);
@@ -4761,10 +4778,11 @@ function renderDesempeno(){
   });
 
   /* Cargas de Excel: cargas_excel no tiene columna de razón/tienda. Para no
-     mostrar auditores de otras razones a un usuario restringido, solo se
-     suman cargas a auditores que YA tengan registros visibles de otras
-     fuentes (sí filtradas por razón); nunca se crea tarjeta nueva por esto. */
-  var _restringidoDesp=!!_razonesAsignadas()&&!(_session&&_session.rol==='admin');
+     mostrar auditores de otras razones (usuario restringido o razón seleccionada
+     en el filtro), solo se suman cargas a auditores que YA tengan registros
+     visibles de otras fuentes (sí filtradas por razón); nunca se crea tarjeta
+     nueva por esto. */
+  var _restringidoDesp=(!!_razonesAsignadas()&&!(_session&&_session.rol==='admin'))||_razonSelDesp!=='ALL';
   (CARGAS||[]).filter(function(c){
     if(mesFilter==='ALL')return true;
     var f=c.fecha?new Date(c.fecha):null;
