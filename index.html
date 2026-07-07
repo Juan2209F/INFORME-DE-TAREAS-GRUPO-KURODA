@@ -838,7 +838,7 @@ table.seg tbody tr:hover{background:var(--soft)}
           <div class="fg"><label>RAZÓN SOCIAL</label>
             <select id="act-f-razon" onchange="renderActividades()"></select></div>
           <div class="fg"><label>MES</label>
-            <select id="act-f-mes" onchange="renderActividades()">
+            <select id="act-f-mes" onchange="actMesChanged()">
               <option value="ALL">Todos</option>
               <option>Enero</option><option>Febrero</option><option>Marzo</option><option>Abril</option>
               <option>Mayo</option><option>Junio</option><option>Julio</option><option>Agosto</option>
@@ -3312,6 +3312,7 @@ async function guardarNuevaAuditoria(){
    MÓDULO ACTIVIDADES
 ════════════════════════════════════════════════════════════════════ */
 let ACTIVIDADES=[];
+var _actMesManual=false; /* true cuando el usuario elige el mes a mano: evita que una carga lo reescriba */
 
 async function loadActividades(){
   var client=getSbClient();
@@ -3376,27 +3377,26 @@ function fillActFilters(){
     var hayBlancas2=ACTIVIDADES.some(function(a){return!a.razon;});
     btnAR.style.display=(esAdminFF&&hayBlancas2)?'':'none';
   }
-  /* Auto-seleccionar mes en curso si el filtro no tiene selección explícita */
+  /* Mes por defecto = mes en curso (si tiene datos); si no, el más reciente con
+     datos. Se recalcula en cada carga salvo que el usuario haya elegido el mes a
+     mano (_actMesManual), para que al importar el mes actual aparezca solo. */
   var MORD_ACT=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  /* Mes por defecto: en curso si tiene datos; si no, el más reciente con datos
-     (evita que quede vacío cuando el mes actual aún no tiene actividades). */
   var sm=document.getElementById('act-f-mes');
-  if(sm&&sm.value==='ALL'){
+  if(sm&&!_actMesManual){
+    var conDatos=function(m){return ACTIVIDADES.some(function(a){return norm(a.mes)===norm(m);});};
     var mesHoy=MORD_ACT[new Date().getMonth()];
-    var hayHoy=ACTIVIDADES.some(function(a){return norm(a.mes)===norm(mesHoy);});
     var tgt=null;
-    if(hayHoy)tgt=mesHoy;
+    if(conDatos(mesHoy))tgt=mesHoy;
     else{
       var bi=-1;
       ACTIVIDADES.forEach(function(a){var i=MORD_ACT.map(norm).indexOf(norm(a.mes));if(i>bi)bi=i;});
       if(bi>=0)tgt=MORD_ACT[bi];
     }
-    if(tgt){
-      var opt=[...sm.options].find(function(o){return norm(o.value)===norm(tgt);});
-      if(opt)sm.value=opt.value;
-    }
+    var opt=tgt&&[...sm.options].find(function(o){return norm(o.value)===norm(tgt);});
+    sm.value=opt?opt.value:'ALL';
   }
 }
+function actMesChanged(){_actMesManual=true;renderActividades();}
 
 function filteredActividades(){
   var mes=document.getElementById('act-f-mes').value;
@@ -3713,6 +3713,7 @@ async function commitActividadesExcel(rows){
       }catch(e){failN++;}
     }
     toast('☁️ '+okN+' actividad(es) importadas'+(failN?(' — '+failN+' con error'):''));
+    _actMesManual=false; /* tras importar, volver al mes en curso para ver lo recién cargado */
     await loadActividades();
   }catch(e){toast('⚠ Error: '+e.message);}
 }
