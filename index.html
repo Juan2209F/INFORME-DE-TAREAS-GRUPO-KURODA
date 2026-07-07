@@ -2910,11 +2910,14 @@ function calcAudStats(a, rowsMismaClase){
   }
 
   var total = tt.length;
-  var resueltas = tt.filter(esResuelta).length;
+  /* Pendiente = cualquier estado "abierta*"; resuelto = todo lo demás (resuelta,
+     resuelta atrasada, cerrada, etc.). Así resueltas + pendientes = total SIEMPRE
+     y coincide con la tabla Cartera (que usa !esPendiente). */
+  var pendientes = tt.filter(esPendiente).length;
+  var resueltas = total - pendientes;
   var resueltasAtrasadas = tt.filter(function(t){return norm(t.estado).includes('resuelta')&&norm(t.estado).includes('atrasad');}).length;
   var abiertas = tt.filter(function(t){return norm(t.estado)==='abierta';}).length;
   var abiertasAtrasadas = tt.filter(function(t){return norm(t.estado).includes('abierta')&&norm(t.estado).includes('atrasad');}).length;
-  var pendientes = abiertas + abiertasAtrasadas;
   var pctResuelto = total>0 ? resueltas/total : 0;
 
   return {
@@ -2938,7 +2941,7 @@ function pendColor(stats){
 }
 
 function audTablaPorClase(titulo,color,rows){
-  var isAdmin=_session&&['admin','admin_auditor'].includes(_session.rol);
+  var canEditAud=_session&&['admin','admin_auditor','auditor'].includes(_session.rol);
   /* Cache global indexado por clave única (no por título que puede colisionar) */
   window._audItemCache=window._audItemCache||{};
   var filas=rows.map(function(a){
@@ -2962,7 +2965,7 @@ function audTablaPorClase(titulo,color,rows){
     /* Clave única por auditoría */
     var akey=[norm(a.tienda||''),norm(a.mes||''),norm(a.clase||''),a.fecha||''].join('|');
     window._audItemCache[akey]=a;
-    var editBtn=isAdmin?'<td style="text-align:center"><button class="icon-btn" onclick="openEditAuditoria(\''+akey+'\')" title="Editar auditoría">✎</button></td>':'<td></td>';
+    var editBtn=canEditAud?'<td style="text-align:center"><button class="icon-btn" onclick="openEditAuditoria(\''+akey+'\')" title="Editar auditoría">✎</button></td>':'<td></td>';
     return '<tr style="background:'+rowBg+';border-left:'+rowBd+'">'+ 
       '<td><b>'+(a.tienda||'—')+'</b></td>'+
       '<td>'+(a.mes||'—')+'</td>'+
@@ -2978,7 +2981,7 @@ function audTablaPorClase(titulo,color,rows){
       editBtn+
     '</tr>';
   }).join('');
-  var editTh=isAdmin?'<th class="c"></th>':'<th></th>';
+  var editTh=canEditAud?'<th class="c"></th>':'<th></th>';
   var leyenda='<span style="font-size:10px;font-weight:600;color:var(--muted);margin-left:8px;display:inline-flex;align-items:center;gap:10px">'+
     '<span><span style="color:var(--k-red);font-weight:800">●</span> Atrasada</span>'+
     '<span><span style="color:var(--k-blue);font-weight:800">●</span> Vigente</span>'+
@@ -3003,7 +3006,7 @@ function audTablaPorClaseCartera(titulo,color,rows,esCartera){
 
 /* Tabla especial CARTERA — sin % cumplimiento, solo seguimiento de tareas */
 function audTablaPorClaseCarteraRender(titulo,color,rows){
-  var isAdmin=_session&&['admin','admin_auditor'].includes(_session.rol);
+  var canEditAud=_session&&['admin','admin_auditor','auditor'].includes(_session.rol);
   window._audItemCache=window._audItemCache||{};
   var filas=rows.map(function(a){
     var tipoClase=tipoTareaDeClase(a.clase);
@@ -3018,7 +3021,7 @@ function audTablaPorClaseCarteraRender(titulo,color,rows){
     var pc=pend>0?'#dc2626':'#16a34a';
     var akey=[norm(a.tienda||''),norm(a.mes||''),norm(a.clase||''),a.fecha||''].join('|');
     window._audItemCache[akey]=a;
-    var editBtn=isAdmin?'<td style="text-align:center"><button class="icon-btn" data-akey="'+akey+'" onclick="openEditAuditoriaKey(this)" title="Editar">✎</button></td>':'<td></td>';
+    var editBtn=canEditAud?'<td style="text-align:center"><button class="icon-btn" data-akey="'+akey+'" onclick="openEditAuditoriaKey(this)" title="Editar">✎</button></td>':'<td></td>';
     return '<tr>'+
       '<td><b>'+(a.tienda||'—')+'</b></td>'+
       '<td>'+(a.mes||'—')+'</td>'+
@@ -3027,7 +3030,7 @@ function audTablaPorClaseCarteraRender(titulo,color,rows){
       '<td style="text-align:center;color:var(--k-greenok);font-weight:700">'+resu+'</td>'+
       editBtn+'</tr>';
   }).join('');
-  var editTh=isAdmin?'<th class="c"></th>':'<th></th>';
+  var editTh=canEditAud?'<th class="c"></th>':'<th></th>';
   var tablaHTML='<div class="slbl" style="margin:4px 0 4px;color:'+color+'">'+
     '<span class="dot" style="background:'+color+'"></span>'+titulo+
     ' <span style="font-weight:600;font-size:10px;color:var(--muted)">('+rows.length+')</span>'+
@@ -3046,9 +3049,9 @@ function openEditAuditoriaKey(el){
   openEditAuditoria(akey);
 }
 
-/* ── Editar auditoría (solo admin) ── */
+/* ── Editar auditoría (admin, señior y jr; eliminar solo admin/señior) ── */
 function openEditAuditoria(akey){
-  if(!_session||!['admin','admin_auditor'].includes(_session.rol)){toast('⚠ Sin permisos para editar auditorías');return;}
+  if(!_session||!['admin','admin_auditor','auditor'].includes(_session.rol)){toast('⚠ Sin permisos para editar auditorías');return;}
   var a=(window._audItemCache&&window._audItemCache[akey]);if(!a)return;
   var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   var html='<div class="form-grid">'+
@@ -3066,15 +3069,14 @@ function openEditAuditoria(akey){
     '<div class="form-field"><label>Pendientes</label><input type="number" id="ea-pend" min="0" value="'+(a.pendientes||0)+'"></div>'+
     '<div class="form-field"><label>Resueltos</label><input type="number" id="ea-res" min="0" value="'+(a.resueltas||0)+'"></div>'+
   '</div>';
-  openModal('✎ Editar auditoría — '+esc(a.tienda||''),html,[
-    {label:'Cancelar',cls:'btn-ghost',fn:closeModal},
-    {label:'Eliminar',cls:'btn-red',fn:function(){deleteAuditoria(a);}},
-    {label:'Guardar cambios',cls:'btn-blue',fn:function(){saveEditAuditoria(a);}}
-  ]);
+  var _btnsEA=[{label:'Cancelar',cls:'btn-ghost',fn:closeModal}];
+  if(['admin','admin_auditor'].includes(_session.rol))_btnsEA.push({label:'Eliminar',cls:'btn-red',fn:function(){deleteAuditoria(a);}});
+  _btnsEA.push({label:'Guardar cambios',cls:'btn-blue',fn:function(){saveEditAuditoria(a);}});
+  openModal('✎ Editar auditoría — '+esc(a.tienda||''),html,_btnsEA);
 }
 
 async function saveEditAuditoria(original){
-  if(!_session||!['admin','admin_auditor'].includes(_session.rol)){toast('⚠ Solo administradores');return;}
+  if(!_session||!['admin','admin_auditor','auditor'].includes(_session.rol)){toast('⚠ Sin permisos para editar auditorías');return;}
   function dv(id){var e=document.getElementById(id);return e?e.value.trim():'';}
   var pct=parseFloat(dv('ea-pct'))||0;
   var updated={
@@ -3211,7 +3213,7 @@ function downloadAuditoriasPNG(){
    NUEVA AUDITORÍA (modal)
 ════════════════════════════════════════════════════════════════════ */
 function openNuevaAuditoriaIfAllowed(){
-  if(!_session||!['admin','admin_auditor'].includes(_session.rol)){toast('⚠ Sin permisos para crear auditorías');return;}
+  if(!_session||!['admin','admin_auditor','auditor'].includes(_session.rol)){toast('⚠ Sin permisos para crear auditorías');return;}
   openNuevaAuditoria();
 }
 function openNuevaAuditoria(){
@@ -3431,7 +3433,7 @@ function fmtActFecha(d){if(!d)return'—';var x=fromISO(d);if(!x)return'—';ret
 function renderActividades(){
   var arr=filteredActividades();
   document.getElementById('act-count').textContent=arr.length+' actividad(es)';
-  var canEdit=_session&&['admin','admin_auditor'].includes(_session.rol);
+  var canEdit=_session&&['admin','admin_auditor','auditor'].includes(_session.rol);
   var cont=document.getElementById('actividades-table');
 
   if(!arr.length){cont.innerHTML='<div class="empty" style="padding:30px">Sin actividades. '+(canEdit?'Crea una con "Nueva actividad".':'')+'</div>';return;}
@@ -5192,8 +5194,12 @@ async function loadDataFromSupabase(){
         fechaCreacion:t.fecha_creacion,fechaTerm:t.fecha_term,fechaCumpl:t.fecha_cumpl
       };
     });
+    /* Visibilidad por razón social: usuarios restringidos (auditor/viewer con
+       razón asignada) solo ven auditorías y tareas de su(s) razón(es). Admin y
+       cuentas sin restricción ven todo. Consistente con Actividades/Ajustes. */
+    STORE.auditorias=STORE.auditorias.filter(function(a){return razonVisible(a.razon);});
+    STORE.tareas=STORE.tareas.filter(function(t){return razonVisible(t.razon);});
     refreshAll();
-    /* Cargar seguimientos y finalizadas en paralelo */
     Promise.all([
       loadFinalizadas()
     ]).then(function(){if(VIEW==='auditorias')renderAuditoriasView();});
