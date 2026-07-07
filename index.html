@@ -3593,6 +3593,23 @@ async function saveActividad(id,isNew){
    La razón es OBLIGATORIA por fila salvo que la cuenta tenga una sola
    razón asignada (entonces se usa esa automáticamente para todas).
 ════════════════════════════════════════════════════════════════════ */
+/* Elige la hoja correcta del libro por nombre (ignora "Instrucciones" y
+   "Tiendas válidas"). Si ningún nombre coincide, busca la hoja cuya cabecera
+   contenga alguna columna requerida. Devuelve {ws,raw}. */
+function pickSheet(wb,names,headerKeys){
+  function nm(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();}
+  var want=names.map(nm),skip=['instrucciones','tiendas validas'],order=wb.SheetNames.slice();
+  function read(sn){return XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:''});}
+  var byName=order.find(function(sn){return want.indexOf(nm(sn))>=0;});
+  if(byName)return {ws:wb.Sheets[byName],raw:read(byName)};
+  var keys=headerKeys.map(nm);
+  for(var i=0;i<order.length;i++){
+    if(skip.indexOf(nm(order[i]))>=0)continue;
+    var raw=read(order[i]),h=(raw[0]||[]).map(nm);
+    if(keys.some(function(k){return h.some(function(x){return x.indexOf(k)>=0;});}))return {ws:wb.Sheets[order[i]],raw:raw};
+  }
+  var f=order[0];return {ws:wb.Sheets[f],raw:read(f)};
+}
 function importActividadesExcel(files){
   if(!files||!files.length)return;
   if(!_session||!['admin','admin_auditor','auditor'].includes(_session.rol)){toast('⚠ Sin permisos');return;}
@@ -3602,8 +3619,7 @@ function importActividadesExcel(files){
   reader.onload=function(e){
     try{
       var wb=XLSX.read(e.target.result,{type:'array',cellDates:false});
-      var ws=wb.Sheets[wb.SheetNames[0]];
-      var raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      var _pk=pickSheet(wb,['actividades'],['actividad','proyecto']);var ws=_pk.ws,raw=_pk.raw;
       if(raw.length<2){toast('⚠ Excel vacío o sin datos');return;}
       function normH(s){return String(s||'').toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'');}
       var H=raw[0].map(normH);
@@ -5848,8 +5864,7 @@ function importAjustesExcel(files){
     try{
       /* cellDates:false → recibir seriales numéricos y convertir manualmente */
       var wb=XLSX.read(e.target.result,{type:'array',cellDates:false});
-      var ws=wb.Sheets[wb.SheetNames[0]];
-      var raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      var _pk=pickSheet(wb,['ajustes'],['tienda','ajuste','correo']);var ws=_pk.ws,raw=_pk.raw;
       if(raw.length<2){toast('⚠ Excel vacío o sin datos');return;}
       var H=raw[0].map(function(c){return String(c||'').toLowerCase().trim();});
       function fc(keys){var k=keys.find(function(k){return H.indexOf(k)>=0;});return k?H.indexOf(k):-1;}
@@ -6403,8 +6418,7 @@ function importMermasExcel(files){
     try{
       /* cellDates:false para recibir seriales numéricos y convertirlos manualmente */
       var wb=XLSX.read(e.target.result,{type:'array',cellDates:false});
-      var ws=wb.Sheets[wb.SheetNames[0]];
-      var raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      var _pk=pickSheet(wb,['mermas'],['tienda','merma','autoriz','validacion']);var ws=_pk.ws,raw=_pk.raw;
       if(raw.length<2){toast('⚠ Excel vacío');return;}
       /* Normalizar cabeceras: minúsculas + sin tildes + sin espacios extra */
       function normH(s){return String(s||'').toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'');}
@@ -7317,4 +7331,3 @@ setThemeBtn();
 </script>
 </body>
 </html>
-  
