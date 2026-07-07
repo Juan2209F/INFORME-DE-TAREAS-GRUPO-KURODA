@@ -3621,7 +3621,7 @@ function importActividadesExcel(files){
       var wb=XLSX.read(e.target.result,{type:'array',cellDates:false});
       var _pk=pickSheet(wb,['actividades'],['actividad','proyecto']);var ws=_pk.ws,raw=_pk.raw;
       if(raw.length<2){toast('⚠ Excel vacío o sin datos');return;}
-      function normH(s){return String(s||'').toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'');}
+      function normH(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();}
       var H=raw[0].map(normH);
       function fc(keys){
         var nk=keys.map(normH);
@@ -7331,3 +7331,4 @@ setThemeBtn();
 </script>
 </body>
 </html>
+    
