@@ -1818,12 +1818,14 @@ function setQuick(q,el){
   document.querySelectorAll('#quick-row .qbtn').forEach(b=>b.classList.remove('active'));
   el.classList.add('active');
   const today=new Date(),y=today.getFullYear(),m=today.getMonth();
-  let desde=null,hasta=new Date(y,m+1,0);
+  /* Los rangos miran hacia atrás: terminan HOY (nunca al futuro) y arrancan
+     N meses antes. "Mes" = mes en curso; "Trimestre" = últimos 3 meses; etc. */
+  let desde=null,hasta=new Date(today);
   if(q==='all'){desde=null;hasta=null;}
   else if(q==='month')desde=new Date(y,m,1);
-  else if(q==='quarter'){const qs=Math.floor(m/3)*3;desde=new Date(y,qs,1);hasta=new Date(y,qs+3,0);}
-  else if(q==='half'){const hs=m<6?0:6;desde=new Date(y,hs,1);hasta=new Date(y,hs+6,0);}
-  else if(q==='year'){desde=new Date(y,0,1);hasta=new Date(y,11,31);}
+  else if(q==='quarter')desde=new Date(y,m-2,1);   /* últimos 3 meses */
+  else if(q==='half')desde=new Date(y,m-5,1);      /* últimos 6 meses */
+  else if(q==='year')desde=new Date(y,m-11,1);     /* últimos 12 meses */
   document.getElementById('f-desde').value=fmtInput(desde);
   document.getElementById('f-hasta').value=fmtInput(hasta);
   /* Al usar rango rápido, resetear filtro de mes a "Todos" */
@@ -5491,6 +5493,8 @@ function checkAdminUI(){
              dias (int generado), condicion (text generado),
              created_at (timestamptz)
 ════════════════════════════════════════════════════════════════════ */
+/* Año mínimo que se muestra en Ajustes y Mermas (registros previos se descartan) */
+var AÑO_MIN_MODULOS=2026;
 var AJUSTES=[];
 var _ajPerManual=false; /* true cuando el usuario elige mes/año a mano: la carga no lo reescribe */
 var _chartAjDonut=null;
@@ -5554,6 +5558,8 @@ async function loadAjustes(){
         dias:dias,condicion:condicionAjuste(dias),auditor:a.auditor||''};
     });
     AJUSTES=AJUSTES.filter(function(a){return tiendaVisible(a.tienda);});
+    /* Solo se conservan registros de 2026 en adelante (los años anteriores no se necesitan) */
+    AJUSTES=AJUSTES.filter(function(a){return (parseInt(a.año)||0)>=AÑO_MIN_MODULOS;});
     fillAjFilters();renderAjustes();
     toast('✓ '+AJUSTES.length+' ajuste(s) cargados');
   }catch(e){toast('⚠ '+e.message);}
@@ -5974,6 +5980,8 @@ async function loadMermas(){
         dias:dias,condicion:condicionAjuste(dias),auditor:m.auditor||''};
     });
     MERMAS=MERMAS.filter(function(m){return tiendaVisible(m.tienda);});
+    /* Solo se conservan registros de 2026 en adelante (los años anteriores no se necesitan) */
+    MERMAS=MERMAS.filter(function(m){return (parseInt(m.año)||0)>=AÑO_MIN_MODULOS;});
     fillMrFilters();renderMermas();
     toast('✓ '+MERMAS.length+' merma(s) cargadas');
   }catch(e){toast('⚠ '+e.message);}
