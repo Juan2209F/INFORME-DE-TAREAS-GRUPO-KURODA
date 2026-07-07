@@ -1246,8 +1246,8 @@ function canonTienda(centro,raw){
 }
 function centroConocido(centro){return !!CENTRO_TIENDA[canonCentro(centro)];}
 /* Razón social por prefijo de centro (hoja "Tiendas válidas"):
-   KC→KSA · KN→KNO · KS→KSC. Relación única centro↔razón. */
-var PREFIJO_RAZON={KC:'KSA',KN:'KNO',KS:'KSC'};
+   KC→KSA · KN→KNO · KS→KS. Relación única centro↔razón. */
+var PREFIJO_RAZON={KC:'KSA',KN:'KNO',KS:'KS'};
 function razonDeCentro(c){return PREFIJO_RAZON[canonCentro(c).slice(0,2)]||'';}
 
 /* ════════ RAZÓN SOCIAL: clave compuesta y visibilidad ════════
@@ -1271,7 +1271,7 @@ function razonVisible(razon){
 }
 /* Para módulos sin campo razón (ajustes/mermas/finalizadas): se deriva el
    centro desde la tienda con el diccionario y de ahí la razón social exacta
-   (KC→KSA, KN→KNO, KS→KSC), evitando el choque entre KSA y KSC. */
+   (KC→KSA, KN→KNO, KS→KS), evitando el choque entre KSA y KS. */
 var _TIENDA_CENTRO=null;
 var _TIENDA_CENTRO_KEYS=null;
 function _buildTiendaCentroIndex(){
@@ -3322,7 +3322,7 @@ function fillActFilters(){
   if(selR){
     var vR=selR.value;
     var hayBlancas=ACTIVIDADES.some(function(a){return!a.razon;});
-    var razonesDetectadas=[...new Set(['KNO','KSC','KSA'].concat(ACTIVIDADES.map(a=>a.razon).filter(Boolean)))];
+    var razonesDetectadas=[...new Set(['KNO','KS','KSA'].concat(ACTIVIDADES.map(a=>a.razon).filter(Boolean)))];
     if(_rzAsigFF&&_rzAsigFF.length===1){
       selR.innerHTML='<option value="'+_rzAsigFF[0]+'">'+_rzAsigFF[0]+'</option>';
       selR.disabled=true;
@@ -3457,7 +3457,7 @@ function openActividad(id){
      varias, elige entre ellas; acceso total puede escribir cualquiera. */
   var _rzAsig=_razonesAsignadas();
   var _rzVal=(a.razon||((_rzAsig&&_rzAsig.length===1)?_rzAsig[0]:'')||'').toUpperCase();
-  var _RAZONES_FIJAS=['KNO','KSC','KSA'];
+  var _RAZONES_FIJAS=['KNO','KS','KSA'];
   var _rzOpts=[...new Set(_RAZONES_FIJAS.concat(_rzAsig||[]).concat(STORE.tareas.map(function(t){return t.razon;})).concat(STORE.auditorias.map(function(x){return x.razon;})).filter(Boolean).map(function(r){return r.toUpperCase();}))];
   function di(d){if(!d)return'';var x=fromISO(d);return x?fmtInput(x):'';}
   var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -3612,7 +3612,7 @@ function importActividadesExcel(files){
       if(iAc<0){toast('⚠ No se encontró la columna "Actividad". Usa la plantilla oficial.');return;}
       var _rzAsigImp=_razonesAsignadas();
       var _rzUnica=(_rzAsigImp&&_rzAsigImp.length===1)?_rzAsigImp[0]:null;
-      if(iRz<0&&!_rzUnica){toast('⚠ Falta la columna "Razón" (KNO/KSC/KSA). Usa la plantilla oficial.');return;}
+      if(iRz<0&&!_rzUnica){toast('⚠ Falta la columna "Razón" (KNO/KS/KSA). Usa la plantilla oficial.');return;}
       function toISOfecha(v){
         if(!v&&v!==0)return null;
         var n=Number(v);
@@ -3700,7 +3700,7 @@ async function deleteActividad(id){
    ASIGNACIÓN MASIVA DE RAZÓN SOCIAL (Actividades sin razón)
    Permite a un admin reclasificar de un tirón las actividades antiguas
    que se cargaron sin razón (por eso quedaban ocultas para el personal
-   restringido a KNO/KSC/KSA), opcionalmente acotando por "asignado".
+   restringido a KNO/KS/KSA), opcionalmente acotando por "asignado".
 ════════════════════════════════════════════════════════════════════ */
 function _actividadesSinRazon(){return ACTIVIDADES.filter(function(a){return!a.razon;});}
 function openAsignarRazonMasiva(){
@@ -7093,7 +7093,7 @@ async function deleteFinalizada(id){
                 <input type="checkbox" class="nu-razon-cb" value="KNO" style="width:15px;height:15px;cursor:pointer"> KNO
               </label>
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:700;color:var(--teal)">
-                <input type="checkbox" class="nu-razon-cb" value="KSC" style="width:15px;height:15px;cursor:pointer"> KSC
+                <input type="checkbox" class="nu-razon-cb" value="KS" style="width:15px;height:15px;cursor:pointer"> KS
               </label>
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:700;color:var(--green)">
                 <input type="checkbox" class="nu-razon-cb" value="KSA" style="width:15px;height:15px;cursor:pointer"> KSA
@@ -7147,7 +7147,7 @@ async function deleteFinalizada(id){
               <input type="checkbox" class="eu-razon-cb" value="KNO" style="width:15px;height:15px;cursor:pointer"> KNO
             </label>
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:700;color:var(--teal)">
-              <input type="checkbox" class="eu-razon-cb" value="KSC" style="width:15px;height:15px;cursor:pointer"> KSC
+              <input type="checkbox" class="eu-razon-cb" value="KS" style="width:15px;height:15px;cursor:pointer"> KS
             </label>
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:700;color:var(--green)">
               <input type="checkbox" class="eu-razon-cb" value="KSA" style="width:15px;height:15px;cursor:pointer"> KSA
@@ -7218,7 +7218,7 @@ async function deleteFinalizada(id){
     <div class="kpi-cfg-body" style="padding:16px 20px;display:flex;flex-direction:column;gap:12px">
       <p style="font-size:12.5px;color:var(--muted);line-height:1.5">
         Estas actividades no tienen razón social asignada, por lo que quedan <b>ocultas</b> para el personal
-        con acceso restringido (KNO/KSC/KSA). Elige la razón del equipo (auditor senior + jr) que las capturó
+        con acceso restringido (KNO/KS/KSA). Elige la razón del equipo (auditor senior + jr) que las capturó
         y, si quieres, acota por la persona asignada antes de aplicar el cambio a todas las que cumplan el filtro.
       </p>
       <div class="fg"><label>Asignado a (opcional)</label>
@@ -7227,7 +7227,7 @@ async function deleteFinalizada(id){
       <div class="fg"><label>Razón social destino *</label>
         <select id="ar-razon" onchange="refreshAsignarRazonCount()">
           <option value="">— Selecciona —</option>
-          <option value="KNO">KNO</option><option value="KSC">KSC</option><option value="KSA">KSA</option>
+          <option value="KNO">KNO</option><option value="KS">KS</option><option value="KSA">KSA</option>
         </select>
       </div>
       <div id="ar-count" style="font-size:12.5px;font-weight:700;color:var(--txt);background:var(--soft);border-radius:var(--radius-sm);padding:10px 12px"></div>
