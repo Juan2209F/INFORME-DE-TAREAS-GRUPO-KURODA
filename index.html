@@ -1608,7 +1608,8 @@ function tareaIgualSupabase(t, ex){
          n(t.tipoTarea)===n(ex.tipo_tarea) &&
          n(t.estado)===n(ex.estado) &&
          fdate(t.fechaCreacion)===fdate(ex.fecha_creacion) &&
-         fdate(t.fechaTerm)===fdate(ex.fecha_term) &&
+         /* fecha_term NO se compara: es de captura manual y no debe verse
+            afectada por cargas/actualizaciones de Excel (ver toRowActualizar). */
          fdate(t.fechaCumpl)===fdate(ex.fecha_cumpl);
 }
 
@@ -1619,7 +1620,6 @@ function camposDiferentes(t, ex){
   var campos=[];
   if(n(t.estado)!==n(ex.estado))campos.push('Estado: "'+n(ex.estado)+'" → "'+n(t.estado)+'"');
   if(fdate(t.fechaCumpl)!==fdate(ex.fecha_cumpl))campos.push('F.Cumplimiento: "'+fdate(ex.fecha_cumpl)+'" → "'+fdate(t.fechaCumpl)+'"');
-  if(fdate(t.fechaTerm)!==fdate(ex.fecha_term))campos.push('F.Término: "'+fdate(ex.fecha_term)+'" → "'+fdate(t.fechaTerm)+'"');
   if(n(t.nombre)!==n(ex.nombre))campos.push('Nombre cambió');
   if(n(t.areaResp)!==n(ex.area_resp))campos.push('Área Resp. cambió');
   if(n(t.tienda)!==n(ex.tienda))campos.push('Tienda cambió');
@@ -1671,6 +1671,11 @@ async function commitToSupabase(nuevas, actualizar, audStaged, omitidas, prevTar
     fecha_term:t.fechaTerm?String(t.fechaTerm).split('T')[0]:null,
     fecha_cumpl:t.fechaCumpl?String(t.fechaCumpl).split('T')[0]:null
   };}
+  /* Para ACTUALIZAR tareas ya existentes: igual que toRow pero sin fecha_term.
+     La fecha de término es de captura manual (modal Editar tarea); las cargas/
+     recargas de Excel nunca deben pisarla, solo se sincronizan el resto de
+     campos (estado, fecha_cumpl, etc.) con lo que trae el archivo. */
+  function toRowActualizar(t){var row=toRow(t);delete row.fecha_term;return row;}
 
   try{
     /* INSERT nuevas — con upsert por tarea_id: si alguna ya existiera en
@@ -1694,7 +1699,7 @@ async function commitToSupabase(nuevas, actualizar, audStaged, omitidas, prevTar
     /* UPDATE las que cambiaron (con permiso) */
     if(!err&&actualizar.length){
       for(var j=0;j<actualizar.length;j++){
-        var row=toRow(actualizar[j]);
+        var row=toRowActualizar(actualizar[j]);
         var ru=await client.from('tareas').update(row).eq('tarea_key',row.tarea_key);
         if(ru.error){err='Update: '+ru.error.message;break;}
         updOk++;
