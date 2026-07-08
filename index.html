@@ -2379,8 +2379,8 @@ function renderTareasView(tareas){
       return `<tr style="background:${bg};border-bottom:1px solid var(--rowline)">
         <td style="padding:5px 8px;color:var(--muted);font-size:11px;white-space:nowrap;font-family:monospace">${t.id}</td>
         <td style="padding:5px 8px;max-width:300px">
-          <div style="font-weight:700;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(t.nombre||'').replace(/"/g,'&quot;')}">${t.nombre||'—'}</div>
-          <div style="font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.actividad||''}</div>
+          <div style="font-weight:700;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(t.nombre||t.actividad||'').replace(/"/g,'&quot;')}">${t.nombre||t.actividad||'—'}</div>
+          <div style="font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(t.nombre&&t.actividad&&norm(t.actividad)!==norm(t.nombre))?t.actividad:''}</div>
         </td>
         <td style="padding:5px 8px;max-width:160px">
           <div style="font-weight:700;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.tienda||'—'}</div>
