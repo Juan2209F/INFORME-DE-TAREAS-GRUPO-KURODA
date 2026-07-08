@@ -1468,7 +1468,7 @@ function parseWorkbook(buf){
           razon:String(r[c.razon]||'').trim(),centro:String(r[c.centro]||'').trim(),
           id:isNaN(Number(idv))?String(idv).trim():Number(num),
           fechaCreacion:toISO(parseDate(fechaCelda(i,c.fechaCre,c.pegaCre))),
-          tienda:String(r[c.tienda]||'').trim(),
+          tienda:canonTienda(String(r[c.centro]||'').trim(),r[c.tienda]),
           areaResp:String(r[c.areaResp]||'').trim(),areaRev:String(r[c.areaRev]||'').trim(),
           actividad:String(r[c.act]||'').trim(),nombre:String(r[c.nombre]||'').trim(),
           estado:normalizarEstadoTarea(r[c.estado]),
@@ -1484,12 +1484,13 @@ function parseWorkbook(buf){
         pctRes:findCol(H,['porcentaje resuelto','% resuelto']),clase:idxClase,
         pegaFecha:findColRe(H,/pega aqui.*creacion/)};
       for(let i=hi+1;i<raw.length;i++){
-        const r=raw[i];const tienda=String(r[c.tienda]||'').trim();
+        const r=raw[i];const centroA=String(r[c.centro]||'').trim();
+        const tienda=canonTienda(centroA,r[c.tienda]);
         const razon=String(r[c.razon]||'').trim();
         if(!tienda&&!razon)continue;
         const f=parseDate(fechaCelda(i,c.fecha,c.pegaFecha));
         out.auditorias.push({
-          razon,centro:String(r[c.centro]||'').trim(),tienda,
+          razon,centro:centroA,tienda,
           fecha:toISO(f),mes:String(r[c.mes]||'').trim(),
           pctCumpl:parseFloat(String(r[c.pct]).replace('%',''))||0,
           tareas:parseInt(r[c.tareas])||0,pendientes:parseInt(r[c.pend])||0,
@@ -3030,6 +3031,9 @@ function openEditAuditoria(akey){
   var html='<div class="form-grid">'+
     '<div class="form-field"><label>Tienda</label><input id="ea-tienda" value="'+esc(a.tienda||'')+'"></div>'+
     '<div class="form-field"><label>Centro</label><input id="ea-centro" value="'+esc(a.centro||'')+'"></div>'+
+    '<div class="form-field"><label>Razón</label><select id="ea-razon">'+
+      ['KNO','KS','KSA'].map(function(rz){return'<option value="'+rz+'"'+(norm(a.razon||'')===norm(rz)?' selected':'')+'>'+rz+'</option>';}).join('')+
+    '</select></div>'+
     '<div class="form-field full"><label>Clase</label><select id="ea-clase">'+
       '<option value="AUDITORIAS DE COLABORACION"'+(norm(a.clase||'').includes('colab')?' selected':'')+'>Colaboración</option>'+
       '<option value="AUDITORIA ORDEN Y LIMPIEZA"'+(norm(a.clase||'').includes('orden')?' selected':'')+'>Orden y Limpieza</option>'+
@@ -3054,7 +3058,7 @@ async function saveEditAuditoria(original){
   var pct=parseFloat(dv('ea-pct'))||0;
   var updated={
     tienda:dv('ea-tienda').toUpperCase(),centro:dv('ea-centro').toUpperCase(),
-    razon:dv('ea-razon').toUpperCase(),mes:dv('ea-mes').toUpperCase(),
+    razon:(dv('ea-razon')||original.razon||'').toUpperCase(),mes:dv('ea-mes').toUpperCase(),
     fecha:dv('ea-fecha'),pctCumpl:pct>1?pct/100:pct,
     tareas:parseInt(dv('ea-tareas'))||0,
     pendientes:parseInt(dv('ea-pend'))||0,
@@ -3063,7 +3067,7 @@ async function saveEditAuditoria(original){
     clase:dv('ea-clase')||original.clase
   };
   var idx=STORE.auditorias.findIndex(function(x){
-    return norm(x.tienda)===norm(original.tienda)&&norm(x.mes)===norm(original.mes)&&norm(x.clase)===norm(original.clase);
+    return norm(x.tienda)===norm(original.tienda)&&norm(x.mes)===norm(original.mes)&&norm(x.clase)===norm(original.clase)&&(!original.fecha||x.fecha===original.fecha);
   });
   if(idx>=0)STORE.auditorias[idx]=Object.assign({},STORE.auditorias[idx],updated);
   closeModal();refreshAll();
@@ -3074,8 +3078,14 @@ async function saveEditAuditoria(original){
       fecha:updated.fecha,mes:updated.mes,pct_cumpl:updated.pctCumpl,
       tareas:updated.tareas,pendientes:updated.pendientes,resueltas:updated.resueltas,
       pct_resuelto:updated.pctResuelto,clase:updated.clase};
-    var r=await client.from('auditorias').update(row)
-      .eq('tienda',original.tienda).eq('mes',original.mes.toUpperCase()).eq('clase',original.clase);
+    /* Buscar la fila por 'centro' (código estable) en vez de 'tienda' (texto libre
+       que puede diferir de lo guardado originalmente en Supabase); si no hay
+       centro, se recurre a tienda como respaldo. */
+    var q=client.from('auditorias').update(row);
+    q=original.centro?q.eq('centro',original.centro):q.eq('tienda',original.tienda);
+    q=q.eq('mes',original.mes.toUpperCase()).eq('clase',original.clase);
+    if(original.fecha)q=q.eq('fecha',original.fecha);
+    var r=await q;
     if(r.error)toast('⚠ '+r.error.message);
     else{toast('☁️ Auditoría actualizada');if(VIEW==='auditorias')renderAuditoriasView();}
   }catch(e){toast('⚠ '+e.message);}
@@ -3092,8 +3102,11 @@ async function deleteAuditoria(a){
   var client=getSbClient();
   if(!client){toast('✓ Eliminado local');return;}
   try{
-    var q=client.from('auditorias').delete()
-      .eq('tienda',a.tienda).eq('mes',(a.mes||'').toUpperCase()).eq('clase',a.clase);
+    /* Igual que en saveEditAuditoria: preferir 'centro' (código estable) sobre
+       'tienda' (texto libre) para localizar la fila real en Supabase. */
+    var q=client.from('auditorias').delete();
+    q=a.centro?q.eq('centro',a.centro):q.eq('tienda',a.tienda);
+    q=q.eq('mes',(a.mes||'').toUpperCase()).eq('clase',a.clase);
     if(a.fecha)q=q.eq('fecha',a.fecha);
     var r=await q;
     if(r.error)toast('⚠ '+r.error.message);
