@@ -2983,16 +2983,20 @@ function audTablaPorClaseCarteraRender(titulo,color,rows){
   var canEditAud=_session&&['admin','admin_auditor','auditor'].includes(_session.rol);
   window._audItemCache=window._audItemCache||{};
   var filas=rows.map(function(a){
-    var tipoClase=tipoTareaDeClase(a.clase);
-    var tareasDeAud=STORE.tareas.filter(function(t){
-      if(norm(t.tienda)!==norm(a.tienda)||norm(t.centro)!==norm(a.centro))return false;
-      if(tipoClase&&tipoNormLocal(t.tipoTarea)!==tipoClase)return false;
-      return true;
-    });
-    var total=tareasDeAud.length||a.tareas||0;
-    var pend=tareasDeAud.filter(esPendiente).length;
-    var resu=tareasDeAud.filter(function(t){return!esPendiente(t);}).length;
+    /* Usar calcAudStats (igual que las demás clases) para heredar el acotado
+       por mes/año y la salvaguarda anti-sobre-emparejamiento entre auditorías
+       del mismo centro. Antes esta tabla filtraba aparte y nunca se enviaba
+       a finalizadas: una auditoría de Cartera con 0 pendientes se quedaba
+       "viva" para siempre en este módulo. */
+    var stats=calcAudStats(a,rows);
+    var total=stats.tareas;
+    var pend=stats.pendientes;
+    var resu=stats.resueltas;
     var pc=pend>0?'#dc2626':'#16a34a';
+    /* Auto-enviar a finalizadas si resuelto al 100% (igual que audTablaPorClase) */
+    if(stats.dinamico&&stats.pendientes===0&&stats.tareas>0){
+      registrarFinalizada(a);
+    }
     var akey=[norm(a.tienda||''),norm(a.mes||''),norm(a.clase||''),a.fecha||''].join('|');
     window._audItemCache[akey]=a;
     var editBtn=canEditAud?'<td style="text-align:center"><button class="icon-btn" data-akey="'+akey+'" onclick="openEditAuditoriaKey(this)" title="Editar">✎</button></td>':'<td></td>';
@@ -4700,8 +4704,8 @@ function renderDesempeno(){
         nombre:k,
         actProgTotal:0,actProgOk:0,actProgRepr:0,actProgPend:0,
         actNoPTotal:0,actNoPOk:0,actNoPRepr:0,actNoPPend:0,
-        ajTotal:0,ajOk:0,ajTard:0,
-        mrTotal:0,mrOk:0,mrTard:0,
+        ajTotal:0,ajOk:0,ajTard:0,ajSinValidar:0,
+        mrTotal:0,mrOk:0,mrTard:0,mrSinValidar:0,
         audTotal:0,audPct:0,audClases:[],
         cgTotal:0,cgTareas:0,cgAuditorias:0,cgRegistros:0,cgUltima:null
       };
@@ -4728,22 +4732,27 @@ function renderDesempeno(){
     }
   });
 
-  /* Ajustes */
+  /* Ajustes — condicion '—' (sin fecha de validación aún) no es "Destiempo":
+     es un registro todavía abierto, no una falta del auditor. Se cuenta aparte
+     y no entra al denominador de puntualidad, para no penalizar lo que aún
+     no se ha podido resolver. */
   AJUSTES.filter(function(a){return mMatch(a.mes)&&rzOk(a);}).forEach(function(a){
     var aud=a.auditor||'';
     if(!aud)return;
     var d=ensure(aud);
-    d.ajTotal++;
-    if(a.condicion==='A tiempo')d.ajOk++;else d.ajTard++;
+    if(a.condicion==='A tiempo'){d.ajTotal++;d.ajOk++;}
+    else if(a.condicion==='Destiempo'){d.ajTotal++;d.ajTard++;}
+    else{d.ajSinValidar++;}
   });
 
-  /* Mermas */
+  /* Mermas — mismo criterio que Ajustes */
   MERMAS.filter(function(m){return mMatch(m.mes)&&rzOk(m);}).forEach(function(m){
     var aud=m.auditor||'';
     if(!aud)return;
     var d=ensure(aud);
-    d.mrTotal++;
-    if(m.condicion==='A tiempo')d.mrOk++;else d.mrTard++;
+    if(m.condicion==='A tiempo'){d.mrTotal++;d.mrOk++;}
+    else if(m.condicion==='Destiempo'){d.mrTotal++;d.mrTard++;}
+    else{d.mrSinValidar++;}
   });
 
   /* Auditorías finalizadas */
@@ -4876,8 +4885,8 @@ function renderDesempeno(){
       '</div>'+
       '<div style="padding:14px 16px;display:grid;grid-template-columns:repeat(3,1fr) repeat(2,1fr);gap:10px">'+
         /* Fila 1: Ajustes, Mermas, Auditorías */
-        kpiBlock('⚖️','Ajustes',d.ajTotal,d.ajOk,d.ajTard,0,0,pAj,'#0d9488',pAj+'% a tiempo')+
-        kpiBlock('🗂️','Mermas',d.mrTotal,d.mrOk,d.mrTard,0,0,pMr,'#7c3aed',pMr+'% a tiempo')+
+        kpiBlock('⚖️','Ajustes',d.ajTotal,d.ajOk,d.ajTard,0,d.ajSinValidar,pAj,'#0d9488',pAj+'% a tiempo'+(d.ajSinValidar?' · '+d.ajSinValidar+' sin validar':''))+
+        kpiBlock('🗂️','Mermas',d.mrTotal,d.mrOk,d.mrTard,0,d.mrSinValidar,pMr,'#7c3aed',pMr+'% a tiempo'+(d.mrSinValidar?' · '+d.mrSinValidar+' sin validar':''))+
         /* Auditorías */
         '<div style="background:var(--soft);border-radius:10px;padding:12px;border-top:3px solid #d97706">'+
           '<div style="font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">🔍 Auditorías <span style="font-weight:600;text-transform:none;font-size:8.5px;color:var(--muted);opacity:.75">· seguimiento</span></div>'+
