@@ -1258,6 +1258,11 @@ function razonDeCentro(c){return PREFIJO_RAZON[canonCentro(c).slice(0,2)]||'';}
 function razKey(s){return String(s||'').replace(/\s+/g,' ').trim().toLowerCase();}
 function tareaKey(id,razon){return String(id)+'|'+razKey(razon);}
 function _razonesAsignadas(){
+  /* Los viewers son de solo observación: siempre ven las 3 razones sociales
+     (KNO/KS/KSA) completas, sin importar qué traiga razones_permitidas en su
+     cuenta. La restricción por razón es para limitar edición/captura por
+     entidad (auditores); un viewer no modifica nada, así que no aplica. */
+  if(_session&&_session.rol==='viewer')return null;
   var r=_session&&_session.razones_permitidas;
   if(typeof r==='string'){try{r=JSON.parse(r);}catch(e){r=null;}}
   return (r&&r.length)?r:null;
@@ -5121,8 +5126,7 @@ function onLoginSuccess(){
 function applyRazonRestriction(){
   var fr=document.getElementById('f-razon');
   if(!fr||!_session)return;
-  var razones=_session.razones_permitidas;
-  if(typeof razones==='string'){try{razones=JSON.parse(razones);}catch(e){razones=null;}}
+  var razones=_razonesAsignadas();
   if(!razones||!razones.length)return;
   if(razones.length===1){
     fr.value=razones[0];
@@ -5172,8 +5176,7 @@ function applyVistasRestriction(){
 function patchedFillFilters(){
   var allT=STORE.tareas, allA=STORE.auditorias;
   /* Si el usuario tiene razones restringidas, filtrar los datos antes de mostrar */
-  var razones=_session&&_session.razones_permitidas;
-  if(typeof razones==='string'){try{razones=JSON.parse(razones);}catch(e){razones=null;}}
+  var razones=_razonesAsignadas();
   if(razones&&razones.length){
     allT=allT.filter(function(t){return razones.some(function(r){return norm(t.razon||'').includes(norm(r));});});
     allA=allA.filter(function(a){return razones.some(function(r){return norm(a.razon||'').includes(norm(r));});});
