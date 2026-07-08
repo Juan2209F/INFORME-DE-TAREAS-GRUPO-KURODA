@@ -1423,7 +1423,13 @@ function parseWorkbook(buf){
           tienda:canonTienda(centro,r[c.tienda]),
           areaResp:String(r[c.areaResp]||'').trim(),
           areaRev:String(r[c.areaRev]||'').trim(),
-          actividad:nombreAct||String(r[c.descripcion]||'').trim(),
+          /* Cuando no hay "Nombre Actividad" (tickets manuales / Colaboración),
+             el nombre corto y reconocible del checklist es "Título del Ticket",
+             no "Descripción Ticket" (que trae un párrafo de instrucción largo
+             y casi único por fila). Usar la descripción aquí rompe el agrupado
+             por nombre de tarea (rankings, PPT) y sobrescribe el nombre ya
+             guardado en el sistema para tareas existentes. */
+          actividad:nombreAct||String(r[c.titulo]||'').trim(),
           nombre:String(r[c.titulo]||'').trim(),
           estado:normalizarEstadoTarea(r[c.estado]),
           fechaTerm:null,   /* pendiente: aún no aparece en el reporte del sistema */
@@ -1556,6 +1562,14 @@ async function generarImport(){
   if(!STAGED.tareas.length&&!STAGED.auditorias.length){toast('No hay datos en cola para generar');return;}
   var client=getSbClient();
   if(!client){toast('⚠ Sin conexión a Supabase. No se puede validar.');return;}
+
+  /* Deduplicar por ID+razón: un mismo archivo (p.ej. exportación StoreAction)
+     puede traer la misma fila repetida más de una vez. Sin esto, cada copia
+     se procesa por separado y se cuenta/actualiza dos veces. Se conserva la
+     última copia (son idénticas cuando el archivo trae duplicados exactos). */
+  var _porClave={};
+  STAGED.tareas.forEach(function(t){_porClave[tareaKey(t.id,t.razon)]=t;});
+  STAGED.tareas=Object.values(_porClave);
 
   toast('⏳ Validando contra Supabase…');
 
@@ -2873,10 +2887,15 @@ function calcAudStats(a, rowsMismaClase){
   }
 
   /* Salvaguarda: si el dinámico trae MÁS tareas que el total declarado en la
-     auditoría, hubo sobre-emparejamiento (varias auditorías del mismo centro/mes
-     comparten tareas). En ese caso usar los valores declarados de la auditoría
-     para no mostrar más resueltas que las que realmente tuvo. */
-  if((a.tareas||0)>0 && tt.length>(a.tareas||0)){
+     auditoría Y existen 2+ auditorías de la misma tienda/centro/clase, hubo
+     sobre-emparejamiento (varias auditorías comparten tareas del mismo mes) y
+     no se puede repartir con certeza — ahí sí se usan los valores declarados.
+     Si es la ÚNICA auditoría de esa tienda/centro/clase (multiAud=false), no
+     hay con quién compartir tareas: el conteo en vivo SIEMPRE es el correcto,
+     aunque supere el total que quedó guardado (p.ej. se agregó o vinculó una
+     tarea nueva). Antes esta condición ignoraba multiAud y se congelaba con
+     los valores viejos, obligando a corregir la auditoría a mano cada vez. */
+  if(multiAud && (a.tareas||0)>0 && tt.length>(a.tareas||0)){
     return {tareas:a.tareas||0,resueltas:a.resueltas||0,pendientes:a.pendientes||0,
             abiertas:a.pendientes||0,abiertasAtrasadas:0,resueltasAtrasadas:0,
             pctResuelto:a.pctResuelto||0,tieneAtrasada:false,dinamico:false};
