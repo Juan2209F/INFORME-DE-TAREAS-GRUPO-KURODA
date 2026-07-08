@@ -2950,6 +2950,37 @@ function calcAudStats(a, rowsMismaClase){
   };
 }
 
+/* Cuando calcAudStats calcula en vivo (dinamico=true) y el resultado difiere
+   de lo que quedó guardado en el renglón de la auditoría (tareas/pendientes/
+   resueltas/pct_resuelto), esos campos se quedaban congelados en Supabase para
+   siempre — la pantalla mostraba el número correcto, pero cualquier otra
+   lectura directa de la tabla 'auditorias' (reportes, otra vista) seguía
+   viendo el valor viejo. Esto persiste el número correcto de vuelta, una sola
+   vez por cambio real (con guarda anti-duplicados mientras la escritura está
+   en curso). Se llama justo cuando se pinta cada fila de la tabla. */
+var _audSyncEnVuelo={};
+function syncAuditoriaDinamico(a, stats){
+  if(!stats.dinamico)return;
+  var pctR=stats.pctResuelto||0;
+  var cambio = (a.tareas||0)!==stats.tareas || (a.pendientes||0)!==stats.pendientes ||
+               (a.resueltas||0)!==stats.resueltas || Math.abs((a.pctResuelto||0)-pctR)>0.001;
+  if(!cambio)return;
+  var client=getSbClient();
+  if(!client)return;
+  var akey=[norm(a.razon||''),norm(a.centro||a.tienda||''),String(a.fecha||'').split('T')[0],norm(a.clase||'')].join('|');
+  if(_audSyncEnVuelo[akey])return;
+  _audSyncEnVuelo[akey]=true;
+  /* Reflejar de inmediato en memoria para no reintentar en el próximo render */
+  a.tareas=stats.tareas;a.pendientes=stats.pendientes;a.resueltas=stats.resueltas;a.pctResuelto=pctR;
+  var row={tareas:stats.tareas,pendientes:stats.pendientes,resueltas:stats.resueltas,pct_resuelto:pctR};
+  var q=client.from('auditorias').update(row);
+  q=a.centro?q.eq('centro',a.centro):q.eq('tienda',a.tienda);
+  q=q.eq('mes',(a.mes||'').toUpperCase()).eq('clase',a.clase);
+  if(a.fecha)q=q.eq('fecha',String(a.fecha).split('T')[0]);
+  q.then(function(r){delete _audSyncEnVuelo[akey];if(r.error)console.warn('sync auditoria:',r.error.message);})
+   .catch(function(e){delete _audSyncEnVuelo[akey];console.warn('sync auditoria:',e.message);});
+}
+
 /* Color del número de pendientes:
    🔴 rojo   → hay abierta atrasada
    🔵 azul   → hay abierta vigente (sin atraso)
@@ -2970,6 +3001,8 @@ function audTablaPorClase(titulo,color,rows){
     var stats=calcAudStats(a,rows);
     var pend=stats.pendientes;
     var pc=pendColor(stats);
+    /* Persistir en Supabase el número correcto si difiere de lo guardado */
+    syncAuditoriaDinamico(a,stats);
     /* Auto-enviar a finalizadas si resuelto al 100% */
     if(stats.dinamico&&stats.pendientes===0&&stats.tareas>0){
       registrarFinalizada(a);
@@ -3042,6 +3075,8 @@ function audTablaPorClaseCarteraRender(titulo,color,rows){
     var pend=stats.pendientes;
     var resu=stats.resueltas;
     var pc=pend>0?'#dc2626':'#16a34a';
+    /* Persistir en Supabase el número correcto si difiere de lo guardado */
+    syncAuditoriaDinamico(a,stats);
     /* Auto-enviar a finalizadas si resuelto al 100% (igual que audTablaPorClase) */
     if(stats.dinamico&&stats.pendientes===0&&stats.tareas>0){
       registrarFinalizada(a);
@@ -5547,7 +5582,7 @@ function checkAdminUI(){
   var actExcel=document.getElementById('btn-excel-actividad');
   if(actExcel) actExcel.style.display=(_session&&['admin','admin_auditor','auditor'].includes(_session.rol))?'':'none';
   var audBtn=document.getElementById('btn-nueva-auditoria');
-  if(audBtn) audBtn.style.display=(_session&&['admin','admin_auditor'].includes(_session.rol))?'':'none';
+  if(audBtn) audBtn.style.display=(_session&&['admin','admin_auditor','auditor'].includes(_session.rol))?'':'none';
   var ajBtn=document.getElementById('btn-nuevo-ajuste');
   if(ajBtn) ajBtn.style.display=(_session&&['admin','admin_auditor','auditor'].includes(_session.rol))?'':'none';
   var ajExcel=document.getElementById('btn-excel-ajuste');
