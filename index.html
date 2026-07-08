@@ -4168,7 +4168,7 @@ function generateActPpt(){
     /* Franja inferior */
     s.addShape(pptx.ShapeType.rect,{x:0,y:H-.18,w:W,h:.18,fill:{color:'1B4F72'},line:{color:'1B4F72'}});
     /* Recuadro central */
-    s.addShape(pptx.ShapeType.rect,{x:2.2,y:1.5,w:5.6,h:2.7,fill:{color:'00000000'},line:{color:'6B9AC4',pt:1.2}});
+    s.addShape(pptx.ShapeType.rect,{x:2.2,y:1.5,w:5.6,h:2.7,fill:{type:'none'},line:{color:'6B9AC4',pt:1.2}});
     s.addText(tituloAct+'\n'+mesFilter+' '+añoFilter,{
       x:2.2,y:1.55,w:5.6,h:2.6,
       fontSize:30,color:WHT,align:'center',valign:'middle',
@@ -6665,34 +6665,11 @@ async function commitMermasExcel(rows){
              total_tareas, resueltas, fecha_finalizacion, created_at
    Flujo: una auditoría sin tareas pendientes se registra aquí y permanece.
           Se filtra por el MES DE LA AUDITORÍA (campo mes) y por defecto
-          muestra el mes en curso. El histórico previamente archivado se
-          reincorpora al cargar (mergeArchivoHistorico).
+          muestra el mes en curso.
 ════════════════════════════════════════════════════════════════════ */
 var FINALIZADAS=[];
 var _finMesManual=false; /* true cuando el usuario elige mes/año a mano en Finalizadas */
 var _finLoaded=false;
-
-/* El módulo Archivo se eliminó: el histórico completo vive en Auditorías
-   Finalizadas. Ya no se purga nada; las finalizadas permanecen siempre.
-   Lo que se hubiera archivado antes se reincorpora aquí al cargar. */
-async function mergeArchivoHistorico(){
-  var client=getSbClient();if(!client)return;
-  try{
-    var r=await client.from('tareas_finalizadas_archivo').select('*').limit(5000);
-    if(r.error)return; /* la tabla puede no existir: se ignora en silencio */
-    var dec=await decArr(r.data||[],FIELDS.tareas_finalizadas);
-    var vistos={};
-    FINALIZADAS.forEach(function(f){if(f.aud_key)vistos[f.aud_key]=true;});
-    dec.forEach(function(f){
-      var pct=parseFloat(f.pct_cumpl)||0;if(pct>1)pct=pct/100;
-      var rec=Object.assign({},f,{pct_cumpl:pct,_archivado:true});
-      if(!tiendaVisible(rec.tienda))return;
-      if(rec.aud_key&&vistos[rec.aud_key])return;
-      if(rec.aud_key)vistos[rec.aud_key]=true;
-      FINALIZADAS.push(rec);
-    });
-  }catch(e){/* silencioso */}
-}
 
 async function loadFinalizadas(){
   var client=getSbClient();
@@ -6778,7 +6755,6 @@ async function loadFinalizadas(){
     });
     FINALIZADAS=FINALIZADAS.filter(function(f){return f._pending||tiendaVisible(f.tienda);});
     _finLoaded=true;
-    await mergeArchivoHistorico(); /* reincorpora lo previamente archivado */
     fillFinFilters();renderFinalizadas();
     toast('\u2713 '+FINALIZADAS.length+' auditoría(s) finalizada(s)');
   }catch(e){toast('\u26a0 '+e.message);}
