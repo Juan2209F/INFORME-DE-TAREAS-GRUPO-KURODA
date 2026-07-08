@@ -1237,7 +1237,16 @@ var CENTRO_TIENDA={
   'KS17':'KS TIANGUIS OBREGON',
   'KS21':'KS PLOMELEC EXPRESS'
 };
-function canonCentro(c){return String(c||'').toUpperCase().replace(/\s+/g,'').trim();}
+/* Alias de centros: algunos centros comparten la misma tienda física bajo más
+   de un código (histórico, de sistema origen, etc.). KN06 y KN18 son la misma
+   tienda — cualquier dato que llegue etiquetado KN06 (carga de Excel, fila de
+   Supabase, captura manual) se centra en KN18 desde este único punto, para no
+   fragmentar sus auditorías/tareas en dos y mantener la actualización correcta. */
+var CENTRO_ALIAS={'KN06':'KN18'};
+function canonCentro(c){
+  var cc=String(c||'').toUpperCase().replace(/\s+/g,'').trim();
+  return CENTRO_ALIAS[cc]||cc;
+}
 /* Devuelve el nombre canónico de la sucursal a partir del centro; si el
    centro no está en el diccionario, conserva el nombre recibido. */
 function canonTienda(centro,raw){
@@ -1428,8 +1437,9 @@ function parseWorkbook(buf){
           : (nombreActN.includes('orden')||nombreActN.includes('limpieza')) ? 'TAREAS ORDEN Y LIMPIEZA'
           : nombreActN.includes('cartera') ? 'TAREAS CARTERA'
           : 'TAREAS AUDITORIA COL';
-        /* El centro trae el nombre canónico de tienda; se respeta el del diccionario */
-        const centro=String(r[c.centro]||'').trim();
+        /* El centro trae el nombre canónico de tienda; se respeta el del diccionario.
+           canonCentro también resuelve alias de centro (p.ej. KN06 se centra en KN18). */
+        const centro=canonCentro(String(r[c.centro]||'').trim());
         out.tareas.push({
           razon:String(r[c.razon]||'').trim(),
           centro,
@@ -1491,7 +1501,7 @@ function parseWorkbook(buf){
         const num=String(idv).replace(/\D/g,'');
         if(!num)continue;
         out.tareas.push({
-          razon:String(r[c.razon]||'').trim(),centro:String(r[c.centro]||'').trim(),
+          razon:String(r[c.razon]||'').trim(),centro:canonCentro(String(r[c.centro]||'').trim()),
           id:isNaN(Number(idv))?String(idv).trim():Number(num),
           fechaCreacion:toISO(parseDate(fechaCelda(i,c.fechaCre,c.pegaCre))),
           tienda:canonTienda(String(r[c.centro]||'').trim(),r[c.tienda]),
@@ -1510,7 +1520,7 @@ function parseWorkbook(buf){
         pctRes:findCol(H,['porcentaje resuelto','% resuelto']),clase:idxClase,
         pegaFecha:findColRe(H,/pega aqui.*creacion/)};
       for(let i=hi+1;i<raw.length;i++){
-        const r=raw[i];const centroA=String(r[c.centro]||'').trim();
+        const r=raw[i];const centroA=canonCentro(String(r[c.centro]||'').trim());
         const tienda=canonTienda(centroA,r[c.tienda]);
         const razon=String(r[c.razon]||'').trim();
         if(!tienda&&!razon)continue;
@@ -1955,6 +1965,29 @@ function filteredAuditorias(){
 ════════════════════════════════════════════════════════════════════ */
 function esPendiente(t){if(t.fechaCumpl)return false;return norm(t.estado).includes('abierta');}
 function esResuelta(t){if(t.fechaCumpl)return true;return norm(t.estado).includes('resuelta');}
+/* Deriva el estado correcto SOLO a partir de las fechas, en vez de depender de
+   que alguien elija bien "Resuelta"/"Resuelta Atrasada"/"Abierta"/"Abierta
+   atrasada" a mano en un campo aparte:
+   - Si ya tiene fecha de cumplimiento → Resuelta (a tiempo) o Resuelta Atrasada
+     (si esa fecha quedó después de la fecha de término).
+   - Si no tiene fecha de cumplimiento → Abierta, o Abierta atrasada si la
+     fecha de término ya pasó.
+   Esta es la misma comparación que usa esPendiente/esResuelta; aquí se usa
+   para fijar el TEXTO del campo estado, no solo para el cálculo funcional. */
+function estadoAutomatico(fechaTerm, fechaCumpl){
+  var ft=fromISO(fechaTerm);
+  if(fechaCumpl){
+    var fc=fromISO(fechaCumpl);
+    if(!ft||!fc)return 'Resuelta';
+    var ftD=new Date(ft);ftD.setHours(0,0,0,0);
+    var fcD=new Date(fc);fcD.setHours(0,0,0,0);
+    return fcD>ftD?'Resuelta Atrasada':'Resuelta';
+  }
+  if(!ft)return 'Abierta';
+  var hoy=new Date();hoy.setHours(0,0,0,0);
+  var ftD2=new Date(ft);ftD2.setHours(0,0,0,0);
+  return ftD2<hoy?'Abierta atrasada':'Abierta';
+}
 function diasVenc(t){ // días hasta fechaTerm (negativo = vencida)
   const ft=fromISO(t.fechaTerm);if(!ft)return null;
   return daysBetween(ft,new Date());
@@ -1973,21 +2006,29 @@ function estadoBadge(estado){
 ════════════════════════════════════════════════════════════════════ */
 
 /* Actualizar automáticamente tareas "Abierta" cuya fechaTerm ya venció → "Abierta atrasada" */
+var _estadoSyncEnVuelo={};
 function actualizarEstadosVencidos(){
-  var hoy=new Date();hoy.setHours(0,0,0,0);
   var actualizadas=0;
+  var client=getSbClient();
   STORE.tareas.forEach(function(t){
-    if(!esPendiente(t))return; /* solo abiertas */
-    if(norm(t.estado).includes('atrasad'))return; /* ya está atrasada */
-    var ft=fromISO(t.fechaTerm);
-    if(!ft)return;
-    var fechaTerm=new Date(ft);fechaTerm.setHours(0,0,0,0);
-    if(fechaTerm<hoy){
-      t.estado='Abierta atrasada';
-      actualizadas++;
+    var correcto=estadoAutomatico(t.fechaTerm,t.fechaCumpl);
+    if(norm(t.estado)===norm(correcto))return; /* ya coincide, nada que hacer */
+    t.estado=correcto;
+    actualizadas++;
+    /* Persistir la corrección en Supabase — de lo contrario la próxima carga
+       trae de vuelta el estado viejo desde la base de datos. Guarda
+       anti-duplicados: una sola escritura en curso por tarea a la vez. */
+    if(client&&t.id){
+      var tk=tareaKey(t.id,t.razon);
+      if(!_estadoSyncEnVuelo[tk]){
+        _estadoSyncEnVuelo[tk]=true;
+        client.from('tareas').update({estado:correcto}).eq('tarea_key',tk)
+          .then(function(r){delete _estadoSyncEnVuelo[tk];if(r.error)console.warn('sync estado:',r.error.message);})
+          .catch(function(e){delete _estadoSyncEnVuelo[tk];console.warn('sync estado:',e.message);});
+      }
     }
   });
-  if(actualizadas>0)console.log('[AUDITORIA] '+actualizadas+' tarea(s) actualizadas a Abierta atrasada');
+  if(actualizadas>0)console.log('[AUDITORIA] '+actualizadas+' tarea(s) con estado corregido automáticamente según sus fechas');
 }
 
 function refreshAll(){
@@ -2435,16 +2476,31 @@ function openEdit(id){
       <div class="form-field"><label>Área de responsabilidad</label><input id="e-areaResp" value="${v.areaResp||''}"></div>
       <div class="form-field"><label>Área revisora</label><input id="e-areaRev" value="${v.areaRev||''}"></div>
       <div class="form-field"><label>Actividad</label><input id="e-act" value="${v.actividad||''}"></div>
-      <div class="form-field"><label>Estado</label>
-        <select id="e-estado">${ESTADOS.map(s=>`<option ${norm(s)===norm(v.estado)?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="form-field"><label>Estado <span style="font-weight:400;color:var(--muted)">(automático, según fechas)</span></label>
+        <div id="e-estado-preview" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600"></div></div>
       <div class="form-field"><label>Fecha de creación</label><input type="date" id="e-fcre" value="${fmtInput(fromISO(v.fechaCreacion))}"></div>
-      <div class="form-field"><label>Fecha de término</label><input type="date" id="e-fterm" value="${fmtInput(fromISO(v.fechaTerm))}"></div>
-      <div class="form-field"><label>Fecha de cumplimiento</label><input type="date" id="e-fcumpl" value="${fmtInput(fromISO(v.fechaCumpl))}"></div>
+      <div class="form-field"><label>Fecha de término</label><input type="date" id="e-fterm" value="${fmtInput(fromISO(v.fechaTerm))}" oninput="actualizarEstadoPreview()"></div>
+      <div class="form-field"><label>Fecha de cumplimiento</label><input type="date" id="e-fcumpl" value="${fmtInput(fromISO(v.fechaCumpl))}" oninput="actualizarEstadoPreview()"></div>
     </div>`;
   const foot=[{label:'Cancelar',cls:'btn-ghost',fn:closeModal}];
   if(!isNew&&_session&&['admin','admin_auditor'].includes(_session.rol))foot.push({label:'Eliminar',cls:'btn-red',fn:()=>deleteTask(v.id,v.razon)});
   foot.push({label:isNew?'Crear tarea':'Guardar cambios',cls:'btn-blue',fn:()=>saveTask(isNew)});
   openModal(isNew?'➕ Nueva tarea':`✎ Editar tarea <b>#${v.id}</b>`,html,foot);
+  actualizarEstadoPreview();
+}
+/* Recalcula y pinta el badge de Estado del modal de edición de tarea según
+   las fechas de término/cumplimiento capturadas — se llama al abrir el modal
+   y cada vez que el usuario cambia cualquiera de las dos fechas. */
+function actualizarEstadoPreview(){
+  var el=document.getElementById('e-estado-preview');
+  if(!el)return;
+  var ft=dval('e-fterm')?dval('e-fterm')+'T12:00:00':null;
+  var fc=dval('e-fcumpl')?dval('e-fcumpl')+'T12:00:00':null;
+  var est=estadoAutomatico(ft?toISO(new Date(ft)):null, fc?toISO(new Date(fc)):null);
+  el.textContent=est;
+  var colores={'Resuelta':'#16a34a','Resuelta Atrasada':'#d97706','Abierta':'#2563eb','Abierta atrasada':'#dc2626'};
+  el.style.color=colores[est]||'inherit';
+  el.style.borderColor=colores[est]||'var(--border)';
 }
 function dval(id){const e=document.getElementById(id);return e?e.value.trim():'';}
 function ddate(id){const v=dval(id);return v?toISO(new Date(v+'T12:00:00')):null;}
@@ -2453,12 +2509,13 @@ function saveTask(isNew){
   if(!id){toast('⚠ El ID es obligatorio');return;}
   if(!dval('e-nombre')){toast('⚠ El nombre de tarea es obligatorio');return;}
   if(isNew&&STORE.tareas.some(t=>String(t.id)===id)){toast('⚠ Ya existe una tarea con ese ID');return;}
+  const fCre=ddate('e-fcre'), fTerm=ddate('e-fterm'), fCumpl=ddate('e-fcumpl');
   const rec={
     id:isNaN(Number(id))?id:Number(id),
-    razon:dval('e-razon'),centro:dval('e-centro'),tienda:dval('e-tienda'),
+    razon:dval('e-razon'),centro:canonCentro(dval('e-centro')),tienda:dval('e-tienda'),
     areaResp:dval('e-areaResp'),areaRev:dval('e-areaRev'),actividad:dval('e-act'),
-    nombre:dval('e-nombre'),estado:dval('e-estado'),tipoTarea:dval('e-tipo'),
-    fechaCreacion:ddate('e-fcre'),fechaTerm:ddate('e-fterm'),fechaCumpl:ddate('e-fcumpl')
+    nombre:dval('e-nombre'),estado:estadoAutomatico(fTerm,fCumpl),tipoTarea:dval('e-tipo'),
+    fechaCreacion:fCre,fechaTerm:fTerm,fechaCumpl:fCumpl
   };
   const idx=STORE.tareas.findIndex(t=>String(t.id)===id);
   if(idx>=0){
@@ -3145,7 +3202,7 @@ async function saveEditAuditoria(original){
   function dv(id){var e=document.getElementById(id);return e?e.value.trim():'';}
   var pct=parseFloat(dv('ea-pct'))||0;
   var updated={
-    tienda:dv('ea-tienda').toUpperCase(),centro:dv('ea-centro').toUpperCase(),
+    tienda:dv('ea-tienda').toUpperCase(),centro:canonCentro(dv('ea-centro')),
     razon:(dv('ea-razon')||original.razon||'').toUpperCase(),mes:dv('ea-mes').toUpperCase(),
     fecha:dv('ea-fecha'),pctCumpl:pct>1?pct/100:pct,
     tareas:parseInt(dv('ea-tareas'))||0,
@@ -3339,7 +3396,7 @@ async function guardarNuevaAuditoria(){
   if(!mes){errEl.textContent='El mes es obligatorio';return;}
 
   var clase=document.getElementById('na-clase').value;
-  var centro=document.getElementById('na-centro').value.trim().toUpperCase();
+  var centro=canonCentro(document.getElementById('na-centro').value.trim().toUpperCase());
   var razon=document.getElementById('na-razon').value.trim().toUpperCase();
   var fechaVal=document.getElementById('na-fecha').value;
   var pct=parseFloat(document.getElementById('na-pct').value)||0;
@@ -5261,7 +5318,7 @@ async function loadDataFromSupabase(){
     STORE.auditorias=audDec.map(function(a){
       function safe(v){return(v&&!pareceCifrado(v))?v:'';}
       return{
-        razon:safe(a.razon)||'',centro:safe(a.centro)||'',tienda:canonTienda(safe(a.centro),safe(a.tienda)),
+        razon:safe(a.razon)||'',centro:canonCentro(safe(a.centro))||'',tienda:canonTienda(safe(a.centro),safe(a.tienda)),
         fecha:a.fecha,mes:safe(a.mes)||'',
         pctCumpl:parseFloat(a.pct_cumpl)||0,
         tareas:a.tareas||0,pendientes:a.pendientes||0,
@@ -5275,7 +5332,7 @@ async function loadDataFromSupabase(){
       function safe(v){return(v&&!pareceCifrado(v))?v:'';}
       return{
         id:t.tarea_id||t.id,sb_uuid:t.id,sb_updated:t.updated_at||null,
-        razon:safe(t.razon)||'',centro:safe(t.centro)||'',
+        razon:safe(t.razon)||'',centro:canonCentro(safe(t.centro))||'',
         tienda:canonTienda(safe(t.centro),safe(t.tienda)),areaResp:safe(t.area_resp)||'',areaRev:safe(t.area_rev)||'',
         actividad:safe(t.actividad)||'',nombre:safe(t.nombre)||'',tipoTarea:safe(t.tipo_tarea)||'',
         estado:safe(t.estado)||'Abierta',
