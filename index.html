@@ -1411,8 +1411,18 @@ function parseWorkbook(buf){
         if(!num)continue;
         const nombreAct=String(r[c.actividad]||'').trim();
         /* Regla: actividad en blanco = Auditoría de Colaboración;
-           si trae texto, ese texto define el tipo (Orden y Limpieza, etc.) */
-        const tipoTarea=nombreAct?nombreAct:'TAREAS AUDITORIA COL';
+           si trae texto, ese texto define el tipo (Orden y Limpieza, etc.).
+           tipoTarea se normaliza SIEMPRE a uno de los 3 valores canónicos que
+           ya usa el resto del sistema (igual criterio que tipoNormLocal) —
+           antes se guardaba el texto crudo de "Nombre Actividad" tal cual
+           (p.ej. "AUDITORÍA DE ORDEN Y LIMPIEZA v02"), que nunca coincide con
+           el canónico ya guardado en Supabase y marcaba la tarea como
+           "cambiada" en cada re-importación aunque nada real hubiera cambiado. */
+        const nombreActN=norm(nombreAct);
+        const tipoTarea = !nombreAct ? 'TAREAS AUDITORIA COL'
+          : (nombreActN.includes('orden')||nombreActN.includes('limpieza')) ? 'TAREAS ORDEN Y LIMPIEZA'
+          : nombreActN.includes('cartera') ? 'TAREAS CARTERA'
+          : 'TAREAS AUDITORIA COL';
         /* El centro trae el nombre canónico de tienda; se respeta el del diccionario */
         const centro=String(r[c.centro]||'').trim();
         out.tareas.push({
@@ -1629,17 +1639,27 @@ function tareaIgualSupabase(t, ex){
          fdate(t.fechaCumpl)===fdate(ex.fecha_cumpl);
 }
 
-/* Lista qué campos cambiaron entre staged y Supabase */
+/* Lista qué campos cambiaron entre staged y Supabase, con el valor anterior
+   y el nuevo, para que se pueda decidir con información real si conviene
+   actualizar en vez de solo ver "Otros campos". Cubre los mismos campos que
+   compara tareaIgualSupabase — así nada queda oculto en un cajón genérico. */
 function camposDiferentes(t, ex){
   function n(v){return (v===null||v===undefined||v==='')?'':String(v).trim();}
   function fdate(v){return v?String(v).split('T')[0]:'';}
+  function corto(v,max){v=n(v)||'—';return v.length>max?v.slice(0,max)+'…':v;}
   var campos=[];
-  if(n(t.estado)!==n(ex.estado))campos.push('Estado: "'+n(ex.estado)+'" → "'+n(t.estado)+'"');
-  if(fdate(t.fechaCumpl)!==fdate(ex.fecha_cumpl))campos.push('F.Cumplimiento: "'+fdate(ex.fecha_cumpl)+'" → "'+fdate(t.fechaCumpl)+'"');
-  if(n(t.nombre)!==n(ex.nombre))campos.push('Nombre cambió');
-  if(n(t.areaResp)!==n(ex.area_resp))campos.push('Área Resp. cambió');
-  if(n(t.tienda)!==n(ex.tienda))campos.push('Tienda cambió');
-  if(!campos.length)campos.push('Otros campos');
+  if(n(t.estado)!==n(ex.estado))campos.push('Estado: "'+corto(ex.estado,30)+'" → "'+corto(t.estado,30)+'"');
+  if(fdate(t.fechaCumpl)!==fdate(ex.fecha_cumpl))campos.push('F.Cumplimiento: "'+corto(fdate(ex.fecha_cumpl),20)+'" → "'+corto(fdate(t.fechaCumpl),20)+'"');
+  if(fdate(t.fechaCreacion)!==fdate(ex.fecha_creacion))campos.push('F.Creación: "'+corto(fdate(ex.fecha_creacion),20)+'" → "'+corto(fdate(t.fechaCreacion),20)+'"');
+  if(n(t.nombre)!==n(ex.nombre))campos.push('Nombre: "'+corto(ex.nombre,40)+'" → "'+corto(t.nombre,40)+'"');
+  if(n(t.actividad)!==n(ex.actividad))campos.push('Actividad: "'+corto(ex.actividad,40)+'" → "'+corto(t.actividad,40)+'"');
+  if(n(t.tipoTarea)!==n(ex.tipo_tarea))campos.push('Tipo de tarea: "'+corto(ex.tipo_tarea,30)+'" → "'+corto(t.tipoTarea,30)+'"');
+  if(n(t.areaResp)!==n(ex.area_resp))campos.push('Área Resp.: "'+corto(ex.area_resp,25)+'" → "'+corto(t.areaResp,25)+'"');
+  if(n(t.areaRev)!==n(ex.area_rev))campos.push('Área Revisa: "'+corto(ex.area_rev,25)+'" → "'+corto(t.areaRev,25)+'"');
+  if(n(t.tienda)!==n(ex.tienda))campos.push('Tienda: "'+corto(ex.tienda,30)+'" → "'+corto(t.tienda,30)+'"');
+  if(n(t.centro)!==n(ex.centro))campos.push('Centro: "'+corto(ex.centro,15)+'" → "'+corto(t.centro,15)+'"');
+  if(n(t.razon)!==n(ex.razon))campos.push('Razón: "'+corto(ex.razon,15)+'" → "'+corto(t.razon,15)+'"');
+  if(!campos.length)campos.push('⚠ Diferencia no identificada — revisar manualmente');
   return campos;
 }
 
