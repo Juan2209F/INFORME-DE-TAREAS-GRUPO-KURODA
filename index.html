@@ -3007,6 +3007,31 @@ function calcAudStats(a, rowsMismaClase){
   };
 }
 
+/* Sincroniza TODAS las auditorías contra sus tareas reales, sin depender de
+   que el usuario llegue a abrir/filtrar esa fila en el módulo de Auditorías.
+   Antes syncAuditoriaDinamico solo corría para las filas que efectivamente se
+   pintaban en pantalla (audTablaPorClase/audTablaPorClaseCarteraRender) — una
+   auditoría que nadie llegara a mirar se quedaba con números viejos aunque la
+   tarea ya se hubiera actualizado. Esto corre en segundo plano en cuanto se
+   cargan los datos, cubriendo todas las auditorías del usuario de una vez. */
+function sincronizarTodasAuditorias(){
+  var porClase={};
+  STORE.auditorias.forEach(function(a){
+    var k=norm(a.clase||'');
+    (porClase[k]=porClase[k]||[]).push(a);
+  });
+  Object.keys(porClase).forEach(function(k){
+    porClase[k].forEach(function(a){
+      var stats=calcAudStats(a,porClase[k]);
+      syncAuditoriaDinamico(a,stats);
+      if(stats.dinamico&&stats.pendientes===0&&stats.tareas>0){
+        registrarFinalizada(a);
+      }
+    });
+  });
+}
+
+
 /* Cuando calcAudStats calcula en vivo (dinamico=true) y el resultado difiere
    de lo que quedó guardado en el renglón de la auditoría (tareas/pendientes/
    resueltas/pct_resuelto), esos campos se quedaban congelados en Supabase para
@@ -5347,7 +5372,10 @@ async function loadDataFromSupabase(){
     refreshAll();
     Promise.all([
       loadFinalizadas()
-    ]).then(function(){if(VIEW==='auditorias')renderAuditoriasView();});
+    ]).then(function(){
+      if(VIEW==='auditorias')renderAuditoriasView();
+      sincronizarTodasAuditorias();
+    });
     setPill('supabase');toast('✓ Conectado a Supabase — '+STORE.tareas.length+' tareas, '+STORE.auditorias.length+' auditorías');
   }catch(e){
     console.warn('Error cargando Supabase:',e);
