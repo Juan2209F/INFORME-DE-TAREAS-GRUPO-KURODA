@@ -1448,19 +1448,12 @@ function parseWorkbook(buf){
           tienda:canonTienda(centro,r[c.tienda]),
           areaResp:String(r[c.areaResp]||'').trim(),
           areaRev:String(r[c.areaRev]||'').trim(),
-          /* Cuando no hay "Nombre Actividad" (tickets manuales / Colaboración),
-             el nombre corto y reconocible del checklist es "Título del Ticket",
-             no "Descripción Ticket" (que trae un párrafo de instrucción largo
-             y casi único por fila). Usar la descripción aquí rompe el agrupado
-             por nombre de tarea (rankings, PPT) y sobrescribe el nombre ya
-             guardado en el sistema para tareas existentes. */
+          /* "Nombre Actividad" vacío = auditoría de Colaboración (dato manual
+             que el usuario captura en el archivo); NO significa que a la
+             tarea le falte nombre. El "Título del Ticket" siempre trae el
+             nombre real de la tarea, venga o no "Nombre Actividad". */
           actividad:nombreAct||String(r[c.titulo]||'').trim(),
-          /* 'nombre' solo se llena con el Título del Ticket cuando SÍ viene
-             "Nombre Actividad" (tareas de Orden y Limpieza, donde cada fila es
-             un defecto distinto bajo una misma visita). Si "Nombre Actividad"
-             viene en blanco (Colaboración), 'nombre' se deja vacío: ese campo
-             es de captura manual y no debe llenarse solo con el Excel. */
-          nombre:nombreAct?String(r[c.titulo]||'').trim():'',
+          nombre:String(r[c.titulo]||'').trim(),
           estado:normalizarEstadoTarea(r[c.estado]),
           fechaTerm:null,   /* pendiente: aún no aparece en el reporte del sistema */
           fechaCumpl:toISO(parseDate(fechaCelda(i,c.fechaCierre,-1))),
