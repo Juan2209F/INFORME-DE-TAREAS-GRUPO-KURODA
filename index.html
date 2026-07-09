@@ -2468,7 +2468,9 @@ function openEdit(id){
       <div class="form-field"><label>Sucursal / Tienda</label><input id="e-tienda" value="${v.tienda||''}"></div>
       <div class="form-field"><label>Área de responsabilidad</label><input id="e-areaResp" value="${v.areaResp||''}"></div>
       <div class="form-field"><label>Área revisora</label><input id="e-areaRev" value="${v.areaRev||''}"></div>
-      <div class="form-field"><label>Actividad</label><input id="e-act" value="${v.actividad||''}"></div>
+      <div class="form-field"><label>Actividad <span style="font-weight:400;color:var(--muted)">(elige una ya registrada o escribe una nueva)</span></label>
+        <input id="e-act" list="e-act-list" value="${v.actividad||''}">
+        <datalist id="e-act-list">${uniq(STORE.tareas.map(function(t){return t.actividad;}).filter(Boolean)).sort().map(function(a){return '<option value="'+esc(a)+'">';}).join('')}</datalist></div>
       <div class="form-field"><label>Estado <span style="font-weight:400;color:var(--muted)">(automático, según fechas)</span></label>
         <div id="e-estado-preview" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600"></div></div>
       <div class="form-field"><label>Fecha de creación</label><input type="date" id="e-fcre" value="${fmtInput(fromISO(v.fechaCreacion))}"></div>
@@ -2476,7 +2478,7 @@ function openEdit(id){
       <div class="form-field"><label>Fecha de cumplimiento</label><input type="date" id="e-fcumpl" value="${fmtInput(fromISO(v.fechaCumpl))}" oninput="actualizarEstadoPreview()"></div>
     </div>`;
   const foot=[{label:'Cancelar',cls:'btn-ghost',fn:closeModal}];
-  if(!isNew&&_session&&['admin','admin_auditor'].includes(_session.rol))foot.push({label:'Eliminar',cls:'btn-red',fn:()=>deleteTask(v.id,v.razon)});
+  if(!isNew&&_session&&['admin','admin_auditor','auditor'].includes(_session.rol))foot.push({label:'Eliminar',cls:'btn-red',fn:()=>deleteTask(v.id,v.razon)});
   foot.push({label:isNew?'Crear tarea':'Guardar cambios',cls:'btn-blue',fn:()=>saveTask(isNew)});
   openModal(isNew?'➕ Nueva tarea':`✎ Editar tarea <b>#${v.id}</b>`,html,foot);
   actualizarEstadoPreview();
