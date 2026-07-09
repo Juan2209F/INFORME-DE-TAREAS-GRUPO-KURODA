@@ -2952,9 +2952,17 @@ function calcAudStats(a, rowsMismaClase){
     return true;
   });
 
-  /* Acotar SIEMPRE al mes (y año) de la auditoría para no mezclar tareas de otros
-     periodos — antes solo se acotaba con 2+ auditorías, lo que inflaba las resueltas. */
-  if(mesMes>=0){
+  /* Acotar por mes SOLO cuando hace falta desambiguar entre 2+ auditorías que
+     comparten tienda/centro/clase (multiAud) — ahí sí hay que separar qué
+     tarea pertenece a cuál auditoría por fecha. Si es la ÚNICA auditoría de
+     esa tienda/centro/clase, no hay ambigüedad: todas sus tareas coincidentes
+     le pertenecen, sin importar el mes exacto en que se haya creado el
+     ticket. En la práctica los tickets de la auditoría de un mes ("Mayo")
+     suelen crearse unos días después, ya en el mes siguiente ("Junio") — al
+     acotar siempre por mes, esas auditorías nunca encontraban ninguna tarea
+     (0 coincidencias) y se quedaban congeladas con los números viejos para
+     siempre, sin importar cuánto se actualizara la tarea. */
+  if(multiAud && mesMes>=0){
     var _fa=a.fecha?fromISO(a.fecha):null;
     var anioAud=_fa?_fa.getFullYear():null;
     tt=tt.filter(function(t){
