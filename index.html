@@ -2468,9 +2468,12 @@ function openEdit(id){
       <div class="form-field"><label>Sucursal / Tienda</label><input id="e-tienda" value="${v.tienda||''}"></div>
       <div class="form-field"><label>Área de responsabilidad</label><input id="e-areaResp" value="${v.areaResp||''}"></div>
       <div class="form-field"><label>Área revisora</label><input id="e-areaRev" value="${v.areaRev||''}"></div>
-      <div class="form-field"><label>Actividad <span style="font-weight:400;color:var(--muted)">(elige una ya registrada o escribe una nueva)</span></label>
-        <input id="e-act" list="e-act-list" value="${v.actividad||''}">
-        <datalist id="e-act-list">${uniq(STORE.tareas.map(function(t){return t.actividad;}).filter(Boolean)).sort().map(function(a){return '<option value="'+esc(a)+'">';}).join('')}</datalist></div>
+      <div class="form-field"><label>Actividad <span style="font-weight:400;color:var(--muted)">(tipo de auditoría)</span></label>
+        <select id="e-act">
+          <option value="AUDITORIA ORDEN Y LIMPIEZA" ${(tipoNormLocal(v.actividad)||tipoNorm(v.tipoTarea))==='ol'?'selected':''}>Auditoría Orden y Limpieza</option>
+          <option value="AUDITORIAS DE COLABORACION" ${(tipoNormLocal(v.actividad)||tipoNorm(v.tipoTarea))==='col'?'selected':''}>Auditoría de Colaboración</option>
+          <option value="AUDITORIA CARTERA" ${(tipoNormLocal(v.actividad)||tipoNorm(v.tipoTarea))==='cartera'?'selected':''}>Cartera</option>
+        </select></div>
       <div class="form-field"><label>Estado <span style="font-weight:400;color:var(--muted)">(automático, según fechas)</span></label>
         <div id="e-estado-preview" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600"></div></div>
       <div class="form-field"><label>Fecha de creación</label><input type="date" id="e-fcre" value="${fmtInput(fromISO(v.fechaCreacion))}"></div>
