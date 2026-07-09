@@ -2469,7 +2469,7 @@ function openEdit(id){
           <option value="TAREAS AUDITORIA COL" ${tipoNorm(v.tipoTarea)==='col'?'selected':''}>Auditoría Colaboración</option>
           <option value="TAREAS CARTERA" ${tipoNorm(v.tipoTarea)==='cartera'?'selected':''}>Cartera</option>
         </select></div>
-      <div class="form-field full"><label>Nombre de tarea</label><textarea id="e-nombre" rows="2">${v.nombre||''}</textarea></div>
+      <div class="form-field full"><label>Nombre de tarea${v.nombre?'':' <span style="font-weight:400;color:var(--muted)">(vacío — se está mostrando "'+esc(v.actividad||'')+'" como nombre en las listas)</span>'}</label><textarea id="e-nombre" rows="2" placeholder="${esc(v.actividad||'')}">${v.nombre||''}</textarea></div>
       <div class="form-field"><label>Razón</label><input id="e-razon" value="${v.razon||''}"></div>
       <div class="form-field"><label>Centro</label><input id="e-centro" value="${v.centro||''}"></div>
       <div class="form-field"><label>Sucursal / Tienda</label><input id="e-tienda" value="${v.tienda||''}"></div>
