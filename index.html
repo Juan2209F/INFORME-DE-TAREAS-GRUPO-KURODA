@@ -2966,19 +2966,24 @@ function calcAudStats(a, rowsMismaClase){
      tarea pertenece a cuál auditoría por fecha. Si es la ÚNICA auditoría de
      esa tienda/centro/clase, no hay ambigüedad: todas sus tareas coincidentes
      le pertenecen, sin importar el mes exacto en que se haya creado el
-     ticket. En la práctica los tickets de la auditoría de un mes ("Mayo")
-     suelen crearse unos días después, ya en el mes siguiente ("Junio") — al
-     acotar siempre por mes, esas auditorías nunca encontraban ninguna tarea
-     (0 coincidencias) y se quedaban congeladas con los números viejos para
-     siempre, sin importar cuánto se actualizara la tarea. */
+     ticket.
+     Cuando SÍ hace falta acotar, se usa un margen de unos días a inicio y fin
+     de mes (no un calce exacto de mes calendario): en la práctica los
+     tickets de la auditoría de un mes suelen crearse un poco antes o después
+     del cambio de mes — no muchos días, pero sí pueden caer a inicios o
+     finales del mes vecino. Antes se exigía coincidencia exacta de mes y esas
+     auditorías nunca encontraban ninguna tarea (0 coincidencias) y se
+     quedaban congeladas con los números viejos para siempre. */
   if(multiAud && mesMes>=0){
+    var GRACIA_DIAS=5;
     var _fa=a.fecha?fromISO(a.fecha):null;
-    var anioAud=_fa?_fa.getFullYear():null;
+    var anioAud=_fa?_fa.getFullYear():new Date().getFullYear();
+    var desdeMes=new Date(anioAud,mesMes,1-GRACIA_DIAS);
+    var hastaMes=new Date(anioAud,mesMes+1,GRACIA_DIAS);
     tt=tt.filter(function(t){
       var d=fromISO(t.fechaCreacion);
-      if(!d||d.getMonth()!==mesMes)return false;
-      if(anioAud&&d.getFullYear()!==anioAud)return false;
-      return true;
+      if(!d)return false;
+      return d>=desdeMes&&d<=hastaMes;
     });
   }
 
@@ -3342,6 +3347,22 @@ function renderAuditoriasView(){
     var k=claseCanonica(a);
     if(!grupos[k])grupos[k]=[];
     grupos[k].push(a);
+  });
+
+  /* Omitir duplicados DENTRO de cada clase: misma tienda/centro + mismo mes +
+     mismo % de cumplimiento casi seguro es la misma auditoría capturada o
+     importada dos veces. Se compara solo dentro de la misma clase — una
+     Colaboración y una Orden y Limpieza del mismo centro/mes son auditorías
+     distintas y nunca se consideran duplicado entre sí. */
+  Object.keys(grupos).forEach(function(k){
+    var vistos={};
+    grupos[k]=grupos[k].filter(function(a){
+      var pct=parseFloat(a.pctCumpl)||0;if(pct>1)pct=pct/100;
+      var key=[norm(a.centro||a.tienda||''),norm(a.mes||''),Math.round(pct*100)].join('|');
+      if(vistos[key])return false;
+      vistos[key]=true;
+      return true;
+    });
   });
 
   var html='';
