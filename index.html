@@ -3470,14 +3470,18 @@ async function guardarNuevaAuditoria(){
 let ACTIVIDADES=[];
 var _actMesManual=false; /* true cuando el usuario elige el mes a mano: evita que una carga lo reescriba */
 
-/* Una actividad "Completado" solo cuenta como cumplida si además se terminó
-   a tiempo (Real Fin <= Est. Fin). Se usa tanto en la tabla de Actividades
+/* Una actividad "Completado" cuenta como cumplida (a tiempo) mientras se haya
+   terminado DENTRO DEL MISMO MES que la fecha estimada de fin — no se exige
+   que coincida el día exacto. Solo se marca "atrasada" si Real Fin cae en un
+   mes posterior al de Est. Fin. Se usa tanto en la tabla de Actividades
    (columna Cumplimiento) como en Desempeño, para que ambos coincidan siempre. */
 function actividadEnTiempoDesempeno(a){
   if(!a.realFin||!a.estFin)return true; /* sin ambas fechas no se puede juzgar atraso */
   var ef=fromISO(a.estFin), rf=fromISO(a.realFin);
   if(!ef||!rf)return true;
-  return rf<=ef;
+  var efMes=ef.getFullYear()*12+ef.getMonth();
+  var rfMes=rf.getFullYear()*12+rf.getMonth();
+  return rfMes<=efMes;
 }
 
 async function loadActividades(){
@@ -3619,7 +3623,7 @@ function renderActividades(){
       '<td>'+fmtActFecha(a.estFin)+'</td>'+
       '<td>'+fmtActFecha(a.realInicio)+'</td>'+
       '<td>'+fmtActFecha(a.realFin)+'</td>'+
-      '<td style="text-align:center">'+(a.durReal!=null?a.durReal:'—')+'</td>'+
+      '<td style="text-align:center">'+(calcDias(a.realInicio,a.realFin)!==''?calcDias(a.realInicio,a.realFin):'—')+'</td>'+
       '<td style="text-align:center">'+cumplimientoBadge(a)+'</td>'+
       '<td class="cell-c">'+(canEdit?'<button class="icon-btn" onclick="openActividad(\''+a.id+'\')">✎</button>':'<span style="color:var(--border)">—</span>')+'</td>'+
     '</tr>';
@@ -3686,10 +3690,10 @@ function openActividad(id){
     '<div class="fg"><label>Asignado a</label><input id="a-asignado" value="'+esc(a.asignado)+'" placeholder="Nombre"></div>'+
     '<div class="fg"><label>Estimado Inicio</label><input type="date" id="a-estinicio" value="'+di(a.estInicio)+'" oninput="calcDurEst()"></div>'+
     '<div class="fg"><label>Estimado Finalización</label><input type="date" id="a-estfin" value="'+di(a.estFin)+'" oninput="calcDurEst()"></div>'+
-    '<div class="fg"><label>Duración estimada (días)</label><input type="number" id="a-durest" value="'+(a.durEstimada!=null?a.durEstimada:'')+'" readonly style="background:#f1f5f9"></div>'+
+    '<div class="fg"><label>Duración estimada (días)</label><input type="number" id="a-durest" value="'+calcDias(a.estInicio,a.estFin)+'" readonly style="background:#f1f5f9"></div>'+
     '<div class="fg"><label>Real Inicio</label><input type="date" id="a-realinicio" value="'+di(a.realInicio)+'" oninput="calcDurReal()"></div>'+
     '<div class="fg"><label>Real Finalización</label><input type="date" id="a-realfin" value="'+di(a.realFin)+'" oninput="calcDurReal()"></div>'+
-    '<div class="fg"><label>Duración real (días)</label><input type="number" id="a-durreal" value="'+(a.durReal!=null?a.durReal:'')+'" readonly style="background:#f1f5f9"></div>'+
+    '<div class="fg"><label>Duración real (días)</label><input type="number" id="a-durreal" value="'+calcDias(a.realInicio,a.realFin)+'" readonly style="background:#f1f5f9"></div>'+
     '<div class="fg" style="grid-column:1/3"><label>Comentario</label><input id="a-comentario" value="'+esc(a.comentario)+'"></div>'+
     '<div class="fg" style="grid-column:1/3"><label>Apoyos requeridos</label><input id="a-apoyos" value="'+esc(a.apoyos)+'"></div>'+
     '<label style="grid-column:1/3;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--txt)"><input type="checkbox" id="a-programada"'+(a.programada?' checked':'')+'> Actividad programada (desmarcar si es NO PROGRAMADA)</label>'+
@@ -3846,6 +3850,11 @@ function importActividadesExcel(files){
         if(!razon){omitidas++;continue;}
         var progRaw=iPr>=0?norm(String(r[iPr]||'')):'';
         var programada=iPr<0?true:!(progRaw==='no'||progRaw==='false'||progRaw==='0');
+        var _estI=iEI>=0?toISOfecha(r[iEI]):null;
+        var _estF=iEF>=0?toISOfecha(r[iEF]):null;
+        var _realI=iRI>=0?toISOfecha(r[iRI]):null;
+        var _realF=iRF>=0?toISOfecha(r[iRF]):null;
+        function _durOrNull(v){return v===''?null:v;}
         rows.push({
           razon:razon,
           actividad:actividad,
@@ -3854,12 +3863,12 @@ function importActividadesExcel(files){
           asignado:iAs>=0?String(r[iAs]||'').trim():'',
           estado:iEs>=0?String(r[iEs]||'').trim()||'Sin comenzar':'Sin comenzar',
           programada:programada,
-          est_inicio:iEI>=0?toISOfecha(r[iEI]):null,
-          est_fin:iEF>=0?toISOfecha(r[iEF]):null,
-          dur_estimada:iDE>=0&&r[iDE]!==''?parseFloat(r[iDE]):null,
-          real_inicio:iRI>=0?toISOfecha(r[iRI]):null,
-          real_fin:iRF>=0?toISOfecha(r[iRF]):null,
-          dur_real:iDR>=0&&r[iDR]!==''?parseFloat(r[iDR]):null,
+          est_inicio:_estI,
+          est_fin:_estF,
+          dur_estimada:_durOrNull(calcDias(_estI,_estF)),
+          real_inicio:_realI,
+          real_fin:_realF,
+          dur_real:_durOrNull(calcDias(_realI,_realF)),
           comentario:iCo>=0?String(r[iCo]||'').trim():'',
           apoyos:iAp>=0?String(r[iAp]||'').trim():'',
           creado_por:yoSesion||null
