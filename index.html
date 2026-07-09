@@ -3470,6 +3470,16 @@ async function guardarNuevaAuditoria(){
 let ACTIVIDADES=[];
 var _actMesManual=false; /* true cuando el usuario elige el mes a mano: evita que una carga lo reescriba */
 
+/* Una actividad "Completado" solo cuenta como cumplida si además se terminó
+   a tiempo (Real Fin <= Est. Fin). Se usa tanto en la tabla de Actividades
+   (columna Cumplimiento) como en Desempeño, para que ambos coincidan siempre. */
+function actividadEnTiempoDesempeno(a){
+  if(!a.realFin||!a.estFin)return true; /* sin ambas fechas no se puede juzgar atraso */
+  var ef=fromISO(a.estFin), rf=fromISO(a.realFin);
+  if(!ef||!rf)return true;
+  return rf<=ef;
+}
+
 async function loadActividades(){
   var client=getSbClient();
   if(!client){toast('⚠ Sin conexión a Supabase');return;}
@@ -3592,6 +3602,12 @@ function renderActividades(){
 
   if(!arr.length){cont.innerHTML='<div class="empty" style="padding:30px">Sin actividades. '+(canEdit?'Crea una con "Nueva actividad".':'')+'</div>';return;}
 
+  function cumplimientoBadge(a){
+    if(!norm(a.estado||'').includes('completad'))return '<span style="color:var(--muted)">—</span>';
+    return actividadEnTiempoDesempeno(a)
+      ? '<span style="color:#15803d;font-weight:700">✓ A tiempo</span>'
+      : '<span style="color:#b91c1c;font-weight:700">✗ Atrasada</span>';
+  }
   function filaActividad(a){
     return '<tr>'+
       '<td>'+(a.mes||'—')+'</td>'+
@@ -3604,12 +3620,13 @@ function renderActividades(){
       '<td>'+fmtActFecha(a.realInicio)+'</td>'+
       '<td>'+fmtActFecha(a.realFin)+'</td>'+
       '<td style="text-align:center">'+(a.durReal!=null?a.durReal:'—')+'</td>'+
+      '<td style="text-align:center">'+cumplimientoBadge(a)+'</td>'+
       '<td class="cell-c">'+(canEdit?'<button class="icon-btn" onclick="openActividad(\''+a.id+'\')">✎</button>':'<span style="color:var(--border)">—</span>')+'</td>'+
     '</tr>';
   }
 
   var thead='<thead><tr><th>Mes</th><th>Actividad/Proyecto</th><th>Estado</th><th>Categoría</th><th>Asignado</th>'+
-    '<th>Est.Inicio</th><th>Est.Fin</th><th>Real Inicio</th><th>Real Fin</th><th>Dur.real</th><th></th></tr></thead>';
+    '<th>Est.Inicio</th><th>Est.Fin</th><th>Real Inicio</th><th>Real Fin</th><th>Dur.real</th><th>Cumplimiento</th><th></th></tr></thead>';
 
   var prog=arr.filter(function(a){return a.programada;});
   var noProg=arr.filter(function(a){return !a.programada;});
@@ -4860,14 +4877,16 @@ function renderDesempeno(){
     }
     return {k:k,kn:norm(k)};
   }
+  /* actividadEnTiempoDesempeno() es global (compartida con la tabla de
+     Actividades) para que ambas vistas coincidan siempre en el mismo criterio. */
   function ensure(k){
     var _rk=resolveAuditorKey(k);k=_rk.k;
     var kn=_rk.kn;
     if(!byAuditor[kn]){
       byAuditor[kn]={
         nombre:k,
-        actProgTotal:0,actProgOk:0,actProgRepr:0,actProgPend:0,
-        actNoPTotal:0,actNoPOk:0,actNoPRepr:0,actNoPPend:0,
+        actProgTotal:0,actProgOk:0,actProgAtrasada:0,actProgRepr:0,actProgPend:0,
+        actNoPTotal:0,actNoPOk:0,actNoPAtrasada:0,actNoPRepr:0,actNoPPend:0,
         ajTotal:0,ajOk:0,ajTard:0,ajSinValidar:0,
         mrTotal:0,mrOk:0,mrTard:0,mrSinValidar:0,
         audTotal:0,audPct:0,audClases:[],
@@ -4885,12 +4904,16 @@ function renderDesempeno(){
     var n=norm(a.estado||'');
     if(a.programada!==false){
       d.actProgTotal++;
-      if(n.includes('completad'))d.actProgOk++;
+      if(n.includes('completad')){
+        if(actividadEnTiempoDesempeno(a))d.actProgOk++;else d.actProgAtrasada++;
+      }
       else if(n.includes('reprogramad'))d.actProgRepr++;
       else d.actProgPend++;
     }else{
       d.actNoPTotal++;
-      if(n.includes('completad'))d.actNoPOk++;
+      if(n.includes('completad')){
+        if(actividadEnTiempoDesempeno(a))d.actNoPOk++;else d.actNoPAtrasada++;
+      }
       else if(n.includes('reprogramad'))d.actNoPRepr++;
       else d.actNoPPend++;
     }
@@ -5066,8 +5089,8 @@ function renderDesempeno(){
       '</div>'+
       /* Fila 2: Actividades Programadas y No Programadas */
       '<div style="padding:0 16px 14px;display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
-        kpiBlock('📋','Act. Programadas',d.actProgTotal,d.actProgOk,0,d.actProgRepr,d.actProgPend,pActProg,'#2563eb',pActProg+'% completadas')+
-        kpiBlock('📌','Act. No Programadas',d.actNoPTotal,d.actNoPOk,0,d.actNoPRepr,d.actNoPPend,pActNoP,'#ea580c',pActNoP+'% completadas')+
+        kpiBlock('📋','Act. Programadas',d.actProgTotal,d.actProgOk,d.actProgAtrasada,d.actProgRepr,d.actProgPend,pActProg,'#2563eb',pActProg+'% a tiempo'+(d.actProgAtrasada?' · '+d.actProgAtrasada+' completadas tarde':''))+
+        kpiBlock('📌','Act. No Programadas',d.actNoPTotal,d.actNoPOk,d.actNoPAtrasada,d.actNoPRepr,d.actNoPPend,pActNoP,'#ea580c',pActNoP+'% a tiempo'+(d.actNoPAtrasada?' · '+d.actNoPAtrasada+' completadas tarde':''))+
       '</div>'+
       /* Fila 3: Seguimiento de cargas de Excel */
       '<div style="padding:0 16px 14px">'+
@@ -6353,7 +6376,7 @@ function renderEvaluacion(){
     host.dataset.built='1';
     host.innerHTML=
     '<div class="ev-hdr">'+
-      '<div><h2>🎯 Evaluación de KPIs</h2><p>Cumplimiento de Mermas, Ajustes y Auditorías — actualizado en vivo</p></div>'+
+      '<div><h2>🎯 Evaluación de KPIs</h2><p>Cumplimiento de Mermas, Ajustes, Auditorías y Actividades — actualizado en vivo</p></div>'+
       '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
         '<select id="ev-mes" onchange="evMesChanged()" title="Mes (por defecto el mes en curso)" style="padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft)"></select>'+
         '<div style="position:relative">'+
@@ -6369,6 +6392,7 @@ function renderEvaluacion(){
       '<div class="card ev-chart-card"><h3>Ajustes: a tiempo vs destiempo</h3><div class="ev-chart-box" style="height:240px"><canvas id="ev-aj-donut"></canvas></div></div>'+
       '<div class="card ev-chart-card"><h3>Mermas: a tiempo vs destiempo</h3><div class="ev-chart-box" style="height:240px"><canvas id="ev-mr-donut"></canvas></div></div>'+
       '<div class="card ev-chart-card" style="grid-column:span 2"><h3>Auditorías: % resuelto promedio por clase</h3><div class="ev-chart-box" style="height:260px"><canvas id="ev-aud-bar"></canvas></div></div>'+
+      '<div class="card ev-chart-card"><h3>Actividades: a tiempo vs fuera de tiempo</h3><div class="ev-chart-box" style="height:240px"><canvas id="ev-act-donut"></canvas></div></div>'+
     '</div>';
   }
 
@@ -6421,6 +6445,10 @@ function renderEvaluacion(){
   /* Datasets base (todos los meses) para la tendencia */
   var AJall=AJUSTES.filter(function(a){return audMatch(a.auditor)&&gBase(a,refDate(a.fechaCorreo||a.fechaAjuste));});
   var MRall=MERMAS.filter(function(m){return audMatch(m.auditor)&&gBase(m,refDate(m.fechaVal||m.fechaAut));});
+  /* Actividades: mismo criterio de asignado que Desempeño (asignado, o si no,
+     quien la creó), y misma comparación de fechas (Real Fin vs Est. Fin) que
+     ya se usa ahí para no divergir entre módulos. */
+  var ACTall=ACTIVIDADES.filter(function(a){return audMatch(a.asignado||a.creadoPor)&&gBase(a,refDate(a.realFin||a.estFin));});
 
   /* Selector de mes propio: por defecto el mes en curso (o el más reciente con
      datos). Se recalcula salvo elección manual (_evMesManual). */
@@ -6428,10 +6456,10 @@ function renderEvaluacion(){
   if(mesSel){
     var vEv=mesSel.value;
     var mesHoyEv=MNFULL[new Date().getMonth()];
-    function _hayMesEv(mn){return AJall.concat(MRall).some(function(x){return (x.mes||'').toUpperCase()===mn;})||audAll.some(function(a){return (a.mes||'').toUpperCase()===mn;});}
+    function _hayMesEv(mn){return AJall.concat(MRall).some(function(x){return (x.mes||'').toUpperCase()===mn;})||audAll.some(function(a){return (a.mes||'').toUpperCase()===mn;})||ACTall.some(function(a){return (a.mes||'').toUpperCase()===mn;});}
     var tgtEv=mesHoyEv;
     if(!_hayMesEv(mesHoyEv)){
-      var bi=-1;audAll.concat(AJall,MRall).forEach(function(x){var i=MNFULL.indexOf((x.mes||'').toUpperCase());if(i>bi)bi=i;});
+      var bi=-1;audAll.concat(AJall,MRall,ACTall).forEach(function(x){var i=MNFULL.indexOf((x.mes||'').toUpperCase());if(i>bi)bi=i;});
       if(bi>=0)tgtEv=MNFULL[bi];
     }
     mesSel.innerHTML='<option value="ALL">Todos los meses</option>'+MNFULL.map(function(m){return'<option value="'+m+'">'+m.charAt(0)+m.slice(1).toLowerCase()+'</option>';}).join('');
@@ -6445,11 +6473,18 @@ function renderEvaluacion(){
   var AJ=AJall.filter(function(a){return mMatchEv(a.mes);});
   var MR=MRall.filter(function(m){return mMatchEv(m.mes);});
   var audArr=audAll.filter(function(a){return mMatchEv(a.mes);});
+  var ACT=ACTall.filter(function(a){return mMatchEv(a.mes);});
 
   var ajOk=AJ.filter(function(a){return a.condicion==='A tiempo';}).length;
   var ajTot=AJ.length;
   var mrOk=MR.filter(function(m){return m.condicion==='A tiempo';}).length;
   var mrTot=MR.length;
+  /* Actividades: cumplida = Completado + a tiempo (mismo criterio que
+     Desempeño vía actividadEnTiempoDesempeno). El total considera todas las
+     actividades del periodo, no solo las completadas — igual filosofía que
+     Ajustes/Mermas, donde el total incluye lo que aún no se resuelve. */
+  var actOk=ACT.filter(function(a){return norm(a.estado||'').includes('completad')&&actividadEnTiempoDesempeno(a);}).length;
+  var actTot=ACT.length;
 
   /* % resuelto EN VIVO (coherente con el módulo de Auditorías); si no hay tareas
      cruzables, cae al valor almacenado. */
@@ -6465,20 +6500,23 @@ function renderEvaluacion(){
   document.getElementById('ev-kpi-grid').innerHTML=
     evKpiCard('Ajustes',ajTot?ajOk/ajTot*100:0,ajTot,'#4318ff','⚖️')+
     evKpiCard('Mermas',mrTot?mrOk/mrTot*100:0,mrTot,'#0ce7fe','🗂️')+
-    evKpiCard('Auditorías',audProm,audArr.length,'#01b574','🔍',audSel!=='ALL'?'Global · sin desglose por auditor':'');
+    evKpiCard('Auditorías',audProm,audArr.length,'#01b574','🔍',audSel!=='ALL'?'Global · sin desglose por auditor':'')+
+    evKpiCard('Actividades',actTot?actOk/actTot*100:0,actTot,'#f59e0b','📋');
 
   /* Tendencia últimos 6 meses — usa los datasets base (TODOS los meses) para no
      colapsar al filtrar por un mes concreto. */
   var meses=evMesesUltimos(6);
-  var serieAj=[],serieMr=[],serieAud=[],lbls=[];
+  var serieAj=[],serieMr=[],serieAud=[],serieAct=[],lbls=[];
   meses.forEach(function(m){
     lbls.push(m.key);
     var ajM=AJall.filter(function(a){return (a.mes||'').toUpperCase()===MNFULL[m.mesIdx]&&Number(a.año)===m.año;});
     var mrM=MRall.filter(function(x){return (x.mes||'').toUpperCase()===MNFULL[m.mesIdx]&&Number(x.año)===m.año;});
     var audM=audAll.filter(function(a){return (a.mes||'').toUpperCase().startsWith(MNFULL[m.mesIdx].slice(0,3));});
+    var actM=ACTall.filter(function(a){return (a.mes||'').toUpperCase().startsWith(MNFULL[m.mesIdx].slice(0,3));});
     serieAj.push(ajM.length?Math.round(ajM.filter(function(a){return a.condicion==='A tiempo';}).length/ajM.length*100):null);
     serieMr.push(mrM.length?Math.round(mrM.filter(function(x){return x.condicion==='A tiempo';}).length/mrM.length*100):null);
     serieAud.push(audM.length?Math.round(audM.reduce(function(s,a){return s+prPct(a);},0)/audM.length):null);
+    serieAct.push(actM.length?Math.round(actM.filter(function(a){return norm(a.estado||'').includes('completad')&&actividadEnTiempoDesempeno(a);}).length/actM.length*100):null);
   });
 
   evDestroy('trend');
@@ -6487,7 +6525,8 @@ function renderEvaluacion(){
     data:{labels:lbls,datasets:[
       {label:'Ajustes',data:serieAj,borderColor:'#4318ff',backgroundColor:'rgba(67,24,255,.15)',tension:.4,fill:true,spanGaps:true},
       {label:'Mermas',data:serieMr,borderColor:'#0ce7fe',backgroundColor:'rgba(12,231,254,.15)',tension:.4,fill:true,spanGaps:true},
-      {label:'Auditorías',data:serieAud,borderColor:'#01b574',backgroundColor:'rgba(1,181,116,.15)',tension:.4,fill:true,spanGaps:true}
+      {label:'Auditorías',data:serieAud,borderColor:'#01b574',backgroundColor:'rgba(1,181,116,.15)',tension:.4,fill:true,spanGaps:true},
+      {label:'Actividades',data:serieAct,borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,.15)',tension:.4,fill:true,spanGaps:true}
     ]},
     options:{responsive:true,maintainAspectRatio:false,animation:{duration:600},
       scales:{y:{min:0,max:100,ticks:{callback:function(v){return v+'%';}}}},
@@ -6525,6 +6564,13 @@ function renderEvaluacion(){
     options:{responsive:true,maintainAspectRatio:false,animation:{duration:600},
       scales:{y:{min:0,max:100,ticks:{callback:function(v){return v+'%';}}}},
       plugins:{legend:{display:false}}}
+  });
+
+  evDestroy('actdonut');
+  _evCharts.actdonut=new Chart(document.getElementById('ev-act-donut'),{
+    type:'doughnut',
+    data:{labels:['A tiempo','Fuera de tiempo / pendiente'],datasets:[{data:[actOk,actTot-actOk],backgroundColor:['#f59e0b','#94a3b8'],borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'70%',animation:{duration:500},plugins:{legend:{position:'bottom',labels:{boxWidth:10}}}}
   });
 }
 
