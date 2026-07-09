@@ -2882,7 +2882,16 @@ function setView(v){
    MÓDULO AUDITORÍAS (vista por clase, datos de tabla auditorias)
 ════════════════════════════════════════════════════════════════════ */
 function fillAudFilters(){
-  var meses=[...new Set(STORE.auditorias.map(a=>a.mes).filter(Boolean))];
+  /* Deduplicar meses sin distinguir mayúsculas/minúsculas (en Supabase el
+     campo mes está guardado con mezcla de mayúsculas y Formato Título para
+     algunos registros) — se muestra una sola vez, en Formato Título. */
+  var mesesVistos={};
+  STORE.auditorias.forEach(function(a){
+    if(!a.mes)return;
+    var k=norm(a.mes);
+    if(!mesesVistos[k])mesesVistos[k]=a.mes.charAt(0).toUpperCase()+a.mes.slice(1).toLowerCase();
+  });
+  var meses=Object.values(mesesVistos).sort(function(a,b){return mesIndexFromNombre(a)-mesIndexFromNombre(b);});
   var tiendas=[...new Set(STORE.auditorias.map(a=>a.tienda).filter(Boolean))].sort();
   var centros=[...new Set(STORE.auditorias.map(a=>a.centro).filter(Boolean))].sort();
   var sM=document.getElementById('aud-f-mes'), sT=document.getElementById('aud-f-tienda'), sC=document.getElementById('aud-f-centro');
@@ -6841,12 +6850,13 @@ async function commitMermasExcel(rows){
 }
 /* ════════════════════════════════════════════════════════════════════
    MÓDULO AUDITORÍAS FINALIZADAS — Supabase
-   Tabla: tareas_finalizadas (histórico permanente; ya no se purga)
+   Tabla: tareas_finalizadas (retención de 7 días desde fecha_finalizacion;
+          ver purgarFinalizadasVencidas)
    Columnas: id, aud_key, tienda, mes, clase, pct_cumpl,
              total_tareas, resueltas, fecha_finalizacion, created_at
-   Flujo: una auditoría sin tareas pendientes se registra aquí y permanece.
-          Se filtra por el MES DE LA AUDITORÍA (campo mes) y por defecto
-          muestra el mes en curso.
+   Flujo: una auditoría sin tareas pendientes se registra aquí. Se filtra por
+          el MES DE LA AUDITORÍA (campo mes) y por defecto muestra el mes en
+          curso. Pasados 7 días desde su finalización, se elimina sola.
 ════════════════════════════════════════════════════════════════════ */
 var FINALIZADAS=[];
 var _finMesManual=false; /* true cuando el usuario elige mes/año a mano en Finalizadas */
@@ -6935,10 +6945,38 @@ async function loadFinalizadas(){
         completadoPor:f.completado_por||''});
     });
     FINALIZADAS=FINALIZADAS.filter(function(f){return f._pending||tiendaVisible(f.tienda);});
+    purgarFinalizadasVencidas(); /* elimina (Supabase + pantalla) las de más de 7 días */
     _finLoaded=true;
     fillFinFilters();renderFinalizadas();
     toast('\u2713 '+FINALIZADAS.length+' auditoría(s) finalizada(s)');
   }catch(e){toast('\u26a0 '+e.message);}
+}
+
+/* Las auditorías finalizadas se conservan en este módulo 7 días desde su
+   fecha de finalización; pasado ese plazo se eliminan solas, tanto de
+   Supabase como de la lista en pantalla, para no acumular historial
+   indefinidamente. Se corre cada vez que se recargan los datos. */
+var RETENCION_FINALIZADAS_DIAS=7;
+function purgarFinalizadasVencidas(){
+  var hoy=new Date();hoy.setHours(0,0,0,0);
+  var vencidas=[],vigentes=[];
+  FINALIZADAS.forEach(function(f){
+    if(f._pending){vigentes.push(f);return;} /* aún no confirmada en Supabase: no tocar */
+    var fecha=f.fecha_finalizacion?String(f.fecha_finalizacion).split('T')[0]:null;
+    var fh=fecha?fromISO(fecha):null;
+    if(!fh){vigentes.push(f);return;} /* sin fecha: no se puede juzgar, se conserva */
+    var dias=Math.floor((hoy-fh)/(1000*60*60*24));
+    if(dias>RETENCION_FINALIZADAS_DIAS)vencidas.push(f);else vigentes.push(f);
+  });
+  if(!vencidas.length)return;
+  FINALIZADAS=vigentes;
+  var client=getSbClient();
+  if(!client)return;
+  var ids=vencidas.map(function(f){return f.id;}).filter(Boolean);
+  if(!ids.length)return;
+  client.from('tareas_finalizadas').delete().in('id',ids)
+    .then(function(r){if(r.error)console.warn('purga finalizadas:',r.error.message);})
+    .catch(function(e){console.warn('purga finalizadas:',e.message);});
 }
 
 function fillFinFilters(){
