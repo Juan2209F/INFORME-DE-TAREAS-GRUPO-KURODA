@@ -3054,8 +3054,8 @@ function syncAuditoriaDinamico(a, stats){
   a.tareas=stats.tareas;a.pendientes=stats.pendientes;a.resueltas=stats.resueltas;a.pctResuelto=pctR;
   var row={tareas:stats.tareas,pendientes:stats.pendientes,resueltas:stats.resueltas,pct_resuelto:pctR};
   var q=client.from('auditorias').update(row);
-  q=a.centro?q.eq('centro',a.centro):q.eq('tienda',a.tienda);
-  q=q.eq('mes',(a.mes||'').toUpperCase()).eq('clase',a.clase);
+  q=a.centro?q.ilike('centro',a.centro):q.ilike('tienda',a.tienda);
+  q=q.ilike('mes',(a.mes||'')).ilike('clase',a.clase);
   if(a.fecha)q=q.eq('fecha',String(a.fecha).split('T')[0]);
   q.then(function(r){delete _audSyncEnVuelo[akey];if(r.error)console.warn('sync auditoria:',r.error.message);})
    .catch(function(e){delete _audSyncEnVuelo[akey];console.warn('sync auditoria:',e.message);});
@@ -3250,8 +3250,8 @@ async function saveEditAuditoria(original){
        que puede diferir de lo guardado originalmente en Supabase); si no hay
        centro, se recurre a tienda como respaldo. */
     var q=client.from('auditorias').update(row);
-    q=original.centro?q.eq('centro',original.centro):q.eq('tienda',original.tienda);
-    q=q.eq('mes',original.mes.toUpperCase()).eq('clase',original.clase);
+    q=original.centro?q.ilike('centro',original.centro):q.ilike('tienda',original.tienda);
+    q=q.ilike('mes',original.mes||'').ilike('clase',original.clase);
     if(original.fecha)q=q.eq('fecha',original.fecha);
     var r=await q;
     if(r.error)toast('⚠ '+r.error.message);
@@ -3273,8 +3273,8 @@ async function deleteAuditoria(a){
     /* Igual que en saveEditAuditoria: preferir 'centro' (código estable) sobre
        'tienda' (texto libre) para localizar la fila real en Supabase. */
     var q=client.from('auditorias').delete();
-    q=a.centro?q.eq('centro',a.centro):q.eq('tienda',a.tienda);
-    q=q.eq('mes',(a.mes||'').toUpperCase()).eq('clase',a.clase);
+    q=a.centro?q.ilike('centro',a.centro):q.ilike('tienda',a.tienda);
+    q=q.ilike('mes',a.mes||'').ilike('clase',a.clase);
     if(a.fecha)q=q.eq('fecha',a.fecha);
     var r=await q;
     if(r.error)toast('⚠ '+r.error.message);
@@ -4788,7 +4788,7 @@ async function ejecutarRevertCarga(id,s){
     for(var k=0;k<(s.a_new||[]).length&&!err;k++){
       var key=s.a_new[k];
       var da=await client.from('auditorias').delete()
-        .eq('razon',key.razon).eq('centro',key.centro).eq('tienda',key.tienda).eq('fecha',key.fecha);
+        .ilike('razon',key.razon||'').ilike('centro',key.centro||'').ilike('tienda',key.tienda||'').eq('fecha',key.fecha);
       if(da.error)err='Eliminar auditorías: '+da.error.message;
     }
     if(!err&&(s.a_prev||[]).length){
