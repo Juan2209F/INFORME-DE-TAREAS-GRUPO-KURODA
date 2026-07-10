@@ -3361,7 +3361,14 @@ async function deleteAuditoria(a){
 function renderAuditoriasView(){
   fillAudFilters();
   var arr=filteredAudByView();
-  /* Excluir auditorías ya finalizadas */
+  /* Excluir auditorías ya resueltas (0 pendientes) de la tabla activa.
+     Antes esto además exigía que existiera un registro en Finalizadas con
+     la misma clave — pero la retención de 7 días borra ese registro pasado
+     ese plazo, y una auditoría que sigue genuinamente con 0 pendientes se
+     quedaba sin "memoria" de que ya se había finalizado y reaparecía en la
+     tabla activa. El estado real (0 pendientes) ya se calcula aquí mismo en
+     vivo, así que basta con eso — no hace falta que el registro de
+     Finalizadas siga existiendo para saber que ya terminó. */
   arr=arr.filter(function(a){
     var tipoClase=tipoTareaDeClase(a.clase);
     var tareasDeAud=STORE.tareas.filter(function(t){
@@ -3370,13 +3377,7 @@ function renderAuditoriasView(){
       return true;
     });
     var sinPend=tareasDeAud.length>0&&tareasDeAud.filter(esPendiente).length===0;
-    if(sinPend){
-      /* Generar la misma clave que usa registrarFinalizada */
-      var ak=[norm(a.tienda||''),norm(a.mes||''),norm(a.clase||''),a.fecha||''].join('|');
-      var yaFin=FINALIZADAS.find(function(f){return f.aud_key===ak&&!f._pending;});
-      if(yaFin)return false;
-    }
-    return true;
+    return !sinPend;
   });
   /* Contar auditorías con al menos 1 tarea pendiente */
   var audConPend=arr.filter(function(a){
