@@ -3034,21 +3034,29 @@ function calcAudStats(a, rowsMismaClase){
    auditoría que nadie llegara a mirar se quedaba con números viejos aunque la
    tarea ya se hubiera actualizado. Esto corre en segundo plano en cuanto se
    cargan los datos, cubriendo todas las auditorías del usuario de una vez. */
-function sincronizarTodasAuditorias(){
+async function sincronizarTodasAuditorias(){
   var porClase={};
   STORE.auditorias.forEach(function(a){
     var k=norm(a.clase||'');
     (porClase[k]=porClase[k]||[]).push(a);
   });
-  Object.keys(porClase).forEach(function(k){
-    porClase[k].forEach(function(a){
+  var huboFinalizacionNueva=false;
+  for(var k in porClase){
+    for(var i=0;i<porClase[k].length;i++){
+      var a=porClase[k][i];
       var stats=calcAudStats(a,porClase[k]);
       syncAuditoriaDinamico(a,stats);
       if(stats.dinamico&&stats.pendientes===0&&stats.tareas>0){
-        registrarFinalizada(a);
+        await registrarFinalizada(a);
+        huboFinalizacionNueva=true;
       }
-    });
-  });
+    }
+  }
+  /* Si alguna auditoría se acaba de finalizar en este ciclo, hay que volver a
+     pintar la vista para que la exclusión de "ya finalizadas" la tome en
+     cuenta de inmediato — si no, se sigue viendo en la tabla activa hasta la
+     siguiente recarga, aunque ya esté registrada en Finalizadas. */
+  if(huboFinalizacionNueva&&VIEW==='auditorias')renderAuditoriasView();
 }
 
 
@@ -5438,12 +5446,9 @@ async function loadDataFromSupabase(){
     STORE.auditorias=STORE.auditorias.filter(function(a){return razonVisible(a.razon);});
     STORE.tareas=STORE.tareas.filter(function(t){return razonVisible(t.razon);});
     refreshAll();
-    Promise.all([
-      loadFinalizadas()
-    ]).then(function(){
-      if(VIEW==='auditorias')renderAuditoriasView();
-      sincronizarTodasAuditorias();
-    });
+    await loadFinalizadas();
+    if(VIEW==='auditorias')renderAuditoriasView();
+    await sincronizarTodasAuditorias();
     setPill('supabase');toast('✓ Conectado a Supabase — '+STORE.tareas.length+' tareas, '+STORE.auditorias.length+' auditorías');
   }catch(e){
     console.warn('Error cargando Supabase:',e);
