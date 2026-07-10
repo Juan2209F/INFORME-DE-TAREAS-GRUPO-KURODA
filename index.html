@@ -4944,7 +4944,6 @@ function renderDesempeno(){
         actNoPTotal:0,actNoPOk:0,actNoPAtrasada:0,actNoPRepr:0,actNoPPend:0,
         ajTotal:0,ajOk:0,ajTard:0,ajSinValidar:0,
         mrTotal:0,mrOk:0,mrTard:0,mrSinValidar:0,
-        audTotal:0,audPct:0,audClases:[],
         cgTotal:0,cgTareas:0,cgAuditorias:0,cgRegistros:0,cgUltima:null
       };
     }
@@ -4996,17 +4995,7 @@ function renderDesempeno(){
     else if(m.condicion==='Destiempo'){d.mrTotal++;d.mrTard++;}
     else{d.mrSinValidar++;}
   });
-
-  /* Auditorías finalizadas */
-  (FINALIZADAS||[]).filter(function(f){return mMatch(f.mes)&&rzOk(f);}).forEach(function(f){
-    var aud=f.completadoPor||f.completado_por||'';
-    if(!aud)return;
-    var d=ensure(aud);
-    d.audTotal++;
-    d.audPct+=Math.round((f.pct_cumpl||0)*100);
-    d.audClases.push((f.clase||'?')+' '+Math.round((f.pct_cumpl||0)*100)+'%');
-  });
-
+  
   /* Cargas de Excel: cargas_excel no tiene columna de razón/tienda. Para no
      mostrar auditores de otras razones (usuario restringido o razón seleccionada
      en el filtro), solo se suman cargas a auditores que YA tengan registros
@@ -5036,7 +5025,7 @@ function renderDesempeno(){
   if(buscar)auditores=auditores.filter(function(d){return norm(d.nombre).includes(buscar);});
   var colores=['#2563eb','#0d9488','#16a34a','#ea580c','#7c3aed','#dc2626','#d97706'];
 
-  function pct(ok,tot){return tot>0?Math.round(ok/tot*100):0;}
+  function pct(ok,tot){return tot>0?Math.round(ok/tot*100):100;}
   function bar(p,col){
     return '<div style="background:var(--rowline);border-radius:4px;height:7px;overflow:hidden;margin-top:5px">'+
       '<div style="width:'+Math.min(p,100)+'%;background:'+col+';height:100%;border-radius:4px"></div></div>';
@@ -5062,9 +5051,8 @@ function renderDesempeno(){
     var pActNoP=pct(d.actNoPOk,d.actNoPTotal);
     var actTotal=d.actProgTotal+d.actNoPTotal;
     var actOk=d.actProgOk+d.actNoPOk;
-    var totAll=d.ajTotal+d.mrTotal+actTotal+d.audTotal;
+    var totAll=d.ajTotal+d.mrTotal+actTotal;
     var totOk=d.ajOk+d.mrOk+actOk;
-    var pAud=d.audTotal?Math.round(d.audPct/d.audTotal):0;
     var pAct=pct(actOk,actTotal);
 
     /* ── Global de desempeño del auditor ──
@@ -5125,22 +5113,10 @@ function renderDesempeno(){
           '</div>'+
         '</div>'+
       '</div>'+
-      '<div style="padding:14px 16px;display:grid;grid-template-columns:repeat(3,1fr) repeat(2,1fr);gap:10px">'+
-        /* Fila 1: Ajustes, Mermas, Auditorías */
+      '<div style="padding:14px 16px;display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
+        /* Fila 1: Ajustes, Mermas */
         kpiBlock('⚖️','Ajustes',d.ajTotal,d.ajOk,d.ajTard,0,d.ajSinValidar,pAj,'#0d9488',pAj+'% a tiempo'+(d.ajSinValidar?' · '+d.ajSinValidar+' sin validar':''))+
         kpiBlock('🗂️','Mermas',d.mrTotal,d.mrOk,d.mrTard,0,d.mrSinValidar,pMr,'#7c3aed',pMr+'% a tiempo'+(d.mrSinValidar?' · '+d.mrSinValidar+' sin validar':''))+
-        /* Auditorías */
-        '<div style="background:var(--soft);border-radius:10px;padding:12px;border-top:3px solid #d97706">'+
-          '<div style="font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">🔍 Auditorías <span style="font-weight:600;text-transform:none;font-size:8.5px;color:var(--muted);opacity:.75">· seguimiento</span></div>'+
-          '<div style="font-size:26px;font-weight:900;color:var(--k-orange);line-height:1">'+d.audTotal+'</div>'+
-          (d.audClases.length?
-            '<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">'+
-              d.audClases.slice(0,3).map(function(cl){return'<span style="font-size:9.5px;background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:10px;font-weight:700">'+cl+'</span>';}).join('')+
-            '</div>':
-            '<div style="font-size:10px;color:var(--muted);margin-top:6px">Sin auditorías</div>')+
-          bar(pAud,'#d97706')+
-          '<div style="font-size:10px;color:var(--muted);margin-top:4px;font-weight:700">'+(d.audTotal?pAud+'% cumpl. prom.':'—')+'</div>'+
-        '</div>'+
       '</div>'+
       /* Fila 2: Actividades Programadas y No Programadas */
       '<div style="padding:0 16px 14px;display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
