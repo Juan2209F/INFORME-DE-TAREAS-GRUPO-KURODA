@@ -2961,48 +2961,57 @@ function calcAudStats(a, rowsMismaClase){
     return true;
   });
 
-  /* Acotar por mes SOLO cuando hace falta desambiguar entre 2+ auditorías que
+  /* Acotar SOLO cuando hace falta desambiguar entre 2+ auditorías que
      comparten tienda/centro/clase (multiAud) — ahí sí hay que separar qué
-     tarea pertenece a cuál auditoría por fecha. Si es la ÚNICA auditoría de
-     esa tienda/centro/clase, no hay ambigüedad: todas sus tareas coincidentes
-     le pertenecen, sin importar el mes exacto en que se haya creado el
-     ticket.
-     Cuando SÍ hace falta acotar, se usa un margen de unos días a inicio y fin
-     de mes (no un calce exacto de mes calendario): en la práctica los
-     tickets de la auditoría de un mes suelen crearse un poco antes o después
-     del cambio de mes — no muchos días, pero sí pueden caer a inicios o
-     finales del mes vecino. Antes se exigía coincidencia exacta de mes y esas
-     auditorías nunca encontraban ninguna tarea (0 coincidencias) y se
-     quedaban congeladas con los números viejos para siempre. */
+     tarea pertenece a cuál auditoría. Si es la ÚNICA auditoría de esa
+     tienda/centro/clase, no hay ambigüedad: todas sus tareas coincidentes le
+     pertenecen, sin importar el mes exacto en que se haya creado el ticket.
+
+     Cuando SÍ hace falta desambiguar, cada tarea se asigna a la auditoría
+     HERMANA cuyo mes le quede más cerca (por distancia en meses, con margen
+     de unos días a inicio/fin de mes) — no a la que tenga más o menos tareas
+     declaradas. Esto evita dos problemas que tuvimos antes:
+     1) Exigir coincidencia exacta de mes calendario: los tickets de la
+        auditoría de un mes a veces se crean unos días antes o después del
+        cambio de mes, y esas auditorías nunca encontraban ninguna tarea.
+     2) Comparar el conteo en vivo contra el total ya guardado en la
+        auditoría: si ese número quedaba desactualizado (p. ej. se agregaron
+        tareas nuevas después), la salvaguarda descartaba el cálculo correcto
+        y se congelaba con los valores viejos para siempre — aunque no
+        hubiera ninguna tarea realmente compartida con otra auditoría.
+     Con "mes más cercano", cada tarea solo puede pertenecer a UNA hermana a
+     la vez (nunca se cuenta dos veces), sin depender de ningún número
+     declarado de antemano. */
   if(multiAud && mesMes>=0){
     var GRACIA_DIAS=5;
     var _fa=a.fecha?fromISO(a.fecha):null;
     var anioAud=_fa?_fa.getFullYear():new Date().getFullYear();
     var desdeMes=new Date(anioAud,mesMes,1-GRACIA_DIAS);
     var hastaMes=new Date(anioAud,mesMes+1,GRACIA_DIAS);
+    /* Precalcular mes+año de cada hermana con mes reconocible */
+    var hermanas=audsMismaTienda.map(function(sib){
+      var sm=mesIndexFromNombre(sib.mes);
+      if(sm<0)return null;
+      var sf=sib.fecha?fromISO(sib.fecha):null;
+      var sy=sf?sf.getFullYear():anioAud;
+      return {aud:sib,mesIdx:sy*12+sm};
+    }).filter(Boolean);
     tt=tt.filter(function(t){
       var d=fromISO(t.fechaCreacion);
       if(!d)return false;
-      return d>=desdeMes&&d<=hastaMes;
+      if(d<desdeMes||d>hastaMes)return false; /* fuera del margen de ESTA auditoría: no es candidata */
+      if(hermanas.length<2)return true; /* no hay realmente con quién competir */
+      var tMes=d.getFullYear()*12+d.getMonth();
+      var mejorDist=Infinity,mejorEsEsta=false;
+      hermanas.forEach(function(h){
+        var dist=Math.abs(tMes-h.mesIdx);
+        if(dist<mejorDist||(dist===mejorDist&&h.aud===a)){mejorDist=dist;mejorEsEsta=(h.aud===a);}
+      });
+      return mejorEsEsta;
     });
   }
 
   if(!tt.length){
-    return {tareas:a.tareas||0,resueltas:a.resueltas||0,pendientes:a.pendientes||0,
-            abiertas:a.pendientes||0,abiertasAtrasadas:0,resueltasAtrasadas:0,
-            pctResuelto:a.pctResuelto||0,tieneAtrasada:false,dinamico:false};
-  }
-
-  /* Salvaguarda: si el dinámico trae MÁS tareas que el total declarado en la
-     auditoría Y existen 2+ auditorías de la misma tienda/centro/clase, hubo
-     sobre-emparejamiento (varias auditorías comparten tareas del mismo mes) y
-     no se puede repartir con certeza — ahí sí se usan los valores declarados.
-     Si es la ÚNICA auditoría de esa tienda/centro/clase (multiAud=false), no
-     hay con quién compartir tareas: el conteo en vivo SIEMPRE es el correcto,
-     aunque supere el total que quedó guardado (p.ej. se agregó o vinculó una
-     tarea nueva). Antes esta condición ignoraba multiAud y se congelaba con
-     los valores viejos, obligando a corregir la auditoría a mano cada vez. */
-  if(multiAud && (a.tareas||0)>0 && tt.length>(a.tareas||0)){
     return {tareas:a.tareas||0,resueltas:a.resueltas||0,pendientes:a.pendientes||0,
             abiertas:a.pendientes||0,abiertasAtrasadas:0,resueltasAtrasadas:0,
             pctResuelto:a.pctResuelto||0,tieneAtrasada:false,dinamico:false};
