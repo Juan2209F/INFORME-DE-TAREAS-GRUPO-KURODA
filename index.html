@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+   <!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -5394,6 +5394,11 @@ function applyVistasRestriction(){
          razón restringida) o si sus razones asignadas son únicamente KNO. */
       var rzGen=_razonesAsignadas();
       permitido=!rzGen||(rzGen.length===1&&razKey(rzGen[0])===razKey('KNO'));
+    }else if(key==='documentos'){
+      /* Utilidad general: visible por defecto para todos. Solo se oculta si
+         el usuario tiene lista restringida Y la excluye explícitamente. Como
+         las listas antiguas no incluían 'documentos', se muestra igualmente. */
+      permitido=true;
     }else if(_session.rol==='auditor'&&RESTRINGIDAS_JR.includes(key)){
       permitido=!!(lista&&lista.includes(key));
     }else{
