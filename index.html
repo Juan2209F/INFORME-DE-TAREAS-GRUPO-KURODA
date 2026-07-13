@@ -5199,17 +5199,14 @@ function renderDesempeno(){
 
   function mMatch(m){ return mesFilter==='ALL'||norm(String(m||''))===norm(mesFilter); }
 
-  /* RAZÓN SOCIAL EN DESEMPEÑO
-     El desempeño es de la PERSONA, no de una entidad legal: su calificación
-     debe ser la misma sin importar quién la consulte. Antes, un viewer (que
-     ve las 3 razones) sumaba todos los registros del auditor, mientras que un
-     auditor con razón restringida solo veía los de SU razón — y el mismo
-     auditor aparecía con distinto total y distinta nota según quién mirara.
-     Ahora el cálculo cubre SIEMPRE todas las razones del auditor evaluado.
-     El filtro solo se aplica si el usuario lo elige a propósito (selector
-     habilitado); si está bloqueado por restricción de cuenta, se ignora. */
-  var _frDesp=document.getElementById('f-razon');
-  var _razonSelDesp=(_frDesp&&!_frDesp.disabled)?(_frDesp.value||'ALL'):'ALL';
+  /* RAZÓN SOCIAL EN DESEMPEÑO — se respeta SIEMPRE el aislamiento de datos:
+     un auditor solo ve registros de SU(S) razón(es) social(es). Únicamente los
+     roles admin y viewer ven las tres razones completas. Por tanto, el módulo
+     usa el filtro global de razón tal como quede aplicado a cada cuenta (a los
+     auditores se les fija y bloquea en su razón). Consecuencia esperada: los
+     totales de un mismo auditor pueden diferir según el alcance de quien
+     consulta — es el precio correcto de no mezclar razones. */
+  var _razonSelDesp=(document.getElementById('f-razon')||{}).value||'ALL';
   function rzOk(rec){
     if(_razonSelDesp==='ALL')return true;
     var r=rec.razon||razonDeCentro(centroDeTienda(rec.tienda||''));
@@ -5333,12 +5330,19 @@ function renderDesempeno(){
 
   var auditores=Object.values(byAuditor).sort(function(a,b){return a.nombre.localeCompare(b.nombre);});
   var totalAuditores=auditores.length;
-  /* Opciones del selector: todos los auditores conocidos + los que tengan
-     registros (por si alguno no está dado de alta como usuario). */
-  var _listaAuditoresOpts=[...new Set(
-    (_AUDITORES_CONOCIDOS||[]).concat(auditores.map(function(d){return d.nombre;}))
-      .filter(function(n){return n&&!pareceCifrado(n);})
-  )].sort(function(a,b){return a.localeCompare(b);});
+  /* Opciones del selector: auditores dados de alta + los que tengan registros.
+     Se deduplica SIN distinguir mayúsculas/acentos ("Fernando Guerrero" y
+     "FERNANDO GUERRERO" son la misma persona) y se conserva el nombre tal como
+     está registrado en la tabla de usuarios. */
+  var _optMap={};
+  (_AUDITORES_CONOCIDOS||[]).forEach(function(n){
+    if(n&&!pareceCifrado(n))_optMap[norm(n)]=n; /* el de la BD tiene prioridad */
+  });
+  auditores.forEach(function(d){
+    var n=d.nombre;
+    if(n&&!pareceCifrado(n)&&!_optMap[norm(n)])_optMap[norm(n)]=n;
+  });
+  var _listaAuditoresOpts=Object.values(_optMap).sort(function(a,b){return a.localeCompare(b);});
   /* Filtro por auditor (selector) */
   var audSel=(document.getElementById('desp-auditor')||{}).value||'ALL';
   if(audSel!=='ALL')auditores=auditores.filter(function(d){return norm(d.nombre)===norm(audSel);});
@@ -5517,7 +5521,7 @@ function renderDesempeno(){
         '<span style="font-size:11px;color:var(--muted);font-weight:600">'+
           (buscar?auditores.length+' de '+totalAuditores+' auditor(es)':totalAuditores+' auditor(es)')+
         '</span>'+
-        '<span style="font-size:10.5px;color:var(--muted);font-weight:600;margin-left:auto" title="La calificación de cada auditor cubre todas sus razones sociales, así es idéntica para cualquiera que la consulte.">'+
+        '<span style="font-size:10.5px;color:var(--muted);font-weight:600;margin-left:auto" title="Los auditores solo ven datos de su razón social; admin y viewer ven las tres.">'+
           (_razonSelDesp==='ALL'?'Alcance: todas las razones':'Alcance: '+esc(_razonSelDesp))+
         '</span>'+
       '</div>'+
