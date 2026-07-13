@@ -4767,28 +4767,64 @@ function generateActPpt(){
    Campos de ID, fechas, números y condición NO se cifran (needed por Supabase).
    Todo el texto sensible (tiendas, nombres, actividades, etc.) SÍ se cifra.
 ════════════════════════════════════════════════════════════════════ */
-var _cryptoKey=null;  /* CryptoKey activa en memoria — se pierde al cerrar sesión */
-var _cryptoSalt=null; /* Salt fijo por instalación, guardado en localStorage */
+/* ── CLAVE COMPARTIDA DE ORGANIZACIÓN ──────────────────────────────────
+   ANTES: la clave se derivaba de la contraseña de CADA usuario y de un salt
+   aleatorio guardado en localStorage. Consecuencia: cada usuario derivaba una
+   clave distinta y NO podía leer lo que cifró otro (el viewer veía el texto
+   cifrado en pantalla), y si se limpiaba el localStorage se perdía el acceso
+   a los datos para siempre.
+
+   AHORA: la clave se deriva de un secreto FIJO de la organización y un salt
+   FIJO. Todos los usuarios —incluidos los nuevos y los de solo lectura—
+   derivan la MISMA clave y leen los mismos datos, desde cualquier navegador.
+
+   Nota de seguridad: al ser una clave común de la app, el cifrado protege los
+   datos EN REPOSO en Supabase (quien vea la tabla no lee texto plano), pero no
+   es un secreto frente a alguien que inspeccione el código del sitio. Es el
+   compromiso necesario para que varios usuarios compartan los mismos datos.
+
+   Se conserva una clave "legacy" derivada de la contraseña para poder LEER los
+   datos antiguos cifrados con el esquema anterior (retrocompatibilidad). */
+var _cryptoKey=null;  /* Clave compartida — cifra y descifra todo lo nuevo */
+var _legacyKey=null;  /* Clave antigua (contraseña del usuario) — solo lectura */
+var _cryptoSalt=null;
 
 const CRYPTO_SALT_KEY='ksa_crypto_salt';
 const PBKDF2_ITER=200000;
+/* Secreto y salt compartidos de la organización (fijos, iguales para todos) */
+const ORG_SECRET='KurodaGrupo::clave-compartida::v1';
+const ORG_SALT='KurodaGrupo::salt::v1';
 
 function getCryptoSalt(){
   var s=localStorage.getItem(CRYPTO_SALT_KEY);
   if(s)return Uint8Array.from(atob(s),c=>c.charCodeAt(0));
-  var salt=crypto.getRandomValues(new Uint8Array(16));
-  localStorage.setItem(CRYPTO_SALT_KEY,btoa(String.fromCharCode(...salt)));
-  return salt;
+  return null; /* sin salt guardado no hay clave legacy que reconstruir */
 }
 
-async function initCryptoKey(password){
-  var salt=getCryptoSalt();
+async function _derivar(password,salt){
   var enc=new TextEncoder();
   var base=await crypto.subtle.importKey('raw',enc.encode(password),{name:'PBKDF2'},false,['deriveKey']);
-  _cryptoKey=await crypto.subtle.deriveKey(
-    {name:'PBKDF2',salt,iterations:PBKDF2_ITER,hash:'SHA-256'},
+  return crypto.subtle.deriveKey(
+    {name:'PBKDF2',salt:salt,iterations:PBKDF2_ITER,hash:'SHA-256'},
     base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']
   );
+}
+
+/* Clave compartida: NO depende de la contraseña ni del navegador. */
+async function initSharedKey(){
+  if(_cryptoKey)return _cryptoKey;
+  _cryptoKey=await _derivar(ORG_SECRET,new TextEncoder().encode(ORG_SALT));
+  return _cryptoKey;
+}
+
+/* En el login se derivan ambas: la compartida (siempre) y, si existe el salt
+   antiguo en este navegador, la legacy para poder leer datos sin migrar. */
+async function initCryptoKey(password){
+  await initSharedKey();
+  try{
+    var salt=getCryptoSalt();
+    if(salt&&password)_legacyKey=await _derivar(password,salt);
+  }catch(e){ _legacyKey=null; }
 }
 
 async function enc(text){
@@ -4801,18 +4837,104 @@ async function enc(text){
 }
 
 async function dec(cipher){
-  if(!_cryptoKey||!cipher||typeof cipher!=='string'||!cipher.includes(':'))return cipher;
+  if(!cipher||typeof cipher!=='string'||!cipher.includes(':'))return cipher;
+  if(!_cryptoKey&&!_legacyKey)return cipher;
+  var parts=cipher.split(':');
+  if(parts.length!==2)return cipher;
+  var iv,ct;
   try{
-    var parts=cipher.split(':');
-    if(parts.length!==2)return cipher;
-    var iv=Uint8Array.from(atob(parts[0]),c=>c.charCodeAt(0));
-    var ct=Uint8Array.from(atob(parts[1]),c=>c.charCodeAt(0));
-    var pt=await crypto.subtle.decrypt({name:'AES-GCM',iv},_cryptoKey,ct);
-    return new TextDecoder().decode(pt);
-  }catch(e){
-    /* Si no se puede descifrar, devolver tal cual (dato no cifrado legacy) */
-    return cipher;
+    iv=Uint8Array.from(atob(parts[0]),c=>c.charCodeAt(0));
+    ct=Uint8Array.from(atob(parts[1]),c=>c.charCodeAt(0));
+  }catch(e){ return cipher; }
+  /* 1) Clave compartida (datos nuevos / ya migrados) */
+  if(_cryptoKey){
+    try{
+      var pt=await crypto.subtle.decrypt({name:'AES-GCM',iv},_cryptoKey,ct);
+      return new TextDecoder().decode(pt);
+    }catch(e){}
   }
+  /* 2) Clave legacy (datos cifrados con el esquema anterior, aún sin migrar) */
+  if(_legacyKey){
+    try{
+      var pt2=await crypto.subtle.decrypt({name:'AES-GCM',iv},_legacyKey,ct);
+      return new TextDecoder().decode(pt2);
+    }catch(e){}
+  }
+  return cipher; /* no descifrable con ninguna clave */
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   MIGRACIÓN DE CIFRADO — re-cifra los datos guardados con el esquema
+   ANTIGUO (clave por contraseña) usando la CLAVE COMPARTIDA, para que
+   todos los usuarios (viewers y cuentas nuevas) puedan leerlos.
+   La ejecuta un admin desde el navegador donde SÍ se ven los datos
+   (es decir, donde la clave legacy funciona). Es idempotente: lo que ya
+   está en el esquema nuevo se deja intacto.
+════════════════════════════════════════════════════════════════════ */
+var TABLAS_CIFRADAS={
+  tareas:'tareas', auditorias:'auditorias', actividades:'actividades',
+  ajustes:'ajustes', mermas:'mermas', tareas_finalizadas:'tareas_finalizadas'
+};
+
+/* ¿Este texto se descifra SOLO con la clave legacy? (=> hay que migrarlo) */
+async function _soloLegacy(val){
+  if(!val||typeof val!=='string'||!val.includes(':'))return false;
+  var parts=val.split(':'); if(parts.length!==2)return false;
+  var iv,ct;
+  try{
+    iv=Uint8Array.from(atob(parts[0]),c=>c.charCodeAt(0));
+    ct=Uint8Array.from(atob(parts[1]),c=>c.charCodeAt(0));
+  }catch(e){ return false; }
+  if(_cryptoKey){
+    try{ await crypto.subtle.decrypt({name:'AES-GCM',iv},_cryptoKey,ct); return false; }catch(e){}
+  }
+  if(_legacyKey){
+    try{ await crypto.subtle.decrypt({name:'AES-GCM',iv},_legacyKey,ct); return true; }catch(e){}
+  }
+  return false;
+}
+
+async function migrarCifrado(){
+  if(!_session||!['admin','admin_auditor'].includes(_session.rol)){toast('⚠ Solo un admin puede migrar');return;}
+  if(!_legacyKey){
+    alert('No hay clave antigua disponible en este navegador.\n\nEjecuta la migración desde el navegador del admin donde los datos SÍ se ven correctamente, iniciando sesión con su contraseña.');
+    return;
+  }
+  if(!confirm('Se volverán a cifrar los datos antiguos con la clave compartida para que TODOS los usuarios (incluidos los de solo lectura) puedan verlos.\n\nSe recomienda hacerlo una sola vez. ¿Continuar?'))return;
+  var client=getSbClient();
+  if(!client){toast('⚠ Sin conexión a Supabase');return;}
+  await initSharedKey();
+  var totalMig=0, errores=0;
+  for(var t in TABLAS_CIFRADAS){
+    var campos=FIELDS[t]; if(!campos)continue;
+    try{
+      var r=await client.from(TABLAS_CIFRADAS[t]).select('*').limit(5000);
+      if(r.error){console.warn('Migración '+t+':',r.error.message);errores++;continue;}
+      var filas=r.data||[];
+      for(var i=0;i<filas.length;i++){
+        var fila=filas[i], upd={}, hay=false;
+        for(var c=0;c<campos.length;c++){
+          var campo=campos[c], val=fila[campo];
+          if(await _soloLegacy(val)){
+            var plano=await dec(val);        /* abre con legacy */
+            upd[campo]=await enc(plano);     /* re-cifra con la compartida */
+            hay=true;
+          }
+        }
+        if(hay){
+          var up=await client.from(TABLAS_CIFRADAS[t]).update(upd).eq('id',fila.id);
+          if(up.error){errores++;console.warn('Update '+t+' id '+fila.id+':',up.error.message);}
+          else totalMig++;
+        }
+      }
+    }catch(e){errores++;console.warn('Migración '+t+':',e.message);}
+  }
+  var msg;
+  if(totalMig>0) msg='✓ Migrados '+totalMig+' registro(s)'+(errores?' · '+errores+' error(es)':'');
+  else if(errores) msg='⚠ No se migró nada · '+errores+' error(es)';
+  else msg='✓ No había datos pendientes de migrar';
+  toast(msg);
+  if(totalMig>0)setTimeout(function(){location.reload();},1500);
 }
 
 /* Cifrar un objeto — solo los campos especificados */
@@ -5626,12 +5748,14 @@ async function syncToSupabase(parsed){
   try{
     const raw=localStorage.getItem(SB_SESSION_KEY);
     if(raw&&_sb){
-      /* Pre-rellenar usuario para que solo ingrese contraseña — necesaria para descifrar datos */
+      /* La clave de descifrado ya es compartida (no depende de la contraseña),
+         así que la sesión guardada puede restaurarse directamente. */
       var sess=JSON.parse(raw);
-      var uInput=document.getElementById('lp-user');
-      if(uInput&&sess.username)uInput.value=sess.username;
-      var hint=document.getElementById('login-hint');
-      if(hint)hint.textContent='Sesión guardada — ingresa tu contraseña para continuar';
+      _session=sess;
+      initSharedKey().then(function(){ onLoginSuccess(); }).catch(function(){
+        var uInput=document.getElementById('lp-user');
+        if(uInput&&sess.username)uInput.value=sess.username;
+      });
     }
   }catch(e){}
 })();
@@ -5645,6 +5769,25 @@ function openUsuarios(){
   if(!puedeModificarModulo('usuarios')){toast('⚠ Sin permisos');return;}
   document.getElementById('usr-overlay').classList.add('show');
   loadUsuarios();
+  mostrarBotonMigracion();
+}
+/* Botón de migración de cifrado — solo visible para admin y solo si este
+   navegador tiene la clave antigua (es decir, puede leer los datos viejos). */
+function mostrarBotonMigracion(){
+  try{
+    var esAdmin=_session&&['admin','admin_auditor'].includes(_session.rol);
+    var cont=document.getElementById('usr-list')||document.getElementById('usr-overlay');
+    var prev=document.getElementById('btn-migrar-cifrado');
+    if(prev)prev.remove();
+    if(!esAdmin||!_legacyKey||!cont)return;
+    var b=document.createElement('button');
+    b.id='btn-migrar-cifrado';
+    b.textContent='🔐 Migrar cifrado (permitir que todos vean los datos)';
+    b.title='Vuelve a cifrar los datos antiguos con la clave compartida para que los viewers y usuarios nuevos puedan leerlos';
+    b.style.cssText='margin:10px 0;padding:9px 14px;border-radius:10px;border:1px dashed var(--k-orange,#fb6340);background:transparent;color:var(--k-orange,#fb6340);font-weight:700;font-size:12px;cursor:pointer;font-family:inherit';
+    b.onclick=migrarCifrado;
+    cont.parentNode.insertBefore(b,cont);
+  }catch(e){}
 }
 function closeUsuarios(){
   document.getElementById('usr-overlay').classList.remove('show');
