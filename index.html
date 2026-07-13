@@ -8232,6 +8232,16 @@ function buildPptxDataset(mes,razon,mesesRango){
   };
 }
 
+/* Carga bajo demanda de los módulos que alimentan la presentación */
+async function asegurarDatosPptx(){
+  var tareas=[];
+  if(typeof AJUSTES==='undefined'||!AJUSTES.length){ if(typeof loadAjustes==='function')tareas.push(loadAjustes()); }
+  if(typeof MERMAS==='undefined'||!MERMAS.length){ if(typeof loadMermas==='function')tareas.push(loadMermas()); }
+  if(typeof ACTIVIDADES==='undefined'||!ACTIVIDADES.length){ if(typeof loadActividades==='function')tareas.push(loadActividades()); }
+  if(!STORE.auditorias||!STORE.auditorias.length){ if(typeof loadDataFromSupabase==='function')tareas.push(loadDataFromSupabase()); }
+  if(tareas.length){ try{ await Promise.all(tareas); }catch(e){ console.warn('asegurarDatosPptx:',e.message); } }
+}
+
 /* Canal con el iframe de Documentos */
 window.addEventListener('message',function(ev){
   var d=ev.data;
@@ -8246,19 +8256,25 @@ window.addEventListener('message',function(ev){
     return;
   }
   if(d.type==='pptx-request'){
-    try{
-      /* SEGURIDAD: nunca entregar datos de una razón no permitida */
-      var permitidas=razonesExportables();
-      var ok=permitidas.some(function(r){return razKey(r)===razKey(d.razon);});
-      if(!ok){
-        ifd.contentWindow.postMessage({type:'pptx-data',error:'Tu cuenta no tiene acceso a la razón social '+d.razon},'*');
-        return;
+    (async function(){
+      try{
+        /* SEGURIDAD: nunca entregar datos de una razón no permitida */
+        var permitidas=razonesExportables();
+        var ok=permitidas.some(function(r){return razKey(r)===razKey(d.razon);});
+        if(!ok){
+          ifd.contentWindow.postMessage({type:'pptx-data',error:'Tu cuenta no tiene acceso a la razón social '+d.razon},'*');
+          return;
+        }
+        /* Los módulos cargan sus datos al entrar a su vista. Si se abre
+           Documentos directamente, AJUSTES/MERMAS/ACTIVIDADES están vacíos y
+           la presentación saldría en ceros. Se cargan aquí bajo demanda. */
+        await asegurarDatosPptx();
+        var payload=buildPptxDataset(d.mes,d.razon,d.mesesRango);
+        ifd.contentWindow.postMessage({type:'pptx-data',payload:payload},'*');
+      }catch(e){
+        ifd.contentWindow.postMessage({type:'pptx-data',error:e.message},'*');
       }
-      var payload=buildPptxDataset(d.mes,d.razon,d.mesesRango);
-      ifd.contentWindow.postMessage({type:'pptx-data',payload:payload},'*');
-    }catch(e){
-      ifd.contentWindow.postMessage({type:'pptx-data',error:e.message},'*');
-    }
+    })();
   }
 });
 
