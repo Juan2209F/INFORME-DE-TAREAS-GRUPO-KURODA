@@ -4896,14 +4896,18 @@ async function _soloLegacy(val){
 
 async function migrarCifrado(){
   if(!_session||!['admin','admin_auditor'].includes(_session.rol)){toast('⚠ Solo un admin puede migrar');return;}
-  if(!_legacyKey){
-    alert('No hay clave antigua disponible en este navegador.\n\nEjecuta la migración desde el navegador del admin donde los datos SÍ se ven correctamente, iniciando sesión con su contraseña.');
+  var st=document.getElementById('mig-status');
+  function setSt(t){if(st)st.textContent=t;}
+  await initSharedKey();
+  var okLegacy=await asegurarLegacyKey();
+  if(!okLegacy){
+    alert('No se pudo obtener la clave antigua en este navegador.\n\nEjecuta la migración desde el navegador del admin donde los datos SÍ se ven correctamente (ahí está guardado el salt original) e ingresa su contraseña.');
     return;
   }
   if(!confirm('Se volverán a cifrar los datos antiguos con la clave compartida para que TODOS los usuarios (incluidos los de solo lectura) puedan verlos.\n\nSe recomienda hacerlo una sola vez. ¿Continuar?'))return;
   var client=getSbClient();
   if(!client){toast('⚠ Sin conexión a Supabase');return;}
-  await initSharedKey();
+  setSt('Migrando…');
   var totalMig=0, errores=0;
   for(var t in TABLAS_CIFRADAS){
     var campos=FIELDS[t]; if(!campos)continue;
@@ -4933,7 +4937,7 @@ async function migrarCifrado(){
   if(totalMig>0) msg='✓ Migrados '+totalMig+' registro(s)'+(errores?' · '+errores+' error(es)':'');
   else if(errores) msg='⚠ No se migró nada · '+errores+' error(es)';
   else msg='✓ No había datos pendientes de migrar';
-  toast(msg);
+  toast(msg); setSt(msg);
   if(totalMig>0)setTimeout(function(){location.reload();},1500);
 }
 
@@ -5748,14 +5752,14 @@ async function syncToSupabase(parsed){
   try{
     const raw=localStorage.getItem(SB_SESSION_KEY);
     if(raw&&_sb){
-      /* La clave de descifrado ya es compartida (no depende de la contraseña),
-         así que la sesión guardada puede restaurarse directamente. */
+      /* Se pide la contraseña para derivar TAMBIÉN la clave antigua y poder
+         leer los datos que aún no se han migrado al esquema compartido.
+         (La clave compartida no depende de la contraseña; la legacy sí.) */
       var sess=JSON.parse(raw);
-      _session=sess;
-      initSharedKey().then(function(){ onLoginSuccess(); }).catch(function(){
-        var uInput=document.getElementById('lp-user');
-        if(uInput&&sess.username)uInput.value=sess.username;
-      });
+      var uInput=document.getElementById('lp-user');
+      if(uInput&&sess.username)uInput.value=sess.username;
+      var hint=document.getElementById('login-hint');
+      if(hint)hint.textContent='Sesión guardada — ingresa tu contraseña para continuar';
     }
   }catch(e){}
 })();
@@ -5771,23 +5775,31 @@ function openUsuarios(){
   loadUsuarios();
   mostrarBotonMigracion();
 }
-/* Botón de migración de cifrado — solo visible para admin y solo si este
-   navegador tiene la clave antigua (es decir, puede leer los datos viejos). */
+/* Panel de migración de cifrado — visible para cualquier admin. Si en este
+   navegador no está la clave antigua (p. ej. la sesión se restauró sin pedir
+   contraseña), se solicita la contraseña al momento de migrar. */
 function mostrarBotonMigracion(){
   try{
     var esAdmin=_session&&['admin','admin_auditor'].includes(_session.rol);
-    var cont=document.getElementById('usr-list')||document.getElementById('usr-overlay');
-    var prev=document.getElementById('btn-migrar-cifrado');
-    if(prev)prev.remove();
-    if(!esAdmin||!_legacyKey||!cont)return;
-    var b=document.createElement('button');
-    b.id='btn-migrar-cifrado';
-    b.textContent='🔐 Migrar cifrado (permitir que todos vean los datos)';
-    b.title='Vuelve a cifrar los datos antiguos con la clave compartida para que los viewers y usuarios nuevos puedan leerlos';
-    b.style.cssText='margin:10px 0;padding:9px 14px;border-radius:10px;border:1px dashed var(--k-orange,#fb6340);background:transparent;color:var(--k-orange,#fb6340);font-weight:700;font-size:12px;cursor:pointer;font-family:inherit';
-    b.onclick=migrarCifrado;
-    cont.parentNode.insertBefore(b,cont);
+    var w=document.getElementById('mig-wrap');
+    if(!w)return;
+    w.style.display=esAdmin?'block':'none';
+    var st=document.getElementById('mig-status');
+    if(st)st.textContent=_legacyKey?'':'(te pedirá tu contraseña)';
   }catch(e){}
+}
+/* Reconstruye la clave antigua a partir de la contraseña del admin y el salt
+   guardado en ESTE navegador. Necesaria para leer los datos aún sin migrar. */
+async function asegurarLegacyKey(){
+  if(_legacyKey)return true;
+  var salt=getCryptoSalt();
+  if(!salt)return false; /* este navegador nunca cifró: no hay salt antiguo */
+  var pass=prompt('Para migrar los datos antiguos, escribe la contraseña del administrador (la misma con la que se cargaron los datos):');
+  if(!pass)return false;
+  try{
+    _legacyKey=await _derivar(pass,salt);
+    return true;
+  }catch(e){ _legacyKey=null; return false; }
 }
 function closeUsuarios(){
   document.getElementById('usr-overlay').classList.remove('show');
@@ -7609,6 +7621,13 @@ async function deleteFinalizada(id){
       <button class="btn btn-ghost" style="padding:5px 10px;font-size:12px" onclick="closeUsuarios()">✕</button>
     </div>
     <div class="kpi-cfg-body" style="padding:16px 20px;max-height:60vh;overflow-y:auto">
+      <!-- Migración de cifrado (solo admin) -->
+      <div id="mig-wrap" style="display:none;margin-bottom:14px;padding:12px 14px;border:1px dashed var(--k-orange,#fb6340);border-radius:12px;background:rgba(251,99,64,.06)">
+        <div style="font-size:12px;font-weight:700;color:var(--k-orange,#fb6340);margin-bottom:4px">🔐 Migración de cifrado</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px;line-height:1.5">Vuelve a cifrar los datos con la clave compartida para que los usuarios <b>Viewer</b> y las cuentas nuevas puedan verlos. Ejecútalo una sola vez.</div>
+        <button id="btn-migrar-cifrado" onclick="migrarCifrado()" style="padding:8px 14px;border-radius:10px;border:none;background:var(--k-orange,#fb6340);color:#fff;font-weight:700;font-size:12px;cursor:pointer;font-family:inherit">Migrar datos ahora</button>
+        <span id="mig-status" style="font-size:11.5px;color:var(--muted);margin-left:10px;font-weight:600"></span>
+      </div>
       <!-- Tabla de usuarios -->
       <div class="table-wrap" style="margin-bottom:16px">
         <table class="usr-table" id="usr-table-body">
