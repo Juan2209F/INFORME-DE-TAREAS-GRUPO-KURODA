@@ -5143,6 +5143,37 @@ async function ejecutarRevertCarga(id,s){
 /* Lista de auditores conocidos (cargada al listar usuarios) */
 var _AUDITORES_CONOCIDOS=[];
 
+/* Carga la lista de auditores DIRECTAMENTE de la tabla de usuarios, para que
+   el módulo Desempeño la tenga siempre disponible (antes solo se llenaba al
+   abrir el modal de Usuarios, que un viewer nunca abre). Se refresca sola:
+   cualquier usuario nuevo con rol de auditor aparece sin tocar el código. */
+var _audLoading=false, _audCargados=false;
+async function cargarAuditoresDesempeno(){
+  if(_audLoading||_audCargados)return;
+  _audLoading=true;
+  try{
+    if(!_sb)_sb=initSupabase();
+    if(!_sb){_audLoading=false;return;}
+    var r=await _sb.rpc('listar_usuarios');
+    if(r.error)throw r.error;
+    var data=r.data||[];
+    /* Es auditor si está marcado como tal o si su rol lo es */
+    var lista=data.filter(function(u){
+      return u.activo&&(u.es_auditor||['auditor','admin_auditor'].includes(u.rol));
+    });
+    var nombres=[];
+    for(var i=0;i<lista.length;i++){
+      var n=lista[i].nombre||lista[i].username||'';
+      if(pareceCifrado(n)){ try{ n=await dec(n); }catch(e){} }
+      if(n&&!pareceCifrado(n))nombres.push(n);
+    }
+    _AUDITORES_CONOCIDOS=[...new Set(nombres)].sort();
+    _audCargados=true;
+    _audLoading=false;
+    if(VIEW==='desempeno')renderDesempeno();
+  }catch(e){ _audLoading=false; console.warn('cargarAuditoresDesempeno:',e.message); }
+}
+
 function getAuditores(){
   /* Prioridad: lista de usuarios marcados como es_auditor */
   if(_AUDITORES_CONOCIDOS.length)return _AUDITORES_CONOCIDOS;
@@ -5156,6 +5187,7 @@ function getAuditores(){
 function renderDesempeno(){
   var el=document.getElementById('view-desempeno');
   if(!el)return;
+  cargarAuditoresDesempeno(); /* se auto-refresca al terminar */
   var MORD=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   var mesAct=MORD[new Date().getMonth()];
   var mesFilter=(document.getElementById('desp-mes')||{}).value||mesAct;
@@ -5167,10 +5199,17 @@ function renderDesempeno(){
 
   function mMatch(m){ return mesFilter==='ALL'||norm(String(m||''))===norm(mesFilter); }
 
-  /* Respetar el filtro global de RAZÓN social: nunca mezclar razones. La razón
-     se toma del registro; si no la trae (ajustes/mermas/finalizadas), se deriva
-     de la tienda vía el diccionario de centros. */
-  var _razonSelDesp=(document.getElementById('f-razon')||{}).value||'ALL';
+  /* RAZÓN SOCIAL EN DESEMPEÑO
+     El desempeño es de la PERSONA, no de una entidad legal: su calificación
+     debe ser la misma sin importar quién la consulte. Antes, un viewer (que
+     ve las 3 razones) sumaba todos los registros del auditor, mientras que un
+     auditor con razón restringida solo veía los de SU razón — y el mismo
+     auditor aparecía con distinto total y distinta nota según quién mirara.
+     Ahora el cálculo cubre SIEMPRE todas las razones del auditor evaluado.
+     El filtro solo se aplica si el usuario lo elige a propósito (selector
+     habilitado); si está bloqueado por restricción de cuenta, se ignora. */
+  var _frDesp=document.getElementById('f-razon');
+  var _razonSelDesp=(_frDesp&&!_frDesp.disabled)?(_frDesp.value||'ALL'):'ALL';
   function rzOk(rec){
     if(_razonSelDesp==='ALL')return true;
     var r=rec.razon||razonDeCentro(centroDeTienda(rec.tienda||''));
@@ -5288,8 +5327,21 @@ function renderDesempeno(){
     if(f&&!isNaN(f)&&(!d.cgUltima||f>d.cgUltima))d.cgUltima=f;
   });
 
+  /* Todo usuario con rol de auditor aparece, aunque no tenga registros en el
+     período (se verá en ceros). Así la lista refleja la plantilla real. */
+  (_AUDITORES_CONOCIDOS||[]).forEach(function(n){ if(n)ensure(n); });
+
   var auditores=Object.values(byAuditor).sort(function(a,b){return a.nombre.localeCompare(b.nombre);});
   var totalAuditores=auditores.length;
+  /* Opciones del selector: todos los auditores conocidos + los que tengan
+     registros (por si alguno no está dado de alta como usuario). */
+  var _listaAuditoresOpts=[...new Set(
+    (_AUDITORES_CONOCIDOS||[]).concat(auditores.map(function(d){return d.nombre;}))
+      .filter(function(n){return n&&!pareceCifrado(n);})
+  )].sort(function(a,b){return a.localeCompare(b);});
+  /* Filtro por auditor (selector) */
+  var audSel=(document.getElementById('desp-auditor')||{}).value||'ALL';
+  if(audSel!=='ALL')auditores=auditores.filter(function(d){return norm(d.nombre)===norm(audSel);});
   if(buscar)auditores=auditores.filter(function(d){return norm(d.nombre).includes(buscar);});
   var colores=['#2563eb','#0d9488','#16a34a','#ea580c','#7c3aed','#dc2626','#d97706'];
 
@@ -5451,6 +5503,12 @@ function renderDesempeno(){
           '<option value="ALL">Todos los meses</option>'+
           MORD.map(function(m){return'<option'+(m===mesFilter?' selected':'')+'>'+m+'</option>';}).join('')+
         '</select>'+
+        /* Filtro de auditor: se llena solo con los usuarios que tienen rol de
+           auditor; los nuevos aparecen automáticamente al crearse. */
+        '<select id="desp-auditor" onchange="renderDesempeno()" title="Filtra por auditor. La lista se actualiza sola con los usuarios que tengan rol de auditor." style="padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft);max-width:200px">'+
+          '<option value="ALL">Todos los auditores</option>'+
+          _listaAuditoresOpts.map(function(n){return'<option value="'+esc(n)+'"'+(norm(n)===norm(audSel)?' selected':'')+'>'+esc(n)+'</option>';}).join('')+
+        '</select>'+
         '<div style="position:relative;flex:1;min-width:160px;max-width:280px">'+
           '<span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--muted);pointer-events:none">🔍</span>'+
           '<input id="desp-buscar" type="search" placeholder="Buscar auditor…" value="'+esc(buscar)+'" oninput="renderDesempeno()" '+
@@ -5458,6 +5516,9 @@ function renderDesempeno(){
         '</div>'+
         '<span style="font-size:11px;color:var(--muted);font-weight:600">'+
           (buscar?auditores.length+' de '+totalAuditores+' auditor(es)':totalAuditores+' auditor(es)')+
+        '</span>'+
+        '<span style="font-size:10.5px;color:var(--muted);font-weight:600;margin-left:auto" title="La calificación de cada auditor cubre todas sus razones sociales, así es idéntica para cualquiera que la consulte.">'+
+          (_razonSelDesp==='ALL'?'Alcance: todas las razones':'Alcance: '+esc(_razonSelDesp))+
         '</span>'+
       '</div>'+
     '</div>'+
