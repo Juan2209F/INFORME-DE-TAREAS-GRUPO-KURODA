@@ -5360,11 +5360,13 @@ function renderDesempeno(){
        Auditorías y Tareas son seguimiento y NO cuentan. */
     var _b=baseEval(d);
     var medibles=_b.n;
+    /* Global = PUNTUALIDAD PONDERADA REAL, calculada EXACTAMENTE IGUAL para
+       todos los auditores: (registros a tiempo ÷ registros evaluables), con
+       Ajustes y Mermas pesando 2 y Actividades 1. Sin bonos ni suavizados que
+       distorsionen: si un KPI está en 80%, el global lo refleja. Lo que aún no
+       vence no entra al denominador (no se penaliza el trabajo en curso). */
     var pPunt=_b.wTot>0?(_b.wOk/_b.wTot*100):0;
-    var K=5; /* peso del promedio del equipo al suavizar */
-    var pSuave=_b.wTot>0?((_b.wOk/_b.wTot*100)*medibles + promEquipo*K)/(medibles+K):0;
-    var bonoVol=(_maxN>0&&medibles>0)?5*Math.sqrt(medibles/_maxN):0;
-    var pGlobal=medibles>0?Math.round(Math.min(100,pSuave+bonoVol)):0;
+    var pGlobal=medibles>0?Math.round(pPunt):0;
     var muestraChica=medibles>0&&medibles<5;
     var pPuntR=Math.round(pPunt);
 
@@ -5400,11 +5402,11 @@ function renderDesempeno(){
             (d.actProgTotal?'<div style="background:rgba(255,255,255,.18);border-radius:8px;padding:4px 10px;text-align:center"><div style="font-size:13px;font-weight:900;color:#fff">'+pActProg+'%</div><div style="font-size:8px;color:rgba(255,255,255,.7);font-weight:700">ACT-P</div></div>':'')+
             (d.actNoPTotal?'<div style="background:rgba(255,255,255,.18);border-radius:8px;padding:4px 10px;text-align:center"><div style="font-size:13px;font-weight:900;color:#fff">'+pActNoP+'%</div><div style="font-size:8px;color:rgba(255,255,255,.7);font-weight:700">ACT-NP</div></div>':'')+
           '</div>'+
-          '<div style="background:rgba(255,255,255,.25);border-radius:10px;padding:8px 14px;text-align:center" title="Global = puntualidad ponderada sobre '+medibles+' registro(s) evaluable(s) (Ajustes y Mermas pesan doble). Puntualidad real: '+pPuntR+'%. Lo que aún no vence no penaliza'+(d.actEnCurso?' ('+d.actEnCurso+' actividad(es) en curso)':'')+'. Se suaviza hacia el promedio del equipo ('+Math.round(promEquipo)+'%) cuando hay pocos registros e incluye un bono por volumen de trabajo. Auditorías y Tareas son seguimiento, no cuentan.">'+
+          '<div style="background:rgba(255,255,255,.25);border-radius:10px;padding:8px 14px;text-align:center" title="Global = puntualidad ponderada sobre '+medibles+' registro(s) evaluable(s). Misma fórmula para todos los auditores: registros a tiempo ÷ registros evaluables, con Ajustes y Mermas pesando doble que Actividades. Lo que aún no vence no penaliza'+(d.actEnCurso?' ('+d.actEnCurso+' actividad(es) en curso)':'')+'. Promedio del equipo: '+Math.round(promEquipo)+'%. Auditorías y Tareas son seguimiento, no cuentan.">'+
             '<div style="font-size:24px;font-weight:900;color:#fff;line-height:1">'+pGlobal+'%'+
               (muestraChica?'<span style="font-size:11px;font-weight:700;vertical-align:super" title="Muestra chica: menos de 5 registros, el % es poco representativo">*</span>':'')+
             '</div>'+
-            '<div style="font-size:9px;color:rgba(255,255,255,.8);font-weight:700;text-transform:uppercase;margin-top:1px">Global'+(muestraChica?' · suavizado':' ponderado')+'</div>'+
+            '<div style="font-size:9px;color:rgba(255,255,255,.8);font-weight:700;text-transform:uppercase;margin-top:1px">Global ponderado'+(muestraChica?' · '+medibles+' reg.':'')+'</div>'+
           '</div>'+
         '</div>'+
       '</div>'+
