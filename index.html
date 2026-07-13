@@ -2,6 +2,12 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<!-- Evita que el navegador sirva una versión antigua del dashboard desde la
+     caché: siempre revalida contra GitHub Pages. Sin esto, tras publicar una
+     actualización se seguía ejecutando el archivo anterior. -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232563eb'/%3E%3Crect x='6' y='20' width='4' height='6' rx='1' fill='white'/%3E%3Crect x='12' y='14' width='4' height='12' rx='1' fill='white'/%3E%3Crect x='18' y='8' width='4' height='18' rx='1' fill='white'/%3E%3Crect x='24' y='12' width='4' height='14' rx='1' fill='%2393c5fd'/%3E%3C/svg%3E">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -3827,7 +3833,7 @@ function openActividad(id){
   var _rzBloqueada=_rzAsig&&_rzAsig.length===1;
   var body='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
     '<div class="fg" style="grid-column:1/3"><label>Actividad / Proyecto *</label><input id="a-actividad" value="'+esc(a.actividad)+'" placeholder="Nombre de la actividad"></div>'+
-    '<div class="fg"><label>Razón social '+(_rzBloqueada?'':'*')+'</label><select id="a-razon"'+(_rzBloqueada?' disabled title="Tu cuenta está asignada a '+esc(_rzAsig[0])+'"':'')+'>'+
+    '<div class="fg"><label>Razón social '+(_rzBloqueada?'':'*')+'</label><select id="a-razon" onchange="cambioRazonActividad()"'+(_rzBloqueada?' disabled title="Tu cuenta está asignada a '+esc(_rzAsig[0])+'"':'')+'>'+
       (_rzBloqueada?'':'<option value="">— Selecciona —</option>')+
       _rzOpts.map(function(r){return'<option value="'+esc(r)+'"'+(r===_rzVal?' selected':'')+'>'+esc(r)+'</option>';}).join('')+
       '</select>'+
@@ -3872,17 +3878,35 @@ function calcDurReal(){
   document.getElementById('a-durreal').value=v;
 }
 
-/* Chips para asignar uno o VARIOS auditores (o "Ambos") a una actividad */
+/* Chips para asignar uno o VARIOS auditores (o "Todos") a una actividad.
+   Solo se muestran los auditores de la RAZÓN SOCIAL elegida en la actividad:
+   no se puede asignar una tarea de KNO a un auditor de KSC. La lista se
+   deduplica sin distinguir mayúsculas ni acentos (FERNANDO GUERRERO y
+   Fernando Guerrero son la misma persona) conservando el nombre de la BD. */
 function pintarChipsAuditores(){
   var cont=document.getElementById('a-asig-chips'), inp=document.getElementById('a-asignado');
   if(!cont||!inp)return;
-  var lista=[...new Set(
-    (_AUDITORES_CONOCIDOS||[])
-      .concat((ACTIVIDADES||[]).map(function(a){return a.asignado;}))
-      .filter(Boolean)
-      .reduce(function(acc,n){ return acc.concat(auditoresDeActividad({asignado:n})); },[])
-      .filter(function(n){return n&&!pareceCifrado(n);})
-  )].sort();
+  var rzSel=(document.getElementById('a-razon')||{}).value||'';
+
+  /* ¿Este auditor pertenece a la razón social de la actividad? */
+  function enRazon(nombre){
+    if(!rzSel)return true;
+    var meta=_AUDITORES_META[norm(nombre)];
+    if(!meta||!meta.razones)return true;   /* auditor sin restricción: aplica a todas */
+    return meta.razones.some(function(r){return razKey(r)===razKey(rzSel);});
+  }
+
+  /* Deduplicar por nombre normalizado; el alta en Usuarios tiene prioridad */
+  var mapa={};
+  (_AUDITORES_CONOCIDOS||[]).forEach(function(n){
+    if(n&&!pareceCifrado(n)&&enRazon(n))mapa[norm(n)]=n;
+  });
+  (ACTIVIDADES||[]).forEach(function(a){
+    auditoresDeActividad(a).forEach(function(n){
+      if(n&&!pareceCifrado(n)&&!mapa[norm(n)]&&enRazon(n))mapa[norm(n)]=n;
+    });
+  });
+  var lista=Object.values(mapa).sort(function(a,b){return a.localeCompare(b);});
   var sel=auditoresDeActividad({asignado:inp.value}).map(norm);
   cont.innerHTML=lista.map(function(n){
     var on=sel.indexOf(norm(n))>=0;
@@ -3892,6 +3916,10 @@ function pintarChipsAuditores(){
       (on?'✓ ':'')+esc(n)+'</button>';
   }).join('')+
   (lista.length>1?'<button type="button" data-aud="__AMBOS__" style="border:1px dashed var(--k-orange,#fb6340);background:transparent;color:var(--k-orange,#fb6340);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">👥 Todos</button>':'');
+  if(!lista.length){
+    cont.innerHTML='<span style="font-size:12px;color:var(--muted)">No hay auditores registrados en '+esc(rzSel||'esta razón social')+'.</span>';
+    return;
+  }
   cont.querySelectorAll('button').forEach(function(b){
     b.onclick=function(){
       var n=b.getAttribute('data-aud');
@@ -3903,6 +3931,21 @@ function pintarChipsAuditores(){
       pintarChipsAuditores();
     };
   });
+}
+
+/* Al cambiar la razón social: quitar auditores que ya no pertenecen a ella */
+function cambioRazonActividad(){
+  var inp=document.getElementById('a-asignado');
+  var rzSel=(document.getElementById('a-razon')||{}).value||'';
+  if(inp&&rzSel){
+    var quedan=auditoresDeActividad({asignado:inp.value}).filter(function(n){
+      var meta=_AUDITORES_META[norm(n)];
+      if(!meta||!meta.razones)return true;
+      return meta.razones.some(function(r){return razKey(r)===razKey(rzSel);});
+    });
+    inp.value=quedan.join(' / ');
+  }
+  pintarChipsAuditores();
 }
 
 async function saveActividad(id,isNew){
@@ -8277,6 +8320,29 @@ window.addEventListener('message',function(ev){
     })();
   }
 });
+
+/* ── Detector de versión obsoleta ──────────────────────────────────────
+   Si GitHub Pages ya tiene un index.html más nuevo que el que se está
+   ejecutando, avisa para recargar. Evita seguir usando una copia cacheada
+   (causa habitual de "no veo los cambios" y de archivos generados con la
+   versión anterior). */
+var BUILD_ID='2026-07-13-pptx7';
+(function(){
+  setTimeout(async function(){
+    try{
+      var r=await fetch(location.href.split('?')[0]+'?v='+Date.now(),{cache:'no-store'});
+      var t=await r.text();
+      var m=t.match(/var BUILD_ID='([^']+)'/);
+      if(m&&m[1]!==BUILD_ID){
+        var b=document.createElement('div');
+        b.style.cssText='position:fixed;bottom:16px;left:16px;z-index:9999;background:var(--k-orange,#fb6340);color:#fff;padding:11px 16px;border-radius:12px;font-size:13px;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.25);cursor:pointer;font-family:inherit';
+        b.textContent='⟳ Hay una versión nueva del dashboard — toca para actualizar';
+        b.onclick=function(){location.reload(true);};
+        document.body.appendChild(b);
+      }
+    }catch(e){}
+  },2500);
+})();
 
 setThemeBtn();
 /* Refuerzo: el módulo Documentos es visible salvo para cuentas de solo lectura */
