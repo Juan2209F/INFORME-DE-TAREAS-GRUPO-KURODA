@@ -4876,6 +4876,16 @@ var TABLAS_CIFRADAS={
   ajustes:'ajustes', mermas:'mermas', tareas_finalizadas:'tareas_finalizadas'
 };
 
+async function _abreCon(key,val){
+  if(!key||!val||typeof val!=='string'||!val.includes(':'))return false;
+  var p=val.split(':'); if(p.length!==2)return false;
+  try{
+    var iv=Uint8Array.from(atob(p[0]),c=>c.charCodeAt(0));
+    var ct=Uint8Array.from(atob(p[1]),c=>c.charCodeAt(0));
+    await crypto.subtle.decrypt({name:'AES-GCM',iv},key,ct);
+    return true;
+  }catch(e){ return false; }
+}
 /* ¿Este texto se descifra SOLO con la clave legacy? (=> hay que migrarlo) */
 async function _soloLegacy(val){
   if(!val||typeof val!=='string'||!val.includes(':'))return false;
@@ -4894,8 +4904,45 @@ async function _soloLegacy(val){
   return false;
 }
 
+/* Diagnóstico: recorre las tablas y reporta, por cada una, cuántos registros
+   están en texto plano, cuántos abre la clave compartida, cuántos abre la clave
+   de ESTE usuario (legacy) y cuántos no abre ninguna (cifrados por otro usuario). */
+async function diagnosticarCifrado(){
+  var client=getSbClient();
+  if(!client){toast('⚠ Sin conexión a Supabase');return;}
+  await initSharedKey();
+  var st=document.getElementById('mig-status');
+  if(st)st.textContent='Analizando…';
+  function fb(s){return Uint8Array.from(atob(s),c=>c.charCodeAt(0));}
+  async function abre(key,val){
+    if(!key)return false;
+    try{var p=val.split(':');await crypto.subtle.decrypt({name:'AES-GCM',iv:fb(p[0])},key,fb(p[1]));return true;}catch(e){return false;}
+  }
+  var rep=[];
+  for(var t in TABLAS_CIFRADAS){
+    var campos=FIELDS[t]; if(!campos||!campos.length)continue;
+    try{
+      var r=await client.from(TABLAS_CIFRADAS[t]).select('*').limit(300);
+      if(r.error){rep.push(t+': ⚠ '+r.error.message);continue;}
+      var filas=r.data||[];
+      var plano=0,sh=0,lg=0,no=0;
+      for(var i=0;i<filas.length;i++){
+        var v=String(filas[i][campos[0]]||'');
+        if(!v||!v.includes(':')){plano++;continue;}
+        if(await abre(_cryptoKey,v))sh++;
+        else if(await abre(_legacyKey,v))lg++;
+        else no++;
+      }
+      rep.push(t+' ('+filas.length+'): plano '+plano+' · compartida '+sh+' · tu clave '+lg+' · ilegibles '+no);
+    }catch(e){rep.push(t+': ⚠ '+e.message);}
+  }
+  if(st)st.textContent='';
+  alert('DIAGNÓSTICO DE CIFRADO\n(usuario: '+((_session&&_session.username)||'?')+')\n\n'+rep.join('\n')+
+    '\n\n• "plano" = visible para todos.\n• "compartida" = ya migrado, visible para todos.\n• "tu clave" = lo puedes migrar ahora con el botón.\n• "ilegibles" = cifrado con la contraseña de OTRO usuario: debe migrarlo esa persona desde su navegador, o volver a importar el Excel.');
+}
+
 async function migrarCifrado(){
-  if(!_session||!['admin','admin_auditor'].includes(_session.rol)){toast('⚠ Solo un admin puede migrar');return;}
+  if(!_session||_session.rol==='viewer'){toast('⚠ Tu cuenta es de solo lectura');return;}
   var st=document.getElementById('mig-status');
   function setSt(t){if(st)st.textContent=t;}
   await initSharedKey();
@@ -4908,7 +4955,7 @@ async function migrarCifrado(){
   var client=getSbClient();
   if(!client){toast('⚠ Sin conexión a Supabase');return;}
   setSt('Migrando…');
-  var totalMig=0, errores=0;
+  var totalMig=0, errores=0, ilegibles=0;
   for(var t in TABLAS_CIFRADAS){
     var campos=FIELDS[t]; if(!campos)continue;
     try{
@@ -4923,6 +4970,8 @@ async function migrarCifrado(){
             var plano=await dec(val);        /* abre con legacy */
             upd[campo]=await enc(plano);     /* re-cifra con la compartida */
             hay=true;
+          }else if(val&&typeof val==='string'&&val.includes(':')&&!(await _abreCon(_cryptoKey,val))&&!(await _abreCon(_legacyKey,val))){
+            ilegibles++;
           }
         }
         if(hay){
@@ -4934,10 +4983,14 @@ async function migrarCifrado(){
     }catch(e){errores++;console.warn('Migración '+t+':',e.message);}
   }
   var msg;
-  if(totalMig>0) msg='✓ Migrados '+totalMig+' registro(s)'+(errores?' · '+errores+' error(es)':'');
+  if(totalMig>0) msg='✓ Migrados '+totalMig+' campo(s)'+(errores?' · '+errores+' error(es)':'');
+  else if(ilegibles>0) msg='⚠ '+ilegibles+' campo(s) cifrados con la clave de OTRO usuario: no los puedes migrar tú';
   else if(errores) msg='⚠ No se migró nada · '+errores+' error(es)';
   else msg='✓ No había datos pendientes de migrar';
   toast(msg); setSt(msg);
+  if(totalMig===0&&ilegibles>0){
+    alert('Se encontraron '+ilegibles+' campo(s) que NO se pueden abrir con tu clave.\n\nFueron cifrados con la contraseña de otro usuario (el que cargó esos datos).\n\nSoluciones:\n1) Que ESA persona inicie sesión en SU navegador (el mismo donde cargó los datos) y pulse "Migrar datos ahora".\n2) O vuelve a importar el Excel de esos módulos: los datos nuevos ya se guardan con la clave compartida y todos los verán.');
+  }
   if(totalMig>0)setTimeout(function(){location.reload();},1500);
 }
 
@@ -5780,10 +5833,13 @@ function openUsuarios(){
    contraseña), se solicita la contraseña al momento de migrar. */
 function mostrarBotonMigracion(){
   try{
-    var esAdmin=_session&&['admin','admin_auditor'].includes(_session.rol);
+    /* Visible para quien puede escribir datos (admin y auditores): los datos
+       antiguos fueron cifrados con la clave de QUIEN los cargó, así que cada
+       uno debe migrar lo suyo desde su propio navegador. Viewer nunca. */
+    var puede=_session&&_session.rol!=='viewer';
     var w=document.getElementById('mig-wrap');
     if(!w)return;
-    w.style.display=esAdmin?'block':'none';
+    w.style.display=puede?'block':'none';
     var st=document.getElementById('mig-status');
     if(st)st.textContent=_legacyKey?'':'(te pedirá tu contraseña)';
   }catch(e){}
@@ -7626,6 +7682,7 @@ async function deleteFinalizada(id){
         <div style="font-size:12px;font-weight:700;color:var(--k-orange,#fb6340);margin-bottom:4px">🔐 Migración de cifrado</div>
         <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px;line-height:1.5">Vuelve a cifrar los datos con la clave compartida para que los usuarios <b>Viewer</b> y las cuentas nuevas puedan verlos. Ejecútalo una sola vez.</div>
         <button id="btn-migrar-cifrado" onclick="migrarCifrado()" style="padding:8px 14px;border-radius:10px;border:none;background:var(--k-orange,#fb6340);color:#fff;font-weight:700;font-size:12px;cursor:pointer;font-family:inherit">Migrar datos ahora</button>
+        <button onclick="diagnosticarCifrado()" style="padding:8px 14px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--txt);font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;margin-left:6px">Diagnosticar</button>
         <span id="mig-status" style="font-size:11.5px;color:var(--muted);margin-left:10px;font-weight:600"></span>
       </div>
       <!-- Tabla de usuarios -->
