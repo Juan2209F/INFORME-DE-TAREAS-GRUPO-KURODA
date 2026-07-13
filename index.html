@@ -5148,6 +5148,7 @@ var _AUDITORES_CONOCIDOS=[];
    abrir el modal de Usuarios, que un viewer nunca abre). Se refresca sola:
    cualquier usuario nuevo con rol de auditor aparece sin tocar el código. */
 var _audLoading=false, _audCargados=false;
+var _AUDITORES_META={}; /* norm(nombre) -> {nombre, razones:[] | null} */
 async function cargarAuditoresDesempeno(){
   if(_audLoading||_audCargados)return;
   _audLoading=true;
@@ -5161,11 +5162,17 @@ async function cargarAuditoresDesempeno(){
     var lista=data.filter(function(u){
       return u.activo&&(u.es_auditor||['auditor','admin_auditor'].includes(u.rol));
     });
-    var nombres=[];
+    var nombres=[]; _AUDITORES_META={};
     for(var i=0;i<lista.length;i++){
-      var n=lista[i].nombre||lista[i].username||'';
+      var u=lista[i];
+      var n=u.nombre||u.username||'';
       if(pareceCifrado(n)){ try{ n=await dec(n); }catch(e){} }
-      if(n&&!pareceCifrado(n))nombres.push(n);
+      if(!n||pareceCifrado(n))continue;
+      /* Razones sociales asignadas a ese auditor (vacío/null = todas) */
+      var rz=u.razones_permitidas;
+      if(typeof rz==='string'){try{rz=JSON.parse(rz);}catch(e){rz=null;}}
+      _AUDITORES_META[norm(n)]={nombre:n,razones:(rz&&rz.length)?rz:null};
+      nombres.push(n);
     }
     _AUDITORES_CONOCIDOS=[...new Set(nombres)].sort();
     _audCargados=true;
@@ -5324,9 +5331,23 @@ function renderDesempeno(){
     if(f&&!isNaN(f)&&(!d.cgUltima||f>d.cgUltima))d.cgUltima=f;
   });
 
-  /* Todo usuario con rol de auditor aparece, aunque no tenga registros en el
-     período (se verá en ceros). Así la lista refleja la plantilla real. */
-  (_AUDITORES_CONOCIDOS||[]).forEach(function(n){ if(n)ensure(n); });
+  /* ¿Este auditor pertenece al alcance de razones que el usuario puede ver?
+     - Si el usuario ve todas las razones (admin/viewer, filtro en ALL) → sí.
+     - Si el auditor no tiene razones asignadas (ve todo) → sí.
+     - Si hay filtro/restricción de razón → solo si el auditor tiene esa razón.
+     Así, un auditor de otra razón social NO aparece (ni siquiera en ceros). */
+  function auditorEnAlcance(nombre){
+    var meta=_AUDITORES_META[norm(nombre)];
+    var alcance=(_razonSelDesp!=='ALL')?[_razonSelDesp]:_razonesAsignadas();
+    if(!alcance)return true;              /* el usuario ve todas las razones */
+    if(!meta||!meta.razones)return true;  /* auditor sin restricción de razón */
+    return meta.razones.some(function(r){
+      return alcance.some(function(a){return razKey(r)===razKey(a);});
+    });
+  }
+  /* Los auditores dados de alta aparecen aunque no tengan registros en el mes,
+     PERO solo los que están dentro del alcance de razón social del usuario. */
+  (_AUDITORES_CONOCIDOS||[]).forEach(function(n){ if(n&&auditorEnAlcance(n))ensure(n); });
 
   var auditores=Object.values(byAuditor).sort(function(a,b){return a.nombre.localeCompare(b.nombre);});
   var totalAuditores=auditores.length;
@@ -5336,7 +5357,7 @@ function renderDesempeno(){
      está registrado en la tabla de usuarios. */
   var _optMap={};
   (_AUDITORES_CONOCIDOS||[]).forEach(function(n){
-    if(n&&!pareceCifrado(n))_optMap[norm(n)]=n; /* el de la BD tiene prioridad */
+    if(n&&!pareceCifrado(n)&&auditorEnAlcance(n))_optMap[norm(n)]=n; /* el de la BD tiene prioridad */
   });
   auditores.forEach(function(d){
     var n=d.nombre;
