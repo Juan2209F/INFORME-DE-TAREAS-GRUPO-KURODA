@@ -3583,6 +3583,15 @@ var _actMesManual=false; /* true cuando el usuario elige el mes a mano: evita qu
    que coincida el día exacto. Solo se marca "atrasada" si Real Fin cae en un
    mes posterior al de Est. Fin. Se usa tanto en la tabla de Actividades
    (columna Cumplimiento) como en Desempeño, para que ambos coincidan siempre. */
+/* ¿Una actividad NO completada ya está vencida? Mismo criterio mensual que
+   actividadEnTiempoDesempeno: se considera vencida si su mes estimado de fin
+   ya quedó atrás respecto al mes en curso. Sin fecha estimada no se juzga. */
+function actividadVencidaDesempeno(a){
+  if(!a.estFin)return false;
+  var ef=fromISO(a.estFin); if(!ef)return false;
+  var hoy=new Date();
+  return (ef.getFullYear()*12+ef.getMonth()) < (hoy.getFullYear()*12+hoy.getMonth());
+}
 function actividadEnTiempoDesempeno(a){
   if(!a.realFin||!a.estFin)return true; /* sin ambas fechas no se puede juzgar atraso */
   var ef=fromISO(a.estFin), rf=fromISO(a.realFin);
@@ -5004,6 +5013,7 @@ function renderDesempeno(){
         nombre:k,
         actProgTotal:0,actProgOk:0,actProgAtrasada:0,actProgRepr:0,actProgPend:0,
         actNoPTotal:0,actNoPOk:0,actNoPAtrasada:0,actNoPRepr:0,actNoPPend:0,
+        actProgEval:0,actNoPEval:0,actEnCurso:0,actVencidas:0,
         ajTotal:0,ajOk:0,ajTard:0,ajSinValidar:0,
         mrTotal:0,mrOk:0,mrTard:0,mrSinValidar:0,
         cgTotal:0,cgTareas:0,cgAuditorias:0,cgRegistros:0,cgUltima:null
@@ -5018,20 +5028,31 @@ function renderDesempeno(){
     if(!aud)return;
     var d=ensure(aud);
     var n=norm(a.estado||'');
-    if(a.programada!==false){
+    var prog=(a.programada!==false);
+    var completada=n.includes('completad');
+    var repro=n.includes('reprogramad');
+    /* Evaluable = completada (a tiempo o tarde) o bien pendiente/reprogramada
+       cuyo plazo YA venció. Lo que sigue abierto y aún no vence no penaliza:
+       es trabajo en curso, no un incumplimiento. */
+    var vencida=(!completada&&actividadVencidaDesempeno(a));
+    if(prog){
       d.actProgTotal++;
-      if(n.includes('completad')){
+      if(completada){
+        d.actProgEval++;
         if(actividadEnTiempoDesempeno(a))d.actProgOk++;else d.actProgAtrasada++;
+      }else{
+        if(repro)d.actProgRepr++;else d.actProgPend++;
+        if(vencida){d.actProgEval++;d.actVencidas++;}else d.actEnCurso++;
       }
-      else if(n.includes('reprogramad'))d.actProgRepr++;
-      else d.actProgPend++;
     }else{
       d.actNoPTotal++;
-      if(n.includes('completad')){
+      if(completada){
+        d.actNoPEval++;
         if(actividadEnTiempoDesempeno(a))d.actNoPOk++;else d.actNoPAtrasada++;
+      }else{
+        if(repro)d.actNoPRepr++;else d.actNoPPend++;
+        if(vencida){d.actNoPEval++;d.actVencidas++;}else d.actEnCurso++;
       }
-      else if(n.includes('reprogramad'))d.actNoPRepr++;
-      else d.actNoPPend++;
     }
   });
 
@@ -5105,35 +5126,62 @@ function renderDesempeno(){
     if(!_ultCarga||f>_ultCarga.f)_ultCarga={id:c.id,f:f,audKn:norm(c.auditor||'')};
   });
 
+  /* ═══ BASE COMÚN DE CALIFICACIÓN (misma fórmula para todos) ═══
+     Puntualidad ponderada: Ajustes y Mermas pesan 2 (puntualidad dura),
+     Actividades pesa 1. Se pondera sobre REGISTROS, no sobre promedios de
+     porcentajes, así el resultado es comparable entre auditores aunque cada
+     uno tenga distinta mezcla de áreas. Solo entra lo EVALUABLE (lo que sigue
+     abierto y aún no vence queda fuera). */
+  var PESO={aj:2, mr:2, act:1};
+  function baseEval(d){
+    var actEval=d.actProgEval+d.actNoPEval;
+    var actOk=d.actProgOk+d.actNoPOk;
+    return {
+      wOk: d.ajOk*PESO.aj + d.mrOk*PESO.mr + actOk*PESO.act,
+      wTot: d.ajTotal*PESO.aj + d.mrTotal*PESO.mr + actEval*PESO.act,
+      n: d.ajTotal + d.mrTotal + actEval
+    };
+  }
+  /* Promedio del equipo (para suavizar a quien tiene pocos registros) */
+  var _teamOk=0,_teamTot=0;
+  Object.values(byAuditor).forEach(function(d){var b=baseEval(d);_teamOk+=b.wOk;_teamTot+=b.wTot;});
+  var promEquipo=_teamTot>0?(_teamOk/_teamTot*100):100;
+  /* Carga máxima del equipo, para el bono por volumen */
+  var _maxN=0;
+  Object.values(byAuditor).forEach(function(d){var b=baseEval(d);if(b.n>_maxN)_maxN=b.n;});
+
   var cards=auditores.map(function(d,i){
     var col=colores[i%colores.length];
     var pAj=pct(d.ajOk,d.ajTotal);
     var pMr=pct(d.mrOk,d.mrTotal);
-    var pActProg=pct(d.actProgOk,d.actProgTotal);
-    var pActNoP=pct(d.actNoPOk,d.actNoPTotal);
+    var pActProg=pct(d.actProgOk,d.actProgEval);
+    var pActNoP=pct(d.actNoPOk,d.actNoPEval);
     var actTotal=d.actProgTotal+d.actNoPTotal;
+    var actEval=d.actProgEval+d.actNoPEval;
     var actOk=d.actProgOk+d.actNoPOk;
     var totAll=d.ajTotal+d.mrTotal+actTotal;
     var totOk=d.ajOk+d.mrOk+actOk;
-    var pAct=pct(actOk,actTotal);
+    var pAct=pct(actOk,actEval);
 
     /* ── Global de desempeño del auditor ──
-       Se evalúa SOLO lo que es responsabilidad directa del auditor:
-       Ajustes, Mermas y Actividades. Las Auditorías y las Tareas son
-       soporte de seguimiento y NO cuentan para el score.
-       Prioriza el CUMPLIMIENTO A TIEMPO: Ajustes y Mermas (puntualidad)
-       pesan el doble que Actividades (completadas en el mes). Solo se
-       promedian las áreas donde el auditor SÍ tiene registros. */
-    var PESO={aj:2, mr:2, act:1};
-    var gSuma=0, gPeso=0;
-    if(d.ajTotal){ gSuma+=pAj*PESO.aj; gPeso+=PESO.aj; }
-    if(d.mrTotal){ gSuma+=pMr*PESO.mr; gPeso+=PESO.mr; }
-    if(actTotal){ gSuma+=pAct*PESO.act; gPeso+=PESO.act; }
-    var pGlobal=gPeso>0?Math.round(gSuma/gPeso):0;
-    /* Muestra chica: menos de 5 registros evaluables (ajustes+mermas+actividades)
-       → el % es poco representativo; se marca para no premiar un 100% con 1-2. */
-    var medibles=d.ajTotal+d.mrTotal+actTotal;
+       1) PUNTUALIDAD: ratio ponderado sobre registros evaluables (misma
+          fórmula para todos). Ajustes/Mermas pesan 2, Actividades 1.
+          Lo que aún no vence NO entra: no se penaliza trabajo en curso.
+       2) SUAVIZADO: con pocos registros el % es poco confiable, así que se
+          acerca al promedio del equipo (media bayesiana, K=5 registros).
+       3) VOLUMEN: bono de hasta +5 pts según la carga de trabajo real
+          respecto al auditor con más registros. Evita que quien hace mucho
+          quede debajo de quien hizo 1 solo registro perfecto.
+       Auditorías y Tareas son seguimiento y NO cuentan. */
+    var _b=baseEval(d);
+    var medibles=_b.n;
+    var pPunt=_b.wTot>0?(_b.wOk/_b.wTot*100):0;
+    var K=5; /* peso del promedio del equipo al suavizar */
+    var pSuave=_b.wTot>0?((_b.wOk/_b.wTot*100)*medibles + promEquipo*K)/(medibles+K):0;
+    var bonoVol=(_maxN>0&&medibles>0)?5*Math.sqrt(medibles/_maxN):0;
+    var pGlobal=medibles>0?Math.round(Math.min(100,pSuave+bonoVol)):0;
     var muestraChica=medibles>0&&medibles<5;
+    var pPuntR=Math.round(pPunt);
 
     function kpiBlock(icon,label,total,ok,tard,repr,pend,pbar,col2,subfooter){
       return '<div style="background:var(--soft);border-radius:10px;padding:12px;border-top:3px solid '+col2+'">'+
@@ -5167,11 +5215,11 @@ function renderDesempeno(){
             (d.actProgTotal?'<div style="background:rgba(255,255,255,.18);border-radius:8px;padding:4px 10px;text-align:center"><div style="font-size:13px;font-weight:900;color:#fff">'+pActProg+'%</div><div style="font-size:8px;color:rgba(255,255,255,.7);font-weight:700">ACT-P</div></div>':'')+
             (d.actNoPTotal?'<div style="background:rgba(255,255,255,.18);border-radius:8px;padding:4px 10px;text-align:center"><div style="font-size:13px;font-weight:900;color:#fff">'+pActNoP+'%</div><div style="font-size:8px;color:rgba(255,255,255,.7);font-weight:700">ACT-NP</div></div>':'')+
           '</div>'+
-          '<div style="background:rgba(255,255,255,.25);border-radius:10px;padding:8px 14px;text-align:center" title="Global de desempeño: solo Ajustes, Mermas y Actividades. Prioriza cumplimiento a tiempo (Ajustes y Mermas pesan doble). Auditorías y Tareas son seguimiento, no cuentan.">'+
+          '<div style="background:rgba(255,255,255,.25);border-radius:10px;padding:8px 14px;text-align:center" title="Global = puntualidad ponderada sobre '+medibles+' registro(s) evaluable(s) (Ajustes y Mermas pesan doble). Puntualidad real: '+pPuntR+'%. Lo que aún no vence no penaliza'+(d.actEnCurso?' ('+d.actEnCurso+' actividad(es) en curso)':'')+'. Se suaviza hacia el promedio del equipo ('+Math.round(promEquipo)+'%) cuando hay pocos registros e incluye un bono por volumen de trabajo. Auditorías y Tareas son seguimiento, no cuentan.">'+
             '<div style="font-size:24px;font-weight:900;color:#fff;line-height:1">'+pGlobal+'%'+
               (muestraChica?'<span style="font-size:11px;font-weight:700;vertical-align:super" title="Muestra chica: menos de 5 registros, el % es poco representativo">*</span>':'')+
             '</div>'+
-            '<div style="font-size:9px;color:rgba(255,255,255,.8);font-weight:700;text-transform:uppercase;margin-top:1px">Global'+(muestraChica?' · muestra chica':' ponderado')+'</div>'+
+            '<div style="font-size:9px;color:rgba(255,255,255,.8);font-weight:700;text-transform:uppercase;margin-top:1px">Global'+(muestraChica?' · suavizado':' ponderado')+'</div>'+
           '</div>'+
         '</div>'+
       '</div>'+
@@ -5182,8 +5230,8 @@ function renderDesempeno(){
       '</div>'+
       /* Fila 2: Actividades Programadas y No Programadas */
       '<div style="padding:0 16px 14px;display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
-        kpiBlock('📋','Act. Programadas',d.actProgTotal,d.actProgOk,d.actProgAtrasada,d.actProgRepr,d.actProgPend,pActProg,'#2563eb',pActProg+'% a tiempo'+(d.actProgAtrasada?' · '+d.actProgAtrasada+' completadas tarde':''))+
-        kpiBlock('📌','Act. No Programadas',d.actNoPTotal,d.actNoPOk,d.actNoPAtrasada,d.actNoPRepr,d.actNoPPend,pActNoP,'#ea580c',pActNoP+'% a tiempo'+(d.actNoPAtrasada?' · '+d.actNoPAtrasada+' completadas tarde':''))+
+        kpiBlock('📋','Act. Programadas',d.actProgTotal,d.actProgOk,d.actProgAtrasada,d.actProgRepr,d.actProgPend,pActProg,'#2563eb',(d.actProgEval?pActProg+'% a tiempo sobre '+d.actProgEval+' evaluable(s)':'sin evaluables aún')+(d.actProgAtrasada?' · '+d.actProgAtrasada+' tarde':''))+
+        kpiBlock('📌','Act. No Programadas',d.actNoPTotal,d.actNoPOk,d.actNoPAtrasada,d.actNoPRepr,d.actNoPPend,pActNoP,'#ea580c',(d.actNoPEval?pActNoP+'% a tiempo sobre '+d.actNoPEval+' evaluable(s)':'sin evaluables aún')+(d.actNoPAtrasada?' · '+d.actNoPAtrasada+' tarde':''))+
       '</div>'+
       /* Fila 3: Seguimiento de cargas de Excel */
       '<div style="padding:0 16px 14px">'+
