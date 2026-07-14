@@ -4114,15 +4114,23 @@ async function commitActividadesExcel(rows){
   var client=getSbClient();
   if(!client){toast('⚠ Sin Supabase');return;}
   try{
-    var okN=0,failN=0;
+    var okN=0,failN=0,dupN=0;
     for(var i=0;i<rows.length;i++){
       try{
         var row=await encObj(rows[i],FIELDS.actividades);
         var r=await client.from('actividades').insert([row]);
-        if(r.error)failN++; else okN++;
+        if(r.error){
+          /* 409 / 23505 = la actividad ya existe (restricción única). No es un
+             fallo real: se omite en vez de reventar la importación. */
+          var msg=String(r.error.message||'')+String(r.error.code||'');
+          if(/duplicate|already exists|23505|conflict/i.test(msg))dupN++;
+          else { failN++; console.warn('actividad:',r.error.message); }
+        } else okN++;
       }catch(e){failN++;}
     }
-    toast('☁️ '+okN+' actividad(es) importadas'+(failN?(' — '+failN+' con error'):''));
+    toast('☁️ '+okN+' actividad(es) importadas'+
+      (dupN?(' — '+dupN+' ya existían (omitidas)'):'')+
+      (failN?(' — '+failN+' con error'):''));
     _actMesManual=false; /* tras importar, volver al mes en curso para ver lo recién cargado */
     await loadActividades();
   }catch(e){toast('⚠ Error: '+e.message);}
@@ -8186,6 +8194,58 @@ function razonesExportables(){
   return ['KNO','KSC','KSA'];
 }
 
+/* ════════════════════════════════════════════════════════════════════
+   CONTEO DE TAREAS DESDE LA FUENTE REAL + DEDUPLICACIÓN
+   Los campos pendientes/resueltas de `auditorias` son una foto del momento
+   de la carga y quedan desfasados cuando alguien resuelve una tarea. Aquí
+   se cuentan las tareas reales, ligadas a su auditoría por
+   centro (o tienda) + clase + mes.
+════════════════════════════════════════════════════════════════════ */
+function _claveTienda(rec){
+  var c=String(rec.centro||'').trim();
+  if(c && !pareceCifrado(c)) return 'C:'+norm(c);
+  return 'T:'+norm(rec.tienda||'');
+}
+/* Clase: 'ol' (Orden y Limpieza) o 'proc' (Procesos/Colaboración/Cartera) */
+function _claseTarea(t){ return tipoNorm(t.tipoTarea||t.tipo_tarea)==='ol' ? 'ol' : 'proc'; }
+function _claseAuditoria(a){ return /orden/i.test(String(a.clase||'')) ? 'ol' : 'proc'; }
+function _mesDeTarea(t){
+  var f=t.fechaCreacion||t.fecha_creacion;
+  if(!f)return -1;
+  var d=new Date(f);
+  return isNaN(d) ? -1 : d.getMonth();
+}
+
+/* Elimina duplicados exactos conservando el primero */
+function _dedup(arr, claveFn){
+  var vistos={}, out=[], dups=0;
+  (arr||[]).forEach(function(x){
+    var k=claveFn(x);
+    if(vistos[k]){dups++;return;}
+    vistos[k]=1; out.push(x);
+  });
+  if(dups)console.warn('Registros duplicados omitidos:',dups);
+  out._dups=dups;
+  return out;
+}
+
+/* Índice: clave|clase|mes -> {tareas, resueltas, pendientes} */
+function _indiceTareas(razon){
+  var idx={};
+  var tareas=_dedup(STORE.tareas||[], function(t){
+    return t.id!=null ? 'id:'+t.id
+      : [norm(t.tienda), norm(t.nombre||t.actividad||''), t.fechaCreacion||'', norm(t.tipoTarea||'')].join('|');
+  });
+  tareas.forEach(function(t){
+    if(razKey(_razonDeRegistro(t))!==razKey(razon))return;
+    var k=_claveTienda(t)+'|'+_claseTarea(t)+'|'+_mesDeTarea(t);
+    if(!idx[k])idx[k]={tareas:0,resueltas:0,pendientes:0};
+    idx[k].tareas++;
+    if(esResuelta(t))idx[k].resueltas++; else idx[k].pendientes++;
+  });
+  return idx;
+}
+
 function buildPptxDataset(mes,razon,mesesRango){
   var mIdx=_mesIdx(mes);
   var rzOk=function(rec){ return razKey(_razonDeRegistro(rec))===razKey(razon); };
@@ -8481,7 +8541,7 @@ window.addEventListener('message',function(ev){
    ejecutando, avisa para recargar. Evita seguir usando una copia cacheada
    (causa habitual de "no veo los cambios" y de archivos generados con la
    versión anterior). */
-var BUILD_ID='2026-07-14-julio-fix';
+var BUILD_ID='2026-07-14-fix-dedup';
 (function(){
   setTimeout(async function(){
     try{
