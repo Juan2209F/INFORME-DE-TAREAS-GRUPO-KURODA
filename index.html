@@ -3011,11 +3011,16 @@ function tipoNormLocal(tipo){
 function calcAudStats(a, rowsMismaClase){
   var tipoClase = tipoTareaDeClase(a.clase);
 
-  /* ¿Hay 2+ auditorías para la misma tienda+centro en esta clase? */
-  var audsMismaTienda = rowsMismaClase ? rowsMismaClase.filter(function(x){
-    return norm(x.tienda)===norm(a.tienda) && norm(x.centro)===norm(a.centro);
-  }) : [a];
-  var multiAud = audsMismaTienda.length > 1;
+  /* Hermanas = TODAS las auditorías de la misma tienda+centro+clase que existen
+     en STORE, no solo las que se están pintando. Antes se usaba rowsMismaClase
+     (ya filtrado por mes de la vista y por estaFinalizada), así que una
+     auditoría podía quedarse "sola" y llevarse las tareas de todos los meses:
+     KN EXPRESS julio contaba 19 en vez de 10. */
+  var audsMismaTienda = (STORE.auditorias||[]).filter(function(x){
+    return norm(x.tienda)===norm(a.tienda) && norm(x.centro)===norm(a.centro)
+        && norm(x.clase)===norm(a.clase);
+  });
+  if(!audsMismaTienda.length) audsMismaTienda=[a];
   var mesMes = mesIndexFromNombre(a.mes);
 
   /* Filtrar tareas: tienda + centro + tipo correspondiente a la clase */
@@ -3025,28 +3030,15 @@ function calcAudStats(a, rowsMismaClase){
     return true;
   });
 
-  /* Acotar SOLO cuando hace falta desambiguar entre 2+ auditorías que
-     comparten tienda/centro/clase (multiAud) — ahí sí hay que separar qué
-     tarea pertenece a cuál auditoría. Si es la ÚNICA auditoría de esa
-     tienda/centro/clase, no hay ambigüedad: todas sus tareas coincidentes le
-     pertenecen, sin importar el mes exacto en que se haya creado el ticket.
+  /* Una auditoría solo cuenta las tareas de SU mes (ventana del mes ± GRACIA_DIAS,
+     porque los tickets a veces se abren unos días antes o después del corte).
+     Esto se aplica siempre que la auditoría tenga mes reconocible, haya o no
+     hermanas: si no, la única auditoría visible de esa tienda/clase se llevaba
+     las tareas de todos los meses.
 
-     Cuando SÍ hace falta desambiguar, cada tarea se asigna a la auditoría
-     HERMANA cuyo mes le quede más cerca (por distancia en meses, con margen
-     de unos días a inicio/fin de mes) — no a la que tenga más o menos tareas
-     declaradas. Esto evita dos problemas que tuvimos antes:
-     1) Exigir coincidencia exacta de mes calendario: los tickets de la
-        auditoría de un mes a veces se crean unos días antes o después del
-        cambio de mes, y esas auditorías nunca encontraban ninguna tarea.
-     2) Comparar el conteo en vivo contra el total ya guardado en la
-        auditoría: si ese número quedaba desactualizado (p. ej. se agregaron
-        tareas nuevas después), la salvaguarda descartaba el cálculo correcto
-        y se congelaba con los valores viejos para siempre — aunque no
-        hubiera ninguna tarea realmente compartida con otra auditoría.
-     Con "mes más cercano", cada tarea solo puede pertenecer a UNA hermana a
-     la vez (nunca se cuenta dos veces), sin depender de ningún número
-     declarado de antemano. */
-  if(multiAud && mesMes>=0){
+     Cuando hay 2+ hermanas, cada tarea se asigna a la del mes MÁS CERCANO, así
+     que nunca puede contarse dos veces ni depende de ningún total declarado. */
+  if(mesMes>=0){
     var GRACIA_DIAS=5;
     var _fa=a.fecha?fromISO(a.fecha):null;
     var anioAud=_fa?_fa.getFullYear():new Date().getFullYear();
@@ -8635,7 +8627,7 @@ window.addEventListener('message',function(ev){
    ejecutando, avisa para recargar. Evita seguir usando una copia cacheada
    (causa habitual de "no veo los cambios" y de archivos generados con la
    versión anterior). */
-var BUILD_ID='2026-07-14-reconcilia';
+var BUILD_ID='2026-07-14-mesreal';
 (function(){
   setTimeout(async function(){
     try{
