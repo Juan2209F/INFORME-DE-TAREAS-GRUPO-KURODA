@@ -8188,21 +8188,31 @@ function buildPptxDataset(mes,razon,mesesRango){
   var esOrden=function(c){ return /orden/i.test(String(c||'')); };
 
   /* ── AUDITORÍAS: detalle por tienda y resumen por clase ── */
-  var auds=(STORE.auditorias||[]).filter(function(a){return rzOk(a);});
+  /* Sin duplicados: una auditoría por tienda + mes + clase */
+  var auds=_dedup((STORE.auditorias||[]).filter(function(a){return rzOk(a);}),
+    function(a){ return [_claveTienda(a), norm(a.mes), _claseAuditoria(a)].join('|'); });
+  var IDX=_indiceTareas(razon);
   function detalleDe(lista){
     return lista.map(function(a){
-      var r=+a.resueltas||0, p=+a.pendientes||0;
-      /* En memoria los campos son camelCase (pctCumpl / pctResuelto) y vienen
-         como fracción (0.44) o como porcentaje (44): se normaliza a 0-100. */
+      /* En memoria los campos son camelCase (pctCumpl) y vienen como fracción
+         (0.44) o como porcentaje (44): se normaliza a 0-100. */
       function aPct(v){
         var n=parseFloat(v)||0;
         return Math.round(n<=1 ? n*100 : n);
       }
+      /* Pendientes/resueltas CONTADAS de las tareas reales (siempre al día).
+         El snapshot de `auditorias` solo se usa si no hay tareas ligadas. */
+      var k=_claveTienda(a)+'|'+_claseAuditoria(a)+'|'+_mesIdx(a.mes);
+      var real=IDX[k], r, p;
+      if(real){ r=real.resueltas; p=real.pendientes; }
+      else { r=+a.resueltas||0; p=+a.pendientes||0; }
+
       return {
         tienda:String(a.tienda||'—'), mes:String(a.mes||''),
         pctAud:aPct(a.pctCumpl!==undefined?a.pctCumpl:a.pct_cumpl),
         pendientes:p, resueltas:r,
-        pctResuelto: (r+p)>0 ? Math.round(r/(r+p)*100) : 0
+        pctResuelto: (r+p)>0 ? Math.round(r/(r+p)*100) : 0,
+        fuente: real ? 'tareas' : 'snapshot'
       };
     }).sort(function(x,y){return y.pctAud-x.pctAud;});
   }
@@ -8316,25 +8326,34 @@ function buildCumplimientoDataset(mes,razon,mesesRango){
       clases:{}};
     return T[k];
   }
-  /* Auditorías del mes */
-  (STORE.auditorias||[]).forEach(function(a){
-    if(!rzOk(a)||!mesOk(a.mes))return;
+  /* Auditorías del mes — sin duplicados y con tareas contadas de la fuente real */
+  var IDX=_indiceTareas(razon);
+  _dedup((STORE.auditorias||[]).filter(function(a){return rzOk(a)&&mesOk(a.mes);}),
+    function(a){ return [_claveTienda(a), norm(a.mes), _claseAuditoria(a)].join('|'); }
+  ).forEach(function(a){
     var d=get(a.tienda);
-    var pc=(a.pctCumpl!==undefined?a.pctCumpl:a.pct_cumpl);
-    pc=parseFloat(pc)||0; if(pc>1.5)pc=pc/100;
+    var pc=parseFloat(a.pctCumpl!==undefined?a.pctCumpl:a.pct_cumpl)||0;
+    if(pc>1.5)pc=pc/100;
     d.auditorias++; d.sumPct+=pc*100;
-    d.pendientes+=(+a.pendientes||0);
-    d.resueltas+=(+a.resueltas||0);
+    var k=_claveTienda(a)+'|'+_claseAuditoria(a)+'|'+_mesIdx(a.mes);
+    var real=IDX[k];
+    if(real){ d.pendientes+=real.pendientes; d.resueltas+=real.resueltas; }
+    else { d.pendientes+=(+a.pendientes||0); d.resueltas+=(+a.resueltas||0); }
     d.clases[esOrden(a.clase)?'Orden y Limpieza':'Procesos']=1;
   });
   /* Ajustes y mermas del mes */
-  (AJUSTES||[]).forEach(function(x){
+  var firmaReg=function(x){
+    return [norm(x.tienda), norm(x.mes), x.fechaCorreo||x.fecha_correo||'',
+            x.fechaAjuste||x.fecha_ajuste||x.fecha||'', norm(x.condicion||''),
+            norm(x.auditor||'')].join('|');
+  };
+  _dedup(AJUSTES||[], firmaReg).forEach(function(x){
     if(!rzOk(x)||!mesOk(x.mes))return;
     var d=get(x.tienda); d.ajustes++;
     if(x.condicion==='A tiempo')d.ajTiempo++;
     else if(x.condicion==='Destiempo')d.ajDestiempo++;
   });
-  (MERMAS||[]).forEach(function(x){
+  _dedup(MERMAS||[], firmaReg).forEach(function(x){
     if(!rzOk(x)||!mesOk(x.mes))return;
     var d=get(x.tienda); d.mermas++;
     if(x.condicion==='A tiempo')d.mmTiempo++;
@@ -8375,10 +8394,13 @@ function buildCumplimientoDataset(mes,razon,mesesRango){
   /* Evolución mensual del cumplimiento de tareas (meses elegidos) */
   var evo={meses:[],pct:[]};
   (mesesRango||[]).forEach(function(mn){
-    var i=_mesIdx(mn), p=0,r=0;
-    (STORE.auditorias||[]).forEach(function(a){
-      if(!rzOk(a)||_mesIdx(a.mes)!==i)return;
-      p+=(+a.pendientes||0); r+=(+a.resueltas||0);
+    var i=_mesIdx(mn), p=0, r=0;
+    _dedup((STORE.auditorias||[]).filter(function(a){return rzOk(a)&&_mesIdx(a.mes)===i;}),
+      function(a){ return [_claveTienda(a), norm(a.mes), _claseAuditoria(a)].join('|'); }
+    ).forEach(function(a){
+      var real=IDX[_claveTienda(a)+'|'+_claseAuditoria(a)+'|'+i];
+      if(real){ p+=real.pendientes; r+=real.resueltas; }
+      else { p+=(+a.pendientes||0); r+=(+a.resueltas||0); }
     });
     if(p+r===0)return;
     evo.meses.push(mn); evo.pct.push(_pctP(r,p+r));
@@ -8454,7 +8476,7 @@ window.addEventListener('message',function(ev){
    ejecutando, avisa para recargar. Evita seguir usando una copia cacheada
    (causa habitual de "no veo los cambios" y de archivos generados con la
    versión anterior). */
-var BUILD_ID='2026-07-13-cumplimiento';
+var BUILD_ID='2026-07-14-tareas-reales';
 (function(){
   setTimeout(async function(){
     try{
