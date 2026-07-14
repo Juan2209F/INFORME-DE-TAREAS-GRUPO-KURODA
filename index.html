@@ -861,7 +861,7 @@ table.seg tbody tr:hover{background:var(--soft)}
             <select id="act-f-categoria" onchange="renderActividades()">
               <option value="ALL">Todas</option>
               <option>Evaluacion</option><option>Auditoria</option><option>Entrega</option>
-              <option>Inventario</option><option>Apoyo Juridico</option><option>Apoyo a RH</option>
+              <option>Inventario</option><option>Revision</option><option>Apoyo Juridico</option><option>Apoyo a RH</option>
             </select></div>
           <div class="fg"><label>ASIGNADO A</label>
             <select id="act-f-asignado" onchange="renderActividades()"><option value="ALL">Todos</option></select></div>
@@ -3177,6 +3177,9 @@ function pendColor(stats){
 }
 
 function audTablaPorClase(titulo,color,rows){
+  /* Una auditoría archivada en Finalizadas ya no es "vigente": se excluye para
+     que no aparezca (ni se sume) en los dos módulos a la vez. */
+  rows=(rows||[]).filter(function(a){return !estaFinalizada(a);});
   var canEditAud=_session&&['admin','admin_auditor','auditor'].includes(_session.rol);
   /* Cache global indexado por clave única (no por título que puede colisionar) */
   window._audItemCache=window._audItemCache||{};
@@ -3245,6 +3248,7 @@ function audTablaPorClaseCartera(titulo,color,rows,esCartera){
 
 /* Tabla especial CARTERA — sin % cumplimiento, solo seguimiento de tareas */
 function audTablaPorClaseCarteraRender(titulo,color,rows){
+  rows=(rows||[]).filter(function(a){return !estaFinalizada(a);});
   var canEditAud=_session&&['admin','admin_auditor','auditor'].includes(_session.rol);
   window._audItemCache=window._audItemCache||{};
   var filas=rows.map(function(a){
@@ -3828,7 +3832,7 @@ function openActividad(id){
   var _rzOpts=[...new Set(_RAZONES_FIJAS.concat(_rzAsig||[]).concat(STORE.tareas.map(function(t){return t.razon;})).concat(STORE.auditorias.map(function(x){return x.razon;})).filter(Boolean).map(function(r){return r.toUpperCase();}))];
   function di(d){if(!d)return'';var x=fromISO(d);return x?fmtInput(x):'';}
   var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  var cats=['Evaluacion','Auditoria','Entrega','Inventario','Apoyo Juridico','Apoyo a RH'];
+  var cats=['Evaluacion','Auditoria','Entrega','Inventario','Revision','Apoyo Juridico','Apoyo a RH'];
   var estados=['Completado','En curso','Reprogramado','Sin comenzar'];
   var _rzBloqueada=_rzAsig&&_rzAsig.length===1;
   var body='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
@@ -7565,7 +7569,8 @@ async function loadFinalizadas(){
         completadoPor:f.completado_por||''});
     });
     FINALIZADAS=FINALIZADAS.filter(function(f){return f._pending||tiendaVisible(f.tienda);});
-    purgarFinalizadasVencidas(); /* elimina (Supabase + pantalla) las de más de 7 días */
+    /* Las auditorías finalizadas SE CONSERVAN: son el histórico del que se
+       alimentan los reportes. Antes se borraban a los 7 días. */
     _finLoaded=true;
     fillFinFilters();renderFinalizadas();
     toast('\u2713 '+FINALIZADAS.length+' auditoría(s) finalizada(s)');
@@ -7576,6 +7581,21 @@ async function loadFinalizadas(){
    fecha de finalización; pasado ese plazo se eliminan solas, tanto de
    Supabase como de la lista en pantalla, para no acumular historial
    indefinidamente. Se corre cada vez que se recargan los datos. */
+/* Días que una auditoría debe permanecer al 100% resuelta antes de pasar a
+   Finalizadas. Evita moverla por una resolución momentánea. */
+var DIAS_PARA_FINALIZAR=3;
+
+/* Clave única de una auditoría (misma fórmula en todo el dashboard) */
+function audKeyDe(a){
+  return [norm(a.tienda||''),norm(a.mes||''),norm(a.clase||''),a.fecha||''].join('|');
+}
+/* ¿Esta auditoría ya está archivada en Finalizadas?
+   Se usa para NO contarla otra vez entre las vigentes (evita duplicar). */
+function estaFinalizada(a){
+  var ak=audKeyDe(a);
+  return (FINALIZADAS||[]).some(function(f){return f.aud_key===ak;});
+}
+
 var RETENCION_FINALIZADAS_DIAS=7;
 function purgarFinalizadasVencidas(){
   var hoy=new Date();hoy.setHours(0,0,0,0);
@@ -7819,6 +7839,19 @@ async function registrarFinalizada(a){
   });
   if(!fechaFin){
     fechaFin=new Date().toISOString().split('T')[0];
+  }
+
+  /* Solo se archiva cuando lleva al menos DIAS_PARA_FINALIZAR días al 100%.
+     Si se resolvió hoy, se queda en Auditorías unos días más. */
+  var _hoy=new Date(); _hoy.setHours(0,0,0,0);
+  var _ff=fromISO(fechaFin);
+  if(_ff){
+    var _diasAl100=Math.floor((_hoy-_ff)/(1000*60*60*24));
+    if(_diasAl100<DIAS_PARA_FINALIZAR){
+      /* aún no: quitar la marca provisional y salir */
+      FINALIZADAS=FINALIZADAS.filter(function(f){return !(f.aud_key===ak&&f._pending);});
+      return;
+    }
   }
 
   var duracion=(fechaInicio&&fechaFin)?diasEntre(fechaInicio,fechaFin):null;
@@ -8253,8 +8286,22 @@ function buildPptxDataset(mes,razon,mesesRango){
   var esOrden=function(c){ return /orden/i.test(String(c||'')); };
 
   /* ── AUDITORÍAS: detalle por tienda y resumen por clase ── */
-  /* Sin duplicados: una auditoría por tienda + mes + clase */
-  var auds=_dedup((STORE.auditorias||[]).filter(function(a){return rzOk(a);}),
+  /* Universo completo de auditorías = vigentes + FINALIZADAS.
+     Las finalizadas salen del módulo de auditorías (para no duplicar en pantalla),
+     pero el reporte SÍ debe incluirlas: si no, se perdería su información.
+     El dedup por tienda+mes+clase garantiza que ninguna se cuente dos veces. */
+  var finsComoAud=(FINALIZADAS||[])
+    .filter(function(f){return f && !f._pending;})
+    .map(function(f){
+      var tot=parseInt(f.total_tareas)||0, res=parseInt(f.resueltas)||0;
+      return {
+        tienda:f.tienda||'', mes:f.mes||'', clase:f.clase||'',
+        centro:f.centro||'', razon:f.razon||'',
+        pctCumpl:f.pct_cumpl, tareas:tot, resueltas:res,
+        pendientes:Math.max(0, tot-res), _finalizada:true
+      };
+    });
+  var auds=_dedup((STORE.auditorias||[]).concat(finsComoAud).filter(function(a){return rzOk(a);}),
     function(a){ return [_claveTienda(a), norm(a.mes), _claseAuditoria(a)].join('|'); });
   var IDX=_indiceTareas(razon);
   function detalleDe(lista){
@@ -8367,6 +8414,8 @@ async function asegurarDatosPptx(){
   if(typeof MERMAS==='undefined'||!MERMAS.length){ if(typeof loadMermas==='function')tareas.push(loadMermas()); }
   if(typeof ACTIVIDADES==='undefined'||!ACTIVIDADES.length){ if(typeof loadActividades==='function')tareas.push(loadActividades()); }
   if(!STORE.auditorias||!STORE.auditorias.length){ if(typeof loadDataFromSupabase==='function')tareas.push(loadDataFromSupabase()); }
+  /* Las auditorías finalizadas también alimentan el reporte */
+  if(typeof FINALIZADAS==='undefined'||!FINALIZADAS.length){ if(typeof loadFinalizadas==='function')tareas.push(loadFinalizadas()); }
   if(tareas.length){ try{ await Promise.all(tareas); }catch(e){ console.warn('asegurarDatosPptx:',e.message); } }
 }
 
@@ -8391,9 +8440,15 @@ function buildCumplimientoDataset(mes,razon,mesesRango){
       clases:{}};
     return T[k];
   }
-  /* Auditorías del mes — sin duplicados y con tareas contadas de la fuente real */
+  /* Auditorías del mes — vigentes + finalizadas, sin duplicados, con tareas reales */
   var IDX=_indiceTareas(razon);
-  _dedup((STORE.auditorias||[]).filter(function(a){return rzOk(a)&&mesOk(a.mes);}),
+  var _finsAud=(FINALIZADAS||[]).filter(function(f){return f && !f._pending;}).map(function(f){
+    var tot=parseInt(f.total_tareas)||0, res=parseInt(f.resueltas)||0;
+    return {tienda:f.tienda||'', mes:f.mes||'', clase:f.clase||'', centro:f.centro||'',
+            razon:f.razon||'', pctCumpl:f.pct_cumpl, tareas:tot, resueltas:res,
+            pendientes:Math.max(0,tot-res)};
+  });
+  _dedup((STORE.auditorias||[]).concat(_finsAud).filter(function(a){return rzOk(a)&&mesOk(a.mes);}),
     function(a){ return [_claveTienda(a), norm(a.mes), _claseAuditoria(a)].join('|'); }
   ).forEach(function(a){
     var d=get(a.tienda);
@@ -8541,7 +8596,7 @@ window.addEventListener('message',function(ev){
    ejecutando, avisa para recargar. Evita seguir usando una copia cacheada
    (causa habitual de "no veo los cambios" y de archivos generados con la
    versión anterior). */
-var BUILD_ID='2026-07-14-fix-dedup';
+var BUILD_ID='2026-07-14-finalizadas';
 (function(){
   setTimeout(async function(){
     try{
