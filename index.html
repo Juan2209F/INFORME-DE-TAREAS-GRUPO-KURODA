@@ -6760,13 +6760,16 @@ function importAjustesExcel(files){
         if(!tienda)continue;
         var fechaC=toISO(r[iC]);
         var fechaA=toISO(r[iA]);
-        if(!fechaC||!fechaA)continue;
+        /* Basta la fecha de correo. Un ajuste del mes en curso puede no tener
+           todavía fecha de ajuste: antes se descartaba la fila entera y el mes
+           no aparecía. Ahora entra como pendiente (condición '—'). */
+        if(!fechaC)continue;
         /* Derivar mes y año SIEMPRE desde fecha_correo — ignorar campo Mes del Excel
            porque viene con formatos inconsistentes: "julio2023.", "julio", etc. */
         var parts=fechaC.split('-');
         var año=parseInt(parts[0]);
         var mes=MN[parseInt(parts[1])-1]||'';
-        var dias=diasEntre(fechaC,fechaA);
+        var dias=fechaA?diasEntre(fechaC,fechaA):null;
         var auditor=(iAud>=0?String(r[iAud]||'').trim():'')||yoSesion||'Desconocido';
         rows.push({tienda,mes,año,fecha_correo:fechaC,fecha_ajuste:fechaA,
           dias,condicion:condicionAjuste(dias),auditor:auditor});
@@ -7403,14 +7406,16 @@ function importMermasExcel(files){
         if(!tienda)continue;
         var fechaA=toISOfecha(r[iA]);
         var fechaV=toISOfecha(r[iV]);
-        if(!fechaA||!fechaV)continue;
+        /* Basta la fecha de autorización: una merma del mes en curso puede seguir
+           sin validar. Antes se descartaba la fila y el mes no aparecía. */
+        if(!fechaA)continue;
         var lf=iLF>=0?String(r[iLF]||'').trim():'Local';
         if(!lf)lf='Local';
         var mes=iM>=0?String(r[iM]||'').trim().toUpperCase():'';
         if(mes&&mes.includes(','))mes=mes.split(',')[0].trim().toUpperCase();
         if(!mes&&fechaA)mes=mNames[parseInt(fechaA.split('-')[1])-1]||'';
         var año=parseInt((fechaA||'').split('-')[0])||null;
-        var dias=diasEntre(fechaA,fechaV);
+        var dias=fechaV?diasEntre(fechaA,fechaV):null;
         var auditor=(iAud>=0?String(r[iAud]||'').trim():'')||yoSesion||'Desconocido';
         rows.push({tienda,local_foranea:lf,mes,año,fecha_autorizacion:fechaA,
           fecha_validacion:fechaV,dias,condicion:condicionAjuste(dias),auditor:auditor});
@@ -8476,7 +8481,7 @@ window.addEventListener('message',function(ev){
    ejecutando, avisa para recargar. Evita seguir usando una copia cacheada
    (causa habitual de "no veo los cambios" y de archivos generados con la
    versión anterior). */
-var BUILD_ID='2026-07-14-tareas-reales';
+var BUILD_ID='2026-07-14-julio-fix';
 (function(){
   setTimeout(async function(){
     try{
