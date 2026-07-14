@@ -7570,7 +7570,9 @@ async function loadFinalizadas(){
     });
     FINALIZADAS=FINALIZADAS.filter(function(f){return f._pending||tiendaVisible(f.tienda);});
     /* Las auditorías finalizadas SE CONSERVAN: son el histórico del que se
-       alimentan los reportes. Antes se borraban a los 7 días. */
+       alimentan los reportes. Antes se borraban a los 7 días.
+       Solo se devuelven a Auditorías las que quedaron archivadas incompletas. */
+    reconciliarFinalizadas();
     _finLoaded=true;
     fillFinFilters();renderFinalizadas();
     toast('\u2713 '+FINALIZADAS.length+' auditoría(s) finalizada(s)');
@@ -7589,11 +7591,39 @@ var DIAS_PARA_FINALIZAR=3;
 function audKeyDe(a){
   return [norm(a.tienda||''),norm(a.mes||''),norm(a.clase||''),a.fecha||''].join('|');
 }
+/* Clave SIN fecha: tienda|mes|clase. El mes ya conserva el criterio mensual,
+   y así una auditoría viva casa con su registro archivado aunque la fecha
+   del renglón difiera (esa era la causa del duplicado KN EXPRESS). */
+function audKeyMes(a){
+  if(a&&a.aud_key)return String(a.aud_key).split('|').slice(0,3).join('|');
+  return [norm(a.tienda||''),norm(a.mes||''),norm(a.clase||'')].join('|');
+}
+/* Una finalizada solo "tapa" a su auditoría si de verdad está al 100%. */
+function finCompleta(f){
+  if(f._pending)return true;
+  var tot=+f.total_tareas||0,res=+f.resueltas||0;
+  return tot>0&&res>=tot;
+}
 /* ¿Esta auditoría ya está archivada en Finalizadas?
    Se usa para NO contarla otra vez entre las vigentes (evita duplicar). */
 function estaFinalizada(a){
-  var ak=audKeyDe(a);
-  return (FINALIZADAS||[]).some(function(f){return f.aud_key===ak;});
+  var ak=audKeyMes(a);
+  return (FINALIZADAS||[]).some(function(f){return finCompleta(f)&&audKeyMes(f)===ak;});
+}
+
+/* Reconciliación: toda finalizada con resueltas < total_tareas nunca debió
+   archivarse. Se saca de Finalizadas (y de Supabase) para que vuelva a
+   Auditorías y se re-archive sola cuando llegue al 100% + DIAS_PARA_FINALIZAR. */
+function reconciliarFinalizadas(){
+  var malas=FINALIZADAS.filter(function(f){return !f._pending&&!finCompleta(f);});
+  if(!malas.length)return;
+  var ids=malas.map(function(f){return f.id;}).filter(Boolean);
+  FINALIZADAS=FINALIZADAS.filter(function(f){return finCompleta(f);});
+  var client=getSbClient();
+  if(!client||!ids.length)return;
+  client.from('tareas_finalizadas').delete().in('id',ids)
+    .then(function(r){if(r.error)console.warn('reconciliar finalizadas:',r.error.message);})
+    .catch(function(e){console.warn('reconciliar finalizadas:',e.message);});
 }
 
 var RETENCION_FINALIZADAS_DIAS=7;
@@ -7808,7 +7838,8 @@ async function updateFinFecha(el){
 async function registrarFinalizada(a){
   var client=getSbClient();if(!client)return;
   var ak=[norm(a.tienda||""),norm(a.mes||""),norm(a.clase||""),a.fecha||""].join("|");
-  var existe=FINALIZADAS.find(function(f){return f.aud_key===ak&&!f._pending;});
+  var akm=audKeyMes(a);
+  var existe=FINALIZADAS.find(function(f){return audKeyMes(f)===akm;});
   if(existe)return;
   FINALIZADAS.unshift({aud_key:ak,_pending:true});
 
@@ -7821,6 +7852,14 @@ async function registrarFinalizada(a){
   });
   var totalTareas=tareasDeAud.length;
   var resueltas=tareasDeAud.filter(function(t){return!esPendiente(t);}).length;
+
+  /* Blindaje: solo se archiva al 100%. Sin esto se colaban auditorías a medias
+     (KN EXPRESS entró con 9/19) porque el conteo de aquí no siempre coincide
+     con el de calcAudStats. */
+  if(totalTareas<=0||resueltas<totalTareas){
+    FINALIZADAS=FINALIZADAS.filter(function(f){return !(f.aud_key===ak&&f._pending);});
+    return;
+  }
 
   /* fecha_inicio = fechaCreacion mas antigua */
   var fechaInicio=null;
@@ -8596,7 +8635,7 @@ window.addEventListener('message',function(ev){
    ejecutando, avisa para recargar. Evita seguir usando una copia cacheada
    (causa habitual de "no veo los cambios" y de archivos generados con la
    versión anterior). */
-var BUILD_ID='2026-07-14-finalizadas';
+var BUILD_ID='2026-07-14-reconcilia';
 (function(){
   setTimeout(async function(){
     try{
