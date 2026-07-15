@@ -2037,15 +2037,26 @@ function descargarPlantillas(){
   toast('✓ Plantilla descargada');
 }
 
+/* Barra de datos: Vigentes = auditorías activas que NO están finalizadas
+   (mismo criterio que la vista de Auditorías); Finalizadas = archivadas.
+   Se llama en refreshAll y también al terminar loadFinalizadas, porque las
+   finalizadas cargan de forma asíncrona (si no, Vigentes salía de más y
+   Finalizadas marcaba 0). */
+function actualizarStrip(){
+  var elV=document.getElementById('ds-aud');
+  var finList=(typeof FINALIZADAS!=='undefined')?FINALIZADAS.filter(function(f){return !f._pending;}):[];
+  var vigentes=(typeof estaFinalizada==='function')
+    ? STORE.auditorias.filter(function(a){return !estaFinalizada(a);}).length
+    : STORE.auditorias.length;
+  if(elV)elV.textContent=vigentes;
+  var elF=document.getElementById('ds-fin'); if(elF)elF.textContent=finList.length;
+  var elT=document.getElementById('ds-tar'); if(elT)elT.textContent=STORE.tareas.length;
+  var elP=document.getElementById('ds-pend'); if(elP)elP.textContent=STORE.tareas.filter(esPendiente).length;
+}
+
 function refreshAll(){
   actualizarEstadosVencidos(); /* sincronizar estados antes de KPIs */
-  /* Vigentes = auditorías activas; Finalizadas = archivadas (excluye pendientes
-     de archivar). Se separan para que el conteo sea claro. */
-  document.getElementById('ds-aud').textContent=STORE.auditorias.length;
-  var _finEl=document.getElementById('ds-fin');
-  if(_finEl)_finEl.textContent=(typeof FINALIZADAS!=='undefined'?FINALIZADAS.filter(function(f){return !f._pending;}).length:0);
-  document.getElementById('ds-tar').textContent=STORE.tareas.length;
-  document.getElementById('ds-pend').textContent=STORE.tareas.filter(esPendiente).length;
+  actualizarStrip();
   fillFilters();render();
   /* Si la vista de auditorías está activa, re-renderizarla para reflejar cambios en tareas */
   if(VIEW==='auditorias') renderAuditoriasView();
@@ -4232,16 +4243,26 @@ function generatePpt(opts){
   var today=new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'long',year:'numeric'});
 
   /* ── datos: filtro propio del reporte (razón, tienda, periodo, rango de
-     fechas) o, si no se envía, el filtro actual del dashboard ── */
+     fechas) o, si no se envía, el filtro actual del dashboard.
+     El reporte refleja tanto VIGENTES como FINALIZADAS: las vigentes son las
+     auditorías activas que NO están finalizadas (para no duplicar), y se les
+     suman las archivadas. ── */
   function pptFiltrar(){
-    if(!opts.filtro) return {tareas:filteredTareas(), aud:filteredAuditorias()};
-    var fl=opts.filtro, anio=new Date().getFullYear();
-    var mi = (fl.mes && fl.mes!=='ALL') ? parseInt(fl.mes) : null;
-    var desde = fl.desde? new Date(fl.desde+'T00:00:00') : null;
-    var hasta = fl.hasta? new Date(fl.hasta+'T23:59:59') : null;
+    var anio=new Date().getFullYear();
+    var fl = opts.filtro || (function(){
+      var f=getFilterState();
+      var gd=function(id){var e=document.getElementById(id);return e?e.value:'';};
+      return {razon:f.razon, tienda:f.tienda, mes:(f.mesGran||'ALL'), desde:gd('f-desde'), hasta:gd('f-hasta')};
+    })();
+    var mi=(fl.mes&&fl.mes!=='ALL')?parseInt(fl.mes):null;
+    var desde=fl.desde?new Date(fl.desde+'T00:00:00'):null;
+    var hasta=fl.hasta?new Date(fl.hasta+'T23:59:59'):null;
     var okR=function(x){return !fl.razon||fl.razon==='ALL'||norm(x.razon)===norm(fl.razon);};
     var okT=function(x){return !fl.tienda||fl.tienda==='ALL'||norm(x.tienda)===norm(fl.tienda);};
     var audFecha=function(a){var d=fromISO(a.fecha);if(d)return d;var k=mesIndexFromNombre(a.mes);return k>=0?new Date(anio,k,15):null;};
+    var okFA=function(a){var fa=audFecha(a);
+      if(desde&&(!fa||fa<desde))return false; if(hasta&&(!fa||fa>hasta))return false;
+      if(mi){if(!fa)return false;if(fa.getMonth()+1!==mi||fa.getFullYear()!==anio)return false;} return true;};
     var T=STORE.tareas.filter(function(t){
       if(!okR(t)||!okT(t))return false;
       var cr=fromISO(t.fechaCreacion);
@@ -4250,19 +4271,25 @@ function generatePpt(opts){
       if(mi){ if(!cr)return false; if(cr.getMonth()+1!==mi||cr.getFullYear()!==anio)return false; }
       return true;
     });
-    var A=STORE.auditorias.filter(function(a){
-      if(!okR(a)||!okT(a))return false;
-      var fa=audFecha(a);
-      if(desde&&(!fa||fa<desde))return false;
-      if(hasta&&(!fa||fa>hasta))return false;
-      if(mi){ if(!fa)return false; if(fa.getMonth()+1!==mi||fa.getFullYear()!==anio)return false; }
-      return true;
-    });
-    return {tareas:T, aud:A};
+    var estaFin=(typeof estaFinalizada==='function')?estaFinalizada:function(){return false;};
+    var audVig=STORE.auditorias.filter(function(a){return okR(a)&&okT(a)&&okFA(a)&&!estaFin(a);});
+    var audFin=(typeof FINALIZADAS!=='undefined'?FINALIZADAS:[])
+      .filter(function(f){return !f._pending;})
+      .map(function(f){
+        var centro=f.centro||((typeof centroDeTienda==='function')?centroDeTienda(f.tienda||''):'')||'';
+        return {tienda:f.tienda||'', centro:centro, razon:f.razon||'', mes:f.mes||'', clase:f.clase||'',
+          fecha:f.fecha||f.fecha_inicio||'',
+          pctCumpl:(f.pctCumpl!=null?f.pctCumpl:(parseFloat(f.pct_cumpl)||0)),
+          tareas:(f.tareas!=null?f.tareas:(parseInt(f.total_tareas)||0)),
+          resueltas:(f.resueltas!=null?f.resueltas:(parseInt(f.resueltas)||0)), _fin:true};
+      })
+      .filter(function(a){return okR(a)&&okT(a)&&okFA(a);});
+    return {tareas:T, aud:audVig.concat(audFin), nVig:audVig.length, nFin:audFin.length};
   }
   var _pf=pptFiltrar();
   var tareas=_pf.tareas;
   var aud=_pf.aud;
+  var nVig=_pf.nVig, nFin=_pf.nFin;
   var total=tareas.length||1;
   var avgCumpl=aud.length?aud.reduce(function(a,r){return a+r.pctCumpl;},0)/aud.length:0;
   var res=tareas.filter(esResuelta).length;
@@ -4370,14 +4397,14 @@ function generatePpt(opts){
     s.addText('INFORME CONFIDENCIAL',{x:.44,y:H-.4,w:3.2,h:.26,fontSize:7,color:'6B86B8',bold:true,charSpacing:1.5});
 
     /* métricas resumen (tarjetas limpias con acento y sombra sutil) */
-    var mets=[{l:'Auditorías',v:aud.length,c:BLU},{l:'Tareas',v:tareas.length,c:TEA},{l:'Cumplimiento',v:Math.round(avgCumpl*100)+'%',c:GRN}];
+    var mets=[{l:'Vigentes',v:nVig,c:BLU},{l:'Finalizadas',v:nFin,c:GRN},{l:'Tareas',v:tareas.length,c:TEA},{l:'Cumplimiento',v:Math.round(avgCumpl*100)+'%',c:ORG}];
     mets.forEach(function(m,i){
-      var mx=4.35+i*1.83;
-      s.addShape(pptx.ShapeType.roundRect,{x:mx,y:1.05,w:1.66,h:1.16,rectRadius:.05,fill:{color:WHT},line:{color:LIN,pt:.8},
+      var mx=4.35+i*1.4;
+      s.addShape(pptx.ShapeType.roundRect,{x:mx,y:1.05,w:1.28,h:1.16,rectRadius:.05,fill:{color:WHT},line:{color:LIN,pt:.8},
         shadow:{type:'outer',blur:4,offset:1,angle:90,color:'CBD5E1',opacity:.3}});
       s.addShape(pptx.ShapeType.rect,{x:mx+.06,y:1.11,w:.05,h:1.04,fill:{color:m.c},line:{color:m.c}});
-      s.addText(String(m.v),{x:mx+.16,y:1.12,w:1.44,h:.66,fontSize:29,bold:true,color:m.c,align:'left',valign:'middle'});
-      s.addText(m.l.toUpperCase(),{x:mx+.17,y:1.8,w:1.44,h:.28,fontSize:8,color:SLT,bold:true,charSpacing:.5});
+      s.addText(String(m.v),{x:mx+.15,y:1.12,w:1.08,h:.66,fontSize:24,bold:true,color:m.c,align:'left',valign:'middle'});
+      s.addText(m.l.toUpperCase(),{x:mx+.16,y:1.8,w:1.08,h:.28,fontSize:7,color:SLT,bold:true,charSpacing:.3});
     });
     /* índice — solo las secciones incluidas */
     var secs=SECCIONES.filter(function(x){return secOn(x.id);}).map(function(x){return x.t;});
@@ -7284,6 +7311,7 @@ async function loadFinalizadas(){
     reconciliarFinalizadas();
     _finLoaded=true;
     fillFinFilters();renderFinalizadas();
+    if(typeof actualizarStrip==='function')actualizarStrip(); /* re-sincroniza Vigentes/Finalizadas */
     toast('\u2713 '+FINALIZADAS.length+' auditoría(s) finalizada(s)');
   }catch(e){toast('\u26a0 '+e.message);}
 }
@@ -8397,7 +8425,7 @@ window.addEventListener('message',function(ev){
    ejecutando, avisa para recargar. Evita seguir usando una copia cacheada
    (causa habitual de "no veo los cambios" y de archivos generados con la
    versión anterior). */
-var BUILD_ID='2026-07-15-multi';
+var BUILD_ID='2026-07-15-vigfin';
 (function(){
   setTimeout(async function(){
     try{
