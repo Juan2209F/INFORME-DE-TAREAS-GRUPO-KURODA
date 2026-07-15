@@ -2051,6 +2051,21 @@ function descargarPlantillas(){
   document.body.appendChild(ov);
 }
 
+/* Barra de datos: Vigentes = auditorías activas que NO están finalizadas
+   (mismo criterio que la vista de Auditorías); Finalizadas = archivadas.
+   Se llama en refreshAll y también al terminar loadFinalizadas (cargan async). */
+function actualizarStrip(){
+  var elV=document.getElementById('ds-aud');
+  var finList=(typeof FINALIZADAS!=='undefined')?FINALIZADAS.filter(function(f){return !f._pending;}):[];
+  var vigentes=(typeof estaFinalizada==='function')
+    ? STORE.auditorias.filter(function(a){return !estaFinalizada(a);}).length
+    : STORE.auditorias.length;
+  if(elV)elV.textContent=vigentes;
+  var elF=document.getElementById('ds-fin'); if(elF)elF.textContent=finList.length;
+  var elT=document.getElementById('ds-tar'); if(elT)elT.textContent=STORE.tareas.length;
+  var elP=document.getElementById('ds-pend'); if(elP)elP.textContent=STORE.tareas.filter(esPendiente).length;
+}
+
 function refreshAll(){
   actualizarEstadosVencidos(); /* sincronizar estados antes de KPIs */
   actualizarStrip();
@@ -8440,7 +8455,7 @@ window.addEventListener('message',function(ev){
    ejecutando, avisa para recargar. Evita seguir usando una copia cacheada
    (causa habitual de "no veo los cambios" y de archivos generados con la
    versión anterior). */
-var BUILD_ID='2026-07-15-razon-plt';
+var BUILD_ID='2026-07-15-fix-strip';
 (function(){
   setTimeout(async function(){
     try{
