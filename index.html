@@ -1909,14 +1909,23 @@ function filteredTareas(){
 function filteredAuditorias(){
   const f=getFilterState();
   const anio=new Date().getFullYear();
+  /* Fecha de la auditoría con fallback: si `a.fecha` no se parsea (dato común
+     en la base), se deriva del nombre del mes `a.mes`. Sin esto, al activar el
+     filtro de mes o un rango de fechas se perdían TODAS las auditorías y tanto
+     el dashboard como el PPTX de Cumplimiento salían vacíos. */
+  const audFecha=a=>{
+    const d=fromISO(a.fecha); if(d)return d;
+    const mi=(typeof mesIndexFromNombre==='function')?mesIndexFromNombre(a.mes):-1;
+    return mi>=0?new Date(anio,mi,15):null;
+  };
   return STORE.auditorias.filter(a=>{
     if(f.razon!=='ALL'&&a.razon!==f.razon)return false;
     if(f.centro!=='ALL'&&a.centro!==f.centro)return false;
     if(f.tienda!=='ALL'&&a.tienda!==f.tienda)return false;
-    if(f.desde||f.hasta){if(!inRange(fromISO(a.fecha),f))return false;}
+    const fa=audFecha(a);
+    if(f.desde||f.hasta){if(!inRange(fa,f))return false;}
     /* Filtro por mes seleccionado (igual que tareas) */
     if(f.mesGran&&f.mesGran!=='ALL'){
-      const fa=fromISO(a.fecha);
       if(!fa)return false;
       if(fa.getMonth()+1!==parseInt(f.mesGran)||fa.getFullYear()!==anio)return false;
     }
@@ -4269,47 +4278,54 @@ function generatePpt(opts){
   if(secOn('portada'))(function(){
     var s=pptx.addSlide();
     s.background={color:NAV};
-    /* franja azul izq */
-    s.addShape(pptx.ShapeType.rect,{x:0,y:0,w:.22,h:H,fill:{color:BLU},line:{color:BLU}});
-    /* panel blanco der */
+    /* capas tonales para profundidad en el lado oscuro */
+    s.addShape(pptx.ShapeType.rect,{x:0,y:3.15,w:4.0,h:2.475,fill:{color:NAV2},line:{color:NAV2}});
+    s.addShape(pptx.ShapeType.rect,{x:0,y:4.35,w:4.0,h:1.275,fill:{color:'16233B'},line:{color:'16233B'}});
+    /* filo azul + hilo dorado a la izquierda */
+    s.addShape(pptx.ShapeType.rect,{x:0,y:0,w:.16,h:H,fill:{color:BLU},line:{color:BLU}});
+    s.addShape(pptx.ShapeType.rect,{x:.16,y:0,w:.03,h:H,fill:{color:GOLD},line:{color:GOLD}});
+    /* panel claro derecho (cubre cualquier decoración a la derecha) */
     s.addShape(pptx.ShapeType.rect,{x:4.0,y:0,w:6.0,h:H,fill:{color:WHT},line:{color:WHT}});
-    s.addShape(pptx.ShapeType.rect,{x:4.0,y:0,w:6.0,h:.055,fill:{color:BLU},line:{color:BLU}});
+    s.addShape(pptx.ShapeType.rect,{x:4.0,y:0,w:6.0,h:.06,fill:{color:GOLD},line:{color:GOLD}});
     /* logo */
-    s.addShape(pptx.ShapeType.rect,{x:.38,y:.28,w:1.04,h:1.04,fill:{color:WHT},line:{color:LIN,pt:.8}});
+    s.addShape(pptx.ShapeType.roundRect,{x:.4,y:.32,w:1.04,h:1.04,rectRadius:.06,fill:{color:WHT},line:{color:'2A3A55',pt:.8}});
     var kLogo=document.querySelector('.lp-panel-logo img');
     if(kLogo&&kLogo.src&&kLogo.src.startsWith('data:')){
-      s.addImage({data:kLogo.src,x:.43,y:.33,w:.94,h:.94});
+      s.addImage({data:kLogo.src,x:.45,y:.37,w:.94,h:.94});
     } else {
-      s.addShape(pptx.ShapeType.rect,{x:.45,y:.35,w:.9,h:.9,fill:{color:BLU},line:{color:'3D6BDC',pt:.8}});
-      s.addText('K',{x:.45,y:.35,w:.9,h:.9,fontSize:28,bold:true,color:WHT,align:'center',valign:'middle'});
+      s.addShape(pptx.ShapeType.roundRect,{x:.47,y:.39,w:.9,h:.9,rectRadius:.06,fill:{color:BLU},line:{color:'3D6BDC',pt:.8}});
+      s.addText('K',{x:.47,y:.39,w:.9,h:.9,fontSize:28,bold:true,color:WHT,align:'center',valign:'middle'});
     }
-    /* empresa */
-    s.addText(empresa,{x:.42,y:1.45,w:3.3,h:.34,fontSize:11,bold:true,color:'7FB3FF'});
+    /* eyebrow + empresa */
+    s.addText('REPORTE EJECUTIVO',{x:.44,y:1.5,w:3.3,h:.22,fontSize:8,bold:true,color:GOLD,charSpacing:3});
+    s.addText(empresa,{x:.44,y:1.74,w:3.3,h:.34,fontSize:13,bold:true,color:'9FC1FF'});
     /* línea dorada */
-    s.addShape(pptx.ShapeType.rect,{x:.42,y:1.86,w:2.8,h:.038,fill:{color:'C9A84C'},line:{color:'C9A84C'}});
+    s.addShape(pptx.ShapeType.rect,{x:.44,y:2.16,w:2.6,h:.032,fill:{color:GOLD},line:{color:GOLD}});
     /* título */
-    s.addText(titulo,{x:.42,y:2.02,w:3.3,h:1.3,fontSize:22,bold:true,color:WHT,fontFace:'Calibri',lineSpacingMultiple:1.2,valign:'top'});
+    s.addText(titulo,{x:.44,y:2.32,w:3.35,h:1.3,fontSize:23,bold:true,color:WHT,fontFace:'Calibri',lineSpacingMultiple:1.14,valign:'top'});
     /* fecha */
-    s.addText(today,{x:.42,y:3.5,w:3.3,h:.28,fontSize:10,color:'7FB3FF'});
-    /* métricas resumen */
+    s.addText(today,{x:.44,y:3.72,w:3.3,h:.28,fontSize:10,color:'7FB3FF'});
+    s.addText('INFORME CONFIDENCIAL',{x:.44,y:H-.4,w:3.2,h:.26,fontSize:7,color:'6B86B8',bold:true,charSpacing:1.5});
+
+    /* métricas resumen (tarjetas limpias con acento y sombra sutil) */
     var mets=[{l:'Auditorías',v:aud.length,c:BLU},{l:'Tareas',v:tareas.length,c:TEA},{l:'Cumplimiento',v:Math.round(avgCumpl*100)+'%',c:GRN}];
     mets.forEach(function(m,i){
-      var mx=4.2+i*1.87;
-      s.addShape(pptx.ShapeType.rect,{x:mx,y:1.1,w:1.72,h:1.1,fill:{color:OFF},line:{color:LIN,pt:.7}});
-      s.addShape(pptx.ShapeType.rect,{x:mx,y:1.1,w:1.72,h:.032,fill:{color:m.c},line:{color:m.c}});
-      s.addText(String(m.v),{x:mx,y:1.14,w:1.72,h:.68,fontSize:30,bold:true,color:m.c,align:'center',valign:'middle'});
-      s.addText(m.l,{x:mx,y:1.84,w:1.72,h:.28,fontSize:8,color:MUT,align:'center',bold:true});
+      var mx=4.35+i*1.83;
+      s.addShape(pptx.ShapeType.roundRect,{x:mx,y:1.05,w:1.66,h:1.16,rectRadius:.05,fill:{color:WHT},line:{color:LIN,pt:.8},
+        shadow:{type:'outer',blur:4,offset:1,angle:90,color:'CBD5E1',opacity:.3}});
+      s.addShape(pptx.ShapeType.rect,{x:mx+.06,y:1.11,w:.05,h:1.04,fill:{color:m.c},line:{color:m.c}});
+      s.addText(String(m.v),{x:mx+.16,y:1.12,w:1.44,h:.66,fontSize:29,bold:true,color:m.c,align:'left',valign:'middle'});
+      s.addText(m.l.toUpperCase(),{x:mx+.17,y:1.8,w:1.44,h:.28,fontSize:8,color:SLT,bold:true,charSpacing:.5});
     });
     /* índice — solo las secciones incluidas */
     var secs=SECCIONES.filter(function(x){return secOn(x.id);}).map(function(x){return x.t;});
-    s.addText('CONTENIDO',{x:4.2,y:2.6,w:5.5,h:.22,fontSize:7.5,bold:true,color:MUT,charSpacing:2.5});
-    s.addShape(pptx.ShapeType.rect,{x:4.2,y:2.84,w:5.5,h:.012,fill:{color:LIN},line:{color:LIN}});
+    s.addText('CONTENIDO',{x:4.35,y:2.62,w:5.3,h:.22,fontSize:7.5,bold:true,color:MUT,charSpacing:2.5});
+    s.addShape(pptx.ShapeType.rect,{x:4.35,y:2.86,w:5.3,h:.012,fill:{color:LIN},line:{color:LIN}});
     secs.forEach(function(sec,i){
-      var sy=2.92+i*.42;
-      s.addShape(pptx.ShapeType.rect,{x:4.2,y:sy+.1,w:.05,h:.05,fill:{color:BLU},line:{color:BLU}});
-      s.addText(sec,{x:4.34,y:sy,w:5.22,h:.3,fontSize:10,color:NAV,valign:'middle'});
+      var sy=2.96+i*.42;
+      s.addText(String(i+1).padStart(2,'0'),{x:4.35,y:sy,w:.4,h:.3,fontSize:10,bold:true,color:BLU,valign:'middle'});
+      s.addText(sec,{x:4.8,y:sy,w:4.85,h:.3,fontSize:10,color:NAV,valign:'middle'});
     });
-    s.addText('INFORME CONFIDENCIAL',{x:.42,y:H-.38,w:3.2,h:.26,fontSize:7,color:'4B6FA0',bold:true,charSpacing:1.5});
   })();
 
   /* ══════════ 1. KPIs DE TENDENCIA (configurable) ══════════ */
@@ -8303,7 +8319,7 @@ window.addEventListener('message',function(ev){
    ejecutando, avisa para recargar. Evita seguir usando una copia cacheada
    (causa habitual de "no veo los cambios" y de archivos generados con la
    versión anterior). */
-var BUILD_ID='2026-07-15-cumpl-pro';
+var BUILD_ID='2026-07-15-cumpl-pro2';
 (function(){
   setTimeout(async function(){
     try{
