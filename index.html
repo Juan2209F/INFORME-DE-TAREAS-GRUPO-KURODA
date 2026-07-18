@@ -5974,6 +5974,28 @@ function puedeModificarModulo(v){
   if(['admin','admin_auditor'].includes(_session.rol))return true;
   return _session.rol==='auditor'&&tieneVista(v);
 }
+/* ¿Puede el usuario ver el módulo Generador de Dashboard Ejecutivo?
+   Recibe un objeto tipo sesión/usuario ({rol, razones_permitidas,
+   vistas_permitidas}) para poder reutilizarse tanto con _session como con
+   cada fila de la tabla de administración de usuarios.
+   Reglas:
+   · Admin y Auditor Señior: acceso por defecto.
+   · Cuentas con la razón social KNO asignada: acceso por defecto (el
+     Generador nació exclusivo para KNO; sus usuarios deben conservar el
+     acceso aunque no tengan la vista marcada explícitamente — este era el
+     permiso que faltaba y por el que dejaban de ver el módulo).
+   · Cualquier otra cuenta (Auditor Jr / Viewer sin KNO asignada): solo con
+     acceso explícito en vistas_permitidas ('generador'). */
+function puedeAccederGenerador(u){
+  if(!u)return false;
+  if(['admin','admin_auditor'].includes(u.rol))return true;
+  var raz=u.razones_permitidas;
+  if(typeof raz==='string'){try{raz=JSON.parse(raz);}catch(e){raz=null;}}
+  if(raz&&raz.length&&raz.some(function(x){return razKey(x)==='kno';}))return true;
+  var vistas=u.vistas_permitidas;
+  if(typeof vistas==='string'){try{vistas=JSON.parse(vistas);}catch(e){vistas=null;}}
+  return !!(vistas&&vistas.length&&vistas.includes('generador'));
+}
 
 function onLoginSuccess(){
   document.getElementById('login-page').classList.add('hidden');
@@ -6026,12 +6048,12 @@ function applyVistasRestriction(){
       permitido=['admin','admin_auditor'].includes(_session.rol)||
                 (_session.rol==='auditor'&&!!(lista&&lista.includes('usuarios')));
     }else if(key==='generador'){
-      /* Generador de reportes ejecutivos (PPTX). Ya NO es exclusivo de KNO:
-         funciona con cualquier razón social (KNO/KS/KSA). Permisos:
-         · Admin y Auditor Señior: acceso por defecto.
-         · Auditor Jr y Viewer: solo con acceso explícito (vistas_permitidas). */
-      if(['admin','admin_auditor'].includes(_session.rol)){permitido=true;}
-      else{permitido=!!(lista&&lista.includes('generador'));}
+      /* Generador de reportes ejecutivos (PPTX). Ya NO es exclusivo de KNO
+         en cuanto a datos (funciona con cualquier razón social: KNO/KS/KSA),
+         pero las cuentas con razón KNO asignada conservan el acceso
+         automático al módulo por ser su origen histórico. Ver
+         puedeAccederGenerador() para la regla completa. */
+      permitido=puedeAccederGenerador(_session);
     }else if(key==='documentos'){
       /* Herramienta de CREACIÓN de documentos: nunca para viewer (solo lectura).
          Para el resto es de utilidad general y se muestra por defecto (las
@@ -6265,12 +6287,12 @@ function closeUsuarios(){
 
 async function loadUsuarios(){
   const tbody=document.getElementById('usr-tbody');
-  tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Cargando...</td></tr>';
-  if(!_sb){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted)">Sin conexión a Supabase</td></tr>';return;}
+  tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">Cargando...</td></tr>';
+  if(!_sb){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--muted)">Sin conexión a Supabase</td></tr>';return;}
   try{
     const {data,error}=await _sb.rpc('listar_usuarios');
     if(error)throw error;
-    if(!data||!data.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted)">Sin usuarios</td></tr>';return;}
+    if(!data||!data.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--muted)">Sin usuarios</td></tr>';return;}
     /* Actualizar lista de auditores medibles */
     /* Mapa global para datos de edición — evita problemas con comillas en onclick */
     window._usrEditMap={};
@@ -6282,6 +6304,12 @@ async function loadUsuarios(){
       var canEdit=_session&&['admin','admin_auditor'].includes(_session.rol);
       var razonesLabel=razones&&razones.length?razones.join(', '):'Todas';
       var esAuditorLabel=u.es_auditor?'<span style="color:var(--green);font-weight:700">✓</span>':'<span style="color:var(--muted)">—</span>';
+      /* Verificación de permisos: acceso calculado al Generador según el rol
+         y las razones de esta cuenta (misma regla que applyVistasRestriction,
+         vía puedeAccederGenerador), para poder auditar de un vistazo que cada
+         usuario tenga el acceso que le corresponde por su rol. */
+      var tieneGen=puedeAccederGenerador({rol:u.rol,razones_permitidas:razones,vistas_permitidas:u.vistas_permitidas});
+      var genLabel=tieneGen?'<span style="color:var(--green);font-weight:700">✓</span>':'<span style="color:var(--muted)">—</span>';
       /* Guardar datos en mapa global indexado por id */
       window._usrEditMap[u.id]={id:u.id,username:u.username,nombre:u.nombre||'',rol:u.rol,es_auditor:!!u.es_auditor,razones_permitidas:razones||[],vistas_permitidas:u.vistas_permitidas?JSON.parse(u.vistas_permitidas):[]  };
       return '<tr>'+
@@ -6290,6 +6318,7 @@ async function loadUsuarios(){
         '<td><span class="rol-badge '+rolClass+'">'+u.rol+'</span></td>'+
         '<td style="font-size:11px;color:var(--muted);font-weight:600">'+razonesLabel+'</td>'+
         '<td style="text-align:center">'+esAuditorLabel+'</td>'+
+        '<td style="text-align:center">'+genLabel+'</td>'+
         '<td><span style="color:'+(u.activo?'var(--green)':'var(--red)')+'">'+
           (u.activo?'✓ Activo':'✕ Inactivo')+'</span></td>'+
         '<td style="display:flex;gap:6px;flex-wrap:wrap">'+
@@ -6300,7 +6329,7 @@ async function loadUsuarios(){
         '</td></tr>';
     }).join('');
   }catch(e){
-    tbody.innerHTML='<tr><td colspan="5" style="color:var(--red);text-align:center">Error: '+e.message+'</td></tr>';
+    tbody.innerHTML='<tr><td colspan="8" style="color:var(--red);text-align:center">Error: '+e.message+'</td></tr>';
   }
 }
 
@@ -8165,9 +8194,9 @@ async function deleteFinalizada(id){
       <div class="table-wrap" style="margin-bottom:16px">
         <table class="usr-table" id="usr-table-body">
           <thead><tr>
-            <th>Usuario</th><th>Nombre</th><th>Rol</th><th>Razones</th><th>Auditor</th><th>Estado</th><th>Acciones</th>
+            <th>Usuario</th><th>Nombre</th><th>Rol</th><th>Razones</th><th>Auditor</th><th title="Acceso calculado al módulo Generador, según su rol y razones">Generador</th><th>Estado</th><th>Acciones</th>
           </tr></thead>
-          <tbody id="usr-tbody"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Cargando...</td></tr></tbody>
+          <tbody id="usr-tbody"><tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">Cargando...</td></tr></tbody>
         </table>
       </div>
       <!-- Formulario nuevo usuario -->
