@@ -2062,7 +2062,19 @@ function descargarPlantillas(){
       por severidad (motor ExcelJS, cargado bajo demanda).
    Parámetros ajustables en CONSUMOS_CFG.
    ══════════════════════════════════════════════════════════════════ */
-var CONSUMOS_CFG={ PMIN:16, PMAX:34, LIT_MAX:200, REND_MIN:3, REND_MAX:25, DUP_MIN:60 };
+/* Umbrales por tipo de combustible: un camión diésel (F450/F550) rinde
+   legítimamente 2-4 km/L y carga 300-400 L, mientras un auto de gasolina
+   rinde 8-14 km/L y carga <150 L. Un umbral único marcaba como "fuga" a los
+   diésel y dejaba pasar autos de gasolina ineficientes. PERFIL afina por tipo;
+   REND_MIN/REND_MAX/LIT_MAX son el respaldo cuando no hay columna Producto. */
+var CONSUMOS_CFG={
+  PMIN:16, PMAX:34, DUP_MIN:60, DIST_MIN:30,
+  PERFIL:{
+    diesel:  { REND_MIN:1.8, REND_MAX:10, LIT_MAX:420 },
+    gasolina:{ REND_MIN:5,   REND_MAX:22, LIT_MAX:150 }
+  },
+  REND_MIN:3, REND_MAX:25, LIT_MAX:200
+};
 var _CONS=null; /* caché del último análisis: {filas,col,nombre} */
 
 function _cIdx(H, aliases){
@@ -2156,14 +2168,45 @@ function _leerFilasConsumos(arrbuf){
   return null;
 }
 
+/* Día calendario normalizado (yyyy-mm-dd) usando el parser robusto del
+   dashboard: entiende dd/mm/yyyy, ISO y seriales de Excel. Sin esto, el
+   orden de cargas se rompía (Date.parse no lee dd/mm/yyyy) y el
+   emparejamiento carga-anterior↔carga-reciente producía falsos rendimientos. */
+function _diaConsumo(fecha){
+  var d=parseDate(fecha); if(!d)return '';
+  var mm=('0'+(d.getMonth()+1)).slice(-2), dd=('0'+d.getDate()).slice(-2);
+  return d.getFullYear()+'-'+mm+'-'+dd;
+}
+function _tsConsumo(fecha){ var d=parseDate(fecha); return d?d.getTime():null; }
+
+/* Clasifica el producto: 'diesel' | 'gasolina' | 'nofuel' (servicio/portal) |
+   null (desconocido → usa umbrales de respaldo). */
+function _perfilCombustible(prod){
+  var p=norm(prod); if(!p)return null;
+  if(p.indexOf('uso y mant')>=0||p.indexOf('portal')>=0||p.indexOf('servicio')>=0||p.indexOf('cuota')>=0||p.indexOf('comision')>=0||p.indexOf('mantenimiento')>=0) return 'nofuel';
+  if(p.indexOf('diesel')>=0) return 'diesel';
+  if(p.indexOf('gasolina')>=0||p.indexOf('magna')>=0||p.indexOf('premium')>=0||p.indexOf('regular')>=0||p.indexOf('octan')>=0) return 'gasolina';
+  return null;
+}
+function _limitesConsumo(perfil){
+  var C=CONSUMOS_CFG;
+  if(perfil==='diesel'||perfil==='gasolina') return C.PERFIL[perfil];
+  return {REND_MIN:C.REND_MIN, REND_MAX:C.REND_MAX, LIT_MAX:C.LIT_MAX};
+}
+
 function analizarFilasConsumos(filas, col){
   var C=CONSUMOS_CFG;
   var add=function(f,txt,sev,cat){ f.obs.push(txt); if(cat){f.cats=f.cats||[];if(f.cats.indexOf(cat)<0)f.cats.push(cat);} f.sev=Math.max(f.sev,sev); };
   filas.forEach(function(f){
     f.cats=f.cats||[];
+    f._ts=_tsConsumo(f.fecha);     /* orden cronológico correcto */
+    f._dia=_diaConsumo(f.fecha);   /* clave de día para duplicados/frecuencia */
+    f._perfil=_perfilCombustible(f.producto);
+    if(f._perfil==='nofuel'){ f._skip=true; return; } /* cargos de servicio: no se analizan como combustible */
+    var L=_limitesConsumo(f._perfil);
     if(f.litros!==null && f.litros<=0) add(f,'Litros en cero o negativos',3,'Litros en cero/negativo');
     if(f.monto!==null && f.monto<=0) add(f,'Monto en cero o negativo',3,'Monto en cero/negativo');
-    if(f.litros!==null && f.litros>C.LIT_MAX) add(f,'Carga de '+f.litros+' L excede lo razonable ('+C.LIT_MAX+' L): posible error de captura o fuga',3,'Litros excesivos por carga');
+    if(f.litros!==null && f.litros>L.LIT_MAX) add(f,'Carga de '+f.litros+' L excede lo razonable para '+(f._perfil||'la unidad')+' ('+L.LIT_MAX+' L): posible error de captura o fuga',3,'Litros excesivos por carga');
     var pl=null;
     if(f.precio!==null && f.precio>0) pl=f.precio;
     else if(f.litros>0 && f.monto>0) pl=f.monto/f.litros;
@@ -2171,33 +2214,63 @@ function analizarFilasConsumos(filas, col){
     if(pl!==null && (pl<C.PMIN||pl>C.PMAX)) add(f,'Precio por litro fuera de rango ($'+pl.toFixed(2)+'/L): posible error de carga',3,'Precio por litro fuera de rango');
   });
   var porPlaca={};
-  filas.forEach(function(f){ if(!f.placa)return; (porPlaca[f.placa]=porPlaca[f.placa]||[]).push(f); });
+  filas.forEach(function(f){ if(!f.placa||f._skip)return; (porPlaca[f.placa]=porPlaca[f.placa]||[]).push(f); });
   Object.keys(porPlaca).forEach(function(p){
+    /* Orden: por fecha real; las filas sin fecha van al final; desempate por odómetro. */
     var arr=porPlaca[p].slice().sort(function(a,b){
-      var da=Date.parse(a.fecha)||0, db=Date.parse(b.fecha)||0;
-      if(da!==db)return da-db; return (a.odom||0)-(b.odom||0);
+      if(a._ts!=null && b._ts!=null){ if(a._ts!==b._ts) return a._ts-b._ts; }
+      else if(a._ts!=null) return -1;
+      else if(b._ts!=null) return 1;
+      return (a.odom||0)-(b.odom||0);
     });
+
+    /* ── Duplicados (comparación con la carga inmediata anterior) ── */
     var prev=null;
     arr.forEach(function(f){
       if(prev){
-        var sameDay=f.fecha && prev.fecha && f.fecha.slice(0,10)===prev.fecha.slice(0,10);
+        var sameDay=f._dia && prev._dia && f._dia===prev._dia;
         if(sameDay && f.monto!==null && prev.monto!==null && Math.abs(f.monto-prev.monto)<=1 && f.litros!==null && prev.litros!==null && Math.abs(f.litros-prev.litros)<=1)
           add(f,'Posible carga duplicada (misma unidad, día y monto que fila '+prev.fila+')',3,'Carga duplicada');
-        if(f.odom!==null && prev.odom!==null){
-          if(f.odom<prev.odom) add(f,'Odómetro ('+f.odom+') menor al registro anterior ('+prev.odom+'): dato inconsistente',2,'Odómetro inconsistente');
-          else if(prev.litros>0){
-            var km=f.odom-prev.odom, kmL=km/prev.litros; f._kmL=kmL;
-            if(km>0){
-              if(kmL<C.REND_MIN) add(f,'Rendimiento muy bajo ('+kmL.toFixed(1)+' km/L): posible fuga o robo de combustible',3,'Rendimiento bajo (posible fuga)');
-              else if(kmL>C.REND_MAX) add(f,'Rendimiento muy alto ('+kmL.toFixed(1)+' km/L): posible error de odómetro o carga no registrada',2,'Rendimiento alto (odómetro/carga)');
-            }
-          }
-        }
       }
       prev=f;
     });
+
+    /* ── Rendimiento carga-a-carga (método tanque-a-tanque) ──
+       Distancia entre dos lecturas de odómetro válidas ÷ TODOS los litros del
+       tramo (incluye cargas parciales del mismo día). Solo se mide con avance
+       ≥ DIST_MIN km, para no marcar "fuga" en un tramo corto con tanque lleno.
+       El umbral depende del tipo de combustible de la carga de cierre. La
+       última lectura válida se arrastra: una fila sin odómetro no rompe la cadena. */
+    var baseOdo=null, baseFila=null, accLit=0, lastOdo=null;
+    arr.forEach(function(f){
+      var odoOk = f.odom!==null && f.odom>0;
+      if(odoOk){
+        if(lastOdo!==null && f.odom<lastOdo)
+          add(f,'Odómetro ('+f.odom+') menor a una lectura anterior ('+lastOdo+'): dato inconsistente',2,'Odómetro inconsistente');
+        if(baseOdo!==null && f.odom>baseOdo){
+          var km=f.odom-baseOdo;
+          var litTramo=accLit + (f.litros>0?f.litros:0);
+          if(km>=C.DIST_MIN && litTramo>0){
+            var kmL=km/litTramo; f._kmL=kmL;
+            var L=_limitesConsumo(f._perfil);
+            if(kmL<L.REND_MIN) add(f,'Rendimiento muy bajo ('+kmL.toFixed(1)+' km/L, '+km+' km / '+litTramo.toFixed(0)+' L desde fila '+baseFila+'): posible fuga o robo',3,'Rendimiento bajo (posible fuga)');
+            else if(kmL>L.REND_MAX) add(f,'Rendimiento muy alto ('+kmL.toFixed(1)+' km/L, '+km+' km / '+litTramo.toFixed(0)+' L desde fila '+baseFila+'): posible error de odómetro o carga no registrada',2,'Rendimiento alto (odómetro/carga)');
+            baseOdo=f.odom; baseFila=f.fila; accLit=0;
+          } else {
+            accLit=litTramo; /* tramo corto: acumula litros hacia el próximo cierre */
+          }
+        } else {
+          baseOdo=f.odom; baseFila=f.fila; accLit=0;
+        }
+        lastOdo=Math.max(lastOdo||0, f.odom);
+      } else if(f.litros>0){
+        accLit+=f.litros;
+      }
+    });
+
+    /* ── Frecuencia atípica de cargas por día ── */
     var porDia={};
-    arr.forEach(function(f){ var d=(f.fecha||'').slice(0,10); if(d)(porDia[d]=porDia[d]||[]).push(f); });
+    arr.forEach(function(f){ var d=f._dia; if(d)(porDia[d]=porDia[d]||[]).push(f); });
     Object.keys(porDia).forEach(function(d){
       if(porDia[d].length>2) porDia[d].forEach(function(f){ add(f,porDia[d].length+' cargas de la misma unidad el '+d+': frecuencia atípica',1,'Frecuencia atípica de cargas'); });
     });
@@ -2258,7 +2331,8 @@ function _buildConsumosXLSX(data){
   var ws=wb.addWorksheet('Observaciones',{views:[{state:'frozen',ySplit:1}]});
   ws.columns=[
     {header:'Fila',key:'fila',width:7},{header:'Fecha',key:'fecha',width:14},
-    {header:'Vehículo',key:'placa',width:16},{header:'Conductor',key:'conductor',width:20},
+    {header:'Vehículo',key:'placa',width:16},{header:'Combustible',key:'producto',width:22},
+    {header:'Conductor',key:'conductor',width:20},
     {header:'Litros',key:'litros',width:9},{header:'Monto',key:'monto',width:12},
     {header:'$/L',key:'pl',width:9},{header:'Odómetro',key:'odom',width:11},
     {header:'Rend. km/L',key:'kmL',width:11},{header:'Severidad',key:'sev',width:11},
@@ -2266,7 +2340,7 @@ function _buildConsumosXLSX(data){
   ];
   flag.forEach(function(f){
     var sev=f.sev>=3?'Alta':f.sev===2?'Media':'Baja';
-    var row=ws.addRow({fila:f.fila,fecha:f.fecha,placa:f.placa,conductor:f.conductor,
+    var row=ws.addRow({fila:f.fila,fecha:f.fecha,placa:f.placa,producto:f.producto,conductor:f.conductor,
       litros:f.litros,monto:f.monto,pl:(f._pl!=null?+f._pl.toFixed(2):null),odom:f.odom,
       kmL:(f._kmL!=null?+f._kmL.toFixed(1):null),sev:sev,obs:f.obs.join(' · ')});
     var fillC=sev==='Alta'?fillAlta:sev==='Media'?fillMedia:fillBaja;
@@ -2279,9 +2353,9 @@ function _buildConsumosXLSX(data){
     row.getCell('obs').fill={type:'pattern',pattern:'solid',fgColor:{argb:fillC}};
     row.getCell('monto').numFmt='"$"#,##0.00'; row.getCell('pl').numFmt='"$"#,##0.00';
   });
-  headerRow(ws,11);
-  ws.autoFilter='A1:K1';
-  if(!flag.length) ws.addRow({fila:'',fecha:'',placa:'',conductor:'',litros:'',monto:'',pl:'',odom:'',kmL:'',sev:'',obs:'Sin observaciones: no se detectaron inconsistencias.'});
+  headerRow(ws,12);
+  ws.autoFilter='A1:L1';
+  if(!flag.length) ws.addRow({fila:'',fecha:'',placa:'',producto:'',conductor:'',litros:'',monto:'',pl:'',odom:'',kmL:'',sev:'',obs:'Sin observaciones: no se detectaron inconsistencias.'});
 
   /* ── Resumen ── */
   var rs=wb.addWorksheet('Resumen');
@@ -2304,8 +2378,10 @@ function _buildConsumosXLSX(data){
   rs.addRow([]);
   var ch=rs.addRow(['Criterios usados','']); ch.getCell(1).font={bold:true,color:{argb:HEADER}};
   rs.addRow(['Precio $/L esperado', C.PMIN+' a '+C.PMAX]);
-  rs.addRow(['Litros máx. por carga', C.LIT_MAX]);
-  rs.addRow(['Rendimiento km/L (mín / máx)', C.REND_MIN+' / '+C.REND_MAX]);
+  rs.addRow(['Diésel — rend. km/L (mín/máx) · litros máx', C.PERFIL.diesel.REND_MIN+' / '+C.PERFIL.diesel.REND_MAX+'  ·  '+C.PERFIL.diesel.LIT_MAX+' L']);
+  rs.addRow(['Gasolina — rend. km/L (mín/máx) · litros máx', C.PERFIL.gasolina.REND_MIN+' / '+C.PERFIL.gasolina.REND_MAX+'  ·  '+C.PERFIL.gasolina.LIT_MAX+' L']);
+  rs.addRow(['Sin tipo — rend. km/L (mín/máx) · litros máx', C.REND_MIN+' / '+C.REND_MAX+'  ·  '+C.LIT_MAX+' L']);
+  rs.addRow(['Distancia mín. para medir rendimiento (km)', C.DIST_MIN]);
 
   /* ── Por tipo ── */
   var tipos={}; flag.forEach(function(f){ (f.cats||[]).forEach(function(c){ tipos[c]=(tipos[c]||0)+1; }); });
@@ -8745,7 +8821,7 @@ window.addEventListener('message',function(ev){
    ejecutando, avisa para recargar. Evita seguir usando una copia cacheada
    (causa habitual de "no veo los cambios" y de archivos generados con la
    versión anterior). */
-var BUILD_ID='2026-07-15-comb-pro2';
+var BUILD_ID='2026-07-17-comb-perfil';
 (function(){
   setTimeout(async function(){
     try{
