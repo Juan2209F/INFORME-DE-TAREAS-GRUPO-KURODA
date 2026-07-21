@@ -4199,23 +4199,35 @@ function estadoSelStyle(estado){
   return 'padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700;color:'+color+';background:'+bg+';border:none;cursor:pointer;appearance:auto';
 }
 
-/* Edición rápida del Estado directamente desde la tabla de Actividades, sin
-   abrir el modal. Actualiza en memoria, persiste en Supabase (campo cifrado)
-   y refresca colores/vista al instante. */
-async function updateEstadoActividadInline(id,nuevoEstado,selEl){
+/* Edición rápida de un campo de Actividades directamente desde la tabla, sin
+   abrir el modal. Actualiza en memoria, persiste en Supabase (cifrando el
+   campo si corresponde) y vuelve a pintar la tabla para reflejar cambios
+   dependientes (p. ej. Dur.real cuando cambian Est.Inicio/Est.Fin). */
+var _CAMPO_ACT_COL={estado:'estado',categoria:'categoria',asignado:'asignado',estInicio:'est_inicio',estFin:'est_fin'};
+async function updateCampoActividadInline(id,campo,valor){
+  var col=_CAMPO_ACT_COL[campo];
+  if(!col)return;
   var a=ACTIVIDADES.find(function(x){return String(x.id)===String(id);});
   if(!a)return;
-  var anterior=a.estado;
-  a.estado=nuevoEstado;
-  if(selEl)selEl.setAttribute('style',estadoSelStyle(nuevoEstado));
+  var anterior=a[campo];
+  a[campo]=valor||null;
   try{
     var client=getSbClient();
-    if(!client){toast('⚠ Sin conexión a Supabase');a.estado=anterior;if(selEl){selEl.value=anterior;selEl.setAttribute('style',estadoSelStyle(anterior));}return;}
-    var row=await encObj({estado:nuevoEstado},FIELDS.actividades);
+    if(!client){toast('⚠ Sin conexión a Supabase');a[campo]=anterior;renderActividades();return;}
+    var payload={};payload[col]=valor||null;
+    var row=(FIELDS.actividades.indexOf(col)>=0)?await encObj(payload,FIELDS.actividades):payload;
     var ru=await client.from('actividades').update(row).eq('id',id);
-    if(ru.error){toast('⚠ '+ru.error.message);a.estado=anterior;if(selEl){selEl.value=anterior;selEl.setAttribute('style',estadoSelStyle(anterior));}return;}
-    toast('☁️ Estado actualizado');
-  }catch(e){toast('⚠ Error: '+e.message);a.estado=anterior;if(selEl){selEl.value=anterior;selEl.setAttribute('style',estadoSelStyle(anterior));}return;}
+    if(ru.error){toast('⚠ '+ru.error.message);a[campo]=anterior;renderActividades();return;}
+    toast('☁️ Actualizado');
+    renderActividades();
+  }catch(e){toast('⚠ Error: '+e.message);a[campo]=anterior;renderActividades();}
+}
+
+/* Estilo neutro (sin color semántico) para los <select>/<input> editables de
+   Categoría, Asignado, Est.Inicio y Est.Fin. */
+function inlineFieldStyle(){
+  return 'padding:3px 8px;border-radius:8px;font-size:11.5px;font-weight:600;color:var(--txt);'+
+    'background:var(--soft);border:1px solid var(--border);cursor:pointer;font-family:inherit';
 }
 
 function fmtActFecha(d){if(!d)return'—';var x=fromISO(d);if(!x)return'—';return fmtInput(x).split('-').reverse().join('/');}
@@ -4232,26 +4244,68 @@ function renderActividades(){
     if(!canEdit)return actEstadoBadge(a.estado);
     var estados=['Completado','En curso','Reprogramado','Sin comenzar'];
     var opts=estados.map(function(e){return '<option value="'+e+'"'+(norm(a.estado||'')===norm(e)?' selected':'')+'>'+e+'</option>';}).join('');
-    return '<select class="act-estado-inline" style="'+estadoSelStyle(a.estado)+'" onchange="updateEstadoActividadInline(\''+a.id+'\',this.value,this)">'+opts+'</select>';
+    return '<select class="act-estado-inline" style="'+estadoSelStyle(a.estado)+'" onchange="updateCampoActividadInline(\''+a.id+'\',\'estado\',this.value)">'+opts+'</select>';
+  }
+  function categoriaCelda(a){
+    if(!canEdit)return (a.categoria||'—');
+    var cats=['Evaluacion','Auditoria','Entrega','Inventario','Revision','Apoyo Juridico','Apoyo a RH'];
+    var opts='<option value=""'+(!a.categoria?' selected':'')+'>—</option>'+
+      cats.map(function(c){return '<option value="'+c+'"'+(norm(a.categoria)===norm(c)?' selected':'')+'>'+c+'</option>';}).join('');
+    return '<select class="act-cat-inline" style="'+inlineFieldStyle()+'" onchange="updateCampoActividadInline(\''+a.id+'\',\'categoria\',this.value)">'+opts+'</select>';
+  }
+  /* Lista de auditores disponibles para la razón social de la actividad —
+     mismo criterio que pintarChipsAuditores, para que "Todos" sea consistente
+     entre el modal completo y la edición rápida en la tabla, en CUALQUIER
+     razón social. */
+  function auditoresDeRazon(rzSel){
+    function enRazon(nombre){
+      if(!rzSel)return true;
+      var meta=_AUDITORES_META[norm(nombre)];
+      if(!meta||!meta.razones)return true;
+      return meta.razones.some(function(r){return razKey(r)===razKey(rzSel);});
+    }
+    var mapa={};
+    (_AUDITORES_CONOCIDOS||[]).forEach(function(n){if(n&&!pareceCifrado(n)&&enRazon(n))mapa[norm(n)]=n;});
+    (ACTIVIDADES||[]).forEach(function(x){auditoresDeActividad(x).forEach(function(n){if(n&&!pareceCifrado(n)&&!mapa[norm(n)]&&enRazon(n))mapa[norm(n)]=n;});});
+    return Object.values(mapa).sort(function(x,y){return x.localeCompare(y);});
+  }
+  function asignadoCelda(a){
+    if(!canEdit)return (a.asignado||'—');
+    var lista=auditoresDeRazon(a.razon);
+    var actual=(a.asignado||'').trim();
+    var todosVal=lista.join(' / ');
+    var opts='<option value=""'+(!actual?' selected':'')+'>—</option>'+
+      lista.map(function(n){return '<option value="'+esc(n)+'"'+(norm(actual)===norm(n)?' selected':'')+'>'+esc(n)+'</option>';}).join('');
+    if(lista.length>1){
+      opts+='<option value="'+esc(todosVal)+'"'+(norm(actual)===norm(todosVal)?' selected':'')+'>👥 Todos</option>';
+    }
+    var yaExiste=!actual||lista.some(function(n){return norm(n)===norm(actual);})||norm(actual)===norm(todosVal);
+    if(!yaExiste)opts+='<option value="'+esc(actual)+'" selected>'+esc(actual)+'</option>';
+    return '<select class="act-asig-inline" style="'+inlineFieldStyle()+'" onchange="updateCampoActividadInline(\''+a.id+'\',\'asignado\',this.value)">'+opts+'</select>';
+  }
+  function fechaCelda(a,campo){
+    if(!canEdit)return fmtActFecha(a[campo]);
+    var x=fromISO(a[campo]);
+    var val=x?fmtInput(x):'';
+    return '<input type="date" class="act-fecha-inline" style="'+inlineFieldStyle()+'" value="'+val+'" onchange="updateCampoActividadInline(\''+a.id+'\',\''+campo+'\',this.value)">';
   }
   function filaActividad(a){
+    var dur=calcDias(a.estInicio,a.estFin);
     return '<tr>'+
       '<td>'+(a.mes||'—')+'</td>'+
       '<td style="min-width:200px"><b>'+(a.actividad||'—')+'</b></td>'+
       '<td>'+estadoCelda(a)+'</td>'+
-      '<td>'+(a.categoria||'—')+'</td>'+
-      '<td>'+(a.asignado||'—')+'</td>'+
-      '<td>'+fmtActFecha(a.estInicio)+'</td>'+
-      '<td>'+fmtActFecha(a.estFin)+'</td>'+
-      '<td>'+fmtActFecha(a.realInicio)+'</td>'+
-      '<td>'+fmtActFecha(a.realFin)+'</td>'+
-      '<td style="text-align:center">'+(calcDias(a.realInicio,a.realFin)!==''?calcDias(a.realInicio,a.realFin):'—')+'</td>'+
+      '<td>'+categoriaCelda(a)+'</td>'+
+      '<td>'+asignadoCelda(a)+'</td>'+
+      '<td>'+fechaCelda(a,'estInicio')+'</td>'+
+      '<td>'+fechaCelda(a,'estFin')+'</td>'+
+      '<td style="text-align:center">'+(dur!==''?dur:'—')+'</td>'+
       '<td class="cell-c">'+(canEdit?'<button class="icon-btn" onclick="openActividad(\''+a.id+'\')">✎</button>':'<span style="color:var(--border)">—</span>')+'</td>'+
     '</tr>';
   }
 
   var thead='<thead><tr><th>Mes</th><th>Actividad/Proyecto</th><th>Estado</th><th>Categoría</th><th>Asignado</th>'+
-    '<th>Est.Inicio</th><th>Est.Fin</th><th>Real Inicio</th><th>Real Fin</th><th>Dur.real</th><th></th></tr></thead>';
+    '<th>Est.Inicio</th><th>Est.Fin</th><th>Dur.real</th><th></th></tr></thead>';
 
   var prog=arr.filter(function(a){return a.programada;});
   var noProg=arr.filter(function(a){return !a.programada;});
