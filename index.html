@@ -737,7 +737,7 @@ table.seg tbody tr:hover{background:var(--soft)}
 
       <div class="grid2">
         <div class="card">
-          <div class="card-hdr"><div class="card-title"><span class="ct-dot" style="background:var(--orange)"></span>% Cumplimiento por centro</div></div>
+          <div class="card-hdr"><div class="card-title"><span class="ct-dot" style="background:var(--orange)"></span>Calificacion por centro</div></div>
           <div class="chart-wrap" data-canvas="chart-centro"><canvas id="chart-centro"></canvas></div>
         </div>
         <div class="card">
@@ -751,7 +751,7 @@ table.seg tbody tr:hover{background:var(--soft)}
 
       <div class="grid2">
         <div class="card">
-          <div class="card-hdr"><div class="card-title"><span class="ct-dot" style="background:var(--red)"></span>Sucursales con menor cumplimiento</div></div>
+          <div class="card-hdr"><div class="card-title"><span class="ct-dot" style="background:var(--red)"></span>Sucursales con menor calificacion</div></div>
           <div id="rank-list"></div>
         </div>
         <div class="card">
@@ -3849,7 +3849,7 @@ function renderAuditoriasView(){
     var stats=calcAudStats(a,arr);
     return stats.pendientes>0;
   }).length;
-  document.getElementById('aud-count').textContent=audConPend+' con pendientes / '+arr.length+' total';
+  document.getElementById('aud-count').textContent='';
   var cont=document.getElementById('auditorias-tables');
   if(!arr.length){cont.innerHTML='<div class="empty" style="padding:30px">Sin auditorías. Verifica los filtros o carga datos desde el módulo principal.</div>';return;}
 
@@ -4067,13 +4067,11 @@ function actividadVencidaDesempeno(a){
   var hoy=new Date();
   return (ef.getFullYear()*12+ef.getMonth()) < (hoy.getFullYear()*12+hoy.getMonth());
 }
+/* El desempeño ahora se mide con la columna Estado: una actividad marcada
+   "Completado" cuenta como cumplida. Ya no se compara Est.Fin vs Real Fin
+   (la columna Cumplimiento se eliminó de la tabla de Actividades). */
 function actividadEnTiempoDesempeno(a){
-  if(!a.realFin||!a.estFin)return true; /* sin ambas fechas no se puede juzgar atraso */
-  var ef=fromISO(a.estFin), rf=fromISO(a.realFin);
-  if(!ef||!rf)return true;
-  var efMes=ef.getFullYear()*12+ef.getMonth();
-  var rfMes=rf.getFullYear()*12+rf.getMonth();
-  return rfMes<=efMes;
+  return norm(a.estado||'').includes('completad');
 }
 
 async function loadActividades(){
@@ -4189,6 +4187,37 @@ function actEstadoBadge(estado){
   return '<span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;color:'+color+';background:'+bg+'">'+(estado||'—')+'</span>';
 }
 
+/* Mismo criterio de color que actEstadoBadge, pero como estilo inline para
+   el <select> editable de la columna Estado (edición directa en la tabla). */
+function estadoSelStyle(estado){
+  var e=norm(estado);
+  var color='#1d4ed8', bg='#dbeafe';
+  if(e.includes('completad')){color='#15803d';bg='#dcfce7';}
+  else if(e.includes('curso')){color='#1a1a1a';bg='#fb923c';}
+  else if(e.includes('reprogramad')){color='#ffffff';bg='#2563eb';}
+  else if(e.includes('comenzar')||e.includes('sin')){color='#1d4ed8';bg='#dbeafe';}
+  return 'padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700;color:'+color+';background:'+bg+';border:none;cursor:pointer;appearance:auto';
+}
+
+/* Edición rápida del Estado directamente desde la tabla de Actividades, sin
+   abrir el modal. Actualiza en memoria, persiste en Supabase (campo cifrado)
+   y refresca colores/vista al instante. */
+async function updateEstadoActividadInline(id,nuevoEstado,selEl){
+  var a=ACTIVIDADES.find(function(x){return String(x.id)===String(id);});
+  if(!a)return;
+  var anterior=a.estado;
+  a.estado=nuevoEstado;
+  if(selEl)selEl.setAttribute('style',estadoSelStyle(nuevoEstado));
+  try{
+    var client=getSbClient();
+    if(!client){toast('⚠ Sin conexión a Supabase');a.estado=anterior;if(selEl){selEl.value=anterior;selEl.setAttribute('style',estadoSelStyle(anterior));}return;}
+    var row=await encObj({estado:nuevoEstado},FIELDS.actividades);
+    var ru=await client.from('actividades').update(row).eq('id',id);
+    if(ru.error){toast('⚠ '+ru.error.message);a.estado=anterior;if(selEl){selEl.value=anterior;selEl.setAttribute('style',estadoSelStyle(anterior));}return;}
+    toast('☁️ Estado actualizado');
+  }catch(e){toast('⚠ Error: '+e.message);a.estado=anterior;if(selEl){selEl.value=anterior;selEl.setAttribute('style',estadoSelStyle(anterior));}return;}
+}
+
 function fmtActFecha(d){if(!d)return'—';var x=fromISO(d);if(!x)return'—';return fmtInput(x).split('-').reverse().join('/');}
 
 function renderActividades(){
@@ -4199,17 +4228,17 @@ function renderActividades(){
 
   if(!arr.length){cont.innerHTML='<div class="empty" style="padding:30px">Sin actividades. '+(canEdit?'Crea una con "Nueva actividad".':'')+'</div>';return;}
 
-  function cumplimientoBadge(a){
-    if(!norm(a.estado||'').includes('completad'))return '<span style="color:var(--muted)">—</span>';
-    return actividadEnTiempoDesempeno(a)
-      ? '<span style="color:#15803d;font-weight:700">✓ A tiempo</span>'
-      : '<span style="color:#b91c1c;font-weight:700">✗ Atrasada</span>';
+  function estadoCelda(a){
+    if(!canEdit)return actEstadoBadge(a.estado);
+    var estados=['Completado','En curso','Reprogramado','Sin comenzar'];
+    var opts=estados.map(function(e){return '<option value="'+e+'"'+(norm(a.estado||'')===norm(e)?' selected':'')+'>'+e+'</option>';}).join('');
+    return '<select class="act-estado-inline" style="'+estadoSelStyle(a.estado)+'" onchange="updateEstadoActividadInline(\''+a.id+'\',this.value,this)">'+opts+'</select>';
   }
   function filaActividad(a){
     return '<tr>'+
       '<td>'+(a.mes||'—')+'</td>'+
       '<td style="min-width:200px"><b>'+(a.actividad||'—')+'</b></td>'+
-      '<td>'+actEstadoBadge(a.estado)+'</td>'+
+      '<td>'+estadoCelda(a)+'</td>'+
       '<td>'+(a.categoria||'—')+'</td>'+
       '<td>'+(a.asignado||'—')+'</td>'+
       '<td>'+fmtActFecha(a.estInicio)+'</td>'+
@@ -4217,13 +4246,12 @@ function renderActividades(){
       '<td>'+fmtActFecha(a.realInicio)+'</td>'+
       '<td>'+fmtActFecha(a.realFin)+'</td>'+
       '<td style="text-align:center">'+(calcDias(a.realInicio,a.realFin)!==''?calcDias(a.realInicio,a.realFin):'—')+'</td>'+
-      '<td style="text-align:center">'+cumplimientoBadge(a)+'</td>'+
       '<td class="cell-c">'+(canEdit?'<button class="icon-btn" onclick="openActividad(\''+a.id+'\')">✎</button>':'<span style="color:var(--border)">—</span>')+'</td>'+
     '</tr>';
   }
 
   var thead='<thead><tr><th>Mes</th><th>Actividad/Proyecto</th><th>Estado</th><th>Categoría</th><th>Asignado</th>'+
-    '<th>Est.Inicio</th><th>Est.Fin</th><th>Real Inicio</th><th>Real Fin</th><th>Dur.real</th><th>Cumplimiento</th><th></th></tr></thead>';
+    '<th>Est.Inicio</th><th>Est.Fin</th><th>Real Inicio</th><th>Real Fin</th><th>Dur.real</th><th></th></tr></thead>';
 
   var prog=arr.filter(function(a){return a.programada;});
   var noProg=arr.filter(function(a){return !a.programada;});
@@ -4759,7 +4787,7 @@ function generatePpt(opts){
     {id:'kpis',        t:'KPIs de Tendencia'},
     {id:'analisis',    t:'Análisis de Tareas'},
     {id:'distribucion',t:'Distribución de Estado'},
-    {id:'menor_cumpl', t:'Sucursales con Menor Cumplimiento'},
+    {id:'menor_cumpl', t:'Sucursales con Menor Calificacion'},
     {id:'pendientes',  t:'Sucursales con más Pendientes'}
   ];
   var secSel=(opts.secciones&&opts.secciones.length)?opts.secciones:['portada'].concat(SECCIONES.map(function(x){return x.id;}));
@@ -4971,8 +4999,8 @@ function generatePpt(opts){
 
   /* ══════════ 4. SUCURSALES MENOR CUMPLIMIENTO ══════════ */
   if(secOn('menor_cumpl'))(function(){
-    var s=mkSlide(RED,'Sucursales con Menor Cumplimiento');
-    slideTitle(s,'Sucursales con Menor Cumplimiento',RED);
+    var s=mkSlide(RED,'Sucursales con Menor Calificacion');
+    slideTitle(s,'Sucursales con Menor Calificacion',RED);
     var byS={};
     aud.forEach(function(a){var k=a.tienda||a.centro;if(!byS[k])byS[k]={s:0,n:0,c:a.centro};byS[k].s+=a.pctCumpl;byS[k].n++;});
     var arr=Object.entries(byS).map(function(e){return{t:e[0],c:e[1].c,v:Math.round(e[1].s/e[1].n*100)};}).sort(function(a,b){return a.v-b.v;}).slice(0,9);
