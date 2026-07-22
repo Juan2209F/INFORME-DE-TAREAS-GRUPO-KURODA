@@ -1158,7 +1158,23 @@ function bucketKeyEx(d,gran){
 /* ════════════════════════════════════════════════════════════════════
    PARSEO DE EXCEL (detección por encabezado, tolerante a variaciones)
 ════════════════════════════════════════════════════════════════════ */
-function norm(s){return String(s||'').toLowerCase().replace(/\s+/g,' ').replace(/[áàä]/g,'a').replace(/[éèë]/g,'e').replace(/[íìï]/g,'i').replace(/[óòö]/g,'o').replace(/[úùü]/g,'u').replace(/ñ/g,'n').trim();}
+/* norm() se usa como llave de emparejamiento (centro/tienda) entre auditorías,
+   tareas, ajustes y mermas. ANTES solo reemplazaba manualmente las vocales y
+   la Ñ ya "precompuestas" (un solo carácter Unicode). Pero según el sistema de
+   origen (Excel, copiar-pegar, Supabase) el mismo acento puede llegar en forma
+   "descompuesta" (una N + tilde combinante como carácter aparte): visualmente
+   es idéntico pero como texto NO es el mismo string, así que el reemplazo
+   manual no lo detectaba y dos registros de la misma tienda (p.ej. "PEÑASCO")
+   dejaban de coincidir según de dónde vinieran. normalize('NFD') descompone
+   SIEMPRE ambas formas al mismo patrón (letra + marca combinante), y el regex
+   de abajo quita cualquier marca combinante — cubre todos los acentos por
+   igual sin depender de una lista manual. */
+function norm(s){
+  return String(s||'')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/\u00a0/g,' ')
+    .toLowerCase().replace(/\s+/g,' ').trim();
+}
 
 /* ════════════════════════════════════════════════════════════════════
    DICCIONARIO DE SUCURSALES (nombre canónico por CÓDIGO DE CENTRO)
@@ -9051,7 +9067,7 @@ window.addEventListener('message',function(ev){
    ejecutando, avisa para recargar. Evita seguir usando una copia cacheada
    (causa habitual de "no veo los cambios" y de archivos generados con la
    versión anterior). */
-var BUILD_ID='2026-07-21-fix-razon-cruzada';
+var BUILD_ID='2026-07-21-fix-norm-unicode-nfd';
 (function(){
   setTimeout(async function(){
     try{
