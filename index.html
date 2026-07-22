@@ -3535,7 +3535,26 @@ function calcAudStats(a, rowsMismaClase){
   if(mesMes>=0){
     var GRACIA_DIAS=5;
     var _fa=a.fecha?fromISO(a.fecha):null;
-    var anioAud=_fa?_fa.getFullYear():new Date().getFullYear();
+    var anioAud;
+    if(_fa){
+      anioAud=_fa.getFullYear();
+    }else{
+      /* Sin fecha propia en la auditoría: asumir el año actual del reloj
+         dejaba fuera tareas reales del mismo centro/tipo cuando la auditoría
+         era de un año anterior (la ventana quedaba centrada en el año
+         equivocado y no matcheaba nada, aunque el centro sí coincidiera).
+         Se infiere el año a partir de las tareas reales de ESTE centro+tipo
+         cuyo mes de creación coincide por nombre con el mes de la auditoría;
+         si hay varias, se usa la más reciente. Solo si no hay ninguna
+         coincidencia así, se cae al año actual (comportamiento anterior). */
+      var _aniosCand=STORE.tareas.filter(function(t){
+        if(!mismaTiendaAud(t,a))return false;
+        if(tipoClase&&tipoNormLocal(t.tipoTarea)!==tipoClase)return false;
+        var d=fromISO(t.fechaCreacion);
+        return d&&d.getMonth()===mesMes;
+      }).map(function(t){return fromISO(t.fechaCreacion).getFullYear();});
+      anioAud=_aniosCand.length?Math.max.apply(null,_aniosCand):new Date().getFullYear();
+    }
     var desdeMes=new Date(anioAud,mesMes,1-GRACIA_DIAS);
     var hastaMes=new Date(anioAud,mesMes+1,GRACIA_DIAS);
     /* Precalcular mes+año de cada hermana con mes reconocible */
@@ -3568,16 +3587,19 @@ function calcAudStats(a, rowsMismaClase){
       if(!window._diagAudSyncVistos[_dk]){
         window._diagAudSyncVistos[_dk]=1;
         var _candTipo=(STORE.tareas||[]).filter(function(t){return !tipoClase||tipoNormLocal(t.tipoTarea)===tipoClase;});
-        var _candCentro=_candTipo.filter(function(t){return norm(t.centro)&&norm(t.centro)===norm(a.centro);});
+        var _candCentro=_candTipo.filter(function(t){return mismaTiendaAud(t,a);});
         var _candTiendaLit=_candTipo.filter(function(t){return norm(t.tienda)===norm(a.tienda);});
         var _centroDerivAud=(typeof centroDeTienda==='function')?centroDeTienda(a.tienda||''):'';
+        var _fechasCand=_candCentro.map(function(t){return t.fechaCreacion;}).slice(0,8);
         console.warn('[Sync auditoría↔tareas] "'+a.tienda+'" ('+a.mes+', '+a.clase+') sin tareas emparejadas.'+
-          ' centro auditoría='+JSON.stringify(a.centro||'')+
+          ' fecha auditoría='+JSON.stringify(a.fecha||'(vacía)')+
+          ' | centro auditoría='+JSON.stringify(a.centro||'')+
           ' | centro derivado del nombre='+JSON.stringify(_centroDerivAud||'(no resuelto — revisar CENTRO_TIENDA)')+
           ' | tareas del mismo tipo en STORE='+_candTipo.length+
-          ' | con mismo centro exacto='+_candCentro.length+
+          ' | con mismo centro='+_candCentro.length+' → fechaCreacion de esas: '+JSON.stringify(_fechasCand)+
           ' | con mismo nombre de tienda literal='+_candTiendaLit.length+
-          '. Si "centro derivado" da vacío, falta esa tienda en CENTRO_TIENDA; si da un valor pero 0 coincidencias, revisar que las tareas en Supabase tengan ese mismo centro.');
+          '. Si "centro derivado" da vacío, falta esa tienda en CENTRO_TIENDA. Si hay tareas con mismo centro pero'+
+          ' sus fechas quedan lejos del mes de la auditoría, es la ventana de fecha (±5 días del mes), no el centro.');
       }
     }
     return {tareas:a.tareas||0,resueltas:a.resueltas||0,pendientes:a.pendientes||0,
@@ -9094,7 +9116,7 @@ window.addEventListener('message',function(ev){
    ejecutando, avisa para recargar. Evita seguir usando una copia cacheada
    (causa habitual de "no veo los cambios" y de archivos generados con la
    versión anterior). */
-var BUILD_ID='2026-07-21-fix-mismaTiendaAud-diag';
+var BUILD_ID='2026-07-21-fix-anio-ventana-mes';
 (function(){
   setTimeout(async function(){
     try{
