@@ -3524,16 +3524,25 @@ function calcAudStats(a, rowsMismaClase){
     return true;
   });
 
-  /* Una auditoría solo cuenta las tareas de SU mes (ventana del mes ± GRACIA_DIAS,
-     porque los tickets a veces se abren unos días antes o después del corte).
+  /* Una auditoría solo cuenta las tareas de SU mes (ventana del mes ± GRACIA_DIAS).
+     GRACIA_DIAS era 5 y dejaba fuera tareas reales: en la práctica los tickets
+     de una auditoría de "ABRIL"/"JUNIO" se crean en Supabase varios días o
+     incluso semanas después del cierre del mes (se vieron casos de 1, 2 y
+     hasta 15 días de rezago), así que 5 días era insuficiente y auditorías
+     con centro perfectamente coincidente quedaban "desconectadas" (sin ⟳, con
+     los pendientes en azul genérico) solo por ese margen tan angosto.
      Esto se aplica siempre que la auditoría tenga mes reconocible, haya o no
      hermanas: si no, la única auditoría visible de esa tienda/clase se llevaba
      las tareas de todos los meses.
 
      Cuando hay 2+ hermanas, cada tarea se asigna a la del mes MÁS CERCANO, así
-     que nunca puede contarse dos veces ni depende de ningún total declarado. */
+     que nunca puede contarse dos veces ni depende de ningún total declarado.
+     Por eso ampliar el margen es seguro: no revive el bug de "una auditoría
+     se lleva tareas de cualquier mes", porque la desambiguación entre
+     auditorías vecinas sigue intacta — solo deja de descartar de entrada
+     tareas legítimas con unos días/semanas de rezago normal. */
   if(mesMes>=0){
-    var GRACIA_DIAS=5;
+    var GRACIA_DIAS=30;
     var _fa=a.fecha?fromISO(a.fecha):null;
     var anioAud;
     if(_fa){
@@ -9116,7 +9125,7 @@ window.addEventListener('message',function(ev){
    ejecutando, avisa para recargar. Evita seguir usando una copia cacheada
    (causa habitual de "no veo los cambios" y de archivos generados con la
    versión anterior). */
-var BUILD_ID='2026-07-21-fix-anio-ventana-mes';
+var BUILD_ID='2026-07-21-fix-gracia-dias-30';
 (function(){
   setTimeout(async function(){
     try{
