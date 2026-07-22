@@ -3486,11 +3486,20 @@ function tipoNormLocal(tipo){
    (sin cálculo en vivo, sin ⟳, con los pendientes mostrados en azul genérico
    en vez de su color real) cada vez que el nombre de tienda no coincidía
    letra por letra. Con centro disponible en los dos lados, es el único
-   criterio: es el identificador confiable. Solo se cae a comparar tienda
-   cuando falta el centro en alguno de los dos registros. */
+   criterio: es el identificador confiable.
+   Cuando falta el centro en alguno de los dos registros, ANTES se comparaba
+   el texto de tienda literal — pero eso seguía dejando auditorías
+   desconectadas cuando el nombre venía con distinto prefijo/redacción de un
+   lado que del otro (p.ej. "PEÑASCO" vs "KN PEÑASCO"). Ahora, en ese caso, se
+   deriva el centro desde el nombre de tienda con el mismo diccionario/alias
+   que ya usan ajustes y mermas (centroDeTienda), y solo si eso tampoco
+   resuelve se cae al texto literal como último recurso. */
 function mismaTiendaAud(x,a){
   var cx=norm(x.centro), ca=norm(a.centro);
   if(cx&&ca)return cx===ca;
+  var dx=cx||(typeof centroDeTienda==='function'?norm(centroDeTienda(x.tienda||'')):'');
+  var da=ca||(typeof centroDeTienda==='function'?norm(centroDeTienda(a.tienda||'')):'');
+  if(dx&&da)return dx===da;
   return norm(x.tienda)===norm(a.tienda);
 }
 
@@ -3553,6 +3562,24 @@ function calcAudStats(a, rowsMismaClase){
   }
 
   if(!tt.length){
+    if(typeof console!=='undefined'&&console.warn){
+      window._diagAudSyncVistos=window._diagAudSyncVistos||{};
+      var _dk=norm(a.centro)+'|'+norm(a.tienda)+'|'+norm(a.mes)+'|'+norm(a.clase);
+      if(!window._diagAudSyncVistos[_dk]){
+        window._diagAudSyncVistos[_dk]=1;
+        var _candTipo=(STORE.tareas||[]).filter(function(t){return !tipoClase||tipoNormLocal(t.tipoTarea)===tipoClase;});
+        var _candCentro=_candTipo.filter(function(t){return norm(t.centro)&&norm(t.centro)===norm(a.centro);});
+        var _candTiendaLit=_candTipo.filter(function(t){return norm(t.tienda)===norm(a.tienda);});
+        var _centroDerivAud=(typeof centroDeTienda==='function')?centroDeTienda(a.tienda||''):'';
+        console.warn('[Sync auditoría↔tareas] "'+a.tienda+'" ('+a.mes+', '+a.clase+') sin tareas emparejadas.'+
+          ' centro auditoría='+JSON.stringify(a.centro||'')+
+          ' | centro derivado del nombre='+JSON.stringify(_centroDerivAud||'(no resuelto — revisar CENTRO_TIENDA)')+
+          ' | tareas del mismo tipo en STORE='+_candTipo.length+
+          ' | con mismo centro exacto='+_candCentro.length+
+          ' | con mismo nombre de tienda literal='+_candTiendaLit.length+
+          '. Si "centro derivado" da vacío, falta esa tienda en CENTRO_TIENDA; si da un valor pero 0 coincidencias, revisar que las tareas en Supabase tengan ese mismo centro.');
+      }
+    }
     return {tareas:a.tareas||0,resueltas:a.resueltas||0,pendientes:a.pendientes||0,
             abiertas:a.pendientes||0,abiertasAtrasadas:0,resueltasAtrasadas:0,
             pctResuelto:a.pctResuelto||0,tieneAtrasada:false,dinamico:false};
@@ -9067,7 +9094,7 @@ window.addEventListener('message',function(ev){
    ejecutando, avisa para recargar. Evita seguir usando una copia cacheada
    (causa habitual de "no veo los cambios" y de archivos generados con la
    versión anterior). */
-var BUILD_ID='2026-07-21-fix-norm-unicode-nfd';
+var BUILD_ID='2026-07-21-fix-mismaTiendaAud-diag';
 (function(){
   setTimeout(async function(){
     try{
