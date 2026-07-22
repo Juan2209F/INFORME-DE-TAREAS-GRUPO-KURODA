@@ -1250,7 +1250,7 @@ function canonTienda(centro,raw){
 function centroConocido(centro){return !!CENTRO_TIENDA[canonCentro(centro)];}
 /* Razón social por prefijo de centro (hoja "Tiendas válidas"):
    KC→KSA · KN→KNO · KS→KS. Relación única centro↔razón. */
-var PREFIJO_RAZON={KC:'KSA',KN:'KNO',KS:'KS'};
+var PREFIJO_RAZON={KC:'KSA',KN:'KNO',KS:'KSC'};
 function razonDeCentro(c){return PREFIJO_RAZON[canonCentro(c).slice(0,2)]||'';}
 
 /* ════════ RAZÓN SOCIAL: clave compuesta y visibilidad ════════
@@ -1280,36 +1280,78 @@ function razonVisible(razon){
 /* Para módulos sin campo razón (ajustes/mermas/finalizadas): se deriva el
    centro desde la tienda con el diccionario y de ahí la razón social exacta
    (KC→KSA, KN→KNO, KS→KS), evitando el choque entre KSA y KS. */
+/* Alias de TIENDA (no de centro): nombres reales usados en Auditorías/Tareas/
+   Excel que no calzan ni exacto ni por substring con el nombre del catálogo
+   (palabras en otro orden o abreviadas). Sin esto, Ajustes/Mermas de estas
+   tiendas quedan sin razón social detectada y se ocultan por seguridad. */
+var TIENDA_ALIAS_CENTRO={
+  '20 de noviembre':'KN00',        /* catálogo: "20 DE NOV MENUDEO" */
+  'valle de guadalupe':'KN15'      /* catálogo: "BO VALLE DE GPE." */
+};
+var _TIENDA_ALIAS_NORM=null;
+function _buildTiendaAliasIndex(){
+  if(_TIENDA_ALIAS_NORM)return;
+  _TIENDA_ALIAS_NORM={};
+  Object.keys(TIENDA_ALIAS_CENTRO).forEach(function(k){_TIENDA_ALIAS_NORM[norm(k)]=TIENDA_ALIAS_CENTRO[k];});
+}
+/* Compara dos nombres normalizados ignorando el ORDEN de las palabras: cubre
+   casos como "PROYECTOS TIJUANA" (dato real) vs "TIJUANA PROYECTOS" (catálogo),
+   que la coincidencia por substring simple no detecta porque el orden difiere. */
+function _tokMatch(a,b){
+  var wa=a.split(' ').filter(Boolean), wb=b.split(' ').filter(Boolean);
+  if(!wa.length||!wb.length)return false;
+  var corta=wa.length<=wb.length?wa:wb, larga=wa.length<=wb.length?wb:wa;
+  return corta.every(function(w){return larga.indexOf(w)>=0;});
+}
 var _TIENDA_CENTRO=null;
 var _TIENDA_CENTRO_KEYS=null;
+var _TIENDA_CENTRO_AMBIGUAS=null; /* claves normalizadas que existen en más de una razón social */
 function _buildTiendaCentroIndex(){
   if(_TIENDA_CENTRO)return;
-  _TIENDA_CENTRO={};_TIENDA_CENTRO_KEYS=[];
+  _TIENDA_CENTRO={};_TIENDA_CENTRO_KEYS=[];_TIENDA_CENTRO_AMBIGUAS={};
+  var _razonPorClave={}; /* clave -> {razon: centro} visto hasta ahora, para detectar choque entre razones */
   Object.keys(CENTRO_TIENDA).forEach(function(c){
     var full=CENTRO_TIENDA[c];
     var corto=full.replace(/^(KC|KN|KS)\s+/i,'');
     var nf=norm(full), nc=norm(corto);
+    var raz=razonDeCentro(c);
+    [nf,nc].forEach(function(k){
+      if(!k)return;
+      _razonPorClave[k]=_razonPorClave[k]||{};
+      /* Si la misma clave normalizada ya pertenece a OTRA razón social, es
+         ambigua: no se puede resolver ciegamente al primer centro insertado
+         (bug detectado con "PROYECTOS" = KC03/KSA y KS01/KS). Se marca para
+         que centroDeTienda() la trate como no resuelta y caiga al fallback
+         de coincidencia parcial, que sí valida ambigüedad entre razones. */
+      if(Object.keys(_razonPorClave[k]).length&&!_razonPorClave[k][raz])_TIENDA_CENTRO_AMBIGUAS[k]=true;
+      _razonPorClave[k][raz]=c;
+    });
     if(!_TIENDA_CENTRO[nf])_TIENDA_CENTRO[nf]=c;
     if(!_TIENDA_CENTRO[nc])_TIENDA_CENTRO[nc]=c;
     _TIENDA_CENTRO_KEYS.push({nf:nf,nc:nc,c:c});
   });
 }
 function centroDeTienda(t){
-  _buildTiendaCentroIndex();
+  _buildTiendaCentroIndex();_buildTiendaAliasIndex();
   var nt=norm(t);
   if(!nt)return'';
-  if(_TIENDA_CENTRO[nt])return _TIENDA_CENTRO[nt];
+  if(_TIENDA_ALIAS_NORM[nt])return _TIENDA_ALIAS_NORM[nt];
+  if(_TIENDA_CENTRO[nt]&&!_TIENDA_CENTRO_AMBIGUAS[nt])return _TIENDA_CENTRO[nt];
   /* Fallback por coincidencia parcial: se recopilan TODOS los candidatos y
      solo se resuelve si TODOS pertenecen a la misma razón social. Nombres
-     genéricos como "PROYECTOS" existen a la vez en KC03 (KSA), KN14 (KNO) y
-     KS01 (KS): tomar el primer match a ciegas atribuía el registro a la razón
-     equivocada (mermas/ajustes de KNO apareciendo en KSA/KSC). Si el nombre es
-     ambiguo entre razones distintas, se retorna '' para que el registro se
-     oculte por seguridad en vez de adivinar mal. */
+     genéricos como "PROYECTOS" existen a la vez en KC03 (KSA) y KS01 (KSC):
+     tomar el primer match a ciegas atribuía el registro a la razón
+     equivocada (mermas/ajustes de KSC apareciendo en KSA, o viceversa). Si el
+     nombre es ambiguo entre razones distintas, se retorna '' para que el
+     registro se oculte por seguridad en vez de adivinar mal. También se
+     compara ignorando el orden de las palabras (_tokMatch) para cubrir
+     nombres reales con las mismas palabras en otro orden ("PROYECTOS
+     TIJUANA" vs "TIJUANA PROYECTOS"). */
   var candidatos=[];
   for(var i=0;i<_TIENDA_CENTRO_KEYS.length;i++){
     var k=_TIENDA_CENTRO_KEYS[i];
-    if(k.nf.indexOf(nt)>=0||nt.indexOf(k.nf)>=0||k.nc.indexOf(nt)>=0||nt.indexOf(k.nc)>=0)candidatos.push(k.c);
+    if(k.nf.indexOf(nt)>=0||nt.indexOf(k.nf)>=0||k.nc.indexOf(nt)>=0||nt.indexOf(k.nc)>=0||
+       _tokMatch(nt,k.nf)||_tokMatch(nt,k.nc))candidatos.push(k.c);
   }
   if(!candidatos.length)return '';
   var razones=uniq(candidatos.map(function(c){return razonDeCentro(c);}));
