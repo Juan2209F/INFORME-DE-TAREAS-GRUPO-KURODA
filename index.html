@@ -1158,7 +1158,7 @@ function bucketKeyEx(d,gran){
 /* ════════════════════════════════════════════════════════════════════
    PARSEO DE EXCEL (detección por encabezado, tolerante a variaciones)
 ════════════════════════════════════════════════════════════════════ */
-function norm(s){return String(s||'').toLowerCase().replace(/\s+/g,' ').replace(/[áàä]/g,'a').replace(/[éèë]/g,'e').replace(/[íìï]/g,'i').replace(/[óòö]/g,'o').replace(/[úùü]/g,'u').trim();}
+function norm(s){return String(s||'').toLowerCase().replace(/\s+/g,' ').replace(/[áàä]/g,'a').replace(/[éèë]/g,'e').replace(/[íìï]/g,'i').replace(/[óòö]/g,'o').replace(/[úùü]/g,'u').replace(/ñ/g,'n').trim();}
 
 /* ════════════════════════════════════════════════════════════════════
    DICCIONARIO DE SUCURSALES (nombre canónico por CÓDIGO DE CENTRO)
@@ -1283,10 +1283,21 @@ function centroDeTienda(t){
   var nt=norm(t);
   if(!nt)return'';
   if(_TIENDA_CENTRO[nt])return _TIENDA_CENTRO[nt];
+  /* Fallback por coincidencia parcial: se recopilan TODOS los candidatos y
+     solo se resuelve si TODOS pertenecen a la misma razón social. Nombres
+     genéricos como "PROYECTOS" existen a la vez en KC03 (KSA), KN14 (KNO) y
+     KS01 (KS): tomar el primer match a ciegas atribuía el registro a la razón
+     equivocada (mermas/ajustes de KNO apareciendo en KSA/KSC). Si el nombre es
+     ambiguo entre razones distintas, se retorna '' para que el registro se
+     oculte por seguridad en vez de adivinar mal. */
+  var candidatos=[];
   for(var i=0;i<_TIENDA_CENTRO_KEYS.length;i++){
     var k=_TIENDA_CENTRO_KEYS[i];
-    if(k.nf.indexOf(nt)>=0||nt.indexOf(k.nf)>=0||k.nc.indexOf(nt)>=0||nt.indexOf(k.nc)>=0)return k.c;
+    if(k.nf.indexOf(nt)>=0||nt.indexOf(k.nf)>=0||k.nc.indexOf(nt)>=0||nt.indexOf(k.nc)>=0)candidatos.push(k.c);
   }
+  if(!candidatos.length)return '';
+  var razones=uniq(candidatos.map(function(c){return razonDeCentro(c);}));
+  if(razones.length===1)return candidatos[0];
   return '';
 }
 function tiendaVisible(tienda){
@@ -3450,24 +3461,40 @@ function tipoNormLocal(tipo){
 /* Calcula stats dinámicamente cruzando STORE.tareas con la auditoría.
    Filtra por tienda+centro+tipoTarea(clase); si hay 2+ auditorías de la misma
    tienda/centro/clase también filtra por mes de fechaCreacion. */
+/* Compara si dos registros (auditoría/tarea) son de la MISMA tienda.
+   El "centro" (KN00, KN07, ...) es un código controlado y estable; el nombre
+   de tienda es texto libre y puede capturarse distinto entre registros
+   (p. ej. "20 DE NOVIEMBRE" vs "20 DE NOV MENUDEO" para el mismo KN00, o
+   "PEÑASCO" capturado sin el acento en algún renglón). Exigir que AMBOS
+   campos coincidieran dejaba auditorías "desconectadas" de sus tareas reales
+   (sin cálculo en vivo, sin ⟳, con los pendientes mostrados en azul genérico
+   en vez de su color real) cada vez que el nombre de tienda no coincidía
+   letra por letra. Con centro disponible en los dos lados, es el único
+   criterio: es el identificador confiable. Solo se cae a comparar tienda
+   cuando falta el centro en alguno de los dos registros. */
+function mismaTiendaAud(x,a){
+  var cx=norm(x.centro), ca=norm(a.centro);
+  if(cx&&ca)return cx===ca;
+  return norm(x.tienda)===norm(a.tienda);
+}
+
 function calcAudStats(a, rowsMismaClase){
   var tipoClase = tipoTareaDeClase(a.clase);
 
-  /* Hermanas = TODAS las auditorías de la misma tienda+centro+clase que existen
+  /* Hermanas = TODAS las auditorías del mismo centro+clase que existen
      en STORE, no solo las que se están pintando. Antes se usaba rowsMismaClase
      (ya filtrado por mes de la vista y por estaFinalizada), así que una
      auditoría podía quedarse "sola" y llevarse las tareas de todos los meses:
      KN EXPRESS julio contaba 19 en vez de 10. */
   var audsMismaTienda = (STORE.auditorias||[]).filter(function(x){
-    return norm(x.tienda)===norm(a.tienda) && norm(x.centro)===norm(a.centro)
-        && norm(x.clase)===norm(a.clase);
+    return mismaTiendaAud(x,a) && norm(x.clase)===norm(a.clase);
   });
   if(!audsMismaTienda.length) audsMismaTienda=[a];
   var mesMes = mesIndexFromNombre(a.mes);
 
-  /* Filtrar tareas: tienda + centro + tipo correspondiente a la clase */
+  /* Filtrar tareas: mismo centro (ver mismaTiendaAud) + tipo correspondiente a la clase */
   var tt = STORE.tareas.filter(function(t){
-    if(norm(t.tienda)!==norm(a.tienda)||norm(t.centro)!==norm(a.centro))return false;
+    if(!mismaTiendaAud(t,a))return false;
     if(tipoClase && tipoNormLocal(t.tipoTarea)!==tipoClase)return false;
     return true;
   });
@@ -3776,7 +3803,8 @@ async function saveEditAuditoria(original){
     clase:dv('ea-clase')||original.clase
   };
   var idx=STORE.auditorias.findIndex(function(x){
-    return norm(x.tienda)===norm(original.tienda)&&norm(x.mes)===norm(original.mes)&&norm(x.clase)===norm(original.clase)&&(!original.fecha||x.fecha===original.fecha);
+    return (original.centro?mismaTiendaAud(x,original):norm(x.tienda)===norm(original.tienda))&&
+      norm(x.mes)===norm(original.mes)&&norm(x.clase)===norm(original.clase)&&(!original.fecha||x.fecha===original.fecha);
   });
   if(idx>=0)STORE.auditorias[idx]=Object.assign({},STORE.auditorias[idx],updated);
   closeModal();refreshAll();
@@ -3805,7 +3833,7 @@ async function deleteAuditoria(a){
   if(!confirm('¿Eliminar auditoría de '+a.tienda+' ('+a.mes+')?'))return;
   closeModal();
   STORE.auditorias=STORE.auditorias.filter(function(x){
-    return !(norm(x.tienda)===norm(a.tienda)&&norm(x.mes)===norm(a.mes)&&norm(x.clase)===norm(a.clase)&&x.fecha===a.fecha);
+    return !((a.centro?mismaTiendaAud(x,a):norm(x.tienda)===norm(a.tienda))&&norm(x.mes)===norm(a.mes)&&norm(x.clase)===norm(a.clase)&&x.fecha===a.fecha);
   });
   refreshAll();
   var client=getSbClient();
@@ -5857,8 +5885,13 @@ function renderDesempeno(){
     var col=colores[i%colores.length];
     var pAj=pct(d.ajOk,d.ajTotal);
     var pMr=pct(d.mrOk,d.mrTotal);
-    var pActProg=pct(d.actProgOk,d.actProgEval);
-    var pActNoP=pct(d.actNoPOk,d.actNoPEval);
+    /* Act. Programadas/No Programadas: el % se calcula sobre el TOTAL asignado
+       (no solo sobre lo "evaluable"), para que una actividad aún pendiente sí
+       reduzca el porcentaje en vez de mostrar 100% mientras falte una por
+       completar. El "Global ponderado" del auditor (baseEval) sigue usando
+       solo lo evaluable, ya que ese cálculo es de puntualidad, no de avance. */
+    var pActProg=pct(d.actProgOk,d.actProgTotal);
+    var pActNoP=pct(d.actNoPOk,d.actNoPTotal);
     var actTotal=d.actProgTotal+d.actNoPTotal;
     var actEval=d.actProgEval+d.actNoPEval;
     var actOk=d.actProgOk+d.actNoPOk;
@@ -5935,14 +5968,16 @@ function renderDesempeno(){
       '</div>'+
       /* Fila 2: Actividades Programadas y No Programadas */
       '<div style="padding:0 16px 14px;display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
-        kpiBlock('📋','Act. Programadas',d.actProgTotal,d.actProgOk,d.actProgAtrasada,d.actProgRepr,d.actProgPend,pActProg,'#2563eb',(d.actProgEval?pActProg+'% a tiempo sobre '+d.actProgEval+' evaluable(s)':'sin evaluables aún')+(d.actProgAtrasada?' · '+d.actProgAtrasada+' tarde':''))+
-        kpiBlock('📌','Act. No Programadas',d.actNoPTotal,d.actNoPOk,d.actNoPAtrasada,d.actNoPRepr,d.actNoPPend,pActNoP,'#ea580c',(d.actNoPEval?pActNoP+'% a tiempo sobre '+d.actNoPEval+' evaluable(s)':'sin evaluables aún')+(d.actNoPAtrasada?' · '+d.actNoPAtrasada+' tarde':''))+
+        kpiBlock('📋','Act. Programadas',d.actProgTotal,d.actProgOk,d.actProgAtrasada,d.actProgRepr,d.actProgPend,pActProg,'#2563eb',(d.actProgTotal?pActProg+'% completado sobre '+d.actProgTotal+' total':'sin actividades aún')+(d.actProgAtrasada?' · '+d.actProgAtrasada+' tarde':'')+((d.actProgTotal-d.actProgEval)>0?' · '+(d.actProgTotal-d.actProgEval)+' en curso':''))+
+        kpiBlock('📌','Act. No Programadas',d.actNoPTotal,d.actNoPOk,d.actNoPAtrasada,d.actNoPRepr,d.actNoPPend,pActNoP,'#ea580c',(d.actNoPTotal?pActNoP+'% completado sobre '+d.actNoPTotal+' total':'sin actividades aún')+(d.actNoPAtrasada?' · '+d.actNoPAtrasada+' tarde':'')+((d.actNoPTotal-d.actNoPEval)>0?' · '+(d.actNoPTotal-d.actNoPEval)+' en curso':''))+
       '</div>'+
-      /* Fila 3: Seguimiento de cargas de Excel */
+      /* Fila 3: Seguimiento de cargas de Excel — solo se muestra si hay cargas
+         en el período; si no, se omite el bloque por completo (antes se
+         mostraba una caja vacía "Sin cargas en este período" en cada tarjeta). */
+      (d.cgTotal>0?(
       '<div style="padding:0 16px 14px">'+
         '<div style="background:var(--soft);border-radius:10px;padding:12px;border-top:3px solid #0891b2">'+
           '<div style="font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">📥 Seguimiento de cargas (Excel)</div>'+
-          (d.cgTotal>0?
             '<div style="display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap">'+
               '<div><div style="font-size:26px;font-weight:900;color:#0891b2;line-height:1">'+d.cgTotal+'</div><div style="font-size:9px;color:var(--muted);font-weight:700">CARGAS</div></div>'+
               '<div><div style="font-size:20px;font-weight:800;color:var(--txt);line-height:1">'+d.cgRegistros+'</div><div style="font-size:9px;color:var(--muted);font-weight:700">REGISTROS</div></div>'+
@@ -5954,10 +5989,9 @@ function renderDesempeno(){
             '</div>'+
             ((isAdminDesp&&_ultCarga&&_ultCarga.audKn===norm(d.nombre))?
               '<button class="btn-ghost" style="font-size:11px;padding:5px 11px;margin-top:10px;border-radius:8px" onclick="revertirCarga('+_ultCarga.id+')" title="Deshace la última importación y restaura el estado anterior">↩ Revertir última carga</button>'
-              :'')
-          :'<div style="font-size:11px;color:var(--muted)">Sin cargas en este período</div>')+
+              :'')+
         '</div>'+
-      '</div>'+
+      '</div>'):'')+
     '</div>';
   }).join('');
 
@@ -6700,7 +6734,8 @@ async function loadAjustes(){
       if(!añoLimpio&&a.año)añoLimpio=parseInt(a.año);
       return{id:a.id,tienda:a.tienda||'',mes:mesLimpio,año:añoLimpio,
         fechaCorreo:a.fecha_correo,fechaAjuste:a.fecha_ajuste,
-        dias:dias,condicion:condicionAjuste(dias),auditor:a.auditor||''};
+        dias:dias,condicion:condicionAjuste(dias),auditor:a.auditor||'',
+        razon:razonDeCentro(centroDeTienda(a.tienda||''))};
     });
     AJUSTES=AJUSTES.filter(function(a){return tiendaVisible(a.tienda);});
     /* Solo se conservan registros de 2026 en adelante (los años anteriores no se necesitan) */
@@ -7133,7 +7168,8 @@ async function loadMermas(){
       return{id:m.id,tienda:m.tienda||'',localForanea:m.local_foranea||'',
         mes:m.mes||'',año:m.año||'',
         fechaAut:m.fecha_autorizacion,fechaVal:m.fecha_validacion,
-        dias:dias,condicion:condicionAjuste(dias),auditor:m.auditor||''};
+        dias:dias,condicion:condicionAjuste(dias),auditor:m.auditor||'',
+        razon:razonDeCentro(centroDeTienda(m.tienda||''))};
     });
     MERMAS=MERMAS.filter(function(m){return tiendaVisible(m.tienda);});
     /* Solo se conservan registros de 2026 en adelante (los años anteriores no se necesitan) */
@@ -9015,7 +9051,7 @@ window.addEventListener('message',function(ev){
    ejecutando, avisa para recargar. Evita seguir usando una copia cacheada
    (causa habitual de "no veo los cambios" y de archivos generados con la
    versión anterior). */
-var BUILD_ID='2026-07-20-fix-data-not-defined';
+var BUILD_ID='2026-07-21-fix-razon-cruzada';
 (function(){
   setTimeout(async function(){
     try{
