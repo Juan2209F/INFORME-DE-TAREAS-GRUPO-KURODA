@@ -6787,18 +6787,22 @@ async function loadAjustes(){
     var _ajDataDec=await decArr(_ajDataRaw,FIELDS.ajustes);
     AJUSTES=_ajDataDec.map(function(a){
       var dias=diasEntre(a.fecha_correo,a.fecha_ajuste);
-      /* SIEMPRE derivar mes y año desde fecha_correo para evitar formatos sucios
-         ("julio2023.", "agosto", etc.) que pueden estar en el campo mes de Supabase */
+      /* SIEMPRE derivar mes y año desde la FECHA DE AJUSTE (predominante). Si aún
+         no hay fecha de ajuste (pendiente de validar), se usa fecha_correo como
+         respaldo para que el registro no desaparezca de los filtros. Se evita así
+         además depender de formatos sucios ("julio2023.", "agosto", etc.) que
+         pueden estar en el campo mes de Supabase. */
       var mesLimpio='';
       var añoLimpio=null;
-      if(a.fecha_correo){
-        var parts=a.fecha_correo.split('-');
+      var _fechaBaseAj=a.fecha_ajuste||a.fecha_correo;
+      if(_fechaBaseAj){
+        var parts=_fechaBaseAj.split('-');
         if(parts.length>=2){
           añoLimpio=parseInt(parts[0]);
           mesLimpio=MN[parseInt(parts[1])-1]||'';
         }
       }
-      /* Fallback: intentar parsear el campo mes almacenado si no hay fecha_correo */
+      /* Fallback: intentar parsear el campo mes almacenado si no hay ninguna fecha */
       if(!mesLimpio&&a.mes){
         var raw=String(a.mes).toUpperCase().replace(/[0-9.]/g,'').trim();
         /* Extraer solo la parte del nombre del mes */
@@ -7003,7 +7007,8 @@ async function guardarNuevoAjuste(){
   if(!tienda){errEl.textContent='La tienda es obligatoria';return;}
   if(!correo||!ajuste){errEl.textContent='Ambas fechas son obligatorias';return;}
   var dias=diasEntre(correo,ajuste);
-  var año=parseInt(correo.split('-')[0]);
+  /* Año predominante = fecha de ajuste; si aún no existe, se usa fecha de correo */
+  var año=parseInt(((ajuste||correo)).split('-')[0]);
   var _ajRaw={tienda,mes:mes.toUpperCase(),año,fecha_correo:correo,fecha_ajuste:ajuste,
     dias,condicion:condicionAjuste(dias),auditor:auditor||null};
   var row=await encObj(_ajRaw,FIELDS.ajustes);
@@ -7074,7 +7079,8 @@ async function saveEditAjuste(id){
   var _ajActual=AJUSTES.find(function(x){return x.id===id;})||{};
   var auditor=dv('eaj-auditor')||_ajActual.auditor||(_session&&(_session.nombre||_session.username))||'Desconocido';
   var dias=diasEntre(correo,ajuste);
-  var año=parseInt((correo||'').split('-')[0])||null;
+  /* Año predominante = fecha de ajuste; si aún no existe, se usa fecha de correo */
+  var año=parseInt(((ajuste||correo)||'').split('-')[0])||null;
   var _ajUpdRaw={tienda,mes,año,fecha_correo:correo,fecha_ajuste:ajuste,dias,condicion:condicionAjuste(dias),auditor:auditor};
   var row=await encObj(_ajUpdRaw,FIELDS.ajustes);
   var client=getSbClient();if(!client)return;
@@ -7165,9 +7171,12 @@ function importAjustesExcel(files){
            todavía fecha de ajuste: antes se descartaba la fila entera y el mes
            no aparecía. Ahora entra como pendiente (condición '—'). */
         if(!fechaC)continue;
-        /* Derivar mes y año SIEMPRE desde fecha_correo — ignorar campo Mes del Excel
-           porque viene con formatos inconsistentes: "julio2023.", "julio", etc. */
-        var parts=fechaC.split('-');
+        /* Derivar mes y año SIEMPRE desde la FECHA DE AJUSTE (predominante); si la
+           fila aún no tiene fecha de ajuste (pendiente de validar), se usa fecha
+           de correo como respaldo. Se ignora el campo Mes del Excel porque viene
+           con formatos inconsistentes: "julio2023.", "julio", etc. */
+        var _fechaBaseAjImp=fechaA||fechaC;
+        var parts=_fechaBaseAjImp.split('-');
         var año=parseInt(parts[0]);
         var mes=MN[parseInt(parts[1])-1]||'';
         var dias=fechaA?diasEntre(fechaC,fechaA):null;
@@ -7237,10 +7246,32 @@ async function loadMermas(){
     if(r.error){toast('⚠ '+r.error.message);return;}
     var _mrDataRaw=r.data||[];
     var _mrDataDec=await decArr(_mrDataRaw,FIELDS.mermas);
+    var MNmr=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
+      'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
     MERMAS=_mrDataDec.map(function(m){
       var dias=diasEntre(m.fecha_autorizacion,m.fecha_validacion);
+      /* SIEMPRE derivar mes y año desde la FECHA DE VALIDACIÓN (predominante). Si
+         aún no hay fecha de validación (pendiente), se usa fecha_autorizacion
+         como respaldo para que el registro no desaparezca de los filtros. */
+      var mesLimpioMr='';
+      var añoLimpioMr=null;
+      var _fechaBaseMr=m.fecha_validacion||m.fecha_autorizacion;
+      if(_fechaBaseMr){
+        var partsMr=_fechaBaseMr.split('-');
+        if(partsMr.length>=2){
+          añoLimpioMr=parseInt(partsMr[0]);
+          mesLimpioMr=MNmr[parseInt(partsMr[1])-1]||'';
+        }
+      }
+      /* Fallback: intentar parsear el campo mes almacenado si no hay ninguna fecha */
+      if(!mesLimpioMr&&m.mes){
+        var rawMr=String(m.mes).toUpperCase().replace(/[0-9.]/g,'').trim();
+        var foundMr=MNmr.find(function(mn){return rawMr.startsWith(mn)||rawMr===mn;});
+        mesLimpioMr=foundMr||rawMr;
+      }
+      if(!añoLimpioMr&&m.año)añoLimpioMr=parseInt(m.año);
       return{id:m.id,tienda:m.tienda||'',localForanea:m.local_foranea||'',
-        mes:m.mes||'',año:m.año||'',
+        mes:mesLimpioMr,año:añoLimpioMr,
         fechaAut:m.fecha_autorizacion,fechaVal:m.fecha_validacion,
         dias:dias,condicion:condicionAjuste(dias),auditor:m.auditor||'',
         razon:razonDeCentro(centroDeTienda(m.tienda||''))};
@@ -7481,7 +7512,7 @@ function renderEvaluacion(){
   });
 
   /* Datasets base (todos los meses) para la tendencia */
-  var AJall=AJUSTES.filter(function(a){return audMatch(a.auditor)&&gBase(a,refDate(a.fechaCorreo||a.fechaAjuste));});
+  var AJall=AJUSTES.filter(function(a){return audMatch(a.auditor)&&gBase(a,refDate(a.fechaAjuste||a.fechaCorreo));});
   var MRall=MERMAS.filter(function(m){return audMatch(m.auditor)&&gBase(m,refDate(m.fechaVal||m.fechaAut));});
   /* Actividades: mismo criterio de asignado que Desempeño (asignado, o si no,
      quien la creó), y misma comparación de fechas (Real Fin vs Est. Fin) que
@@ -7676,7 +7707,8 @@ async function guardarNuevaMerma(){
   if(!tienda){errEl.textContent='La tienda es obligatoria';return;}
   if(!aut||!val){errEl.textContent='Ambas fechas son obligatorias';return;}
   var dias=diasEntre(aut,val);
-  var año=parseInt((aut||'').split('-')[0])||null;
+  /* Año predominante = fecha de validación; si aún no existe, se usa fecha de autorización */
+  var año=parseInt(((val||aut)||'').split('-')[0])||null;
   var _mrRaw={tienda,local_foranea:lf,mes:mes.toUpperCase(),año,
     fecha_autorizacion:aut,fecha_validacion:val,dias,condicion:condicionAjuste(dias),auditor:auditorMr||null};
   var row=await encObj(_mrRaw,FIELDS.mermas);
@@ -7714,7 +7746,8 @@ async function saveEditMerma(id){
   var val=dv('mrf-val');
   var auditor=dv('mrf-auditor')||(_session&&(_session.nombre||_session.username))||'Desconocido';
   var dias=diasEntre(aut,val);
-  var año=parseInt((aut||'').split('-')[0])||null;
+  /* Año predominante = fecha de validación; si aún no existe, se usa fecha de autorización */
+  var año=parseInt(((val||aut)||'').split('-')[0])||null;
   var _mrUpdRaw={tienda,local_foranea:lf,mes,año,fecha_autorizacion:aut,
     fecha_validacion:val,dias,condicion:condicionAjuste(dias),
     auditor:auditor};
@@ -7813,10 +7846,17 @@ function importMermasExcel(files){
         if(!fechaA)continue;
         var lf=iLF>=0?String(r[iLF]||'').trim():'Local';
         if(!lf)lf='Local';
-        var mes=iM>=0?String(r[iM]||'').trim().toUpperCase():'';
-        if(mes&&mes.includes(','))mes=mes.split(',')[0].trim().toUpperCase();
-        if(!mes&&fechaA)mes=mNames[parseInt(fechaA.split('-')[1])-1]||'';
-        var año=parseInt((fechaA||'').split('-')[0])||null;
+        /* Mes/año SIEMPRE derivados desde la FECHA DE VALIDACIÓN (predominante);
+           si la fila aún no tiene fecha de validación (pendiente), se usa fecha
+           de autorización como respaldo. Se ignora la columna Mes del Excel por
+           la misma razón que en Ajustes: formatos inconsistentes. */
+        var _fechaBaseMrImp=fechaV||fechaA;
+        var mes=_fechaBaseMrImp?(mNames[parseInt(_fechaBaseMrImp.split('-')[1])-1]||''):'';
+        if(!mes&&iM>=0){
+          mes=String(r[iM]||'').trim().toUpperCase();
+          if(mes&&mes.includes(','))mes=mes.split(',')[0].trim().toUpperCase();
+        }
+        var año=parseInt((_fechaBaseMrImp||'').split('-')[0])||null;
         var dias=fechaV?diasEntre(fechaA,fechaV):null;
         var auditor=(iAud>=0?String(r[iAud]||'').trim():'')||yoSesion||'Desconocido';
         rows.push({tienda,local_foranea:lf,mes,año,fecha_autorizacion:fechaA,
