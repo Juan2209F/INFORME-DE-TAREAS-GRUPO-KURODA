@@ -6334,6 +6334,7 @@ function tieneVista(v){
 function puedeModificarModulo(v){
   if(!_session)return false;
   if(['admin','admin_auditor'].includes(_session.rol))return true;
+  if(v==='usuarios')return false; /* exclusivo de admin/admin_auditor, sin excepción */
   return _session.rol==='auditor'&&tieneVista(v);
 }
 /* ¿Puede el usuario ver el módulo Generador de Dashboard Ejecutivo?
@@ -6400,15 +6401,19 @@ function applyVistasRestriction(){
     'nav-desempeno':'desempeno','nav-evaluacion':'evaluacion',
     'nav-generador':'generador','nav-documentos':'documentos','nav-usuarios':'usuarios'
   };
-  /* Módulos restringidos para Auditor Jr: solo con acceso explícito */
-  var RESTRINGIDAS_JR=['finalizadas','desempeno','evaluacion','usuarios'];
+  /* Módulos restringidos para Auditor Jr: solo con acceso explícito.
+     'usuarios' se quitó de aquí a propósito: la gestión de usuarios es
+     exclusiva de admin/admin_auditor y ya no puede habilitarse para
+     'auditor' aunque se le marque en sus vistas_permitidas. */
+  var RESTRINGIDAS_JR=['finalizadas','desempeno','evaluacion'];
   var visibles=[];
   Object.entries(navMap).forEach(function(e){
     var key=e[1],permitido;
     if(key==='usuarios'){
-      /* Usuarios: admin y Auditor Señior siempre; Auditor Jr solo con acceso */
-      permitido=['admin','admin_auditor'].includes(_session.rol)||
-                (_session.rol==='auditor'&&!!(lista&&lista.includes('usuarios')));
+      /* Usuarios: exclusivo de admin y admin_auditor. Ningún otro rol —
+         incluido 'auditor' con acceso explícito por vistas_permitidas —
+         puede ver ni abrir este módulo. */
+      permitido=['admin','admin_auditor'].includes(_session.rol);
     }else if(key==='generador'){
       /* Generador de reportes ejecutivos (PPTX). Ya NO es exclusivo de KNO
          en cuanto a datos (funciona con cualquier razón social: KNO/KS/KSA),
@@ -6647,6 +6652,27 @@ function closeUsuarios(){
   document.getElementById('usr-err').textContent='';
 }
 
+/* Alcance por razón social del módulo Usuarios: una cuenta admin_auditor
+   con razones_permitidas asignadas (p.ej. KNO) solo debe ver y poder editar
+   usuarios de esa(s) misma(s) razón(es) — no la lista completa del sistema.
+   El admin sin restricción de razón (razones_permitidas vacío/null) sigue
+   viendo a todos, igual que en el resto del dashboard (_razonesAsignadas()/
+   razonVisible()). Un usuario objetivo sin razón asignada (razones_permitidas
+   vacío = "todas") se considera fuera del alcance de una cuenta restringida,
+   para que un admin_auditor de KNO no pueda ver ni tocar cuentas de alcance
+   global. */
+function filtrarUsuariosPorRazonSesion(data){
+  var propias=_razonesAsignadas();
+  if(!propias)return data; /* sesión sin restricción de razón: ve todo */
+  var propiasNorm=propias.map(razKey);
+  return data.filter(function(u){
+    var raz=u.razones_permitidas;
+    if(typeof raz==='string'){try{raz=JSON.parse(raz);}catch(e){raz=null;}}
+    if(!raz||!raz.length)return false;
+    return raz.some(function(r){return propiasNorm.includes(razKey(r));});
+  });
+}
+
 async function loadUsuarios(){
   const tbody=document.getElementById('usr-tbody');
   tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">Cargando...</td></tr>';
@@ -6654,12 +6680,14 @@ async function loadUsuarios(){
   try{
     const {data,error}=await _sb.rpc('listar_usuarios');
     if(error)throw error;
-    if(!data||!data.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--muted)">Sin usuarios</td></tr>';return;}
-    /* Actualizar lista de auditores medibles */
-    /* Mapa global para datos de edición — evita problemas con comillas en onclick */
+    var visibles=filtrarUsuariosPorRazonSesion(data||[]);
+    if(!visibles.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--muted)">Sin usuarios</td></tr>';return;}
+    /* Actualizar lista de auditores medibles (con el universo completo de
+       usuarios, no solo los visibles para esta sesión: un admin_auditor de
+       KNO igual debe medir auditores de otras razones en Desempeño). */
     window._usrEditMap={};
-    _AUDITORES_CONOCIDOS=data.filter(function(u){return u.es_auditor&&u.activo;}).map(function(u){return u.nombre||u.username;});
-    tbody.innerHTML=data.map(function(u){
+    _AUDITORES_CONOCIDOS=(data||[]).filter(function(u){return u.es_auditor&&u.activo;}).map(function(u){return u.nombre||u.username;});
+    tbody.innerHTML=visibles.map(function(u){
       var rolClass='rol-'+u.rol;
       var razones=u.razones_permitidas;
       if(typeof razones==='string'){try{razones=JSON.parse(razones);}catch(e){razones=null;}}
@@ -6722,6 +6750,16 @@ async function crearUsuario(){
   if(!user||!pass){errEl.textContent='Usuario y contraseña requeridos';return;}
   if(pass.length<3){errEl.textContent='Contraseña mínimo 3 caracteres';return;}
   if(!_sb){errEl.textContent='Sin conexión a Supabase';return;}
+  /* Un admin_auditor con razón(es) asignada(s) solo puede crear usuarios
+     dentro de su propio alcance: ni 'Todas' ni una razón ajena. */
+  var propias=_razonesAsignadas();
+  if(propias){
+    var propiasNorm=propias.map(razKey);
+    if(!razonesPermitidas||!razonesPermitidas.length||razonesPermitidas.some(function(r){return !propiasNorm.includes(razKey(r));})){
+      errEl.textContent='Solo puedes crear usuarios dentro de tu(s) razón(es): '+propias.join(', ');
+      return;
+    }
+  }
   try{
     const {data,error}=await _sb.rpc('crear_usuario',{
       p_username:user, p_password:pass, p_rol:rol,
@@ -6798,6 +6836,18 @@ async function guardarEditUsuario(){
   var errEl=document.getElementById('eu-err');
   errEl.textContent='';
   if(!_sb){errEl.textContent='Sin conexión a Supabase';return;}
+  /* Mismo alcance por razón que en crearUsuario: un admin_auditor
+     restringido no puede reasignar un usuario a 'Todas' ni a una razón
+     fuera de la(s) suya(s) — y openEditUsuario() ya evita que abra la
+     edición de un usuario que estuviera fuera de su alcance. */
+  var propiasEU=_razonesAsignadas();
+  if(propiasEU){
+    var propiasEUNorm=propiasEU.map(razKey);
+    if(!razonesPermitidas||!razonesPermitidas.length||razonesPermitidas.some(function(r){return !propiasEUNorm.includes(razKey(r));})){
+      errEl.textContent='Solo puedes asignar tu(s) propia(s) razón(es): '+propiasEU.join(', ');
+      return;
+    }
+  }
   try{
     var {error}=await _sb.rpc('actualizar_usuario',{
       p_id:id,
@@ -8827,11 +8877,8 @@ async function deleteFinalizada(id){
           <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;font-weight:600">
             <input type="checkbox" class="eu-vista-cb" value="documentos" style="width:14px;height:14px;cursor:pointer"> 📄 Documentos
           </label>
-          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;font-weight:600">
-            <input type="checkbox" class="eu-vista-cb" value="usuarios" style="width:14px;height:14px;cursor:pointer"> 👥 Usuarios (crear/editar)
-          </label>
         </div>
-        <div style="font-size:10px;color:var(--muted);margin-top:8px">Sin selección = puede ver todos los módulos permitidos por su rol</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:8px">Sin selección = puede ver todos los módulos permitidos por su rol. La gestión de Usuarios es exclusiva de Admin / Auditor Señior y no se puede otorgar desde aquí.</div>
       </div>
       <div id="eu-err" style="font-size:12px;color:var(--red);min-height:16px"></div>
     </div>
