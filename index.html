@@ -2050,6 +2050,25 @@ function estadoAutomatico(fechaTerm, fechaCumpl){
   var ftD2=new Date(ft);ftD2.setHours(0,0,0,0);
   return ftD2<hoy?'Abierta atrasada':'Abierta';
 }
+/* Resuelta atrasada = ya está resuelta pero su fecha de cumplimiento quedó
+   después de su fecha de término — calculado por FECHA, igual que
+   tareaVencidaPorFecha hace con las abiertas. Antes esto se leía solo del
+   texto guardado en "estado" ("Resuelta Atrasada"), que se queda
+   desactualizado cuando una tarea se vuelve a importar/corrige y su fecha
+   de cumplimiento cambia pero el texto del estado no se reescribe: la
+   auditoría se pintaba en amarillo (🟡) para tareas que, por fecha, ya
+   estaban resueltas a tiempo. Si no hay fechas suficientes para decidir,
+   se usa el texto como respaldo (mismo comportamiento de antes). */
+function tareaResueltaAtrasadaReal(t){
+  if(!esResuelta(t))return false;
+  var fc=fromISO(t.fechaCumpl), ft=fromISO(t.fechaTerm);
+  if(fc&&ft){
+    var fcD=new Date(fc);fcD.setHours(0,0,0,0);
+    var ftD=new Date(ft);ftD.setHours(0,0,0,0);
+    return fcD>ftD;
+  }
+  return norm(t.estado).includes('resuelta')&&norm(t.estado).includes('atrasad');
+}
 function diasVenc(t){ // días hasta fechaTerm (negativo = vencida)
   const ft=fromISO(t.fechaTerm);if(!ft)return null;
   return daysBetween(ft,new Date());
@@ -3678,7 +3697,7 @@ function calcAudStats(a, rowsMismaClase){
      y coincide con la tabla Cartera (que usa !esPendiente). */
   var pendientes = tt.filter(esPendiente).length;
   var resueltas = total - pendientes;
-  var resueltasAtrasadas = tt.filter(function(t){return norm(t.estado).includes('resuelta')&&norm(t.estado).includes('atrasad');}).length;
+  var resueltasAtrasadas = tt.filter(tareaResueltaAtrasadaReal).length;
   var pendientesTareas = tt.filter(esPendiente);
   var abiertasAtrasadas = pendientesTareas.filter(tareaVencidaPorFecha).length;
   var abiertas = pendientesTareas.length - abiertasAtrasadas;
@@ -8111,6 +8130,7 @@ async function loadFinalizadas(){
     /* Las auditorías finalizadas SE CONSERVAN: son el histórico del que se
        alimentan los reportes. Antes se borraban a los 7 días.
        Solo se devuelven a Auditorías las que quedaron archivadas incompletas. */
+    deduplicarFinalizadas();
     reconciliarFinalizadas();
     _finLoaded=true;
     fillFinFilters();renderFinalizadas();
@@ -8149,6 +8169,34 @@ function finCompleta(f){
 function estaFinalizada(a){
   var ak=audKeyMes(a);
   return (FINALIZADAS||[]).some(function(f){return finCompleta(f)&&audKeyMes(f)===ak;});
+}
+
+/* Deduplicar: la tabla puede llegar con más de un renglón para la misma
+   auditoría (misma tienda+mes+clase) — típicamente por doble inserción
+   cuando dos sesiones abiertas al mismo tiempo disparan registrarFinalizada()
+   casi al mismo instante y ambas pasan el chequeo "existe" antes de que
+   cualquiera termine de guardar en Supabase. Sin esto, Finalizadas mostraba
+   la misma auditoría dos (o más) veces — y esos duplicados se sumaban en
+   los reportes que alimentan de este módulo (tareas/resueltas contadas de
+   más). Se conserva un solo renglón por auditoría (el de fecha_finalizacion
+   más reciente) y el resto se elimina también de Supabase. */
+function deduplicarFinalizadas(){
+  var vistos={},dupIds=[];
+  var ordenadas=FINALIZADAS.slice().sort(function(x,y){
+    return String(y.fecha_finalizacion||'').localeCompare(String(x.fecha_finalizacion||''));
+  });
+  ordenadas.forEach(function(f){
+    var k=audKeyMes(f);
+    if(vistos[k]){ if(f.id&&!f._pending)dupIds.push(f.id); return; }
+    vistos[k]=true;
+  });
+  if(!dupIds.length)return;
+  FINALIZADAS=FINALIZADAS.filter(function(f){return dupIds.indexOf(f.id)===-1;});
+  var client=getSbClient();
+  if(!client)return;
+  client.from('tareas_finalizadas').delete().in('id',dupIds)
+    .then(function(r){if(r.error)console.warn('deduplicar finalizadas:',r.error.message);})
+    .catch(function(e){console.warn('deduplicar finalizadas:',e.message);});
 }
 
 /* Reconciliación: toda finalizada con resueltas < total_tareas nunca debió
@@ -8309,10 +8357,22 @@ function renderFinalizadas(){
         '<td style="text-align:center"><input class="seg-date-input" type="date" value="'+(f.fecha_finalizacion||'')+'" '+
           'data-fid="'+esc(f.id||'')+'" onchange="updateFinFecha(this)" style="width:110px"></td>':
         '<td style="text-align:center">'+fmtFecha(f.fecha_finalizacion)+'</td>';
+      /* Tienda y % Cumpl. editables inline, igual que en Actividades:
+         inputs con onchange que actualizan memoria y persisten en Supabase
+         (updateCampoFinInline), sin abrir ningún modal aparte. */
+      var tiendaCell=isAdmin?
+        '<td><input value="'+esc(f.tienda||'')+'" data-fid="'+esc(f.id||'')+'" data-campo="tienda" '+
+          'onchange="updateCampoFinInline(this)" style="'+inlineFieldStyle()+';width:150px;font-weight:700;color:'+meta.color+'"></td>':
+        '<td><b style="color:'+meta.color+'">'+esc(f.tienda||'—')+'</b></td>';
+      var pctCell=isAdmin?
+        '<td style="text-align:center"><input type="number" min="0" max="100" step="1" value="'+((f.pct_cumpl>0)?Math.round(f.pct_cumpl*100):'')+'" '+
+          'data-fid="'+esc(f.id||'')+'" data-campo="pct_cumpl" onchange="updateCampoFinInline(this)" '+
+          'style="'+inlineFieldStyle()+';width:58px;text-align:center;font-weight:700;color:var(--k-greenok)"></td>':
+        '<td style="text-align:center;font-weight:700;color:var(--k-greenok)">'+pct+'</td>';
       return '<tr style="background:'+meta.bg+'">'+
         '<td style="color:var(--muted);font-size:11px">'+(i+1)+'</td>'+
-        '<td><b style="color:'+meta.color+'">'+esc(f.tienda||'—')+'</b></td>'+
-        '<td style="text-align:center;font-weight:700;color:var(--k-greenok)">'+pct+'</td>'+
+        tiendaCell+
+        pctCell+
         '<td style="text-align:center;font-weight:700">'+(parseInt(f.total_tareas)||0)+'</td>'+
         '<td style="text-align:center;color:var(--k-greenok);font-weight:700">'+(parseInt(f.resueltas)||0)+'</td>'+
         fechaCell+
@@ -8371,16 +8431,59 @@ async function updateFinFecha(el){
   }catch(e){toast('⚠ '+e.message);}
 }
 
+/* Edición rápida de un campo de Finalizadas directamente desde la tabla,
+   igual que updateCampoActividadInline en el módulo de Actividades: actualiza
+   en memoria (FINALIZADAS, de donde también leen los reportes descargables),
+   cifra el campo si corresponde y persiste en Supabase. */
+var _CAMPO_FIN_COL={tienda:'tienda',pct_cumpl:'pct_cumpl'};
+async function updateCampoFinInline(el){
+  if(!_session||!['admin','admin_auditor'].includes(_session.rol)){toast('⚠ Solo administradores');renderFinalizadas();return;}
+  var id=el.getAttribute('data-fid');
+  var campo=el.getAttribute('data-campo');
+  var col=_CAMPO_FIN_COL[campo];
+  if(!id||!col)return;
+  var f=FINALIZADAS.find(function(x){return String(x.id)===String(id);});
+  if(!f)return;
+  var anterior=f[campo];
+  var valorSb=el.value;
+  if(campo==='pct_cumpl'){
+    var n=parseFloat(el.value);
+    if(isNaN(n)){f[campo]=anterior;renderFinalizadas();return;}
+    valorSb=Math.max(0,Math.min(100,n))/100;
+    f.pct_cumpl=valorSb;
+  }else{
+    f[campo]=el.value||null;
+    valorSb=el.value||null;
+  }
+  try{
+    var client=getSbClient();
+    if(!client){toast('⚠ Sin conexión a Supabase');f[campo]=anterior;renderFinalizadas();return;}
+    var payload={};payload[col]=valorSb;
+    var row=(FIELDS.tareas_finalizadas.indexOf(col)>=0)?await encObj(payload,FIELDS.tareas_finalizadas):payload;
+    var ru=await client.from('tareas_finalizadas').update(row).eq('id',id);
+    if(ru.error){toast('⚠ '+ru.error.message);f[campo]=anterior;renderFinalizadas();return;}
+    toast('☁️ Actualizado');
+    renderFinalizadas();
+  }catch(e){toast('⚠ Error: '+e.message);f[campo]=anterior;renderFinalizadas();}
+}
+
 /* ── Registrar auditoría como finalizada ──
    fecha_inicio  = fechaCreacion más antigua de las tareas
    fecha_finalizacion = fechaCumpl o fechaTerm más reciente
    duracion_dias = fecha_finalizacion - fecha_inicio */
+var _finRegistrandoEnVuelo={};
 async function registrarFinalizada(a){
   var client=getSbClient();if(!client)return;
   var ak=[norm(a.tienda||""),norm(a.mes||""),norm(a.clase||""),a.fecha||""].join("|");
   var akm=audKeyMes(a);
   var existe=FINALIZADAS.find(function(f){return audKeyMes(f)===akm;});
   if(existe)return;
+  /* Evita el duplicado en origen: si ya hay un registro en curso para esta
+     misma auditoría (otra llamada disparada en el mismo ciclo, antes de que
+     la primera termine su INSERT y aparezca en FINALIZADAS), se aborta aquí
+     en vez de dejar que ambas lleguen a insertar la misma fila dos veces. */
+  if(_finRegistrandoEnVuelo[akm])return;
+  _finRegistrandoEnVuelo[akm]=true;
   FINALIZADAS.unshift({aud_key:ak,_pending:true});
 
   var tipoClase=tipoTareaDeClase(a.clase);
@@ -8398,6 +8501,7 @@ async function registrarFinalizada(a){
      con el de calcAudStats. */
   if(totalTareas<=0||resueltas<totalTareas){
     FINALIZADAS=FINALIZADAS.filter(function(f){return !(f.aud_key===ak&&f._pending);});
+    delete _finRegistrandoEnVuelo[akm];
     return;
   }
 
@@ -8429,6 +8533,7 @@ async function registrarFinalizada(a){
     if(_diasAl100<DIAS_PARA_FINALIZAR){
       /* aún no: quitar la marca provisional y salir */
       FINALIZADAS=FINALIZADAS.filter(function(f){return !(f.aud_key===ak&&f._pending);});
+      delete _finRegistrandoEnVuelo[akm];
       return;
     }
   }
@@ -8452,6 +8557,7 @@ async function registrarFinalizada(a){
       FINALIZADAS=FINALIZADAS.filter(function(f){return f.aud_key!==ak||!f._pending;});
       if(!r.error.message.includes('duplicate')&&!r.error.message.includes('unique'))
         console.warn('registrarFinalizada:',r.error.message);
+      delete _finRegistrandoEnVuelo[akm];
       return;
     }
     var ix=FINALIZADAS.findIndex(function(f){return f.aud_key===ak&&f._pending;});
@@ -8460,9 +8566,11 @@ async function registrarFinalizada(a){
     saved.id=(r.data&&r.data[0])?r.data[0].id:('tmp_'+Date.now());
     if((saved.pct_cumpl||0)>1)saved.pct_cumpl=saved.pct_cumpl/100;
     if(ix>=0)FINALIZADAS[ix]=saved;
+    delete _finRegistrandoEnVuelo[akm];
     if(VIEW==='finalizadas'){fillFinFilters();renderFinalizadas();}
   }catch(e){
     FINALIZADAS=FINALIZADAS.filter(function(f){return f.aud_key!==ak||!f._pending;});
+    delete _finRegistrandoEnVuelo[akm];
     console.warn('registrarFinalizada:',e.message);
   }
 }
