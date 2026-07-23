@@ -4360,7 +4360,7 @@ function actEstadoBadge(a){
   else if(e.includes('reprogramad')){color='#ffffff';bg='#2563eb';}    // azul, letra blanca
   else if(e.includes('comenzar')||e.includes('sin')){color='#1d4ed8';bg='#dbeafe';} // azul claro, letra azul
   var texto=(a&&a.estado)||'—';
-  if(actEstaVencida(a)){color='#ffffff';bg='#dc2626';texto+=' · Vencida';}   // rojo: gana a cualquier otro color
+  if(actEstaVencida(a))texto+=' · Vencida';   // se avisa en el texto, pero ya no se pinta de rojo: siempre el color fijo del estado
   return '<span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;color:'+color+';background:'+bg+'">'+texto+'</span>';
 }
 
@@ -4373,7 +4373,7 @@ function estadoSelStyle(a){
   else if(e.includes('curso')){color='#1a1a1a';bg='#fb923c';}
   else if(e.includes('reprogramad')){color='#ffffff';bg='#2563eb';}
   else if(e.includes('comenzar')||e.includes('sin')){color='#1d4ed8';bg='#dbeafe';}
-  if(actEstaVencida(a)){color='#ffffff';bg='#dc2626';}
+  // Ya no se pinta de rojo por vencida: el color del select siempre es el fijo del estado (el aviso queda en el title/tooltip)
   return 'padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700;color:'+color+';background:'+bg+';border:none;cursor:pointer;appearance:auto';
 }
 
