@@ -1,0 +1,2175 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Generador de Documentos — Grupo Kuroda</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+:root{
+  --bg:#f8f9fc;--white:#ffffff;--cream:#fbfaf7;
+  --line:#eef1f7;--border:#eef1f7;--txt:#344767;--muted:#8392ab;
+  --blue:#5e72e4;--blue2:#825ee4;--blue-soft:#eef0fd;
+  --red:#f5365c;--green:#2dce89;--amber:#fbb140;--orange:#fb6340;
+  --green-soft:#e6f9f1;--amber-soft:#fff8e9;--slate-soft:#eef0f3;
+  --radius:18px;--radius-sm:12px;
+  --shadow:0 20px 27px 0 rgba(0,0,0,.05);
+  --shadow-lg:0 8px 26px -4px rgba(20,30,60,.12),0 8px 9px -5px rgba(20,30,60,.06);
+  --input-bg:#fffdf7;
+}
+[data-theme="dark"]{
+  --bg:#0a0e23;--white:#141834;--cream:#141834;
+  --line:rgba(255,255,255,.12);--border:rgba(255,255,255,.12);
+  --txt:#f1f2f8;--muted:#bcc4d6;
+  --blue:#7a8cff;--blue2:#b794f6;--blue-soft:rgba(122,140,255,.16);
+  --red:#fc8181;--green:#3ddc97;--amber:#ffb84d;--orange:#fb6340;
+  --green-soft:rgba(61,220,151,.12);--amber-soft:rgba(255,184,77,.12);--slate-soft:rgba(255,255,255,.05);
+  --shadow:0 20px 27px 0 rgba(0,0,0,.3);
+  --shadow-lg:0 8px 26px -4px rgba(0,0,0,.4),0 8px 9px -5px rgba(0,0,0,.2);
+  --input-bg:rgba(255,255,255,.05);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Poppins',system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--txt);line-height:1.55}
+[data-theme="dark"] body{background:radial-gradient(circle at 20% 0%,#1a1f4d 0%,#0a0e23 55%) fixed}
+header{background:var(--white);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5}
+[data-theme="dark"] header{background:rgba(255,255,255,.04);backdrop-filter:blur(14px)}
+.hbar{max-width:980px;margin:0 auto;padding:16px 20px;display:flex;align-items:center;gap:14px}
+.logo-box{width:42px;height:42px;flex-shrink:0;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,var(--blue),var(--blue2));color:#fff;box-shadow:var(--shadow-lg)}
+#backBtn{display:none;align-items:center;gap:6px;border:1px solid var(--border);background:var(--white);border-radius:12px;padding:8px 13px;cursor:pointer;font-size:13.5px;font-weight:600;color:var(--txt);font-family:inherit;transition:.15s}
+#backBtn:hover{background:var(--bg);border-color:var(--blue)}
+.htxt h1{font-size:17px;font-weight:700}
+.htxt p{font-size:12.5px;color:var(--muted)}
+main{max-width:980px;margin:0 auto;padding:24px 20px 64px}
+.view{display:none}.view.active{display:block}
+/* HOME */
+.home-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin-top:6px}
+.home-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:26px 22px;cursor:pointer;transition:transform .18s,box-shadow .18s,border-color .18s;text-align:center}
+.home-card:hover{border-color:transparent;box-shadow:var(--shadow-lg);transform:translateY(-4px)}
+.ill{width:88px;height:88px;margin:0 auto 16px;border-radius:22px;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow)}
+.ill-veh{background:linear-gradient(135deg,#5e72e4,#825ee4)}
+.ill-fon{background:linear-gradient(135deg,#2dce89,#2dceb0)}
+.ill-ent{background:linear-gradient(135deg,#fbb140,#fb6340)}
+.ill-ppt{background:linear-gradient(135deg,#1e4fa3,#4f7fd6)}
+.ill-cum{background:linear-gradient(135deg,#2e7d32,#66bb6a)}
+.ill-fuel{background:linear-gradient(135deg,#b45309,#f59e0b)}
+.ill svg{stroke:#fff!important}
+.home-card h3{font-size:16.5px;font-weight:700;margin-bottom:5px}
+.home-card p{font-size:13px;color:var(--muted)}
+/* FORM */
+.badge{display:inline-flex;align-items:center;gap:5px;background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber);border-radius:20px;padding:5px 14px;font-size:12px;font-weight:600;margin:2px 0 18px}
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:16px;overflow:hidden;box-shadow:var(--shadow)}
+.card-header{display:flex;align-items:center;gap:11px;padding:15px 18px;border-bottom:1px solid var(--border)}
+.card-header h2{font-size:14.5px;font-weight:700}
+.card-icon{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.icon-blue{background:var(--blue-soft)}.icon-green{background:var(--green-soft)}.icon-amber{background:var(--amber-soft)}.icon-slate{background:var(--slate-soft)}
+.card-body{padding:18px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid .span2{grid-column:1/-1}
+label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:5px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+input,textarea,select{width:100%;border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;background:var(--input-bg);color:var(--txt);transition:border-color .15s,box-shadow .15s}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--blue);background:var(--white);box-shadow:0 0 0 3px var(--blue-soft)}
+input::placeholder,textarea::placeholder{color:var(--muted);opacity:.7}
+textarea{resize:vertical;min-height:46px}
+/* facturas table */
+.ftab{width:100%;border-collapse:collapse;font-size:13px}
+.ftab th{background:var(--bg);border:1px solid var(--border);padding:7px;font-weight:700;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+.ftab td{border:1px solid var(--border);padding:3px}
+.ftab input{border:none;background:transparent;padding:6px 7px;border-radius:7px;box-shadow:none}
+.ftab input:focus{background:var(--blue-soft);box-shadow:none}
+.rowdel{border:none;background:var(--amber-soft);color:var(--red);border-radius:7px;width:28px;height:28px;cursor:pointer;font-size:15px;transition:.15s}
+.rowdel:hover{background:var(--red);color:#fff}
+.mini{border:1px dashed var(--blue);background:var(--blue-soft);border-radius:10px;padding:9px 15px;font-size:13px;font-weight:600;cursor:pointer;color:var(--blue);margin-top:10px;font-family:inherit;transition:.15s}
+.mini:hover{background:var(--blue);color:#fff}
+.ftot{text-align:right;font-weight:700;margin-top:10px;font-size:14px}
+.chkwrap{display:flex;align-items:center;gap:6px;justify-content:center}
+.chkwrap input{width:auto}
+.fondo-chk{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:var(--txt);cursor:pointer;margin:12px 0 8px}
+.fondo-chk input{width:auto}
+.fondo-blk{margin:0 0 8px 26px}
+.cuadre{border-radius:10px;padding:10px 13px;font-size:12.5px;line-height:1.55;margin-top:2px}
+.cuadre.ok{background:var(--green-soft);border:1px solid var(--green);color:var(--green)}
+.cuadre.warn{background:var(--amber-soft);border:1px solid var(--amber);color:var(--amber)}
+.cuadre.err{background:rgba(245,54,92,.1);border:1px solid var(--red);color:var(--red)}
+/* actions */
+.action-bar{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}
+.btn{border:none;border-radius:12px;padding:12px 22px;font-size:14px;font-weight:600;cursor:pointer;color:#fff;font-family:inherit;transition:transform .12s,box-shadow .2s}
+.btn:hover{transform:translateY(-1px)}
+.btn-docx{background:linear-gradient(135deg,var(--blue),var(--blue2));box-shadow:0 4px 16px -3px rgba(94,114,228,.5)}
+.btn-pdf{background:linear-gradient(135deg,#f5365c,#f56036);box-shadow:0 4px 16px -3px rgba(245,54,92,.5)}
+.status{font-size:13px;color:var(--muted);margin-top:12px;font-weight:500}
+.status.ok{color:var(--green);font-weight:600}
+.status.err{color:var(--red);font-weight:600}
+/* Vehículos: selector de tipo e info */
+.tipo-selector{display:grid;grid-template-columns:repeat(5,1fr);gap:9px;margin-bottom:16px}
+.tipo-btn{padding:11px 5px;border:1px solid var(--border);border-radius:12px;background:var(--white);cursor:pointer;font-size:12px;font-weight:700;color:var(--muted);text-align:center;line-height:1.25;font-family:inherit;transition:.15s}
+.tipo-btn span{display:block;font-size:10px;font-weight:500;color:var(--muted);margin-top:4px}
+.tipo-btn:hover{border-color:var(--blue);color:var(--blue)}
+.tipo-btn.active{border-color:transparent;background:linear-gradient(135deg,var(--blue),var(--blue2));color:#fff;box-shadow:0 4px 14px -3px rgba(94,114,228,.5)}
+.tipo-btn.active span{color:rgba(255,255,255,.85)}
+.info-box{background:var(--blue-soft);border:1px solid var(--blue);border-left:3px solid var(--blue);border-radius:0 12px 12px 0;padding:11px 15px;font-size:13px;color:var(--blue);margin-bottom:16px;line-height:1.5;font-weight:500}
+@media (max-width:560px){.tipo-selector{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}}
+#print-preview{display:none}
+@media print{
+  body > *:not(#print-preview){display:none!important}
+  #print-preview{display:block!important;font-family:Tahoma,Geneva,Verdana,sans-serif;font-size:10pt;color:#000;margin:0;padding:0}
+  @page{size:letter;margin:0}
+  .pp-page{page-break-after:always;padding:1.5cm;box-sizing:border-box}
+  .pp-page:last-child{page-break-after:avoid}
+  .pp-p{margin:0 0 5pt 0;font-size:10pt;text-align:justify;line-height:1.3}
+  .pp-pi{margin:0 0 3pt 28pt;font-size:10pt;text-align:justify;line-height:1.3}
+  .pp-pc{margin:0 0 3pt 0;font-size:10pt;text-align:center}
+  .pp-firma-table{width:100%;border-collapse:collapse;font-size:10pt;margin-top:40pt}
+  .pp-firma-td{width:45%;text-align:center;border-top:1pt solid #000;padding-top:4pt}
+  .pp-firma-td2{width:10%}
+}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+</head>
+<body>
+<script>
+/* Sincroniza el tema con el dashboard (mismo origen vía srcdoc) */
+(function(){
+  function apply(dark){document.documentElement.setAttribute('data-theme',dark?'dark':'light');}
+  var t;try{t=localStorage.getItem('kg-theme');}catch(e){}
+  apply(t!=='light');
+  window.addEventListener('message',function(ev){
+    if(ev.data&&ev.data.type==='theme')apply(!!ev.data.dark);
+  });
+})();
+</script>
+<header><div class="hbar">
+  <button id="backBtn" onclick="showHome()">← Inicio</button>
+  <div class="logo-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z"/><path d="M9 13h6M9 17h4"/></svg></div>
+  <div class="htxt"><h1 id="hdr-title">Generador de Documentos</h1><p id="hdr-sub">Selecciona un módulo para comenzar</p></div>
+</div></header>
+
+<main>
+<!-- ══════════ HOME ══════════ -->
+<section class="view active" id="view-home">
+  <div class="home-grid">
+    <div class="home-card" onclick="showView('veh')">
+      <div class="ill ill-veh">
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#1b82c5" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l1.4-4.2A2 2 0 0 1 8.3 7.4h7.4a2 2 0 0 1 1.9 1.4L19 13M5 13h14a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1M5 13a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h1m0 0h12M7 18a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm13 0a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z"/></svg>
+      </div>
+      <h3>Cartas de Vehículos</h3>
+      <p>Uso y resguardo de vehículo.</p>
+    </div>
+    <div class="home-card" onclick="showView('fon')">
+      <div class="ill ill-fon">
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M14.6 9.1C14.1 8.4 13.1 8 12 8c-1.6 0-2.6.8-2.6 2s1 1.7 2.6 2 2.6.9 2.6 2-1 2-2.6 2c-1.1 0-2.1-.5-2.6-1.2M12 6.4V8m0 8v1.6"/></svg>
+      </div>
+      <h3>Cartas de Fondos</h3>
+      <p>Custodia de fondo de caja.</p>
+    </div>
+    <div class="home-card" onclick="showView('ent')">
+      <div class="ill ill-ent">
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6a1 1 0 0 1 1 1v1h1a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h1V4a1 1 0 0 1 1-1Zm0 2v1h6V5M8.5 12.5l2 2 4-4M8.5 17h7"/></svg>
+      </div>
+      <h3>Entrega – Recepción</h3>
+      <p>Entrega-recepción de administración.</p>
+    </div>
+    <div class="home-card" onclick="showView('ppt')">
+      <div class="ill ill-ppt">
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 16v4m-4 0h8M7.5 12.5v-3m3 3v-5m3 5v-2m3 2v-4"/></svg>
+      </div>
+      <h3>Actividades de Auditoría</h3>
+      <p>Presentación mensual (PPTX).</p>
+    </div>
+    <div class="home-card" onclick="showView('cumpl')">
+      <div class="ill ill-cum">
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V9l4-3v15M13 21V4l6 3v14"/><path d="M8.5 12h.01M8.5 15h.01M16 11h.01M16 14h.01"/></svg>
+      </div>
+      <h3>Cumplimiento</h3>
+      <p>Reporte de Cumplimiento (PPTX).</p>
+    </div>
+    <div class="home-card" onclick="showView('consumos')">
+      <div class="ill ill-fuel">
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 22V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v18M3 22h12M3 10h10"/><path d="M15 8l3 3v7a2 2 0 0 0 2 2 2 2 0 0 0 2-2v-9l-3-3"/></svg>
+      </div>
+      <h3>Consumos de Combustible</h3>
+      <p>Detecta fugas y errores de carga (Excel).</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ VEHÍCULOS ══════════ -->
+<section class="view" id="view-veh">
+  <div class="tipo-selector">
+    <button class="tipo-btn" onclick="setTipo(1)">TIPO 1<span>Resguardo en empresa</span></button>
+    <button class="tipo-btn" onclick="setTipo(2)">TIPO 2<span>Resguardo domicilio</span></button>
+    <button class="tipo-btn" onclick="setTipo(3)">TIPO 3<span>Sin fines de semana</span></button>
+    <button class="tipo-btn active" onclick="setTipo(4)">TIPO 4<span>Uso fines de semana</span></button>
+    <button class="tipo-btn" onclick="setTipo('temporal')">TEMPORAL<span>Período definido</span></button>
+  </div>
+  <div class="info-box" id="info-uso"></div>
+  <span class="badge">✦ Solo los campos resaltados son editables</span>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon icon-blue">👤</span><h2>Datos del Trabajador</h2></div>
+    <div class="card-body"><div class="grid">
+      <div class="span2"><label>Razón social (antes de S.A. DE C.V.)</label><input id="empresa" placeholder="Ej. KURODA NORTE" value="KURODA"></div>
+      <div class="span2"><label>Nombre completo</label><input id="nombre" placeholder="Ej. Nombre completo del trabajador"></div>
+      <div><label>Puesto</label><input id="puesto" placeholder="Ej. Puesto o cargo"></div>
+      <div><label>Sucursal</label><input id="sucursales" placeholder="Ej. Nombre de la sucursal"></div>
+    </div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon icon-slate">🚗</span><h2>Descripción del Vehículo</h2></div>
+    <div class="card-body"><div class="grid">
+      <div><label>Marca</label><input id="marca" placeholder="Ej. NISSAN"></div>
+      <div><label>Tipo / Modelo comercial</label><input id="tipo_v" placeholder="Ej. MARCH"></div>
+      <div><label>Modelo (año)</label><input id="modelo" placeholder="Ej. 2023"></div>
+      <div><label>Color</label><input id="color" placeholder="Ej. BLANCO"></div>
+      <div><label>Placas</label><input id="placas" placeholder="Ej. ASU017A"></div>
+      <div><label>No. de Serie</label><input id="serie" placeholder="Ej. Número de serie"></div>
+    </div></div>
+  </div>
+
+  <div class="card" id="sec-fechas" style="display:none">
+    <div class="card-header"><span class="card-icon icon-amber">📅</span><h2>Período de Uso Temporal</h2></div>
+    <div class="card-body"><div class="grid">
+      <div><label>Fecha inicio</label><input id="fi" placeholder="Ej. 29 de enero de 2026"></div>
+      <div><label>Fecha fin</label><input id="ff" placeholder="Ej. 7 de febrero de 2026"></div>
+    </div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon icon-green">✍️</span><h2>Firmas y Lugar</h2></div>
+    <div class="card-body"><div class="grid">
+      <div><label>Nombre del trabajador</label><input id="firmaT" placeholder="Ej. Nombre para firma"></div>
+      <div id="lbl-firmaD-wrap"><label id="lbl-firmaD">Quien autoriza</label><input id="firmaD" placeholder="Ej. Nombre de quien autoriza"></div>
+      <div id="puesto-firmaT-wrap"><label>Puesto del trabajador</label><input id="puestoT" placeholder="Ej. Puesto"></div>
+      <div id="puesto-firmaD-wrap"><label>Puesto de quien autoriza</label><input id="puestoD" placeholder="Ej. Puesto"></div>
+      <div><label>Lugar</label><input id="lugar" placeholder="Ej. Tijuana, Baja California"></div>
+      <div><label>Fecha</label><input id="fecha" placeholder="Ej. 29 de enero de 2026"></div>
+    </div></div>
+  </div>
+
+  <div class="action-bar">
+    <button class="btn btn-docx" onclick="generarDocx()">Descargar Word (.docx)</button>
+    <button class="btn btn-pdf" onclick="imprimirPDF()">Imprimir / Guardar PDF</button>
+  </div>
+  <p class="status" id="status"></p>
+</section>
+
+<!-- ══════════ FONDOS ══════════ -->
+<section class="view" id="view-fon">
+  <span class="badge">✦ Solo los campos resaltados son editables — el resto es texto fijo corregido</span>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon icon-amber">📄</span><h2>Datos de la carta</h2></div>
+    <div class="card-body"><div class="grid">
+      <div><label>Ciudad</label><input id="f_ciudad" placeholder="Ej. Tijuana, Baja California"></div>
+      <div><label>Fecha</label><input id="f_fecha" type="date"></div>
+      <div class="span2"><label>Razón social</label><input id="f_razon" placeholder="Ej. Kuroda Norte, S.A. de C.V."></div>
+      <div><label>Moneda</label><select id="f_moneda" onchange="fLetra()"><option value="mxn">Pesos (M.N.)</option><option value="usd">Dólares (USD)</option></select></div><div><label>Monto del fondo ($)</label><input id="f_monto" type="number" step="0.01" placeholder="Ej. 7200.00" oninput="fLetra()"></div>
+      <div class="span2"><label>Cantidad con letra (automático)</label><input id="f_letra" placeholder="Se genera solo al escribir el monto" readonly></div>
+      <div class="span2"><label>Concepto</label><input id="f_concepto" placeholder="Ej. Fondo de caja chica"></div>
+      <div class="span2"><label>Tienda / sucursal</label><input id="f_tienda" placeholder="Ej. Kuroda Express"></div>
+      <div class="span2"><label>Domicilio</label><input id="f_dom" placeholder="Ej. Ruta Independencia 5001, Las Américas, C.P. 22215"></div>
+    </div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon icon-blue">✍️</span><h2>Firmas</h2></div>
+    <div class="card-body"><div class="grid">
+      <div><label>Entrega — nombre</label><input id="f_entn" placeholder="Ej. María López García"></div>
+      <div><label>Entrega — puesto</label><input id="f_entp" placeholder="Ej. Coordinadora Administrativa"></div>
+      <div><label>Recibe — nombre</label><input id="f_recn" placeholder="Ej. Ana Ramírez Soto"></div>
+      <div><label>Recibe — puesto</label><input id="f_recp" placeholder="Ej. Enc. Administrativa"></div>
+    </div></div>
+  </div>
+
+  <div class="action-bar">
+    <button class="btn btn-docx" onclick="fonDocx()">Descargar Word (.docx)</button>
+    <button class="btn btn-pdf" onclick="fonPDF()">Imprimir / Guardar PDF</button>
+  </div>
+  <p class="status" id="f_status"></p>
+</section>
+
+<!-- ══════════ ENTREGA-RECEPCIÓN ══════════ -->
+<section class="view" id="view-ent">
+  <span class="badge">✦ Solo los campos resaltados son editables — el resto es texto fijo corregido</span>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon icon-amber">🏬</span><h2>Datos generales</h2></div>
+    <div class="card-body"><div class="grid">
+      <div><label>Fecha</label><input id="e_fecha" type="date"></div>
+      <div><label>Ciudad</label><input id="e_ciudad" placeholder="Ej. Tijuana, B.C."></div>
+      <div class="span2"><label>Tienda / sucursal</label><input id="e_tienda" placeholder="Ej. Kuroda Express"></div>
+      <div class="span2"><label>Razón social</label><input id="e_razon" placeholder="Ej. Kuroda Norte, S.A. de C.V."></div>
+      <div class="span2"><label>Domicilio</label><input id="e_dom" placeholder="Ej. Ruta Independencia 5001, Las Américas, C.P. 22215, Tijuana, B.C."></div>
+      <div><label>Entrega — nombre</label><input id="e_entn" placeholder="Ej. María López García"></div>
+      <div><label>Entrega — puesto</label><input id="e_entp" placeholder="Ej. Enc. Administrativa"></div>
+      <div><label>Recibe — nombre</label><input id="e_recn" placeholder="Ej. Ana Ramírez Soto"></div>
+      <div><label>Recibe — puesto</label><input id="e_recp" placeholder="Ej. Enc. Administrativa"></div>
+    </div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon icon-green">💵</span><h2>Corte de fondos</h2></div>
+    <div class="card-body">
+      <div style="font-size:11.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px">Selecciona los fondos a incluir en el acta</div>
+      <label class="fondo-chk"><input type="checkbox" id="e_use_rev" onchange="entToggle()"> Fondo revolvente</label>
+      <div class="grid fondo-blk" id="blk_rev" style="display:none">
+        <div><label>Fondo revolvente ($)</label><input id="e_rev" type="number" step="0.01" placeholder="Ej. 10500.00"></div>
+        <div><label>Revolvente — observación</label><input id="e_revobs" placeholder="Ej. no arrojó diferencia alguna"></div>
+      </div>
+      <label class="fondo-chk"><input type="checkbox" id="e_use_revd" onchange="entToggle()"> Fondo revolvente en dólares</label>
+      <div class="grid fondo-blk" id="blk_revd" style="display:none">
+        <div><label>Fondo revolvente dólares (USD)</label><input id="e_revd" type="number" step="0.01" placeholder="Ej. 300.00"></div>
+        <div><label>Dólares — observación</label><input id="e_revdobs" placeholder="Ej. no arrojó diferencia alguna"></div>
+      </div>
+      <label class="fondo-chk"><input type="checkbox" id="e_use_cc" checked onchange="entToggle()"> Fondo de caja chica</label>
+      <div class="grid fondo-blk" id="blk_cc">
+        <div><label>Fondo de caja chica ($)</label><input id="e_cc" type="number" step="0.01" placeholder="Ej. 7200.00" oninput="entCuadre()"></div>
+        <div><label>Efectivo considerado en el arqueo ($)</label><input id="e_efe" type="number" step="0.01" placeholder="Ej. 3641.00" oninput="entCuadre()"></div>
+        <div class="span2"><div class="cuadre ok" id="cuadre-box">Captura caja chica, efectivo y facturas: el sobrante o faltante se calcula solo.</div></div>
+        <div class="span2"><label class="fondo-chk" id="dep-wrap" style="display:none;margin:2px 0 0"><input type="checkbox" id="e_dep" onchange="entCuadre()"> Agregar: "la cual se depositó a la cuenta de Kuroda"</label></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon icon-slate">🧾</span><h2>Facturas pendientes de reembolsar</h2></div>
+    <div class="card-body">
+      <table class="ftab"><thead><tr>
+        <th style="width:90px">Fecha</th><th style="width:150px">Factura</th><th>Nombre</th><th>Concepto</th><th style="width:90px">Importe</th><th style="width:70px">No ded.</th><th style="width:34px"></th>
+      </tr></thead><tbody id="e_fbody"></tbody></table>
+      <button class="mini" onclick="addFactura()">+ Agregar factura</button>
+      <div class="ftot">Total facturas: $<span id="e_ftot">0.00</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon icon-blue">✍️</span><h2>Testigos</h2></div>
+    <div class="card-body"><div class="grid">
+      <div><label>Testigo 1 — nombre</label><input id="e_t1n" placeholder="Ej. Laura Méndez Ríos"></div>
+      <div><label>Testigo 1 — puesto</label><input id="e_t1p" placeholder="Ej. Cajera"></div>
+      <div><label>Testigo 2 — nombre</label><input id="e_t2n" placeholder="Ej. Carlos Ibarra Luna"></div>
+      <div><label>Testigo 2 — puesto</label><input id="e_t2p" placeholder="Ej. Auditor"></div>
+    </div></div>
+  </div>
+
+  <div class="action-bar">
+    <button class="btn btn-docx" onclick="entDocx()">Descargar Word (.docx)</button>
+    <button class="btn btn-pdf" onclick="entPDF()">Imprimir / Guardar PDF</button>
+  </div>
+  <p class="status" id="e_status"></p>
+</section>
+  <!-- ══════════ VISTA: PRESENTACIÓN DE ACTIVIDADES DE AUDITORÍA ══════════ -->
+  <section class="view" id="view-ppt">
+    <div class="badge">📊 Presentación mensual · PowerPoint</div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-icon icon-blue">🎛️</span><h2>Configuración</h2></div>
+      <div class="card-body"><div class="grid">
+        <div><label>Razón social</label><select id="p_razon" onchange="pptPreview()"></select></div>
+        <div><label>Mes del reporte</label><select id="p_mes" onchange="pptPreview()"></select></div>
+        <div class="span2"><label>Título de la portada</label><input id="p_titulo" value="Programa de Auditoría"></div>
+        <div><label>Nombre de la clase "Procesos"</label><input id="p_nomproc" value="Tareas Auditoría de Procesos"></div>
+        <div class="span2"><label>Meses del histórico <span style="font-weight:400;color:var(--muted);text-transform:none">(elige los que quieras)</span></label>
+          <div id="p_meses_chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-icon icon-green">🧩</span><h2>Diapositivas a incluir</h2></div>
+      <div class="card-body">
+        <label class="fondo-chk"><input type="checkbox" id="p_s1" checked> 1 · Portada</label>
+        <label class="fondo-chk"><input type="checkbox" id="p_s2" checked> 2 · Actividades del mes</label>
+        <label class="fondo-chk"><input type="checkbox" id="p_s3" checked> 3 · Tareas Auditoría de Procesos</label>
+        <label class="fondo-chk"><input type="checkbox" id="p_s4" checked> 4 · Tareas Auditoría de Orden y Limpieza</label>
+        <label class="fondo-chk"><input type="checkbox" id="p_s5" checked> 5 · Atención a mermas y ajustes</label>
+        <label class="fondo-chk"><input type="checkbox" id="p_s6" checked> 6 · Histórico · Procesos</label>
+        <label class="fondo-chk"><input type="checkbox" id="p_s7" checked> 7 · Histórico · Orden y Limpieza</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-icon icon-amber">👁️</span><h2>Datos que se incluirán</h2></div>
+      <div class="card-body">
+        <div id="p_preview" class="cuadre ok" style="margin:0">Cargando datos del dashboard…</div>
+      </div>
+    </div>
+
+    <div class="action-bar">
+      <button class="btn btn-docx" onclick="pptGenerar()">📊 Descargar presentación (.pptx)</button>
+    </div>
+    <div class="status" id="p_status"></div>
+  </section>
+
+  <!-- ══════════ VISTA: CUMPLIMIENTO POR TIENDA ══════════ -->
+  <section class="view" id="view-cumpl">
+    <div class="badge">📊 Reporte de Cumplimiento · PowerPoint</div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-icon icon-blue">🎛️</span><h2>Configuración</h2></div>
+      <div class="card-body"><div class="grid">
+        <div class="span2"><label>Título de la portada</label><input id="cx_titulo" value="Reporte de Cumplimiento"></div>
+        <div class="span2"><label>Empresa</label><input id="cx_empresa" value="Grupo Kuroda"></div>
+      </div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-icon icon-amber">🔎</span><h2>Filtros del reporte</h2></div>
+      <div class="card-body"><div class="grid">
+        <div><label>Razón social</label><select id="cx_razon"><option value="ALL">Todas</option></select></div>
+        <div><label>Tienda</label><select id="cx_tienda"><option value="ALL">Todas</option></select></div>
+        <div><label>Periodo (mes)</label><select id="cx_mes">
+          <option value="ALL">Todos</option>
+          <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option>
+          <option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option>
+          <option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option>
+          <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+        </select></div>
+        <div></div>
+        <div><label>Desde</label><input type="date" id="cx_desde"></div>
+        <div><label>Hasta</label><input type="date" id="cx_hasta"></div>
+        <div class="span2" style="font-size:12px;color:var(--muted)">Deja los filtros en "Todas/Todos" para incluir todo. El rango de fechas es opcional.</div>
+      </div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-icon icon-green">🧩</span><h2>KPIs del reporte</h2>
+        <span id="cx_count" style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:700"></span></div>
+      <div class="card-body">
+        <p style="margin:0 0 10px;font-size:12.5px;color:var(--muted)">Elige cuántos indicadores aparecen en la diapositiva de KPIs. El diseño se reacomoda solo.</p>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <button class="mini" onclick="cxAll(true)">Seleccionar todos</button>
+          <button class="mini" onclick="cxAll(false)">Ninguno</button>
+        </div>
+        <div id="cx_kpis" style="display:grid;grid-template-columns:1fr 1fr;gap:6px"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-icon icon-amber">🗂️</span><h2>Secciones del reporte</h2>
+        <span id="cx_seccount" style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:700"></span></div>
+      <div class="card-body">
+        <p style="margin:0 0 10px;font-size:12.5px;color:var(--muted)">Elige qué diapositivas se incluyen en la presentación.</p>
+        <div id="cx_secs" style="display:grid;grid-template-columns:1fr 1fr;gap:6px"></div>
+      </div>
+    </div>
+
+    <div class="action-bar">
+      <button class="btn btn-docx" id="cx_btn" onclick="cumplGenerarReporte()">📊 Descargar reporte (.pptx)</button>
+    </div>
+    <div class="status" id="cx_status"></div>
+  </section>
+
+  <section class="view" id="view-consumos">
+    <div class="badge">⛽ Consumos de Combustible · Excel</div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-icon icon-amber">🔎</span><h2>¿Qué detecta?</h2></div>
+      <div class="card-body">
+        <p style="margin:0 0 10px;font-size:13px;color:var(--muted)">Sube el Excel de consumos y el sistema revisa cada carga para identificar posibles <b>fugas o robos de combustible</b> y <b>errores de carga/captura</b>:</p>
+        <ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text);line-height:1.7">
+          <li><b>Rendimiento anómalo</b> (km/L): muy bajo → posible fuga/robo; muy alto → odómetro erróneo o carga no registrada.</li>
+          <li><b>Precio por litro fuera de rango</b> → error de carga.</li>
+          <li><b>Cargas duplicadas</b> (misma unidad, día y monto).</li>
+          <li><b>Odómetro inconsistente</b> (menor al registro anterior).</li>
+          <li><b>Litros excesivos</b> por carga y <b>valores en cero/negativos</b>.</li>
+          <li><b>Frecuencia atípica</b> de cargas por unidad.</li>
+        </ul>
+        <p style="margin:12px 0 0;font-size:12px;color:var(--muted)">Reconoce automáticamente columnas comunes: Fecha, Vehículo/Placa/Unidad, Litros, Monto, Precio, Odómetro/Km, Estación, Producto. El reporte indica qué columnas encontró.</p>
+      </div>
+    </div>
+
+    <div class="action-bar">
+      <button class="btn btn-docx" onclick="parent.postMessage({type:'run-consumos'},'*')">📂 Cargar Excel y analizar</button>
+    </div>
+
+    <div id="cons_preview" style="display:none">
+      <div class="card">
+        <div class="card-header"><span class="card-icon icon-blue">📊</span><h2>Resumen del análisis</h2>
+          <span id="cons_origen" style="margin-left:auto;font-size:12px;color:var(--muted)"></span></div>
+        <div class="card-body">
+          <div id="cons_kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:14px"></div>
+          <div style="display:grid;grid-template-columns:1fr 1.5fr;gap:14px">
+            <div>
+              <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Por tipo de inconsistencia</div>
+              <div id="cons_tipos"></div>
+            </div>
+            <div>
+              <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Vehículos (todos · haz clic para ver cada carga)</div>
+              <div id="cons_veh" style="max-height:420px;overflow-y:auto;padding-right:4px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-icon icon-amber">🧾</span><h2>Muestra de hallazgos</h2></div>
+        <div class="card-body"><div id="cons_muestra" style="overflow-x:auto"></div></div>
+      </div>
+      <div class="action-bar">
+        <button class="btn btn-docx" onclick="parent.postMessage({type:'consumos-download'},'*')">⬇ Descargar Excel con colores por severidad</button>
+      </div>
+    </div>
+
+    <div class="status" id="consumos_status">Sube el Excel: primero verás un resumen y luego podrás descargar el reporte con colores.</div>
+  </section>
+
+</main>
+
+<div id="print-preview"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<script>
+/* ═══════════ COMPARTIDO ═══════════ */
+function v(id){var el=document.getElementById(id);return el?String(el.value).trim():'';}
+function money(n){n=+n||0;return n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function pptInit(){ parent.postMessage({type:'pptx-init'},'*'); }
+function showView(id){
+  document.querySelectorAll('.view').forEach(function(s){s.classList.remove('active');});
+  document.getElementById('view-'+id).classList.add('active');
+  document.getElementById('backBtn').style.display='flex';
+  var t={veh:['Cartas de Vehículos','Carta responsiva de uso y cuidado'],
+         fon:['Carta Responsiva de Fondo','Completa los campos y descarga'],
+         ent:['Acta de Entrega – Recepción','Completa los campos y descarga'],
+         ppt:['Actividades de Auditoría','Presentación mensual en PowerPoint'],
+         cumpl:['Cumplimiento','Configura los KPIs y descarga el reporte'],
+         consumos:['Consumos de Combustible','Detecta fugas y errores de carga']}[id];
+  document.getElementById('hdr-title').textContent=t[0];
+  document.getElementById('hdr-sub').textContent=t[1];
+  if(id==='ppt')pptInit();   /* pide razones permitidas y datos al dashboard */
+  if(id==='cumpl')cumplCfgInit();
+  window.scrollTo(0,0);
+}
+/* La tarjeta 'Cumplimiento' abre un panel donde el usuario elige cuántos KPIs
+   incluir; luego pide al dashboard que genere el reporte (generatePpt) con esa
+   selección. La descarga ocurre en la ventana padre. */
+var CX_KPIS=[
+  ['cumpl_prom','Cumplimiento prom.'],['tareas','Tareas en período'],
+  ['resueltas','Resueltas'],['pendientes','Pendientes'],
+  ['venc','Pend. vencidas'],['pct_res','% Resolución'],
+  ['sucursales','Sucursales'],['cumpl_pond','Cumpl. ponderado'],
+  ['res_ok','Resueltas a tiempo'],['res_atr','Resueltas atrasadas'],
+  ['ab_ok','Abiertas en plazo'],['ab_atr','Abiertas atrasadas']
+];
+var CX_SECS=[
+  ['portada','Portada'],['kpis','KPIs de Tendencia'],
+  ['analisis','Análisis de Tareas'],['distribucion','Distribución de Estado'],
+  ['menor_cumpl','Sucursales · menor cumplimiento'],['pendientes','Sucursales · más pendientes']
+];
+function cumplCfgInit(){
+  var box=document.getElementById('cx_kpis');
+  if(box&&!box.dataset.built){
+    box.innerHTML=CX_KPIS.map(function(k){
+      return '<label class="fondo-chk" style="margin:0"><input type="checkbox" class="cx-kpi" value="'+k[0]+'" checked onchange="cxCount()"> '+k[1]+'</label>';
+    }).join('');
+    box.dataset.built='1';
+  }
+  var sbox=document.getElementById('cx_secs');
+  if(sbox&&!sbox.dataset.built){
+    sbox.innerHTML=CX_SECS.map(function(k){
+      return '<label class="fondo-chk" style="margin:0"><input type="checkbox" class="cx-sec" value="'+k[0]+'" checked onchange="cxSecCount()"> '+k[1]+'</label>';
+    }).join('');
+    sbox.dataset.built='1';
+  }
+  _cxReset(); cxCount(); cxSecCount();
+  /* pide al dashboard las razones permitidas y las tiendas para los filtros */
+  parent.postMessage({type:'cumpl-init'},'*');
+}
+function cxLlenarFiltros(razones,tiendas){
+  var r=document.getElementById('cx_razon');
+  if(r&&!r.dataset.built){
+    (razones||[]).forEach(function(x){var o=document.createElement('option');o.value=x;o.textContent=x;r.appendChild(o);});
+    r.dataset.built='1';
+  }
+  var t=document.getElementById('cx_tienda');
+  if(t&&!t.dataset.built){
+    (tiendas||[]).forEach(function(x){var o=document.createElement('option');o.value=x;o.textContent=x;t.appendChild(o);});
+    t.dataset.built='1';
+  }
+}
+function cxAll(v){document.querySelectorAll('.cx-kpi').forEach(function(c){c.checked=v;});cxCount();}
+function cxCount(){
+  var sel=document.querySelectorAll('.cx-kpi:checked').length;
+  var el=document.getElementById('cx_count');
+  if(el)el.textContent=sel+' de '+CX_KPIS.length+' seleccionados';
+}
+function cxSecCount(){
+  var sel=document.querySelectorAll('.cx-sec:checked').length;
+  var el=document.getElementById('cx_seccount');
+  if(el)el.textContent=sel+' de '+CX_SECS.length+' seleccionadas';
+}
+var _cxBusy=false;
+function cumplGenerarReporte(){
+  if(_cxBusy)return;
+  var kpis=Array.prototype.map.call(document.querySelectorAll('.cx-kpi:checked'),function(c){return c.value;});
+  var secs=Array.prototype.map.call(document.querySelectorAll('.cx-sec:checked'),function(c){return c.value;});
+  if(!secs.length){alert('Selecciona al menos una sección.');return;}
+  if(secs.indexOf('kpis')>=0 && !kpis.length){alert('Selecciona al menos un KPI (o desactiva la sección de KPIs).');return;}
+  var filtro={
+    razon:v('cx_razon')||'ALL', tienda:v('cx_tienda')||'ALL', mes:v('cx_mes')||'ALL',
+    desde:v('cx_desde')||'', hasta:v('cx_hasta')||''
+  };
+  _cxBusy=true;
+  var btn=document.getElementById('cx_btn'); if(btn){btn.disabled=true;btn.textContent='⏳ Generando…';}
+  parent.postMessage({type:'run-cumplimiento',kpis:kpis,secciones:secs,filtro:filtro,
+    titulo:v('cx_titulo')||'Reporte de Cumplimiento',
+    empresa:v('cx_empresa')||'Grupo Kuroda'},'*');
+  setTimeout(_cxReset,6000);
+}
+function _cxReset(){
+  _cxBusy=false;
+  var btn=document.getElementById('cx_btn');
+  if(btn){btn.disabled=false;btn.textContent='📊 Descargar reporte (.pptx)';}
+}
+function showHome(){
+  document.querySelectorAll('.view').forEach(function(s){s.classList.remove('active');});
+  document.getElementById('view-home').classList.add('active');
+  document.getElementById('backBtn').style.display='none';
+  document.getElementById('hdr-title').textContent='Generador de Documentos';
+  document.getElementById('hdr-sub').textContent='Selecciona un módulo para comenzar';
+  window.scrollTo(0,0);
+}
+
+/* Fecha legible: 2026-07-09 -> "9 de julio de 2026" */
+var MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function fechaLarga(iso){
+  if(!iso) return '';
+  var p=iso.split('-'); if(p.length!==3) return iso;
+  return parseInt(p[2],10)+' de '+MESES[parseInt(p[1],10)-1]+' de '+p[0];
+}
+function hoyISO(){var d=new Date();var m=String(d.getMonth()+1).padStart(2,'0');var da=String(d.getDate()).padStart(2,'0');return d.getFullYear()+'-'+m+'-'+da;}
+
+/* Número a letras (pesos) */
+function numLetra(num,moneda){
+  num=+num||0;
+  var ent=Math.floor(num), cent=Math.round((num-ent)*100);
+  if(cent===100){ent+=1;cent=0;}
+  var U=['','UN','DOS','TRES','CUATRO','CINCO','SEIS','SIETE','OCHO','NUEVE','DIEZ','ONCE','DOCE','TRECE','CATORCE','QUINCE','DIECISÉIS','DIECISIETE','DIECIOCHO','DIECINUEVE','VEINTE'];
+  var D=['','','','TREINTA','CUARENTA','CINCUENTA','SESENTA','SETENTA','OCHENTA','NOVENTA'];
+  var C=['','CIENTO','DOSCIENTOS','TRESCIENTOS','CUATROCIENTOS','QUINIENTOS','SEISCIENTOS','SETECIENTOS','OCHOCIENTOS','NOVECIENTOS'];
+  function ce(x){
+    if(x===0) return '';
+    if(x===100) return 'CIEN';
+    var s='',c=Math.floor(x/100);x=x%100;
+    if(c) s+=C[c]+(x?' ':'');
+    if(x<=20) s+=U[x];
+    else if(x<30) s+=(x===20?'VEINTE':'VEINTI'+U[x-20]);
+    else{var d=Math.floor(x/10),u=x%10;s+=D[d]+(u?' Y '+U[u]:'');}
+    return s.trim();
+  }
+  var out='';
+  if(ent===0) out='CERO';
+  else{
+    var millon=Math.floor(ent/1000000), mil=Math.floor((ent%1000000)/1000), res=ent%1000;
+    if(millon) out+=(millon===1?'UN MILLÓN':ce(millon)+' MILLONES')+' ';
+    if(mil) out+=(mil===1?'MIL':ce(mil)+' MIL')+' ';
+    if(res) out+=ce(res);
+    out=out.trim();
+  }
+  var esUsd=(moneda==='usd');
+  var unidad=esUsd?(ent===1?' DÓLAR ':' DÓLARES '):(ent===1?' PESO ':' PESOS ');
+  var suf=esUsd?'/100':'/100 M.N.';
+  var s=out+unidad+String(cent).padStart(2,'0')+suf;
+  /* Sentence case, conservando M.N. */
+  s=s.toLowerCase();
+  s=s.charAt(0).toUpperCase()+s.slice(1);
+  return esUsd?s:s.replace('m.n.','M.N.');
+}
+function fLetra(){var m=v('f_monto');document.getElementById('f_letra').value=(m===''?'':numLetra(m,v('f_moneda')||'mxn'));}
+
+/* ═══════════ FONDOS ═══════════ */
+function fonData(){
+  var ciudad=v('f_ciudad'), monto=money(v('f_monto')), letra=v('f_letra')||numLetra(v('f_monto'),v('f_moneda')||'mxn');
+  return {
+    ciudad:ciudad, ciudadCorta:ciudad.split(',')[0].trim(),
+    fecha:fechaLarga(v('f_fecha')), razon:v('f_razon'),
+    monto:monto, letra:letra, concepto:v('f_concepto'),
+    tienda:v('f_tienda'), dom:v('f_dom'),
+    entn:v('f_entn'), entp:v('f_entp'), recn:v('f_recn'), recp:v('f_recp')
+  };
+}
+function fonCuerpoParts(d){
+  return [
+    {t:'Por medio del presente se hace constar la entrega de '},
+    {t:'$'+d.monto,b:true},
+    {t:' ('+d.letra+') propiedad de la razón social '},
+    {t:d.razon,b:true},
+    {t:', por parte de la '+d.entp+' '},
+    {t:d.entn,b:true},
+    {t:' a la '+d.recp+' '},
+    {t:d.recn,b:true},
+    {t:', quien acepta tener bajo su custodia, dentro de las instalaciones de '+d.tienda+' ubicadas en '+d.dom+', de la ciudad de '+d.ciudadCorta+', un fondo por '},
+    {t:'$'+d.monto,b:true},
+    {t:' ('+d.letra+') por concepto de '+d.concepto+'.'}
+  ];
+}
+function fonPDF(){
+  var d=fonData();
+  function bH(parts){return parts.map(function(s){return s.b?'<b>'+esc(s.t)+'</b>':esc(s.t);}).join('');}
+  var h='<div style="min-height:27cm;display:flex;flex-direction:column;justify-content:center;padding:1.5cm;box-sizing:border-box">'
+   +'<div style="font-family:\'Times New Roman\',Times,serif;font-size:12pt;max-width:680px;margin:0 auto;padding:0 30px;line-height:1.6;color:#000;text-align:justify">'
+   +'<p style="text-align:right">'+esc(d.ciudad)+' a '+esc(d.fecha)+'.</p>'
+   +'<p style="margin:22px 0 14px"><b>A QUIEN CORRESPONDA:</b></p>'
+   +'<p>'+bH(fonCuerpoParts(d))+'</p>'
+   +'<p style="margin-top:14px">Asimismo, acepto manejarlo de acuerdo con las políticas de la empresa.</p>'
+   +'<table style="width:100%;margin-top:70px;text-align:center;font-size:12pt"><tr>'
+   +'<td style="width:50%"><b>Entregó Fondos</b><div style="border-top:1px solid #000;width:80%;margin:8px auto 0;padding-top:5px"><b>'+esc(d.entn)+'</b><br><b>'+esc(d.entp)+'</b></div></td>'
+   +'<td style="width:50%"><b>Recibió Fondos</b><div style="border-top:1px solid #000;width:80%;margin:8px auto 0;padding-top:5px"><b>'+esc(d.recn)+'</b><br><b>'+esc(d.recp)+'</b></div></td>'
+   +'</tr></table></div></div>';
+  imprimir(h);
+}
+function fonDocx(){withDocx(function(){
+  var d=fonData();
+  var D=docx, A=D.AlignmentType;
+  function tr(t,b){return new D.TextRun({text:t,bold:!!b,font:'Times New Roman',size:24});}
+  function P(children,opts){opts=opts||{};return new D.Paragraph({alignment:opts.align,spacing:{after:opts.after||0,before:opts.before||0},children:Array.isArray(children)?children:[children]});}
+  var cuerpo=fonCuerpoParts(d).map(function(s){return tr(s.t,s.b);});
+  var vAlign=(D.VerticalAlignType?D.VerticalAlignType.CENTER:'center');
+  var doc=new D.Document({sections:[{properties:{page:{margin:{top:1200,bottom:1200,left:1400,right:1400}},verticalAlign:vAlign},children:[
+    P(tr(d.ciudad+' a '+d.fecha+'.'),{align:A.RIGHT,after:260}),
+    P(tr('A QUIEN CORRESPONDA:',true),{align:A.LEFT,after:200}),
+    P(cuerpo,{align:A.JUSTIFIED,after:200}),
+    P(tr('Asimismo, acepto manejarlo de acuerdo con las políticas de la empresa.'),{align:A.JUSTIFIED,after:900}),
+    new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},borders:sinBordes(),rows:[new D.TableRow({children:[
+      celdaFirmaFondo(d.entn,d.entp,'Entregó Fondos'),
+      celdaFirmaFondo(d.recn,d.recp,'Recibió Fondos')
+    ]})]})
+  ]}]});
+  bajar(doc,'Carta_Responsiva_Fondo_'+(d.tienda||'Documento').replace(/\s+/g,'_')+'.docx','f_status');
+},'f_status');}
+function celdaFirmaFondo(nombre,puesto,rol){
+  var D=docx,A=D.AlignmentType;
+  function r(t){return new D.TextRun({text:t,bold:true,font:'Times New Roman',size:24});}
+  var kids=[
+    new D.Paragraph({alignment:A.CENTER,children:[r(rol)]}),
+    new D.Paragraph({alignment:A.CENTER,border:{top:{style:D.BorderStyle.SINGLE,size:6,color:'000000',space:2}},spacing:{before:120},children:[r(nombre)]}),
+    new D.Paragraph({alignment:A.CENTER,children:[r(puesto)]})
+  ];
+  return new D.TableCell({margins:{top:80,bottom:80,left:120,right:120},children:kids});
+}
+
+/* ═══════════ ENTREGA-RECEPCIÓN ═══════════ */
+function factRow(r){
+  r=r||['','','','','',false];
+  var tr=document.createElement('tr');
+  tr.innerHTML='<td><input placeholder="01/07/2026" value="'+esc(r[0])+'"></td><td><input placeholder="F-0001" value="'+esc(r[1])+'"></td>'
+    +'<td><input placeholder="Ej. Proveedor" value="'+esc(r[2])+'"></td><td><input placeholder="Ej. Concepto" value="'+esc(r[3])+'"></td>'
+    +'<td><input type="number" step="0.01" placeholder="0.00" value="'+esc(r[4])+'" oninput="ftot()"></td>'
+    +'<td class="chkwrap"><input type="checkbox" '+(r[5]?'checked':'')+'></td>'
+    +'<td><button class="rowdel" onclick="this.closest(\'tr\').remove();ftot()">×</button></td>';
+  return tr;
+}
+function addFactura(){document.getElementById('e_fbody').appendChild(factRow());ftot();}
+function leerFacturas(){
+  var rows=[];
+  document.querySelectorAll('#e_fbody tr').forEach(function(tr){
+    var i=tr.querySelectorAll('input');
+    rows.push([i[0].value.trim(),i[1].value.trim(),i[2].value.trim(),i[3].value.trim(),+i[4].value||0,i[5].checked]);
+  });
+  return rows;
+}
+function ftot(){
+  var t=0;leerFacturas().forEach(function(r){t+=r[4];});
+  document.getElementById('e_ftot').textContent=money(t);
+  if(typeof entCuadre==='function')entCuadre();
+}
+function entChk(id){var e=document.getElementById(id);return !!(e&&e.checked);}
+function entCuadreCalc(){
+  var cc=+v('e_cc')||0, efe=+v('e_efe')||0, fact=0;
+  leerFacturas().forEach(function(r){fact+=r[4];});
+  return {cc:cc,efe:efe,fact:fact,suma:efe+fact,diff:Math.round((efe+fact-cc)*100)/100};
+}
+function entToggle(){
+  ['rev','revd','cc'].forEach(function(k){
+    var chk=document.getElementById('e_use_'+k), blk=document.getElementById('blk_'+k);
+    if(chk&&blk)blk.style.display=chk.checked?'grid':'none';
+  });
+  entCuadre();
+}
+function entCuadre(){
+  var box=document.getElementById('cuadre-box'); if(!box)return;
+  var dep=document.getElementById('dep-wrap'), c=entCuadreCalc();
+  var base='Efectivo + Facturas = <b>$'+money(c.suma)+'</b> &middot; Caja chica = <b>$'+money(c.cc)+'</b><br>';
+  if(Math.abs(c.diff)<0.005){box.className='cuadre ok';box.innerHTML=base+'\u2713 Cuadra exacto \u2014 <b>no arroj\u00f3 diferencia alguna</b>.';if(dep)dep.style.display='none';}
+  else if(c.diff>0){box.className='cuadre warn';box.innerHTML=base+'\u25b2 <b>Sobrante de $'+money(c.diff)+'</b> (efectivo + facturas supera la caja chica).';if(dep)dep.style.display='flex';}
+  else{box.className='cuadre err';box.innerHTML=base+'\u25bc <b>Faltante de $'+money(-c.diff)+'</b> (efectivo + facturas es menor a la caja chica).';if(dep)dep.style.display='none';}
+}
+function entCcObs(){
+  var c=entCuadreCalc();
+  if(Math.abs(c.diff)<0.005) return 'no arroj\u00f3 diferencia alguna';
+  if(c.diff>0){var s='arroj\u00f3 una diferencia sobrante de $'+money(c.diff)+' pesos';if(entChk('e_dep'))s+=', la cual se deposit\u00f3 a la cuenta de Kuroda';return s;}
+  return 'arroj\u00f3 una diferencia faltante de $'+money(-c.diff)+' pesos';
+}
+function entData(){
+  var f=leerFacturas();
+  return {
+    fecha:fechaLarga(v('e_fecha')), ciudad:v('e_ciudad'), tienda:v('e_tienda'),
+    razon:v('e_razon'), dom:v('e_dom'),
+    entn:v('e_entn'), entp:v('e_entp'), recn:v('e_recn'), recp:v('e_recp'),
+    useRev:entChk('e_use_rev'), useRevd:entChk('e_use_revd'), useCc:entChk('e_use_cc'),
+    rev:money(v('e_rev')), revobs:v('e_revobs')||'no arroj\u00f3 diferencia alguna',
+    revd:money(v('e_revd')), revdobs:v('e_revdobs')||'no arroj\u00f3 diferencia alguna',
+    cc:money(v('e_cc')), ccobs:entCcObs(), efe:money(v('e_efe')),
+    fact:f, total:f.reduce(function(a,r){return a+r[4];},0),
+    t1n:v('e_t1n'), t1p:v('e_t1p'), t2n:v('e_t2n'), t2p:v('e_t2p')
+  };
+}
+function entIntro(d){
+  return 'Siendo el día '+d.fecha+' en la ciudad de '+d.ciudad+', se da inicio al acta de entrega de administración de la tienda identificada como "'+d.tienda+'", perteneciente a la razón social de '+d.razon+', ubicada en '+d.dom+'. En este acto, quien entrega es la '+d.entp+' '+d.entn+' y quien recibe es la '+d.recp+' '+d.recn+'.';
+}
+function entPDF(){
+  var d=entData();
+  var ded=d.fact.filter(function(r){return !r[5];}), nod=d.fact.filter(function(r){return r[5];});
+  var bd='border:1px solid #000;padding:4px';
+  function fila(r){return '<tr><td style="'+bd+'">'+esc(r[0])+'</td><td style="'+bd+'">'+esc(r[1])+'</td><td style="'+bd+'">'+esc(r[2])+'</td><td style="'+bd+'">'+esc(r[3])+'</td><td style="'+bd+';text-align:right">'+money(r[4])+'</td></tr>';}
+  var tbl='<table style="width:100%;border-collapse:collapse;font-size:10pt;margin-top:8px"><thead><tr>'
+    +'<th style="'+bd+';background:#f2f2f2">Fecha</th><th style="'+bd+';background:#f2f2f2">Factura</th>'
+    +'<th style="'+bd+';background:#f2f2f2">Nombre</th><th style="'+bd+';background:#f2f2f2">Concepto</th>'
+    +'<th style="'+bd+';background:#f2f2f2">Importe</th></tr></thead><tbody>';
+  ded.forEach(function(r){tbl+=fila(r);});
+  if(nod.length){tbl+='<tr><td colspan="5" style="'+bd+';font-weight:bold;text-align:center;background:#f2f2f2">NO DEDUCIBLE</td></tr>';nod.forEach(function(r){tbl+=fila(r);});}
+  tbl+='<tr><td colspan="4" style="'+bd+';text-align:right;font-weight:bold">TOTAL</td><td style="'+bd+';text-align:right;font-weight:bold">'+money(d.total)+'</td></tr>';
+  tbl+='</tbody></table>';
+  function sec(t){return '<h4 style="font-style:italic;font-size:11pt;margin:16px 0 4px">'+t+'</h4>';}
+  var secs='';
+  if(d.useRev)secs+=sec('FONDO REVOLVENTE')+'<p style="text-align:justify">Se entrega el fondo revolvente por <b>$'+d.rev+'</b>, el cual '+esc(d.revobs)+'.</p>';
+  if(d.useRevd)secs+=sec('FONDO REVOLVENTE EN DÓLARES')+'<p style="text-align:justify">Se entrega el fondo revolvente en dólares por <b>$'+d.revd+'</b>, el cual '+esc(d.revdobs)+'.</p>';
+  if(d.useCc)secs+=sec('FONDO DE CAJA CHICA')
+    +'<p style="text-align:justify">Se entrega el fondo de caja chica por <b>$'+d.cc+'</b>, el cual '+esc(d.ccobs)+'.</p>'
+    +'<p style="text-align:justify;margin-top:8px">Al momento de realizar el arqueo al fondo de caja chica se consideró la cantidad en efectivo de <b>$'+d.efe+'</b>, así como las facturas que a continuación se relacionan y las cuales están pendientes de rembolsar:</p>'
+    +tbl
+    +'<p style="text-align:justify;margin-top:10px">Estos fondos fueron entregados por la C. '+esc(d.entn)+' y quien recibe es la C. '+esc(d.recn)+'.</p>';
+  var h='<div style="font-family:Arial,Helvetica,sans-serif;font-size:11pt;max-width:700px;margin:0 auto;padding:1.5cm 30px;line-height:1.5;color:#000">'
+   +'<h2 style="text-align:center;font-size:12pt;margin-bottom:4px">'+esc(d.razon)+'</h2>'
+   +'<h3 style="text-align:center;font-size:12pt;margin-bottom:16px">ACTA DE ENTREGA – RECEPCIÓN ADMINISTRACIÓN</h3>'
+   +'<p style="text-align:justify">'+esc(entIntro(d))+'</p>'
+   +'<p style="text-align:justify;margin-top:10px"><b><i>Corte de fondos a responsabilidad de la C. '+esc(d.entn)+'.</i></b></p>'
+   +secs
+   +'<p style="text-align:justify;margin-top:16px">Se concluye la presente acta objeto del proceso entrega - recepción de administración de la tienda "'+esc(d.tienda)+'" identificada por la empresa <b>'+esc(d.razon)+'</b> el día '+esc(d.fecha)+' en la ciudad de '+esc(d.ciudad)+'.</p>'
+   +'<table style="width:100%;margin-top:40px;text-align:center;font-size:11pt"><tr>'
+   +'<td>'+firmaHTML(d.entn,d.entp,'ENTREGA')+'</td><td>'+firmaHTML(d.recn,d.recp,'RECIBE')+'</td></tr></table>'
+   +'<p style="text-align:center;font-weight:bold;margin-top:34px">TESTIGOS</p>'
+   +'<table style="width:100%;margin-top:40px;text-align:center;font-size:11pt"><tr>'
+   +'<td>'+firmaHTML(d.t1n,d.t1p,'')+'</td><td>'+firmaHTML(d.t2n,d.t2p,'')+'</td></tr></table>'
+   +'</div>';
+  imprimir(h);
+}
+function firmaHTML(n,p,rol){
+  return '<div style="border-top:1px solid #000;width:78%;margin:0 auto;padding-top:5px">'
+    +(rol?'<div style="font-weight:bold;margin-bottom:2px">'+esc(rol)+'</div>':'')
+    +esc(n)+'<br>'+esc(p)+'</div>';
+}
+function entDocx(){withDocx(function(){
+  var d=entData();
+  var D=docx, A=D.AlignmentType;
+  function runs(text,it){
+    var parts=text.split('**'),arr=[];
+    for(var i=0;i<parts.length;i++){if(parts[i]!=='')arr.push(new D.TextRun({text:parts[i],bold:(i%2===1),italics:!!it,font:'Arial',size:20}));}
+    return arr.length?arr:[new D.TextRun({text:'',font:'Arial',size:20})];
+  }
+  function P(text,opts){opts=opts||{};return new D.Paragraph({alignment:opts.align,spacing:{after:(opts.after==null?120:opts.after),before:opts.before||0},children:runs(text,opts.it)});}
+  function head(t){return new D.Paragraph({alignment:A.LEFT,spacing:{before:180,after:80},children:[new D.TextRun({text:t,bold:true,italics:true,font:'Arial',size:22})]});}
+  var ded=d.fact.filter(function(r){return !r[5];}), nod=d.fact.filter(function(r){return r[5];});
+  function th(t){return new D.TableCell({shading:{fill:'F2F2F2'},children:[new D.Paragraph({alignment:A.CENTER,children:[new D.TextRun({text:t,bold:true,size:19,font:'Arial'})]})]});}
+  function td(t,al){return new D.TableCell({children:[new D.Paragraph({alignment:al||A.LEFT,children:[new D.TextRun({text:t,size:19,font:'Arial'})]})]});}
+  var rows=[new D.TableRow({tableHeader:true,children:[th('Fecha'),th('Factura'),th('Nombre'),th('Concepto'),th('Importe')]})];
+  ded.forEach(function(r){rows.push(new D.TableRow({children:[td(r[0]),td(r[1]),td(r[2]),td(r[3]),td(money(r[4]),A.RIGHT)]}));});
+  if(nod.length){
+    rows.push(new D.TableRow({children:[new D.TableCell({columnSpan:5,shading:{fill:'F2F2F2'},children:[new D.Paragraph({alignment:A.CENTER,children:[new D.TextRun({text:'NO DEDUCIBLE',bold:true,size:19,font:'Arial'})]})]})]}));
+    nod.forEach(function(r){rows.push(new D.TableRow({children:[td(r[0]),td(r[1]),td(r[2]),td(r[3]),td(money(r[4]),A.RIGHT)]}));});
+  }
+  rows.push(new D.TableRow({children:[new D.TableCell({columnSpan:4,children:[new D.Paragraph({alignment:A.RIGHT,children:[new D.TextRun({text:'TOTAL',bold:true,size:19,font:'Arial'})]})]}),td(money(d.total),A.RIGHT)]}));
+
+  var body=[
+    new D.Paragraph({alignment:A.CENTER,spacing:{after:40},children:[new D.TextRun({text:d.razon,bold:true,font:'Arial',size:22})]}),
+    new D.Paragraph({alignment:A.CENTER,spacing:{after:220},children:[new D.TextRun({text:'ACTA DE ENTREGA – RECEPCIÓN ADMINISTRACIÓN',bold:true,font:'Arial',size:22})]}),
+    P(entIntro(d),{align:A.JUSTIFIED,after:160}),
+    P('**Corte de fondos a responsabilidad de la C. '+d.entn+'.**',{after:120,it:true})
+  ];
+  if(d.useRev){body.push(head('FONDO REVOLVENTE'));body.push(P('Se entrega el fondo revolvente por **$'+d.rev+'**, el cual '+d.revobs+'.',{align:A.JUSTIFIED}));}
+  if(d.useRevd){body.push(head('FONDO REVOLVENTE EN DÓLARES'));body.push(P('Se entrega el fondo revolvente en dólares por **$'+d.revd+'**, el cual '+d.revdobs+'.',{align:A.JUSTIFIED}));}
+  if(d.useCc){
+    body.push(head('FONDO DE CAJA CHICA'));
+    body.push(P('Se entrega el fondo de caja chica por **$'+d.cc+'**, el cual '+d.ccobs+'.',{align:A.JUSTIFIED}));
+    body.push(P('Al momento de realizar el arqueo al fondo de caja chica se consideró la cantidad en efectivo de **$'+d.efe+'**, así como las facturas que a continuación se relacionan y las cuales están pendientes de rembolsar:',{align:A.JUSTIFIED,after:120}));
+    body.push(new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},rows:rows}));
+    body.push(P('Estos fondos fueron entregados por la C. '+d.entn+' y quien recibe es la C. '+d.recn+'.',{align:A.JUSTIFIED,before:120}));
+  }
+  body.push(P('Se concluye la presente acta objeto del proceso entrega - recepción de administración de la tienda "'+d.tienda+'" identificada por la empresa **'+d.razon+'** el día '+d.fecha+' en la ciudad de '+d.ciudad+'.',{align:A.JUSTIFIED,before:200,after:600}));
+  body.push(new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},borders:sinBordes(),rows:[new D.TableRow({children:[celdaFirma(d.entn,d.entp,'ENTREGA'),celdaFirma(d.recn,d.recp,'RECIBE')]})]}));
+  body.push(new D.Paragraph({alignment:A.CENTER,spacing:{before:500,after:500},children:[new D.TextRun({text:'TESTIGOS',bold:true,font:'Arial',size:20})]}));
+  body.push(new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},borders:sinBordes(),rows:[new D.TableRow({children:[celdaFirma(d.t1n,d.t1p,''),celdaFirma(d.t2n,d.t2p,'')]})]}));
+
+  var doc=new D.Document({sections:[{properties:{page:{margin:{top:1000,bottom:1000,left:1200,right:1200}}},children:body}]});
+  bajar(doc,'Acta_Entrega_Recepcion_'+(d.tienda||'Documento').replace(/\s+/g,'_')+'.docx','e_status');
+},'e_status');}
+
+/* ═══════════ HELPERS DOCX/PDF ═══════════ */
+function sinBordes(){var n={style:docx.BorderStyle.NONE,size:0,color:'FFFFFF'};return {top:n,bottom:n,left:n,right:n,insideHorizontal:n,insideVertical:n};}
+function celdaFirma(nombre,puesto,rol){
+  var D=docx,A=D.AlignmentType,kids=[];
+  kids.push(new D.Paragraph({alignment:A.CENTER,border:{top:{style:D.BorderStyle.SINGLE,size:6,color:'000000',space:2}},spacing:{before:60},children:[new D.TextRun({text:nombre,bold:true,font:'Arial',size:20})]}));
+  kids.push(new D.Paragraph({alignment:A.CENTER,children:[new D.TextRun({text:puesto,font:'Arial',size:20})]}));
+  if(rol) kids.push(new D.Paragraph({alignment:A.CENTER,children:[new D.TextRun({text:rol,italics:true,font:'Arial',size:20})]}));
+  return new D.TableCell({margins:{top:80,bottom:80,left:120,right:120},children:kids});
+}
+function st(id,msg){var e=document.getElementById(id);if(e)e.textContent=msg;}
+function withDocx(fn,statusId){
+  if(typeof docx!=='undefined'){fn();return;}
+  st(statusId,'Cargando librería de Word…');
+  var s=document.createElement('script');
+  s.src='https://unpkg.com/docx@8.5.0/build/index.umd.js';
+  s.onload=function(){typeof docx!=='undefined'?fn():st(statusId,'No se pudo cargar la librería de Word. Usa Imprimir / Guardar PDF.');};
+  s.onerror=function(){st(statusId,'Sin conexión al CDN de Word. Usa Imprimir / Guardar PDF.');};
+  document.head.appendChild(s);
+}
+function dl(blob,nombre){
+  if(typeof saveAs!=='undefined'){saveAs(blob,nombre);return;}
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nombre;a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
+}
+function bajar(doc,nombre,statusId){
+  docx.Packer.toBlob(doc).then(function(blob){dl(blob,nombre);st(statusId,'✓ Word generado: '+nombre);})
+  .catch(function(e){st(statusId,'Error al generar Word: '+e.message);});
+}
+function imprimir(html){
+  document.getElementById('print-preview').innerHTML=html;
+  setTimeout(function(){window.print();},120);
+}
+
+/* ═══════════ VEHÍCULOS ═══════════ */
+var tipoActual = 4;
+
+var TIPOS = {
+  1:{titulo:'TIPO 1',usoTexto:'El vehículo será utilizado como herramienta de trabajo y en cumplimiento exclusivo de las funciones propias del puesto, por lo tanto, la unidad solo será utilizada por "EL TRABAJADOR" única y exclusivamente para el trabajo más no para el uso personal; por ningún motivo el trabajador se llevará el automóvil a su domicilio, en horas inhábiles ni fines de semana, debiendo resguardarla después de su jornada de trabajo en el lugar asignado por la empresa. Así como también en el supuesto de que "EL TRABAJADOR" se encuentre de vacaciones o días festivos (Inhábiles), responsabilizándose "EL TRABAJADOR", de cualquier siniestro que le suceda a la unidad en las horas que "EL TRABAJADOR" la tenga a su cargo o bien bajo su resguardo.',infoUso:'📋 Tipo 1 — El vehículo NO puede llevarse a domicilio. Se resguarda en la empresa fuera del horario laboral, fines de semana y días festivos.',firmaDerechaLabel:'Quien autoriza',firmaDerecha:'ING. REINA TORRES LOPEZ',puestoD:'DIRECTORA ADMINISTRATIVA',mostrarPuestoT:true,mostrarFechas:false,mantenimiento:'tipo1'},
+  2:{titulo:'TIPO 2',usoTexto:'El vehículo será utilizado por el trabajador como herramienta de trabajo y en cumplimiento exclusivo de las funciones propias del puesto y dentro de su jornada laboral, por lo tanto, el trabajador queda facultado de resguardar la unidad en su domicilio particular de todos los días de la semana incluyendo fines de semana, excepto en los siguientes casos; El trabajador queda obligado a de dejar el vehículo en "LA EMPRESA" cuando "EL TRABAJADOR" se encuentre de vacaciones o días festivos (inhábiles), o bien cuando así se lo solicite su patronal, responsabilizándose "EL TRABAJADOR", de cualquier siniestro que le suceda a la unidad en las horas que "EL TRABAJADOR" la tenga a su cargo y/o bajo su resguardo.',infoUso:'📋 Tipo 2 — El trabajador puede resguardar el vehículo en su domicilio todos los días incluidos fines de semana, excepto vacaciones y días festivos.',firmaDerechaLabel:'Directora Administrativa',firmaDerecha:'ING. REINA TORRES LOPEZ',puestoD:'DIRECTORA ADMINISTRATIVA',mostrarPuestoT:true,mostrarFechas:false,mantenimiento:'std'},
+  3:{titulo:'TIPO 3',usoTexto:'El vehículo será utilizado como herramienta de trabajo y en cumplimiento exclusivo de las funciones propias del puesto, por lo tanto, la unidad solo será utilizada por "EL TRABAJADOR" en horas laborables y no laborales de todos los días, no incluyendo fines de semana, deberá dejar el vehículo en "LA EMPRESA" cuando "EL TRABAJADOR" se encuentre de vacaciones o días festivos, responsabilizándose "EL TRABAJADOR", de cualquier siniestro que le suceda a la unidad en las horas que "EL TRABAJADOR" la tenga a su cargo.',infoUso:'📋 Tipo 3 — Uso de lunes a viernes. El vehículo se deja en la empresa los fines de semana, vacaciones y días festivos.',firmaDerechaLabel:'Quien autoriza',firmaDerecha:'Lic. Jorge Humberto Ortiz Gómez',puestoD:'GERENTE REGIONAL',mostrarPuestoT:true,mostrarFechas:false,mantenimiento:'std'},
+  4:{titulo:'TIPO 4',usoTexto:'El vehículo será utilizado por el Trabajador como herramienta de trabajo, en cumplimiento exclusivo de las funciones propias del puesto, por lo tanto, la unidad será utilizada por "EL TRABAJADOR" en horas no laborables de todos los días incluyendo fines de semana, vacaciones y días festivos, responsabilizándose "EL TRABAJADOR", de cualquier siniestro que le suceda a la unidad en las horas que "EL TRABAJADOR" la tenga a su cargo y/o bajo su resguardo.',infoUso:'📋 Tipo 4 — Uso todos los días del año, incluyendo fines de semana, vacaciones y días festivos.',firmaDerechaLabel:'Directora Administrativa',firmaDerecha:'ING. REINA ISABEL TORRES LOPEZ',puestoD:'DIRECTORA ADMINISTRATIVA',mostrarPuestoT:true,mostrarFechas:false,mantenimiento:'std'},
+  temporal:{titulo:'TEMPORAL',usoTexto:null,infoUso:'📋 Temporal — El vehículo se asigna por un período específico con fecha de inicio y fin.',firmaDerechaLabel:'Directora Administrativa',firmaDerecha:'REINA TORRES',puestoD:'',mostrarPuestoT:false,mostrarFechas:true,mantenimiento:'std'}
+};
+
+function setTipo(t){
+  tipoActual=t;
+  document.querySelectorAll('.tipo-btn').forEach(function(btn,i){
+    btn.classList.toggle('active',[1,2,3,4,'temporal'][i]===t);
+  });
+  var cfg=TIPOS[t];
+  document.getElementById('info-uso').textContent=cfg.infoUso;
+  document.getElementById('sec-fechas').style.display=cfg.mostrarFechas?'':'none';
+  document.getElementById('lbl-firmaD').textContent=cfg.firmaDerechaLabel;
+  document.getElementById('firmaD').value=cfg.firmaDerecha;
+  document.getElementById('puestoD').value=cfg.puestoD;
+  document.getElementById('puesto-firmaD-wrap').style.display=cfg.mostrarPuestoT?'':'none';
+  document.getElementById('puesto-firmaT-wrap').style.display=cfg.mostrarPuestoT?'':'none';
+}
+setTipo(4);
+
+
+function getData(){
+  var cfg=TIPOS[tipoActual];
+  return {
+    cfg:cfg,
+    empresa:(v('empresa')||'KURODA').toUpperCase(),
+    nombre:v('nombre'),puesto:v('puesto'),sucursales:v('sucursales'),
+    marca:v('marca'),tipo_v:v('tipo_v'),modelo:v('modelo'),color:v('color'),
+    placas:v('placas'),serie:v('serie'),fi:v('fi'),ff:v('ff'),
+    firmaT:v('firmaT'),firmaD:v('firmaD'),puestoD:v('puestoD'),puestoT:v('puestoT'),
+    lugar:v('lugar')+(v('fecha')?' a '+v('fecha'):''),
+    tituloDoc:'CARTA RESPONSIVA DE USO Y CUIDADO DE VEHÍCULO',
+    labelDerecha:(tipoActual==='temporal')?'DIRECTORA ADMINISTRATIVA':'AUTORIZA'
+  };
+}
+
+/* ──────────────────────────────────────────
+   GENERAR DOCX REAL con márgenes estrechos
+   Carta: 12240 twips ancho × 15840 alto
+   Margen estrecho: 720 twips (1.27 cm)
+   ────────────────────────────────────────── */
+function generarDocx(){withDocx(genVehDocx,'status');}
+async function genVehDocx(){
+  var st=document.getElementById('status');
+  st.className='status';st.textContent='Generando…';
+  try{
+    var docxLib=window.docx||window.DocxJS||window.DOCX;
+    if(!docxLib){
+      console.error('window.docx:',window.docx,'keys:',Object.keys(window).filter(k=>k.toLowerCase().includes('doc')));
+      throw new Error('La librería docx no cargó. Abre el archivo directamente en tu navegador (no desde un iframe).');
+    }
+    var d=getData();
+    var cfg=d.cfg;
+    var {Document,Packer,Paragraph,TextRun,AlignmentType,PageBreak,Table,TableRow,TableCell,WidthType,BorderStyle,HeightRule}=docxLib;
+
+    function bold(text){return new TextRun({text:text,bold:true,font:'Tahoma',size:20});}
+    function normal(text){return new TextRun({text:text,font:'Tahoma',size:20});}
+
+    function pJ(runs){return new Paragraph({spacing:{before:0,after:80,line:276,lineRule:'auto'},alignment:AlignmentType.JUSTIFIED,children:Array.isArray(runs)?runs:[runs]});}
+    function pC(runs,opts){return new Paragraph({spacing:{before:0,after:60,line:276,lineRule:'auto'},alignment:AlignmentType.CENTER,children:Array.isArray(runs)?runs:[runs],...(opts||{})});}
+    function pJi(runs){return new Paragraph({spacing:{before:0,after:60,line:276,lineRule:'auto'},alignment:AlignmentType.JUSTIFIED,indent:{left:560},children:Array.isArray(runs)?runs:[runs]});}
+
+    var introText=(tipoActual==='temporal')
+      ?'En los apartados siguientes se reglamentan los aspectos relacionados con el cuidado y uso del vehículo como herramienta de trabajo, se le proporciona a "EL TRABAJADOR" '+d.nombre+' el cual se desempeña como '+d.puesto+' de las sucursales de '+d.sucursales+', el cual tiene a su cargo y desde este momento es totalmente responsable.'
+      :'En los apartados siguientes se reglamentan los aspectos relacionados con el cuidado y uso del vehículo que, como herramienta de trabajo, se le proporciona a "EL TRABAJADOR" '+d.nombre+', el cual se desempeña como '+d.puesto+' de la tienda '+d.sucursales+', el cual tiene a su cargo y desde este momento es totalmente responsable.';
+
+    var usoDescTxt=(tipoActual==='temporal'||cfg.mostrarFechas)
+      ?'El vehículo será utilizado por el Trabajador como herramienta de trabajo, en cumplimiento exclusivo de las funciones propias del puesto, por lo tanto, el vehículo solo será utilizado por "EL TRABAJADOR" en horas laborales y no laborales del día del '+d.fi+' al '+d.ff+' para dejarse de utilizar y hasta finalizar las labores, responsabilizándose "EL TRABAJADOR", de cualquier siniestro que le suceda a la unidad en las horas que "EL TRABAJADOR" la tenga a su cargo y/o bajo su resguardo.'
+      :cfg.usoTexto;
+    var usoI=usoDescTxt.indexOf('por lo tanto,');
+    var usoPre=usoI>=0?usoDescTxt.slice(0,usoI):'';
+    var usoPost=usoI>=0?usoDescTxt.slice(usoI):usoDescTxt;
+    var usoRuns=usoPre?[bold('USO DEL VEHÍCULO.- '),normal(usoPre),bold(usoPost)]:[bold('USO DEL VEHÍCULO.- '),bold(usoPost)];
+
+    var mantP2=(cfg.mantenimiento==='tipo1')
+      ?pJ(normal('Acuerdan que, para el buen funcionamiento e imagen de la unidad motriz de referencia, esta podrá ser llevada, en una ocasión por mes, al servicio de lavado que la empresa autorice, con costo para la empresa, y únicamente por el usuario que se autoriza mediante el presente instrumento y siempre y cuando el vehículo lo requiera.'))
+      :pJ(normal('El usuario se obliga a efectuar, en todo momento, por su cuenta y costo, el lavado del vehículo en comento, y se compromete a mantenerlo siempre limpio y en condiciones óptimas de higiene; En caso de incumplimiento de este requisito el propietario del vehículo podrá en cualquier momento retirar la autorización de uso concedido en el presente instrumento. Asimismo, se acuerda que la empresa apoyará con el servicio de lavado al usuario autorizado, única y exclusivamente, cuando el vehículo haya sido objeto de un traslado foráneo, con fines estrictamente laborales a beneficio de la empresa y previo aviso.'));
+
+    var noBorder={top:{style:BorderStyle.NONE,size:0,color:'FFFFFF'},bottom:{style:BorderStyle.NONE,size:0,color:'FFFFFF'},left:{style:BorderStyle.NONE,size:0,color:'FFFFFF'},right:{style:BorderStyle.NONE,size:0,color:'FFFFFF'}};
+    var topBorder={top:{style:BorderStyle.SINGLE,size:6,color:'000000'},bottom:{style:BorderStyle.NONE,size:0,color:'FFFFFF'},left:{style:BorderStyle.NONE,size:0,color:'FFFFFF'},right:{style:BorderStyle.NONE,size:0,color:'FFFFFF'}};
+
+    function firmaCell(label,name,puesto,hasBorder){
+      var rows=[new Paragraph({alignment:AlignmentType.CENTER,children:[bold(label)]})];
+      if(name)rows.push(new Paragraph({alignment:AlignmentType.CENTER,spacing:{before:60},children:[normal(name)]}));
+      if(puesto)rows.push(new Paragraph({alignment:AlignmentType.CENTER,children:[normal(puesto)]}));
+      return new TableCell({width:{size:45,type:WidthType.PERCENTAGE},borders:hasBorder?topBorder:noBorder,children:rows});
+    }
+    function spacerCell(){
+      return new TableCell({width:{size:10,type:WidthType.PERCENTAGE},borders:noBorder,children:[new Paragraph('')]});
+    }
+
+    var firmaTable=new Table({width:{size:100,type:WidthType.PERCENTAGE},rows:[
+      new TableRow({children:[
+        firmaCell('EL TRABAJADOR',d.firmaT,cfg.mostrarPuestoT?d.puestoT:'',true),
+        spacerCell(),
+        firmaCell(d.labelDerecha,d.firmaD,cfg.mostrarPuestoT?d.puestoD:'',true)
+      ]})
+    ]});
+
+    // Encabezado: col izquierda vacía | col central empresa+título centrado | col derecha TIPO
+    var ShadingType=docxLib.ShadingType||{CLEAR:'clear'};
+
+    // 12240 - 851*2 = 10538 twips contenido
+    var contentW=10538;
+    var colL=Math.round(contentW*0.12);  // ~1265 izq vacía
+    var colM=Math.round(contentW*0.65);  // ~6850 centro
+    var colR=contentW-colL-colM;         // ~2423 TIPO
+
+    var noBdr={style:BorderStyle.NONE,size:0,color:'FFFFFF'};
+    var noBorders={top:noBdr,bottom:noBdr,left:noBdr,right:noBdr};
+    var botLine={style:BorderStyle.SINGLE,size:8,color:'000000'};
+    var botOnly={top:noBdr,bottom:botLine,left:noBdr,right:noBdr};
+    var botLeft={top:noBdr,bottom:botLine,left:{style:BorderStyle.SINGLE,size:20,color:'000000'},right:noBdr};
+
+    function boldRed(text){return new TextRun({text:text,bold:true,font:'Tahoma',size:20,color:'C00000'});}
+
+    var headerTable=new Table({
+      width:{size:contentW,type:WidthType.DXA},
+      columnWidths:[colL,colM,colR],
+      borders:{top:noBdr,bottom:noBdr,left:noBdr,right:noBdr,insideH:noBdr,insideV:noBdr},
+      rows:[
+        // Fila 1: vacía | empresa en rojo centrado | vacía
+        new TableRow({children:[
+          new TableCell({width:{size:colL,type:WidthType.DXA},borders:noBorders,
+            children:[new Paragraph({spacing:{after:0},children:[]})]}),
+          new TableCell({width:{size:colM,type:WidthType.DXA},borders:noBorders,
+            children:[new Paragraph({alignment:AlignmentType.CENTER,spacing:{after:0},
+              children:[boldRed(d.empresa+', S.A. DE C.V.')]})]
+          }),
+          new TableCell({width:{size:colR,type:WidthType.DXA},borders:noBorders,
+            children:[new Paragraph({spacing:{after:0},children:[]})]})
+        ]}),
+        // Fila 2: vacía | CARTA RESPONSIVA centrado | TIPO X con borde izq + bot
+        new TableRow({children:[
+          new TableCell({width:{size:colL,type:WidthType.DXA},borders:botOnly,
+            children:[new Paragraph({spacing:{after:0},children:[]})]}),
+          new TableCell({width:{size:colM,type:WidthType.DXA},borders:botOnly,
+            children:[new Paragraph({alignment:AlignmentType.CENTER,spacing:{after:0},
+              children:[bold(d.tituloDoc)]})]}),
+          new TableCell({width:{size:colR,type:WidthType.DXA},borders:botLeft,
+            children:[new Paragraph({alignment:AlignmentType.CENTER,spacing:{after:0},
+              children:[bold(d.cfg.titulo)]})]})
+        ]})
+      ]
+    });
+
+    var doc=new Document({
+      sections:[{
+        properties:{
+          page:{
+            size:{width:12240,height:15840},
+            margin:{top:851,right:851,bottom:851,left:851,header:851,footer:851,gutter:0}
+          }
+        },
+        children:[
+          // ENCABEZADO igual a la foto
+          headerTable,
+          new Paragraph({spacing:{after:80},children:[]}),
+          pJ(normal(introText)),
+          pJ(normal('El vehículo será asignado a "EL TRABAJADOR" exclusivamente como herramienta de trabajo, debiendo "EL TRABAJADOR" firmar de conformidad el presente documento y donde se describe el estado actual del vehículo y una vez recibido éste será responsabilidad de "EL TRABAJADOR", que deberá firmar la cédula de inventario vehicular.')),
+          pJ([bold('DESCRIPCIÓN DEL VEHÍCULO.- '),normal('MARCA '+d.marca+', TIPO '+d.tipo_v+', MODELO '+d.modelo+', COLOR '+d.color+', PLACAS '+d.placas+', No Serie '+d.serie+', en condiciones óptimas de funcionamiento tanto mecánicamente como de carrocería.')]),
+          pJ(usoRuns),
+          pJ(normal('Si el vehículo es utilizado para realizar actos de índole personal por el autorizado o cualquier persona a la que esta le haya permitido, sin autorización de la persona moral, su uso temporal y/o permanente ya sea dentro o fuera de su horario laboral, y el vehículo sufre algún siniestro que afecte materialmente en forma parcial o total el mismo, ya sea con motivo de su uso o estancia del mismo, y que los mismos no sean considerados por su uso normal a favor de la empresa, el autorizado será responsable al 100% de los costos de los daños generados y/o deducible correspondiente según sea el caso.')),
+          pJ([bold('INFRACCIONES.- '),normal('Cuando se infrinja el Reglamento de Tránsito las multas serán pagadas de manera directa por "EL TRABAJADOR".')]),
+          pJ([bold('ACCIDENTES.- '),normal('En caso de que "EL TRABAJADOR" se vea involucrado en un incidente o siniestro en donde el vehículo de "LA EMPRESA" que, como herramienta de trabajo tiene asignado, resulte dañado o se causen daños a terceras personas o bienes, el pago de dichos daños se llevará de acuerdo a lo siguiente:')]),
+          pJi(normal('a) Si de acuerdo al peritaje que realice la compañía aseguradora o la autoridad correspondiente en el incidente o siniestro, "EL TRABAJADOR" no tuvo culpa alguna, "LA EMPRESA" absorberá el 100% del costo de los daños o deducible del seguro en su caso.')),
+          pJi(normal('b) Si de acuerdo al peritaje que realice la compañía aseguradora o la autoridad correspondiente en el incidente o siniestro, "EL TRABAJADOR" tuvo culpa, deberá pagar por su cuenta el 100% de los daños ocasionados al vehículo o deducible del seguro en su caso.')),
+          pJi(normal('c) Si el empleado presta la unidad a persona ajena a la empresa, la responsabilidad de reparar los daños y costos que resulten (o deducible del seguro en su caso) será totalmente del empleado, aún así, que el operador de la unidad propiedad de la empresa no haya tenido la culpa en el accidente.')),
+          pJ([bold('LICENCIA DE MANEJO.- '),normal('En todos los supuestos anteriormente señalados, el conductor deberá contar con la licencia de conducir correspondiente (conductor o chofer) vigente, en el supuesto de que un trabajador incumpla en la anterior, este será responsable de cualquier daño ocasionado durante el tiempo en uso de la unidad. Asimismo, es facultad del director general suspender en forma permanente o temporal el uso del vehículo en caso de que se detecte que el conductor no cuente con licencia o que esta se encuentre vencida.')]),
+
+          new Paragraph({spacing:{before:0,after:0},pageBreakBefore:true,children:[bold('MANTENIMIENTO VEHICULAR.- '),normal('Al recibir asignación del vehículo "EL TRABAJADOR" es responsable de checar de manera constante los siguientes puntos del vehículo:')]}),
+          pJi(normal('1) Revisión de niveles: combustible, aceite, líquido de frenos y anticongelante.')),
+          pJi(normal('2) Revisión de carrocería: sin rayones, funcional, etc.')),
+          pJi(normal('3) Revisión de funcionamiento: Sin problemas mecánicos')),
+          pJi([normal('4) Revisión de documentos: Tarjeta de circulación, placas (2) y engomados y '),bold('PÓLIZA DE SEGURO VIGENTE'),normal('.')]),
+          pJ(normal('En caso de que "EL TRABAJADOR" se percate de que alguno de los puntos anteriores se encuentra en mal estado o tratándose de documentos, estos no estén en regla, deberá dar aviso inmediato a "LA EMPRESA", ya que de no hacerlo, "EL TRABAJADOR" será responsable de cualquier percance.')),
+          mantP2,
+          pJ([bold('DESCUENTOS DE SALARIOS PARA PAGO DE DAÑOS.- '),normal('En caso de que "LA EMPRESA" cubra alguna cantidad por concepto de reparación de daños y perjuicios y el siniestro hubiere sido imputable a "EL TRABAJADOR", éste autoriza de antemano que sea repetido a su cargo, mediante descuentos en la nómina, sin exceder el límite que al efecto establece la Ley Federal del Trabajo.')]),
+          new Paragraph({spacing:{before:200},children:[]}),
+          pC([bold('FIRMAN LOS RESPONSABLES ANTE LA EMPRESA:')]),
+          new Paragraph({spacing:{before:600},children:[]}),
+          firmaTable,
+          new Paragraph({alignment:AlignmentType.RIGHT,spacing:{before:320},children:[normal(d.lugar)]})
+        ]
+      }]
+    });
+
+    var blob=await Packer.toBlob(doc);
+    dl(blob,'Carta_Responsiva_'+cfg.titulo+'_'+d.nombre.replace(/\s+/g,'_')+'.docx');
+    st.className='status ok';st.textContent='✓ Archivo descargado correctamente.';
+  }catch(err){
+    st.className='status err';st.textContent='Error: '+err.message;
+    console.error(err);
+  }
+}
+
+/* ─────────────────────────────
+   IMPRIMIR / GUARDAR COMO PDF
+   ───────────────────────────── */
+function imprimirPDF(){
+  var st=document.getElementById('status');
+  st.className='status';st.textContent='Preparando vista de impresión…';
+  try{
+    var d=getData();
+    var cfg=d.cfg;
+    function b(t){return '<b>'+t+'</b>';}
+    var P='class="pp-p"', PC='class="pp-pc"', PI='class="pp-pi"';
+
+    var introText=(tipoActual==='temporal')
+      ?'En los apartados siguientes se reglamentan los aspectos relacionados con el cuidado y uso del vehículo como herramienta de trabajo, se le proporciona a "EL TRABAJADOR" '+b(d.nombre)+' el cual se desempeña como '+b(d.puesto)+' de las sucursales de '+b(d.sucursales)+', el cual tiene a su cargo y desde este momento es totalmente responsable.'
+      :'En los apartados siguientes se reglamentan los aspectos relacionados con el cuidado y uso del vehículo que, como herramienta de trabajo, se le proporciona a "EL TRABAJADOR" '+b(d.nombre)+', el cual se desempeña como '+b(d.puesto)+' de la tienda '+b(d.sucursales)+', el cual tiene a su cargo y desde este momento es totalmente responsable.';
+
+    var usoDescTxtP=(tipoActual==='temporal'||cfg.mostrarFechas)
+      ?'El vehículo será utilizado por el Trabajador como herramienta de trabajo, en cumplimiento exclusivo de las funciones propias del puesto, por lo tanto, el vehículo solo será utilizado por "EL TRABAJADOR" en horas laborales y no laborales del día del '+d.fi+' al '+d.ff+' para dejarse de utilizar y hasta finalizar las labores, responsabilizándose "EL TRABAJADOR", de cualquier siniestro que le suceda a la unidad en las horas que "EL TRABAJADOR" la tenga a su cargo y/o bajo su resguardo.'
+      :cfg.usoTexto;
+    var usoIp=usoDescTxtP.indexOf('por lo tanto,');
+    var usoPreP=usoIp>=0?usoDescTxtP.slice(0,usoIp):'';
+    var usoPostP=usoIp>=0?usoDescTxtP.slice(usoIp):usoDescTxtP;
+    var usoText=b('USO DEL VEHÍCULO.- ')+' '+usoPreP+b(usoPostP);
+
+    var mantText=(cfg.mantenimiento==='tipo1')
+      ?'Acuerdan que, para el buen funcionamiento e imagen de la unidad motriz de referencia, esta podrá ser llevada, en una ocasión por mes, al servicio de lavado que la empresa autorice, con costo para la empresa, y únicamente por el usuario que se autoriza mediante el presente instrumento y siempre y cuando el vehículo lo requiera.'
+      :'El usuario se obliga a efectuar, en todo momento, por su cuenta y costo, el lavado del vehículo en comento, y se compromete a mantenerlo siempre limpio y en condiciones óptimas de higiene; En caso de incumplimiento de este requisito el propietario del vehículo podrá en cualquier momento retirar la autorización de uso concedido en el presente instrumento. Asimismo, se acuerda que la empresa apoyará con el servicio de lavado al usuario autorizado, única y exclusivamente, cuando el vehículo haya sido objeto de un traslado foráneo, con fines estrictamente laborales a beneficio de la empresa y previo aviso.';
+
+    var html=
+      '<div class="pp-page">'+
+        '<table style="width:100%;border-collapse:collapse;margin-bottom:0;">'+
+          '<tr>'+
+            '<td style="width:12%;border:none;"></td>'+
+            '<td style="width:65%;text-align:center;font-size:10pt;color:#C00000;font-weight:bold;padding-bottom:1pt;border:none;">'+d.empresa+', S.A. DE C.V.</td>'+
+            '<td style="width:23%;border:none;"></td>'+
+          '</tr>'+
+          '<tr>'+
+            '<td style="border-bottom:1pt solid #000;border-top:none;border-left:none;border-right:none;"></td>'+
+            '<td style="text-align:center;font-size:10pt;font-weight:bold;border-bottom:1pt solid #000;border-top:none;border-left:none;border-right:none;padding-bottom:2pt;">'+d.tituloDoc+'</td>'+
+            '<td style="text-align:center;font-size:10pt;font-weight:bold;border-left:2pt solid #000;border-bottom:1pt solid #000;border-top:none;border-right:none;padding:0 4pt 2pt 6pt;">'+d.cfg.titulo+'</td>'+
+          '</tr>'+
+        '</table>'+
+        '<p style="margin:8pt 0 4pt 0;font-size:10pt;"> </p>'+
+        '<p '+P+'>'+introText+'</p>'+
+        '<p '+P+'>El vehículo será asignado a "EL TRABAJADOR" exclusivamente como herramienta de trabajo, debiendo "EL TRABAJADOR" firmar de conformidad el presente documento y donde se describe el estado actual del vehículo y una vez recibido éste será responsabilidad de "EL TRABAJADOR", que deberá firmar la cédula de inventario vehicular.</p>'+
+        '<p '+P+'>'+b('DESCRIPCIÓN DEL VEHÍCULO.- ')+' MARCA '+b(d.marca)+', TIPO '+b(d.tipo_v)+', MODELO '+b(d.modelo)+', COLOR '+b(d.color)+', PLACAS '+b(d.placas)+', No Serie '+b(d.serie)+', en condiciones óptimas de funcionamiento tanto mecánicamente como de carrocería.</p>'+
+        '<p '+P+'>'+usoText+'</p>'+
+        '<p '+P+'>Si el vehículo es utilizado para realizar actos de índole personal por el autorizado o cualquier persona a la que esta le haya permitido, sin autorización de la persona moral, su uso temporal y/o permanente ya sea dentro o fuera de su horario laboral, y el vehículo sufre algún siniestro que afecte materialmente en forma parcial o total el mismo, ya sea con motivo de su uso o estancia del mismo, y que los mismos no sean considerados por su uso normal a favor de la empresa, el autorizado será responsable al 100% de los costos de los daños generados y/o deducible correspondiente según sea el caso.</p>'+
+        '<p '+P+'>'+b('INFRACCIONES.- ')+' Cuando se infrinja el Reglamento de Tránsito las multas serán pagadas de manera directa por "EL TRABAJADOR".</p>'+
+        '<p '+P+'>'+b('ACCIDENTES.- ')+' En caso de que "EL TRABAJADOR" se vea involucrado en un incidente o siniestro en donde el vehículo de "LA EMPRESA" que, como herramienta de trabajo tiene asignado, resulte dañado o se causen daños a terceras personas o bienes, el pago de dichos daños se llevará de acuerdo a lo siguiente:</p>'+
+        '<p '+PI+'>a) Si de acuerdo al peritaje que realice la compañía aseguradora o la autoridad correspondiente en el incidente o siniestro, "EL TRABAJADOR" no tuvo culpa alguna, "LA EMPRESA" absorberá el 100% del costo de los daños o deducible del seguro en su caso.</p>'+
+        '<p '+PI+'>b) Si de acuerdo al peritaje que realice la compañía aseguradora o la autoridad correspondiente en el incidente o siniestro, "EL TRABAJADOR" tuvo culpa, deberá pagar por su cuenta el 100% de los daños ocasionados al vehículo o deducible del seguro en su caso.</p>'+
+        '<p '+PI+'>c) Si el empleado presta la unidad a persona ajena a la empresa, la responsabilidad de reparar los daños y costos que resulten (o deducible del seguro en su caso) será totalmente del empleado, aún así, que el operador de la unidad propiedad de la empresa no haya tenido la culpa en el accidente.</p>'+
+        '<p '+P+'>'+b('LICENCIA DE MANEJO.- ')+' En todos los supuestos anteriormente señalados, el conductor deberá contar con la licencia de conducir correspondiente (conductor o chofer) vigente, en el supuesto de que un trabajador incumpla en la anterior, este será responsable de cualquier daño ocasionado durante el tiempo en uso de la unidad. Asimismo, es facultad del director general suspender en forma permanente o temporal el uso del vehículo en caso de que se detecte que el conductor no cuente con licencia o que esta se encuentre vencida.</p>'+
+      '</div>'+
+      '<div class="pp-page">'+
+        '<p '+P+'>'+b('MANTENIMIENTO VEHICULAR.- ')+' Al recibir asignación del vehículo "EL TRABAJADOR" es responsable de checar de manera constante los siguientes puntos del vehículo:</p>'+
+        '<p '+PI+'>1) Revisión de niveles: combustible, aceite, líquido de frenos y anticongelante.</p>'+
+        '<p '+PI+'>2) Revisión de carrocería: sin rayones, funcional, etc.</p>'+
+        '<p '+PI+'>3) Revisión de funcionamiento: Sin problemas mecánicos</p>'+
+        '<p '+PI+'>4) Revisión de documentos: Tarjeta de circulación, placas (2) y engomados y '+b('PÓLIZA DE SEGURO VIGENTE')+'.</p>'+
+        '<p '+P+'>En caso de que "EL TRABAJADOR" se percate de que alguno de los puntos anteriores se encuentra en mal estado o tratándose de documentos, estos no estén en regla, deberá dar aviso inmediato a "LA EMPRESA", ya que de no hacerlo, "EL TRABAJADOR" será responsable de cualquier percance.</p>'+
+        '<p '+P+'>'+mantText+'</p>'+
+        '<p '+P+'>'+b('DESCUENTOS DE SALARIOS PARA PAGO DE DAÑOS.- ')+' En caso de que "LA EMPRESA" cubra alguna cantidad por concepto de reparación de daños y perjuicios y el siniestro hubiere sido imputable a "EL TRABAJADOR", éste autoriza de antemano que sea repetido a su cargo, mediante descuentos en la nómina, sin exceder el límite que al efecto establece la Ley Federal del Trabajo.</p>'+
+        '<p '+PC+' style="margin-top:36pt;">'+b('FIRMAN LOS RESPONSABLES ANTE LA EMPRESA:')+'</p>'+
+        '<table class="pp-firma-table"><tr>'+
+          '<td class="pp-firma-td">'+b('EL TRABAJADOR')+'<br>'+(d.firmaT||'')+(cfg.mostrarPuestoT&&d.puestoT?'<br>'+d.puestoT:'')+'</td>'+
+          '<td class="pp-firma-td2"></td>'+
+          '<td class="pp-firma-td">'+b(d.labelDerecha)+'<br>'+(d.firmaD||'')+(cfg.mostrarPuestoT&&d.puestoD?'<br>'+d.puestoD:'')+'</td>'+
+        '</tr></table>'+
+        '<p style="text-align:right;font-size:10pt;margin-top:16pt;">'+d.lugar+'</p>'+
+      '</div>';
+
+    document.getElementById('print-preview').innerHTML=html;
+    st.textContent='';
+    setTimeout(function(){window.print();},120);
+  }catch(err){
+    st.className='status err';st.textContent='Error: '+err.message;
+  }
+}
+
+/* ═══ GENERADOR DE PRESENTACIÓN DE AUDITORÍA v2 — Grupo Kuroda ═══
+   Réplica del formato institucional: tablas por tienda, donas de
+   efectividad y desglose de actividades programadas / no programadas. */
+
+/* ═══ GENERADOR DE PRESENTACIÓN DE AUDITORÍA v3 — Grupo Kuroda ═══
+   Sin gráficas nativas: todas las visualizaciones se dibujan con formas.
+   pptxgenjs emite XML de <c:chart> que PowerPoint rechaza ("tuvo que
+   quitarlo"), así que se sustituyen por barras y anillos hechos con
+   rectángulos y texto: mismo mensaje visual, archivo siempre válido. */
+
+/* ═══ GENERADOR DE PRESENTACIÓN DE AUDITORÍA v3 — Grupo Kuroda ═══
+   SIN gráficas nativas de PowerPoint: todas las visualizaciones se dibujan
+   con formas (rectángulos y textos). Motivo: pptxgenjs emite XML de charts
+   que PowerPoint rechaza ("PowerPoint no pudo leer algún contenido... y tuvo
+   que quitarlo"), aunque otros visores lo acepten. Con formas el archivo es
+   100% estable y además se controla el layout al milímetro. */
+
+/* ═══ GENERADOR DE PRESENTACIÓN DE AUDITORÍA v4 — Grupo Kuroda ═══
+   Las gráficas (donas y barras) se DIBUJAN en un canvas y se insertan como
+   imagen. Motivo: las gráficas nativas de pptxgenjs producen XML que
+   PowerPoint rechaza ("no pudo leer algún contenido y tuvo que quitarlo").
+   Dibujadas a mano el archivo es estable y el diseño es totalmente propio. */
+
+const C = {
+  marino:'1F3864', marino2:'2E5496', azulSuave:'DCE4F2',
+  verde:'2E7D32', verdeSuave:'E8F3E8',
+  rojo:'C0392B',  rojoSuave:'FAE8E6',
+  ambar:'C9910A', ambarSuave:'FDF4E0',
+  azul:'2563EB',  azulSuave2:'DBEAFE', /* mismo azul que "abierta vigente" del módulo de Auditorías */
+  gris:'6B7280', grisLinea:'DDE2EA', grisFila:'F6F8FB',
+  texto:'1A1A1A', blanco:'FFFFFF'
+};
+const HX = h => '#'+h;                       /* hex a css */
+const pctPPT = (n,d) => d>0 ? Math.round(n/d*100) : 0;
+const colorPct = p => p>=80?C.verde : (p>=40?C.ambar : C.rojo);
+
+const fFecha = s => {
+  if(!s) return '—';
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return `${m[3]}/${m[2]}/${m[1].slice(2)}`;
+  const d = new Date(s);
+  if(!isNaN(d)) return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getFullYear()).slice(2)}`;
+  return String(s);
+};
+const esRealizada = e => /completad/i.test(String(e||''));
+const esRepro     = e => /reprogramad/i.test(String(e||''));
+const esEnCurso   = e => /curso/i.test(String(e||''));
+/* Mismos colores que actEstadoBadge()/estadoSelStyle() en el módulo de
+   Actividades del dashboard, para que el PPTX se vea idéntico a la app:
+   Completado=verde, En curso=naranja/texto negro, Reprogramado=azul fuerte/
+   texto blanco, Sin comenzar (y cualquier otro)=azul claro/texto azul.
+   Si la fila trae vencida=true (Est.Fin ya pasó y no está Completado), el
+   rojo gana sobre cualquier otro color — antes una actividad "Sin comenzar"
+   de meses atrás se seguía viendo con su color normal, como si aún
+   estuviera vigente. */
+const estColor = (e,vencida) => {
+  if(esRealizada(e)) return {c:C.verde,     bg:C.verdeSuave};
+  if(vencida)        return {c:C.blanco,    bg:'DC2626'};
+  if(esEnCurso(e))   return {c:'1A1A1A',    bg:'FB923C'};
+  if(esRepro(e))     return {c:C.blanco,    bg:'2563EB'};
+  return                    {c:'1D4ED8',    bg:'DBEAFE'}; /* Sin comenzar / default */
+};
+
+/* ── DONA dibujada en canvas → PNG ───────────────────────────────────
+   Un solo arco de progreso sobre un anillo de fondo, con el porcentaje
+   grande al centro y la cifra concreta debajo. Sin adornos. */
+function donaPNG(pct, colorHex, centroSub){
+  const S=560, cv=document.createElement('canvas');
+  cv.width=S; cv.height=S;
+  const g=cv.getContext('2d');
+  const cx=S/2, cy=S/2, R=210, gr=44;
+  g.clearRect(0,0,S,S);
+  /* anillo de fondo */
+  g.beginPath(); g.arc(cx,cy,R,0,Math.PI*2);
+  g.strokeStyle=HX(C.azulSuave); g.lineWidth=gr; g.stroke();
+  /* arco de avance */
+  const p=Math.max(0,Math.min(100,pct||0));
+  if(p>0){
+    g.beginPath();
+    g.arc(cx,cy,R,-Math.PI/2, -Math.PI/2 + Math.PI*2*(p/100));
+    g.strokeStyle=HX(colorHex); g.lineWidth=gr; g.lineCap='butt'; g.stroke();
+  }
+  /* porcentaje central */
+  g.fillStyle=HX(colorHex);
+  g.font='bold 132px Arial'; g.textAlign='center'; g.textBaseline='middle';
+  g.fillText(p+'%', cx, cy-14);
+  if(centroSub){
+    g.fillStyle=HX(C.gris); g.font='30px Arial';
+    g.fillText(String(centroSub), cx, cy+64);
+  }
+  return cv.toDataURL('image/png');
+}
+
+/* ── BARRAS verticales dibujadas en canvas → PNG ─────────────────── */
+function barrasPNG(labels, valores, colores, titulo){
+  const Wc=1200, Hc=620, cv=document.createElement('canvas');
+  cv.width=Wc; cv.height=Hc;
+  const g=cv.getContext('2d');
+  g.clearRect(0,0,Wc,Hc);
+  const mL=70, mR=30, mT=titulo?70:30, mB=110;
+  const gw=Wc-mL-mR, gh=Hc-mT-mB;
+  if(titulo){
+    g.fillStyle=HX(C.marino); g.font='bold 30px Arial'; g.textAlign='left'; g.textBaseline='top';
+    g.fillText(titulo, mL, 20);
+  }
+  /* rejilla y eje */
+  g.strokeStyle=HX(C.grisLinea); g.lineWidth=1;
+  g.fillStyle=HX(C.gris); g.font='22px Arial'; g.textAlign='right'; g.textBaseline='middle';
+  for(let v=0; v<=100; v+=25){
+    const y=mT+gh-(gh*v/100);
+    g.beginPath(); g.moveTo(mL,y); g.lineTo(mL+gw,y); g.stroke();
+    g.fillText(v+'%', mL-12, y);
+  }
+  const n=Math.max(1,labels.length);
+  const paso=gw/n, bw=Math.min(140, paso*0.5);
+  labels.forEach((lb,i)=>{
+    const v=Math.max(0,Math.min(100,valores[i]||0));
+    const bh=gh*v/100;
+    const x=mL+paso*i+(paso-bw)/2, y=mT+gh-bh;
+    g.fillStyle=HX(colores[i]||C.marino2);
+    g.fillRect(x,y,bw,bh);
+    /* valor encima */
+    g.fillStyle=HX(colores[i]||C.marino2); g.font='bold 24px Arial';
+    g.textAlign='center'; g.textBaseline='bottom';
+    g.fillText(v+'%', x+bw/2, y-8);
+    /* etiqueta (parte en 2 líneas si es larga) */
+    g.fillStyle=HX(C.texto); g.font='21px Arial'; g.textBaseline='top';
+    const pal=String(lb).split(' ');
+    let l1=pal.slice(0, Math.ceil(pal.length/2)).join(' ');
+    let l2=pal.slice(Math.ceil(pal.length/2)).join(' ');
+    if(String(lb).length<=14){ l1=String(lb); l2=''; }
+    g.fillText(l1, x+bw/2, mT+gh+12);
+    if(l2) g.fillText(l2, x+bw/2, mT+gh+38);
+  });
+  return cv.toDataURL('image/png');
+}
+
+function construirPresentacion(D, cfg, PptxGenJS){
+  const pres = new PptxGenJS();
+  pres.layout = 'LAYOUT_WIDE';
+  const W = 13.33, H = 7.5;
+  const periodo = `${String(D.mes).toUpperCase()} ${D.anio}`;
+  let nSlide = 0;
+
+  const cabecera = (s, txt) => {
+    s.addShape(pres.ShapeType.rect, {x:0, y:0, w:W, h:1.05, fill:{color:C.marino}, line:{color:C.marino}});
+    s.addText(String(txt).toUpperCase(), {x:0.5, y:0.14, w:W-1.0, h:0.77, fontSize:22, bold:true,
+      color:C.blanco, fontFace:'Arial', margin:0, valign:'middle', charSpacing:0.5});
+  };
+  const pie = s => {
+    nSlide++;
+    s.addText(`${D.razon} · ${periodo}`, {x:0.5, y:H-0.38, w:6, h:0.26, fontSize:9, color:C.gris,
+      fontFace:'Arial', margin:0, valign:'middle'});
+    s.addText(String(nSlide), {x:W-0.9, y:H-0.38, w:0.4, h:0.26, fontSize:9, color:C.gris,
+      fontFace:'Arial', align:'right', margin:0, valign:'middle'});
+  };
+  /* Encabezado de tabla con AIRE: fila más alta y texto en una línea */
+  const th = t => ({text:String(t), options:{bold:true, color:C.blanco, fill:{color:C.marino},
+    fontSize:7.2, align:'center', valign:'middle', margin:[1,2,1,2]}});
+  const td = (t,o) => { o=o||{}; return {text:(t===''||t===null||t===undefined)?'—':String(t),
+    options:Object.assign({fontSize:9, color:C.texto, valign:'middle', align:'left', margin:[2,3,2,3]}, o)}; };
+
+  /* Panel de métricas de tareas: Total · Pendientes · Resueltas · % */
+  const panelTareas = (s, x, y, w, R, titulo) => {
+    s.addShape(pres.ShapeType.rect, {x, y, w, h:2.5, fill:{color:C.grisFila}, line:{color:C.grisLinea}});
+    s.addText(titulo, {x, y:y+0.12, w, h:0.3, fontSize:11, bold:true, color:C.marino,
+      align:'center', fontFace:'Arial', margin:0});
+    const items=[['Total de tareas', R.tareas, C.texto],
+                 ['Resueltas', R.resueltas, C.verde],
+                 ['Pendientes', R.pendientes, R.pendientes>0?C.rojo:C.verde],
+                 ['% de cumplimiento', R.pctResuelto+'%', colorPct(R.pctResuelto)]];
+    items.forEach((it,i)=>{
+      const yy=y+0.55+i*0.46;
+      s.addText(it[0], {x:x+0.25, y:yy, w:w-1.5, h:0.36, fontSize:10.5, color:C.gris,
+        fontFace:'Arial', margin:0, valign:'middle'});
+      s.addText(String(it[1]), {x:x+w-1.35, y:yy, w:1.1, h:0.36, fontSize:13, bold:true,
+        color:it[2], align:'right', fontFace:'Arial', margin:0, valign:'middle'});
+    });
+  };
+
+  /* ══════ 1 · PORTADA ══════ */
+  if(cfg.s1!==false){
+    const s = pres.addSlide();
+    s.background = {color:C.marino};
+    s.addShape(pres.ShapeType.ellipse, {x:-1.7, y:-2.2, w:7.2, h:7.2, fill:{color:'2A4A78'}, line:{type:'none'}});
+    s.addShape(pres.ShapeType.ellipse, {x:9.6, y:4.6, w:5.0, h:5.0, fill:{color:'25436E'}, line:{type:'none'}});
+    s.addText(cfg.titulo || 'Programa de Auditoría', {x:1.0, y:2.6, w:W-3.0, h:1.1, fontSize:42,
+      bold:true, color:C.blanco, fontFace:'Arial', margin:0});
+    s.addText(periodo, {x:1.0, y:3.75, w:W-3.0, h:0.6, fontSize:22, color:C.azulSuave,
+      fontFace:'Arial', margin:0, charSpacing:1.5});
+    s.addText(D.razonNombre || D.razon, {x:1.0, y:6.1, w:W-3.0, h:0.35, fontSize:12,
+      color:C.azulSuave, fontFace:'Arial', margin:0, charSpacing:1.2});
+    nSlide++;
+  }
+
+  /* ══════ 2 · ACTIVIDADES (con dona) ══════ */
+  if(cfg.s2!==false){
+    const s = pres.addSlide();
+    cabecera(s, `Actividades ${periodo}`);
+    const A = D.actividades;
+    /* El semáforo se calcula SIEMPRE a partir de las mismas filas que se
+       pintan en la tabla (programadas+noProgramadas), nunca de los conteos
+       agregados que llegan del dashboard (A.realizadas/A.pendientes), que
+       agrupaban "En curso", "Reprogramado" y "Sin comenzar" todos como
+       "pendientes" y por eso el semáforo no coincidía con la tabla. */
+    const listaAct     = A.programadas.concat(A.noProgramadas);
+    const nCompletadas = listaAct.filter(a=>esRealizada(a.estado)).length;
+    /* "vencida" (Est.Fin ya pasó, calculado en el dashboard) gana sobre
+       En curso/Reprogramado/Sin comenzar — mismo criterio que el badge rojo
+       en el módulo de Actividades, para que nunca se vea como vigente algo
+       que ya está atrasado. */
+    const pendNoVenc   = listaAct.filter(a=>!esRealizada(a.estado)&&!a.vencida);
+    const nVencidas    = listaAct.filter(a=>!esRealizada(a.estado)&&a.vencida).length;
+    const nEnCurso     = pendNoVenc.filter(a=>esEnCurso(a.estado)).length;
+    const nRepro       = pendNoVenc.filter(a=>esRepro(a.estado)).length;
+    const nSinComenzar = Math.max(0, pendNoVenc.length - nEnCurso - nRepro);
+
+    const COL=[4.55, 1.35, 1.85, 1.05, 1.15];    /* 10.0" — nombres completos */
+    const filasDe = (lista, titulo) => {
+      const rows=[[
+        {text:titulo, options:{bold:true, color:C.blanco, fill:{color:C.marino}, fontSize:9.5,
+          valign:'middle', margin:[4,4,4,4]}},
+        th('Estado'), th('Asignado a'), th('Inicio'), th('Finalización')
+      ]];
+      lista.forEach(r=>{
+        const ec=estColor(r.estado,r.vencida);
+        rows.push([
+          td(r.actividad, {fontSize:8.5}),
+          {text:r.estado||'—', options:{fontSize:8, bold:true,
+            color: ec.c, fill:{color: ec.bg}, align:'center', valign:'middle'}},
+          td(r.asignado, {align:'center', color:C.gris, fontSize:8.5}),
+          td(fFecha(r.inicio), {align:'center', fontSize:8.5, color:C.gris}),
+          td(fFecha(r.fin),    {align:'center', fontSize:8.5, color:C.gris})
+        ]);
+      });
+      return rows;
+    };
+
+    let y=1.3;
+    if(A.programadas.length){
+      const n=Math.min(A.programadas.length,10);
+      s.addTable(filasDe(A.programadas.slice(0,10),'Actividades Programadas'),
+        {x:0.5, y, w:10.0, colW:COL, rowH:0.27, border:{type:'solid', color:C.grisLinea, pt:0.5},
+         fontFace:'Arial', autoPage:false});
+      y += 0.32 + 0.27*n + 0.24;
+    }
+    if(A.noProgramadas.length){
+      const n=Math.min(A.noProgramadas.length,6);
+      s.addTable(filasDe(A.noProgramadas.slice(0,6),'Actividades No Programadas'),
+        {x:0.5, y, w:10.0, colW:COL, rowH:0.27, border:{type:'solid', color:C.grisLinea, pt:0.5},
+         fontFace:'Arial', autoPage:false});
+    }
+    if(!A.programadas.length && !A.noProgramadas.length){
+      s.addText('Sin actividades registradas en el período.', {x:0.5, y:1.6, w:8, h:0.4,
+        fontSize:12, color:C.gris, fontFace:'Arial', margin:0});
+    }
+
+    /* Dona de cumplimiento */
+    s.addText('Cumplimiento de Actividades', {x:10.6, y:1.3, w:2.7, h:0.4, fontSize:11, bold:true,
+      color:C.marino, align:'center', fontFace:'Arial', margin:0});
+    const totalAct = listaAct.length || A.total || 1;
+    s.addImage({data:donaPNG(pctPPT(nCompletadas,totalAct), colorPct(pctPPT(nCompletadas,totalAct)), `${nCompletadas} de ${totalAct}`),
+      x:10.7, y:1.75, w:2.5, h:2.5});
+    const kk=[['Completadas', nCompletadas, C.verde], ['Vencidas', nVencidas, 'DC2626'],
+              ['Reprogramadas', nRepro, '2563EB'], ['En curso', nEnCurso, 'FB923C'],
+              ['Sin comenzar', nSinComenzar, '1D4ED8']];
+    kk.forEach((k,i)=>{
+      const yy=4.5+i*0.42;
+      s.addShape(pres.ShapeType.rect, {x:10.7, y:yy+0.08, w:0.14, h:0.14, fill:{color:k[2]}, line:{type:'none'}});
+      s.addText(k[0], {x:10.95, y:yy, w:1.6, h:0.3, fontSize:10, color:C.gris, fontFace:'Arial',
+        margin:0, valign:'middle'});
+      s.addText(String(k[1]), {x:12.5, y:yy, w:0.7, h:0.3, fontSize:11.5, bold:true, color:k[2],
+        align:'right', fontFace:'Arial', margin:0, valign:'middle'});
+    });
+    pie(s);
+  }
+
+  /* ══════ 3 y 4 · TAREAS POR CLASE (dona + tabla) ══════ */
+  const slideClase = (titulo, det, res) => {
+    const s = pres.addSlide();
+    cabecera(s, titulo);
+    if(!det.length){
+      s.addText('Sin auditorías registradas para esta clase en el período.',
+        {x:0.5, y:2.0, w:10, h:0.4, fontSize:12, color:C.gris, fontFace:'Arial', margin:0});
+      pie(s); return;
+    }
+    /* Dona = % de cumplimiento de TAREAS (resueltas / total), coherente con la tabla */
+    s.addText('Cumplimiento de tareas', {x:0.5, y:1.25, w:3.3, h:0.35, fontSize:12, bold:true,
+      color:C.marino, align:'center', fontFace:'Arial', margin:0});
+    s.addImage({data:donaPNG(res.pctResuelto, colorPct(res.pctResuelto), `${res.resueltas} de ${res.tareas}`),
+      x:0.75, y:1.7, w:2.8, h:2.8});
+    panelTareas(s, 4.0, 1.7, 3.2, res, 'Resumen de tareas');
+
+    /* Tabla por tienda — encabezados con aire, sin amontonar */
+    const rows=[[th('TIENDA'), th('MES'), th('RESULT. AUD.'), th('TOTAL'),
+                 th('PEND.'), th('RESUELT.'), th('% CUMPL.')]];
+    det.slice(0,8).forEach((d,i)=>{
+      const bg=i%2?C.grisFila:C.blanco;
+      const tot=d.pendientes+d.resueltas;
+      rows.push([
+        td(d.tienda, {bold:true, fill:{color:bg}, fontSize:8.5}),
+        td(d.mes, {align:'center', color:C.gris, fill:{color:bg}, fontSize:8.5}),
+        td(d.pctAud+'%', {align:'center', bold:true, color:C.marino2, fill:{color:bg}}),
+        td(String(tot), {align:'center', fill:{color:bg}}),
+        td(String(d.pendientes), {align:'center', bold:true, color:d.pendientes>0?C.rojo:C.verde, fill:{color:bg}}),
+        td(String(d.resueltas), {align:'center', color:C.verde, fill:{color:bg}}),
+        td(d.pctResuelto+'%', {align:'center', bold:true, color:colorPct(d.pctResuelto), fill:{color:bg}})
+      ]);
+    });
+    rows.push([
+      {text:'TOTAL', options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, margin:[3,3,3,3]}},
+      {text:'—', options:{color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
+      {text:'—', options:{color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
+      {text:String(res.tareas),     options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
+      {text:String(res.pendientes), options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
+      {text:String(res.resueltas),  options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
+      {text:res.pctResuelto+'%',    options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}}
+    ]);
+    s.addTable(rows, {x:7.5, y:1.35, w:5.35, colW:[1.35,0.6,0.9,0.62,0.58,0.66,0.64], rowH:0.34,
+      border:{type:'solid', color:C.grisLinea, pt:0.5}, fontFace:'Arial', valign:'middle'});
+
+    s.addText('El "Resultado de auditoría" es la calificación de la visita; el "% de cumplimiento" mide las tareas resueltas de esa auditoría. Son métricas distintas.',
+      {x:0.5, y:4.95, w:6.6, h:0.7, fontSize:9, color:C.gris, fontFace:'Arial', margin:0, italic:true});
+    pie(s);
+  };
+  if(cfg.s3!==false) slideClase(cfg.nombreProcesos || 'Tareas Auditoría de Procesos',
+                                D.procesosDetalle, D.procesos);
+  if(cfg.s4!==false) slideClase('Tareas Auditoría de Orden y Limpieza',
+                                D.ordenDetalle, D.ordenLimpieza);
+
+  /* ══════ 5 · MERMAS Y AJUSTES (donas) ══════ */
+  if(cfg.s5!==false){
+    const s = pres.addSlide();
+    cabecera(s, 'Atención a mermas y ajustes');
+    const bloque = (x, titulo, R, det) => {
+      s.addText(titulo, {x, y:1.2, w:6.1, h:0.34, fontSize:13, bold:true, color:C.marino,
+        align:'center', fontFace:'Arial', margin:0});
+      s.addImage({data:donaPNG(R.pctATiempo, colorPct(R.pctATiempo), `${R.aTiempo} de ${R.total}`),
+        x:x+1.85, y:1.6, w:2.4, h:2.4});
+      const rows=[[th('Tienda'), th('Cantidad'), th('A tiempo'), th('A destiempo')]];
+      det.slice(0,6).forEach((d,i)=>{
+        const bg=i%2?C.grisFila:C.blanco;
+        rows.push([
+          td(d.tienda, {bold:true, fill:{color:bg}, fontSize:8.5}),
+          td(String(d.cantidad), {align:'center', fill:{color:bg}}),
+          td(String(d.aTiempo), {align:'center', color:C.verde, bold:true, fill:{color:bg}}),
+          td(String(d.destiempo), {align:'center', color:d.destiempo>0?C.rojo:C.gris, bold:true, fill:{color:bg}})
+        ]);
+      });
+      rows.push([
+        {text:'TOTAL', options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, margin:[3,3,3,3]}},
+        {text:String(R.total),     options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
+        {text:String(R.aTiempo),   options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
+        {text:String(R.destiempo), options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}}
+      ]);
+      s.addTable(rows, {x, y:4.25, w:6.1, colW:[2.8,1.1,1.1,1.1], rowH:0.32,
+        border:{type:'solid', color:C.grisLinea, pt:0.5}, fontFace:'Arial', valign:'middle'});
+    };
+    bloque(0.5, 'Efectividad Merma',   D.mermas,  D.mermasDetalle);
+    bloque(6.75,'Efectividad Ajustes', D.ajustes, D.ajustesDetalle);
+    pie(s);
+  }
+
+  /* ══════ 6 y 7 · HISTÓRICO (barras) ══════ */
+  const slideHist = (titulo, hist) => {
+    const s = pres.addSlide();
+    const rango = hist.meses.length
+      ? `${String(hist.meses[0]).slice(0,3).toUpperCase()}-${String(hist.meses[hist.meses.length-1]).slice(0,3).toUpperCase()} ${D.anio}`
+      : String(D.anio);
+    cabecera(s, `${titulo} · ${rango}`);
+    if(!hist.filas.length){
+      s.addText('Sin histórico en el rango seleccionado.', {x:0.5, y:2.0, w:10, h:0.4,
+        fontSize:12, color:C.gris, fontFace:'Arial', margin:0});
+      pie(s); return;
+    }
+    const rows=[[th('TIENDA'), th('MES'), th('RESULT. AUD.'), th('TOTAL'),
+                 th('PEND.'), th('RESUELT.'), th('% CUMPL.')]];
+    hist.filas.slice(0,11).forEach((d,i)=>{
+      const bg=i%2?C.grisFila:C.blanco;
+      rows.push([
+        td(d.tienda, {bold:true, fill:{color:bg}, fontSize:8}),
+        td(String(d.mes).toUpperCase(), {align:'center', color:C.gris, fill:{color:bg}, fontSize:8}),
+        td(d.pctAud+'%', {align:'center', bold:true, color:C.marino2, fill:{color:bg}, fontSize:8.5}),
+        td(String(d.pendientes+d.resueltas), {align:'center', fill:{color:bg}, fontSize:8.5}),
+        td(String(d.pendientes), {align:'center', bold:true,
+          color: d.pendientes===0 ? C.verde : ((d.pendVenc||0)>0 ? C.rojo : C.azul),
+          fill:{color:bg}, fontSize:8.5}),
+        td(String(d.resueltas), {align:'center', color:C.verde, fill:{color:bg}, fontSize:8.5}),
+        td(d.pctResuelto+'%', {align:'center', bold:true, color:colorPct(d.pctResuelto), fill:{color:bg}, fontSize:8.5})
+      ]);
+    });
+    s.addTable(rows, {x:0.5, y:1.3, w:6.6, colW:[1.6,0.74,1.0,0.66,0.82,0.86,0.92], rowH:0.33,
+      border:{type:'solid', color:C.grisLinea, pt:0.5}, fontFace:'Arial', valign:'middle'});
+
+    /* Barras: cumplimiento por mes, todas del mismo color */
+    s.addImage({data:barrasPNG(hist.meses, hist.pctMes, hist.meses.map(()=>C.marino2),
+      'Cumplimiento de tareas por mes'), x:7.35, y:1.3, w:5.5, h:2.85});
+
+    /* Semáforo — orden de derecha a izquierda: el color va a la derecha, el texto lo precede hacia la izquierda.
+       Colores alineados al módulo de Auditorías del dashboard: rojo = atrasada, azul = vigente (sin atraso), verde = sin pendientes. */
+    const ley=[['Sin tareas pendientes.',C.verde],['Tareas pendientes vigentes.',C.azul],['Tareas pendientes atrasadas.',C.rojo]];
+    ley.forEach((L,i)=>{
+      const y=4.45+i*0.3;
+      s.addText(L[0], {x:7.4, y:y-0.06, w:3.38, h:0.28, fontSize:9, bold:true, color:C.texto,
+        fontFace:'Arial', margin:0, valign:'middle', align:'right'});
+      s.addShape(pres.ShapeType.rect, {x:10.94, y, w:0.16, h:0.16, fill:{color:L[1]}, line:{color:C.texto}});
+    });
+    pie(s);
+  };
+  if(cfg.s6!==false) slideHist(cfg.nombreProcesos || 'Tareas de Procesos', D.histProcesos);
+  if(cfg.s7!==false) slideHist('Tareas Orden y Limpieza', D.histOrden);
+
+  return pres;
+}
+
+/* ═══ REPORTE DE CUMPLIMIENTO POR TIENDA — Grupo Kuroda ═══
+   Enfoque por sucursal: cada tienda con su calificación de auditoría,
+   sus tareas (total / pendientes / resueltas / %), ajustes y mermas.
+   Gráficas dibujadas en canvas (nunca gráficas nativas). */
+
+function construirCumplimiento(D, cfg, PptxGenJS){
+  const pres = new PptxGenJS();
+  pres.layout = 'LAYOUT_WIDE';
+  const W = 13.33, H = 7.5;
+  const periodo = `${String(D.mes).toUpperCase()} ${D.anio}`;
+  let nSlide = 0;
+
+  const cab = (s, txt, sub) => {
+    s.addShape(pres.ShapeType.rect, {x:0, y:0, w:W, h:1.05, fill:{color:C.marino}, line:{color:C.marino}});
+    s.addText(String(txt).toUpperCase(), {x:0.5, y:sub?0.1:0.14, w:W-1.0, h:sub?0.5:0.77, fontSize:21,
+      bold:true, color:C.blanco, fontFace:'Arial', margin:0, valign:'middle', charSpacing:0.5});
+    if(sub) s.addText(sub, {x:0.5, y:0.6, w:W-1.0, h:0.32, fontSize:11, color:C.azulSuave,
+      fontFace:'Arial', margin:0, valign:'middle'});
+  };
+  const pie = s => {
+    nSlide++;
+    s.addText(`${D.razon} · ${periodo}`, {x:0.5, y:H-0.38, w:6, h:0.26, fontSize:9, color:C.gris,
+      fontFace:'Arial', margin:0, valign:'middle'});
+    s.addText(String(nSlide), {x:W-0.9, y:H-0.38, w:0.4, h:0.26, fontSize:9, color:C.gris,
+      fontFace:'Arial', align:'right', margin:0, valign:'middle'});
+  };
+  const th = t => ({text:String(t), options:{bold:true, color:C.blanco, fill:{color:C.marino},
+    fontSize:7.2, align:'center', valign:'middle', margin:[1,2,1,2]}});
+  const td = (t,o) => { o=o||{}; return {text:(t===''||t===null||t===undefined)?'—':String(t),
+    options:Object.assign({fontSize:9, color:C.texto, valign:'middle', align:'center', margin:[2,3,2,3]}, o)}; };
+
+  /* ── 1 · PORTADA ── */
+  if(cfg.c1!==false){
+    const s = pres.addSlide();
+    s.background = {color:C.marino};
+    s.addShape(pres.ShapeType.ellipse, {x:-1.7, y:-2.2, w:7.2, h:7.2, fill:{color:'2A4A78'}, line:{type:'none'}});
+    s.addShape(pres.ShapeType.ellipse, {x:9.6, y:4.6, w:5.0, h:5.0, fill:{color:'25436E'}, line:{type:'none'}});
+    s.addText(cfg.titulo || 'Reporte de Cumplimiento', {x:1.0, y:2.6, w:W-3.0, h:1.1, fontSize:42,
+      bold:true, color:C.blanco, fontFace:'Arial', margin:0});
+    s.addText(`Por sucursal · ${periodo}`, {x:1.0, y:3.75, w:W-3.0, h:0.6, fontSize:22,
+      color:C.azulSuave, fontFace:'Arial', margin:0, charSpacing:1.5});
+    s.addText(D.razonNombre || D.razon, {x:1.0, y:6.1, w:W-3.0, h:0.35, fontSize:12,
+      color:C.azulSuave, fontFace:'Arial', margin:0, charSpacing:1.2});
+    nSlide++;
+  }
+
+  /* ── 2 · RESUMEN GENERAL (dona + KPIs + evolución) ── */
+  if(cfg.c2!==false){
+    const s = pres.addSlide();
+    cab(s, `Cumplimiento general ${periodo}`, `${D.tiendas.length} sucursal(es) evaluada(s)`);
+    const T = D.totales;
+    s.addImage({data:donaPNG(T.pctGlobal, colorPct(T.pctGlobal), 'cumplimiento global'),
+      x:0.6, y:1.35, w:3.3, h:3.3});
+
+    const cajas=[
+      ['TAREAS', `${T.resueltas} de ${T.tareas} resueltas`, T.pctTareas],
+      ['AJUSTES', `${T.ajTiempo} de ${T.ajustes} a tiempo`, T.pctAjustes],
+      ['MERMAS', `${T.mmTiempo} de ${T.mermas} a tiempo`, T.pctMermas]
+    ];
+    cajas.forEach((k,i)=>{
+      const y=1.35+i*1.15;
+      s.addShape(pres.ShapeType.rect, {x:4.2, y, w:4.1, h:1.05, fill:{color:C.grisFila}, line:{color:C.grisLinea}});
+      s.addText(k[0], {x:4.4, y:y+0.12, w:2.5, h:0.34, fontSize:11, bold:true, color:C.marino,
+        fontFace:'Arial', margin:0, valign:'middle'});
+      s.addText(k[1], {x:4.4, y:y+0.54, w:2.7, h:0.34, fontSize:10, color:C.gris, fontFace:'Arial',
+        margin:0, valign:'middle'});
+      s.addText(k[2]+'%', {x:7.0, y:y+0.24, w:1.1, h:0.58, fontSize:24, bold:true, color:colorPct(k[2]),
+        align:'right', fontFace:'Arial', margin:0, valign:'middle'});
+    });
+    s.addText(`Tareas pendientes: ${T.pendientes}`, {x:4.2, y:4.92, w:4.1, h:0.3, fontSize:11,
+      bold:true, color:T.pendientes>0?C.rojo:C.verde, fontFace:'Arial', margin:0});
+
+    if(D.evolucion.meses.length){
+      s.addImage({data:barrasPNG(D.evolucion.meses, D.evolucion.pct, D.evolucion.pct.map(colorPct),
+        'Evolución del cumplimiento de tareas'), x:8.6, y:1.35, w:4.2, h:3.5});
+    }
+    /* Top y peores */
+    const top=D.tiendas.slice(0,4), bot=D.tiendas.slice(-4).reverse();
+    const lista=(x,y,titulo,arr,col)=>{
+      s.addText(titulo, {x, y, w:4.4, h:0.32, fontSize:11.5, bold:true, color:col, fontFace:'Arial', margin:0});
+      arr.forEach((d,i)=>{
+        s.addText(d.tienda, {x, y:y+0.36+i*0.32, w:3.3, h:0.3, fontSize:10.5, color:C.texto,
+          fontFace:'Arial', margin:0, valign:'middle'});
+        s.addText(d.pctGlobal+'%', {x:x+3.3, y:y+0.36+i*0.32, w:1.0, h:0.3, fontSize:10.5, bold:true,
+          color:colorPct(d.pctGlobal), align:'right', fontFace:'Arial', margin:0, valign:'middle'});
+      });
+    };
+    if(D.tiendas.length){
+      lista(0.6, 5.3, '▲ Mejor cumplimiento', top, C.verde);
+      lista(6.9, 5.3, '▼ Requieren atención', bot, C.rojo);
+    }
+    pie(s);
+  }
+
+  /* ── 3 · TABLA GENERAL POR TIENDA ── */
+  if(cfg.c3!==false){
+    const s = pres.addSlide();
+    cab(s, 'Cumplimiento por sucursal', 'Ordenado de mayor a menor cumplimiento');
+    if(!D.tiendas.length){
+      s.addText('Sin datos en el período.', {x:0.5, y:2.0, w:8, h:0.4, fontSize:12, color:C.gris,
+        fontFace:'Arial', margin:0});
+      pie(s);
+    } else {
+      const rows=[[th('SUCURSAL'), th('RESULTADO DE AUDITORÍA'), th('TOTAL TAREAS'), th('PENDIENTES'),
+                   th('RESUELTAS'), th('% TAREAS'), th('AJUSTES A TIEMPO'), th('MERMAS A TIEMPO'),
+                   th('CUMPLIMIENTO')]];
+      D.tiendas.slice(0,12).forEach((d,i)=>{
+        const bg=i%2?C.grisFila:C.blanco;
+        rows.push([
+          td(d.tienda, {bold:true, align:'left', fill:{color:bg}, fontSize:8.5}),
+          td(d.auditorias?d.pctAud+'%':'—', {bold:true, color:C.marino2, fill:{color:bg}}),
+          td(String(d.tareas), {fill:{color:bg}}),
+          td(String(d.pendientes), {bold:true, color:d.pendientes>0?C.rojo:C.verde, fill:{color:bg}}),
+          td(String(d.resueltas), {color:C.verde, fill:{color:bg}}),
+          td(d.tareas?d.pctTareas+'%':'—', {bold:true, color:colorPct(d.pctTareas), fill:{color:bg}}),
+          td(d.ajustes?`${d.ajTiempo}/${d.ajustes}`:'—', {fill:{color:bg}}),
+          td(d.mermas?`${d.mmTiempo}/${d.mermas}`:'—', {fill:{color:bg}}),
+          td(d.pctGlobal+'%', {bold:true, color:C.blanco, fill:{color:colorPct(d.pctGlobal)}})
+        ]);
+      });
+      const T=D.totales;
+      rows.push([
+        {text:'TOTAL', options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, margin:[3,3,3,3]}},
+        {text:'—', options:{color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
+        {text:String(T.tareas), options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
+        {text:String(T.pendientes), options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
+        {text:String(T.resueltas), options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
+        {text:T.pctTareas+'%', options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
+        {text:`${T.ajTiempo}/${T.ajustes}`, options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
+        {text:`${T.mmTiempo}/${T.mermas}`, options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
+        {text:T.pctGlobal+'%', options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}}
+      ]);
+      /* Altura de fila dinámica: la tabla siempre se estira para llenar el
+         alto disponible de la hoja (hasta justo antes del pie), en vez de
+         quedarse con un bloque de renglones angostos y dejar la mitad de
+         abajo de la diapositiva en blanco. */
+      const rowH=Math.max(0.32, Math.min(0.5, 5.55/rows.length));
+      s.addTable(rows, {x:0.5, y:1.35, w:12.33,
+        colW:[2.45,1.45,1.15,1.15,1.15,1.05,1.35,1.35,1.23], rowH:rowH,
+        border:{type:'solid', color:C.grisLinea, pt:0.5}, fontFace:'Arial', valign:'middle'});
+      pie(s);
+    }
+  }
+
+  /* ── 4+ · FICHA DETALLADA POR SUCURSAL ── */
+  if(cfg.c4!==false){
+    const sel = (cfg.tiendas && cfg.tiendas.length)
+      ? D.tiendas.filter(d=>cfg.tiendas.indexOf(d.tienda)>=0)
+      : D.tiendas.slice(0,6);
+    sel.forEach(d=>{
+      const s = pres.addSlide();
+      cab(s, d.tienda, `${d.clasesTxt} · ${d.auditorias} auditoría(s) en ${periodo}`);
+      s.addImage({data:donaPNG(d.pctGlobal, colorPct(d.pctGlobal), 'cumplimiento'),
+        x:0.6, y:1.45, w:3.1, h:3.1});
+
+      /* Bloques de métricas */
+      const bloque=(x,y,titulo,filas,pct)=>{
+        s.addShape(pres.ShapeType.rect, {x, y, w:4.3, h:2.35, fill:{color:C.grisFila}, line:{color:C.grisLinea}});
+        s.addText(titulo, {x:x+0.2, y:y+0.12, w:2.8, h:0.32, fontSize:12, bold:true, color:C.marino,
+          fontFace:'Arial', margin:0, valign:'middle'});
+        s.addText(pct+'%', {x:x+3.0, y:y+0.1, w:1.1, h:0.36, fontSize:16, bold:true, color:colorPct(pct),
+          align:'right', fontFace:'Arial', margin:0, valign:'middle'});
+        filas.forEach((f,i)=>{
+          const yy=y+0.58+i*0.42;
+          s.addText(f[0], {x:x+0.2, y:yy, w:2.7, h:0.36, fontSize:10.5, color:C.gris, fontFace:'Arial',
+            margin:0, valign:'middle'});
+          s.addText(String(f[1]), {x:x+2.9, y:yy, w:1.2, h:0.36, fontSize:12.5, bold:true,
+            color:f[2]||C.texto, align:'right', fontFace:'Arial', margin:0, valign:'middle'});
+        });
+      };
+      bloque(4.15, 1.45, 'Tareas de auditoría', [
+        ['Total de tareas', d.tareas],
+        ['Resueltas', d.resueltas, C.verde],
+        ['Pendientes', d.pendientes, d.pendientes>0?C.rojo:C.verde],
+        ['Resultado de auditoría', d.auditorias?d.pctAud+'%':'—', C.marino2]
+      ], d.pctTareas);
+      bloque(8.9, 1.45, 'Ajustes', [
+        ['Registros', d.ajustes],
+        ['A tiempo', d.ajTiempo, C.verde],
+        ['A destiempo', d.ajDestiempo, d.ajDestiempo>0?C.rojo:C.gris]
+      ], d.pctAjustes);
+      bloque(4.15, 4.05, 'Mermas', [
+        ['Registros', d.mermas],
+        ['A tiempo', d.mmTiempo, C.verde],
+        ['A destiempo', d.mmDestiempo, d.mmDestiempo>0?C.rojo:C.gris]
+      ], d.pctMermas);
+
+      /* Barras comparativas de la tienda */
+      s.addImage({data:barrasPNG(['Tareas','Ajustes','Mermas'],
+        [d.pctTareas, d.pctAjustes, d.pctMermas],
+        [colorPct(d.pctTareas), colorPct(d.pctAjustes), colorPct(d.pctMermas)],
+        'Cumplimiento por área'), x:8.9, y:4.05, w:4.3, h:2.85});
+      pie(s);
+    });
+  }
+
+  return pres;
+}
+
+
+/* ═══ Módulo Cumplimiento: comunicación y UI ═══ */
+var _CUM_DATA=null, _cumTrasDatos=null, _cumMeses=null, _cumTiendasSel=null;
+
+function cumplInit(){ parent.postMessage({type:'pptx-init'},'*'); cumplChipsMeses(); cumplPreview(); }
+function cumStatus(t,cls){ var e=document.getElementById('c_status'); if(e){e.textContent=t||''; e.className='status'+(cls?' '+cls:'');} }
+function cumBox(html,cls){ var e=document.getElementById('c_preview'); if(e){e.className='cuadre '+(cls||'ok'); e.innerHTML=html;} }
+
+function cumplRangoMeses(){
+  var M=(_PPT_CFG&&_PPT_CFG.meses)||[];
+  if(!_cumMeses){
+    var mesSel=(document.getElementById('c_mes')||{}).value;
+    var i=M.indexOf(mesSel); if(i<0)i=M.length-1;
+    _cumMeses=M.slice(Math.max(0,i-3), i+1);
+  }
+  return M.filter(function(m){return _cumMeses.indexOf(m)>=0;});
+}
+function cumplChipsMeses(){
+  var cont=document.getElementById('c_meses_chips'); if(!cont)return;
+  var M=(_PPT_CFG&&_PPT_CFG.meses)||[]; if(!M.length)return;
+  var sel=cumplRangoMeses();
+  cont.innerHTML=M.map(function(m){
+    var on=sel.indexOf(m)>=0;
+    return '<button type="button" data-mes="'+m+'" style="border:1px solid '+(on?'transparent':'var(--border)')+
+      ';background:'+(on?'var(--k-blue,#5e72e4)':'transparent')+';color:'+(on?'#fff':'var(--txt)')+
+      ';border-radius:20px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">'+
+      (on?'✓ ':'')+m+'</button>';
+  }).join('');
+  cont.querySelectorAll('button').forEach(function(b){
+    b.onclick=function(){
+      var m=b.getAttribute('data-mes'), i=_cumMeses.indexOf(m);
+      if(i>=0){ if(_cumMeses.length>1)_cumMeses.splice(i,1); } else _cumMeses.push(m);
+      cumplChipsMeses(); cumplPreview();
+    };
+  });
+}
+/* Chips de sucursales para las fichas detalladas */
+function cumplChipsTiendas(){
+  var cont=document.getElementById('c_tiendas_chips'); if(!cont)return;
+  var D=_CUM_DATA;
+  if(!D||!D.tiendas.length){ cont.innerHTML='<span style="font-size:12px;color:var(--muted)">Sin sucursales en el período.</span>'; return; }
+  if(!_cumTiendasSel) _cumTiendasSel=D.tiendas.slice(0,6).map(function(t){return t.tienda;});
+  cont.innerHTML=D.tiendas.map(function(t){
+    var on=_cumTiendasSel.indexOf(t.tienda)>=0;
+    return '<button type="button" data-t="'+esc(t.tienda)+'" style="border:1px solid '+(on?'transparent':'var(--border)')+
+      ';background:'+(on?'var(--k-green,#2dce89)':'transparent')+';color:'+(on?'#fff':'var(--txt)')+
+      ';border-radius:20px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">'+
+      (on?'✓ ':'')+esc(t.tienda)+' · '+t.pctGlobal+'%</button>';
+  }).join('');
+  cont.querySelectorAll('button').forEach(function(b){
+    b.onclick=function(){
+      var t=b.getAttribute('data-t'), i=_cumTiendasSel.indexOf(t);
+      if(i>=0)_cumTiendasSel.splice(i,1); else _cumTiendasSel.push(t);
+      cumplChipsTiendas();
+    };
+  });
+}
+function cumplPreview(cb){
+  var rz=(document.getElementById('c_razon')||{}).value;
+  var ms=(document.getElementById('c_mes')||{}).value;
+  if(!rz||!ms){ cumBox('Selecciona razón social y mes…','ok'); return; }
+  _cumTrasDatos=cb||null;
+  cumBox('Consultando datos de '+rz+' · '+ms+'…','ok');
+  parent.postMessage({type:'cumpl-request',razon:rz,mes:ms,mesesRango:cumplRangoMeses()},'*');
+}
+function cumplPintar(){
+  var D=_CUM_DATA; if(!D)return;
+  var T=D.totales;
+  cumBox(
+    '<b>'+D.razon+' · '+D.mes+' '+D.anio+'</b><br>'+
+    '• Sucursales evaluadas: <b>'+D.tiendas.length+'</b><br>'+
+    '• Tareas: <b>'+T.tareas+'</b> ('+T.resueltas+' resueltas, '+T.pendientes+' pendientes) · '+T.pctTareas+'% cumplimiento<br>'+
+    '• Ajustes: <b>'+T.ajustes+'</b> ('+T.pctAjustes+'% a tiempo) · Mermas: <b>'+T.mermas+'</b> ('+T.pctMermas+'% a tiempo)<br>'+
+    '• Cumplimiento global: <b>'+T.pctGlobal+'%</b> · Evolución: <b>'+D.evolucion.meses.length+'</b> mes(es)',
+    D.tiendas.length?'ok':'warn');
+  cumplChipsTiendas();
+}
+function cumplGenerar(){
+  if(typeof PptxGenJS==='undefined'){ cumStatus('No se pudo cargar la librería de PowerPoint.','err'); return; }
+  var run=function(){
+    var D=_CUM_DATA;
+    if(!D||!D.tiendas.length){ cumStatus('Sin datos para generar.','err'); return; }
+    try{
+      var cfg={
+        titulo:(document.getElementById('c_titulo')||{}).value||'Reporte de Cumplimiento',
+        c1:document.getElementById('c_c1').checked, c2:document.getElementById('c_c2').checked,
+        c3:document.getElementById('c_c3').checked, c4:document.getElementById('c_c4').checked,
+        tiendas:_cumTiendasSel||[]
+      };
+      cumStatus('Generando reporte…');
+      construirCumplimiento(D,cfg,PptxGenJS)
+        .writeFile({fileName:(D.razon+'_Cumplimiento_'+D.mes+'-'+D.anio+'.pptx')})
+        .then(function(){ cumStatus('✓ Reporte descargado','ok'); })
+        .catch(function(e){ cumStatus('Error al generar: '+e.message,'err'); });
+    }catch(e){ cumStatus('Error: '+e.message,'err'); }
+  };
+  if(!_CUM_DATA) cumplPreview(run); else run();
+}
+
+/* ═══ Comunicación con el dashboard (datos + permisos de razón social) ═══ */
+var _PPT_DATA=null, _PPT_CFG=null, _pptEsperando=false;
+
+function pintarConsumosPreview(r){
+  if(!r)return;
+  var box=document.getElementById('cons_preview'); if(box)box.style.display='block';
+  var org=document.getElementById('cons_origen'); if(org)org.textContent=(r.nombre||'')+' · '+r.total+' registros';
+  var sevColor=function(s){return s==='Alta'?'#dc2626':s==='Media'?'#d97706':s==='Baja'?'#ca8a04':'#16a34a';};
+  var sevBg=function(s){return s==='Alta'?'#fde2e2':s==='Media'?'#fdeecb':s==='Baja'?'#fbf3c0':'#e7f8ec';};
+  var kpi=function(v,l,c){return '<div style="background:#fff;border:1px solid var(--border);border-left:4px solid '+c+';border-radius:10px;padding:12px 14px"><div style="font-size:24px;font-weight:800;color:'+c+'">'+v+'</div><div style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;margin-top:2px">'+l+'</div></div>';};
+  var k=document.getElementById('cons_kpis');
+  if(k)k.innerHTML=
+    kpi(r.total,'Registros','#334155')+
+    kpi(r.conObs,'Con observación','#2563eb')+
+    kpi(r.alta,'Alta','#dc2626')+
+    kpi(r.media,'Media','#d97706')+
+    kpi(r.baja,'Baja','#ca8a04')+
+    kpi(r.totLit.toLocaleString('es-MX')+' L','Litros','#0d9488');
+  var maxT=(r.tipos[0]&&r.tipos[0].n)||1;
+  var tp=document.getElementById('cons_tipos');
+  if(tp)tp.innerHTML=r.tipos.length? r.tipos.map(function(t){
+    return '<div style="margin-bottom:7px"><div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text)">'+t.k+'</span><b>'+t.n+'</b></div><div style="height:6px;background:#eef2f7;border-radius:4px;overflow:hidden"><div style="height:100%;width:'+Math.round(t.n/maxT*100)+'%;background:#2563eb"></div></div></div>';
+  }).join('') : '<div style="font-size:13px;color:var(--muted)">Sin inconsistencias 🎉</div>';
+
+  /* Vehículos: se listan TODOS (no solo los que tienen observación), ya
+     agrupados sin duplicados por placa normalizada (ver normPlacaKey en el
+     dashboard). Cada fila es clicable y despliega el detalle de cada carga
+     de esa unidad para poder revisarla una por una. */
+  window._consVehData = r.vehiculos || [];
+  var vb=document.getElementById('cons_veh');
+  if(vb)vb.innerHTML = window._consVehData.length ? window._consVehData.map(function(v,i){
+    var color=sevColor(v.sev), badge=v.sev==='OK'?'Bien':v.sev;
+    return '<div style="border-bottom:1px solid var(--border)">'+
+      '<div onclick="toggleConsVeh('+i+')" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:8px 4px;font-size:12.5px">'+
+        '<span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:'+color+';margin-right:7px"></span><b>'+v.placa+'</b> <span style="color:var(--muted)">· '+v.cargas+' carga'+(v.cargas===1?'':'s')+'</span></span>'+
+        '<span style="display:flex;align-items:center;gap:8px"><span style="font-weight:700;color:'+color+'">'+badge+(v.sev!=='OK'?' · '+v.obs:'')+'</span><span id="cons-veh-arrow-'+i+'" style="color:var(--muted);font-size:11px">▾</span></span>'+
+      '</div>'+
+      '<div id="cons-veh-det-'+i+'" style="display:none;padding:2px 4px 12px 20px"></div>'+
+    '</div>';
+  }).join('') : '<div style="font-size:13px;color:var(--muted)">—</div>';
+
+  var mu=document.getElementById('cons_muestra');
+  if(mu)mu.innerHTML= r.muestra.length? '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#0f172a;color:#fff">'+
+    ['#','Fecha','Vehículo','Litros','Monto','Sev.','Observación'].map(function(h){return '<th style="padding:7px 8px;text-align:left">'+h+'</th>';}).join('')+'</tr></thead><tbody>'+
+    r.muestra.map(function(m){return '<tr style="background:'+sevBg(m.sev)+';border-bottom:1px solid #fff"><td style="padding:6px 8px">'+m.fila+'</td><td style="padding:6px 8px">'+(m.fecha||'')+'</td><td style="padding:6px 8px"><b>'+(m.placa||'')+'</b></td><td style="padding:6px 8px">'+(m.litros!=null?m.litros:'')+'</td><td style="padding:6px 8px">'+(m.monto!=null?'$'+m.monto:'')+'</td><td style="padding:6px 8px;font-weight:700;color:'+sevColor(m.sev)+'">'+m.sev+'</td><td style="padding:6px 8px">'+m.obs+'</td></tr>';}).join('')+
+    '</tbody></table>' : '<div style="font-size:13px;color:var(--muted)">No se detectaron inconsistencias.</div>';
+  var st=document.getElementById('consumos_status'); if(st)st.textContent='Análisis listo. Revisa el resumen y descarga el Excel con colores.';
+}
+
+/* Despliega/oculta, con un clic, el detalle de TODAS las cargas de un
+   vehículo (una fila por carga, con su estado individual), para poder
+   revisarlas una por una sin salir del resumen. */
+function toggleConsVeh(i){
+  var det=document.getElementById('cons-veh-det-'+i);
+  var arrow=document.getElementById('cons-veh-arrow-'+i);
+  if(!det)return;
+  var abierto = det.style.display !== 'none';
+  if(abierto){ det.style.display='none'; if(arrow)arrow.textContent='▾'; return; }
+  if(!det.dataset.built){
+    var v=(window._consVehData||[])[i];
+    var sevColor=function(s){return s==='Alta'?'#dc2626':s==='Media'?'#d97706':s==='Baja'?'#ca8a04':'#16a34a';};
+    if(!v||!v.detalle||!v.detalle.length){ det.innerHTML='<div style="font-size:12px;color:var(--muted);padding:6px 0">Sin detalle disponible.</div>'; }
+    else{
+      det.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:11.5px"><thead><tr style="color:var(--muted);text-transform:uppercase;font-size:10px">'+
+        ['Fila','Fecha','Litros','Monto','$/L','Estación','Combustible','Estado'].map(function(h){return '<th style="padding:4px 6px;text-align:left">'+h+'</th>';}).join('')+
+        '</tr></thead><tbody>'+
+        v.detalle.map(function(d){
+          return '<tr style="border-top:1px solid var(--border)" title="'+String(d.obs||'').replace(/"/g,'&quot;')+'">'+
+            '<td style="padding:4px 6px">'+d.fila+'</td>'+
+            '<td style="padding:4px 6px">'+(d.fecha||'')+'</td>'+
+            '<td style="padding:4px 6px">'+(d.litros!=null?d.litros:'—')+'</td>'+
+            '<td style="padding:4px 6px">'+(d.monto!=null?'$'+d.monto:'—')+'</td>'+
+            '<td style="padding:4px 6px">'+(d.precio!=null?'$'+d.precio:'—')+'</td>'+
+            '<td style="padding:4px 6px">'+(d.estacion||'—')+'</td>'+
+            '<td style="padding:4px 6px">'+(d.producto||'—')+'</td>'+
+            '<td style="padding:4px 6px;font-weight:700;color:'+sevColor(d.sev)+'">'+(d.sev==='OK'?'Bien':d.sev)+'</td>'+
+          '</tr>';
+        }).join('')+
+        '</tbody></table>';
+    }
+    det.dataset.built='1';
+  }
+  det.style.display='block'; if(arrow)arrow.textContent='▴';
+}
+
+window.addEventListener('message',function(ev){
+  var d=ev.data; if(!d||typeof d!=='object')return;
+  if(d.type==='consumos-preview'){ pintarConsumosPreview(d.resumen); return; }
+  if(d.type==='pptx-config'){
+    _PPT_CFG=d;
+    var rz=document.getElementById('p_razon'), ms=document.getElementById('p_mes');
+    if(rz&&!rz.options.length){
+      /* Solo las razones que la cuenta tiene permitidas */
+      rz.innerHTML=(d.razones||[]).map(function(r){return '<option value="'+r+'">'+r+'</option>';}).join('');
+    }
+    if(ms&&!ms.options.length){
+      ms.innerHTML=(d.meses||[]).map(function(m){
+        return '<option'+(m===d.mesActual?' selected':'')+'>'+m+'</option>';}).join('');
+    }
+    pptChipsMeses();
+    pptPreview();
+    /* selectores del módulo de Cumplimiento */
+    var crz=document.getElementById('c_razon'), cms=document.getElementById('c_mes');
+    if(crz&&!crz.options.length) crz.innerHTML=(d.razones||[]).map(function(r){return '<option value="'+r+'">'+r+'</option>';}).join('');
+    if(cms&&!cms.options.length) cms.innerHTML=(d.meses||[]).map(function(m){return '<option'+(m===d.mesActual?' selected':'')+'>'+m+'</option>';}).join('');
+    cumplChipsMeses();
+    return;
+  }
+  if(d.type==='cumpl-init-data'){
+    cxLlenarFiltros(d.razones,d.tiendas);
+    return;
+  }
+  if(d.type==='cumpl-done'){
+    if(typeof _cxReset==='function')_cxReset();
+    var st=document.getElementById('cx_status');
+    if(d.error){ if(st){st.textContent='⚠ '+d.error;} alert('No se pudo generar el reporte: '+d.error); }
+    else if(st){ st.textContent='✓ Reporte generado.'; }
+    return;
+  }
+  if(d.type==='cumpl-data'){
+    if(d.error){ _CUM_DATA=null; cumStatus(d.error,'err'); cumBox('⚠ '+d.error,'err'); return; }
+    _CUM_DATA=d.payload;
+    cumplPintar();
+    if(_cumTrasDatos){ var fc=_cumTrasDatos; _cumTrasDatos=null; fc(); }
+    return;
+  }
+  if(d.type==='pptx-data'){
+    _pptEsperando=false;
+    if(d.error){ _PPT_DATA=null; pptStatus(d.error,'err'); pptBox('⚠ '+d.error,'err'); return; }
+    _PPT_DATA=d.payload;
+    pptPintarPreview();
+    if(_pptTrasDatos){ var f=_pptTrasDatos; _pptTrasDatos=null; f(); }
+  }
+});
+var _pptTrasDatos=null;
+
+function pptStatus(t,cls){
+  var e=document.getElementById('p_status'); if(!e)return;
+  e.textContent=t||''; e.className='status'+(cls?' '+cls:'');
+}
+function pptBox(html,cls){
+  var e=document.getElementById('p_preview'); if(!e)return;
+  e.className='cuadre '+(cls||'ok'); e.innerHTML=html;
+}
+/* Meses del histórico: el usuario elige libremente cuáles incluir.
+   Por defecto se marcan los 4 meses que terminan en el mes del reporte. */
+var _mesesSel=null;
+function pptRangoMeses(){
+  var M=(_PPT_CFG&&_PPT_CFG.meses)||[];
+  if(!_mesesSel){
+    var mesSel=(document.getElementById('p_mes')||{}).value;
+    var i=M.indexOf(mesSel); if(i<0)i=M.length-1;
+    _mesesSel=M.slice(Math.max(0,i-3), i+1);
+  }
+  /* mantener el orden natural del calendario */
+  return M.filter(function(m){return _mesesSel.indexOf(m)>=0;});
+}
+function pptChipsMeses(){
+  var cont=document.getElementById('p_meses_chips'); if(!cont)return;
+  var M=(_PPT_CFG&&_PPT_CFG.meses)||[];
+  var sel=pptRangoMeses();
+  cont.innerHTML=M.map(function(m){
+    var on=sel.indexOf(m)>=0;
+    return '<button type="button" data-mes="'+m+'" style="border:1px solid '+(on?'transparent':'var(--border)')+
+      ';background:'+(on?'var(--k-blue,#5e72e4)':'transparent')+';color:'+(on?'#fff':'var(--txt)')+
+      ';border-radius:20px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">'+
+      (on?'✓ ':'')+m+'</button>';
+  }).join('');
+  cont.querySelectorAll('button').forEach(function(b){
+    b.onclick=function(){
+      var m=b.getAttribute('data-mes');
+      var i=_mesesSel.indexOf(m);
+      if(i>=0){ if(_mesesSel.length>1)_mesesSel.splice(i,1); }
+      else _mesesSel.push(m);
+      pptChipsMeses(); pptPreview();
+    };
+  });
+}
+/* Pide los datos al dashboard (él aplica el filtro de razón social) */
+function pptPreview(cb){
+  var rz=(document.getElementById('p_razon')||{}).value;
+  var ms=(document.getElementById('p_mes')||{}).value;
+  if(!rz||!ms){ pptBox('Selecciona razón social y mes…','ok'); return; }
+  _pptTrasDatos=cb||null;
+  _pptEsperando=true;
+  pptBox('Consultando datos de '+rz+' · '+ms+'…','ok');
+  parent.postMessage({type:'pptx-request',razon:rz,mes:ms,mesesRango:pptRangoMeses()},'*');
+}
+function pptPintarPreview(){
+  var D=_PPT_DATA; if(!D)return;
+  var A=D.actividades;
+  var repro=A.programadas.concat(A.noProgramadas).filter(function(x){return /reprogramad/i.test(x.estado);}).length;
+  pptBox(
+    '<b>'+D.razon+' · '+D.mes+' '+D.anio+'</b><br>'+
+    '• Actividades: <b>'+A.total+'</b> ('+A.programadas.length+' programadas, '+A.noProgramadas.length+' no programadas) · '+A.pctCompl+'% realizadas'+(repro?' · <b>'+repro+' reprogramada(s)</b>':'')+'<br>'+
+    '• '+((document.getElementById('p_nomproc')||{}).value||'Procesos')+': <b>'+D.procesosDetalle.length+'</b> tienda(s) · '+D.procesos.pendientes+' pendientes · '+D.procesos.pctResuelto+'% resuelto<br>'+
+    '• Orden y Limpieza: <b>'+D.ordenDetalle.length+'</b> tienda(s) · '+D.ordenLimpieza.pendientes+' pendientes · '+D.ordenLimpieza.pctResuelto+'% resuelto<br>'+
+    '• Ajustes: <b>'+D.ajustes.total+'</b> ('+D.ajustes.pctATiempo+'% a tiempo) · Mermas: <b>'+D.mermas.total+'</b> ('+D.mermas.pctATiempo+'% a tiempo)<br>'+
+    '• Histórico: <b>'+D.histProcesos.meses.length+'</b> mes(es) en Procesos · <b>'+D.histOrden.meses.length+'</b> en Orden y Limpieza',
+    (A.total||D.procesosDetalle.length||D.ordenDetalle.length)?'ok':'warn');
+}
+function pptGenerar(){
+  if(typeof PptxGenJS==='undefined'){ pptStatus('No se pudo cargar la librería de PowerPoint. Revisa tu conexión.','err'); return; }
+  var run=function(){
+    var D=_PPT_DATA;
+    if(!D){ pptStatus('Sin datos para generar.','err'); return; }
+    try{
+      var cfg={
+        titulo:(document.getElementById('p_titulo')||{}).value||'Programa de Auditoría',
+        nombreProcesos:(document.getElementById('p_nomproc')||{}).value||'Tareas Auditoría de Procesos',
+        s1:document.getElementById('p_s1').checked, s2:document.getElementById('p_s2').checked,
+        s3:document.getElementById('p_s3').checked, s4:document.getElementById('p_s4').checked,
+        s5:document.getElementById('p_s5').checked, s6:document.getElementById('p_s6').checked,
+        s7:document.getElementById('p_s7').checked
+      };
+      pptStatus('Generando presentación…');
+      var pres=construirPresentacion(D,cfg,PptxGenJS);
+      pres.writeFile({fileName:(D.razon+'_Presentacion_'+D.mes+'-'+D.anio+'.pptx')})
+        .then(function(){ pptStatus('✓ Presentación descargada','ok'); })
+        .catch(function(e){ pptStatus('Error al generar: '+e.message,'err'); });
+    }catch(e){ pptStatus('Error: '+e.message,'err'); }
+  };
+  /* Si no hay datos frescos, pedirlos y generar al llegar */
+  if(!_PPT_DATA) pptPreview(run); else run();
+}
+
+/* init */
+document.getElementById('f_fecha').value=hoyISO();
+document.getElementById('e_fecha').value=hoyISO();
+fLetra();
+for(var i=0;i<3;i++){document.getElementById('e_fbody').appendChild(factRow());}
+ftot();
+entToggle();
+</script>
+</body>
+</html>

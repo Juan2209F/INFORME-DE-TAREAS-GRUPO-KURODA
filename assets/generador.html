@@ -1,0 +1,3119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generador de Dashboard Ejecutivo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+  :root {
+    --teal: #008080;
+    --teal-light: #e6f4f4;
+    --gold: #F0A500;
+    --gold-light: #fff8e6;
+    --accent: #00A896;
+    --green: #2E7D32;
+    --red: #C62828;
+    --orange: #E65100;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-400: #9ca3af;
+    --gray-600: #4b5563;
+    --gray-800: #1f2937;
+    --white: #ffffff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--gray-50);
+    color: var(--gray-800);
+    min-height: 100vh;
+  }
+
+  /* — Header — */
+  header {
+    background: var(--white);
+    border-bottom: 1px solid var(--gray-200);
+    padding: 1rem 2rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .logo-box {
+    width: 40px; height: 40px;
+    background: var(--teal);
+    border-radius: 10px;
+    display: grid; place-items: center;
+    font-weight: 700; font-size: 0.85rem;
+    color: var(--white); flex-shrink: 0;
+  }
+  .header-text h1 { font-size: 1.05rem; font-weight: 700; color: var(--gray-800); }
+  .header-text p { font-size: 0.78rem; color: var(--gray-400); margin-top: 1px; }
+
+  /* — Main — */
+  main {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+    display: flex; flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  /* — Upload zone — */
+  .upload-zone {
+    border: 2px dashed var(--gray-200);
+    border-radius: 14px;
+    padding: 3rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    background: var(--white);
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--teal);
+    background: var(--teal-light);
+  }
+  .upload-icon {
+    font-size: 2.2rem;
+    margin-bottom: 1rem;
+  }
+  .upload-zone h2 {
+    font-size: 1.1rem; font-weight: 600;
+    margin-bottom: 0.35rem; color: var(--gray-800);
+  }
+  .upload-zone p { font-size: 0.85rem; color: var(--gray-400); }
+  .ext-badge {
+    display: inline-block; margin-top: 0.85rem;
+    padding: 0.25rem 0.75rem;
+    background: var(--gold-light);
+    border: 1px solid #fde68a;
+    border-radius: 20px; font-size: 0.75rem;
+    color: var(--gold); font-weight: 600;
+  }
+  #fileInput { display: none; }
+
+  /* — Format card — */
+  .format-card {
+    background: var(--white);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid var(--gray-200);
+  }
+  .format-card h3 {
+    font-size: 0.75rem; font-weight: 700;
+    color: var(--teal); letter-spacing: 0.06em;
+    text-transform: uppercase; margin-bottom: 0.85rem;
+  }
+  .columns-grid {
+    display: flex; flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .col-pill {
+    padding: 0.3rem 0.7rem;
+    border-radius: 6px; font-size: 0.78rem;
+    display: flex; align-items: center; gap: 0.4rem;
+  }
+  .col-pill.required { background: var(--teal-light); color: var(--teal); border: 1px solid #b2d8d8; }
+  .col-pill.optional { background: var(--gray-100); color: var(--gray-600); border: 1px solid var(--gray-200); }
+  .col-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+  .required .col-dot { background: var(--teal); }
+  .optional .col-dot { background: var(--gray-400); }
+  .note { margin-top: 0.85rem; font-size: 0.78rem; color: var(--gray-400); line-height: 1.6; }
+  .note strong { color: var(--gold); font-weight: 600; }
+  .force-refresh-check {
+    display: flex; align-items: flex-start; gap: 0.5rem; margin: 0.6rem 0 1rem;
+    font-size: 0.78rem; color: var(--gray-600); cursor: pointer; user-select: none;
+  }
+  .force-refresh-check input { margin-top: 3px; cursor: pointer; accent-color: var(--teal); }
+  .force-refresh-check em { color: var(--gray-400); font-style: normal; }
+
+  /* — Status — */
+  #statusArea {
+    display: none;
+    background: var(--white);
+    border-radius: 12px;
+    padding: 1.5rem;
+    border: 1px solid var(--gray-200);
+  }
+  .status-header {
+    display: flex; align-items: center; gap: 0.65rem;
+    margin-bottom: 1rem;
+  }
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid var(--gray-200);
+    border-top-color: var(--teal);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #statusTitle { font-size: 0.95rem; font-weight: 600; color: var(--gray-800); }
+  .progress-bar-wrap {
+    background: var(--gray-100);
+    border-radius: 30px; height: 5px;
+    overflow: hidden; margin-bottom: 1rem;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--teal), var(--accent));
+    border-radius: 30px; width: 0%;
+    transition: width 0.4s ease;
+  }
+  .log-lines { font-size: 0.8rem; color: var(--gray-400); line-height: 2.1; }
+  .log-line { display: flex; align-items: center; gap: 0.45rem; }
+  .log-line.done { color: var(--teal); }
+  .log-line.active { color: var(--gray-800); font-weight: 500; }
+
+  /* — KPI preview — */
+  #previewArea { display: none; }
+  .section-label {
+    font-size: 0.72rem; font-weight: 700;
+    color: var(--teal); text-transform: uppercase;
+    letter-spacing: 0.07em; margin-bottom: 0.65rem;
+  }
+  .preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.75rem; margin-bottom: 1.25rem;
+  }
+  .kpi-card {
+    background: var(--white);
+    border-radius: 10px; padding: 1rem 1.1rem;
+    border: 1px solid var(--gray-200);
+  }
+  .kpi-label { font-size: 0.72rem; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.35rem; }
+  .kpi-value { font-size: 1.45rem; font-weight: 700; line-height: 1.2; }
+  .kpi-value.green { color: #2E7D32; }
+  .kpi-value.gold { color: var(--gold); }
+  .kpi-value.teal { color: var(--teal); }
+  .kpi-sub { font-size: 0.78rem; color: var(--gray-400); margin-top: 0.2rem; }
+
+  /* — Slides list — */
+  .slide-list {
+    display: flex; flex-direction: column; gap: 0.4rem;
+    margin-bottom: 1.25rem;
+  }
+  .slide-item {
+    display: flex; align-items: center; gap: 0.65rem;
+    padding: 0.6rem 0.9rem;
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+    border-radius: 8px; font-size: 0.83rem; color: var(--gray-600);
+  }
+  .slide-num {
+    width: 22px; height: 22px; flex-shrink: 0;
+    background: var(--teal-light);
+    border-radius: 5px; display: grid; place-items: center;
+    font-size: 0.68rem; font-weight: 700; color: var(--teal);
+  }
+
+  /* — Buttons — */
+  .download-btn {
+    display: flex; align-items: center; justify-content: center;
+    gap: 0.6rem;
+    background: var(--teal);
+    color: var(--white); border: none; border-radius: 10px;
+    padding: 0.9rem 2rem; font-family: 'Inter', sans-serif;
+    font-size: 0.95rem; font-weight: 600; cursor: pointer;
+    transition: background 0.2s, transform 0.15s; width: 100%;
+  }
+  .download-btn:hover { background: #006666; transform: translateY(-1px); }
+  .download-btn:active { transform: translateY(0); }
+
+  .reset-btn {
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    color: var(--gray-600); border-radius: 8px;
+    padding: 0.6rem 1.5rem; font-size: 0.83rem;
+    cursor: pointer; transition: border-color 0.2s, color 0.2s; width: 100%;
+    font-family: 'Inter', sans-serif; margin-top: 0.5rem;
+  }
+  .reset-btn:hover { border-color: var(--teal); color: var(--teal); }
+
+  footer {
+    padding: 1.5rem; color: var(--gray-400);
+    font-size: 0.73rem; text-align: center;
+    border-top: 1px solid var(--gray-200);
+    background: var(--white); margin-top: 1rem;
+  }
+
+  /* — Filter panel — */
+  #filterPanel {
+    display: none;
+    background: var(--white);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid var(--gray-200);
+  }
+  #filterPanel h3 {
+    font-size: 0.75rem; font-weight: 700;
+    color: var(--teal); letter-spacing: 0.06em;
+    text-transform: uppercase; margin-bottom: 1rem;
+  }
+  .filter-row {
+    display: flex; flex-wrap: wrap; gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+  .filter-group {
+    display: flex; flex-direction: column; gap: 0.3rem;
+    flex: 1; min-width: 140px;
+  }
+  .filter-group label {
+    font-size: 0.72rem; font-weight: 600;
+    color: var(--gray-600); text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .filter-group select {
+    padding: 0.45rem 0.7rem;
+    border: 1px solid var(--gray-200);
+    border-radius: 8px; font-size: 0.83rem;
+    color: var(--gray-800); background: var(--gray-50);
+    font-family: 'Inter', sans-serif; cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .filter-group select:focus {
+    outline: none; border-color: var(--teal);
+  }
+  .filter-info {
+    font-size: 0.78rem; color: var(--gray-400);
+    margin-top: 0.5rem; padding: 0.5rem 0.75rem;
+    background: var(--teal-light); border-radius: 8px;
+    border: 1px solid #b2d8d8;
+  }
+  .filter-info strong { color: var(--teal); }
+  .generate-btn {
+    display: flex; align-items: center; justify-content: center;
+    gap: 0.6rem;
+    background: var(--gold);
+    color: var(--white); border: none; border-radius: 10px;
+    padding: 0.75rem 2rem; font-family: 'Inter', sans-serif;
+    font-size: 0.9rem; font-weight: 600; cursor: pointer;
+    transition: background 0.2s, transform 0.15s; width: 100%;
+    margin-top: 0.75rem;
+  }
+  .generate-btn:hover { background: #c98a00; transform: translateY(-1px); }
+  .generate-btn:active { transform: translateY(0); }
+
+  /* — Storage Panel — */
+  #storagePanel {
+    background: var(--white);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid var(--gray-200);
+  }
+  #storagePanel h3 {
+    font-size: 0.75rem; font-weight: 700;
+    color: var(--teal); letter-spacing: 0.06em;
+    text-transform: uppercase; margin-bottom: 1rem;
+  }
+  .storage-filters {
+    display: flex; flex-wrap: wrap; gap: 0.6rem;
+    margin-bottom: 0.85rem;
+  }
+  .storage-filters select, .storage-filters input {
+    padding: 0.4rem 0.65rem;
+    border: 1px solid var(--gray-200);
+    border-radius: 8px; font-size: 0.82rem;
+    color: var(--gray-800); background: var(--gray-50);
+    font-family: 'Inter', sans-serif; cursor: pointer;
+    flex: 1; min-width: 120px;
+  }
+  .storage-filters select:focus, .storage-filters input:focus { outline: none; border-color: var(--teal); }
+  .storage-table-wrap { overflow-x: auto; }
+  .storage-table {
+    width: 100%; border-collapse: collapse;
+    font-size: 0.8rem;
+  }
+  .storage-table th {
+    text-align: left; padding: 0.45rem 0.65rem;
+    background: var(--gray-100); color: var(--gray-600);
+    font-weight: 600; font-size: 0.72rem;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--gray-200);
+  }
+  .storage-table td {
+    padding: 0.4rem 0.65rem;
+    border-bottom: 1px solid var(--gray-100);
+    color: var(--gray-800);
+  }
+  .storage-table tr:last-child td { border-bottom: none; }
+  .storage-table tr:hover td { background: var(--teal-light); }
+  .badge-ok { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600; background: #d1fae5; color: #065f46; }
+  .badge-warn { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600; background: #fef3c7; color: #92400e; }
+  .empty-state { text-align: center; padding: 1.5rem; color: var(--gray-400); font-size: 0.85rem; }
+  .storage-actions { display: flex; gap: 0.5rem; margin-top: 0.85rem; }
+
+  /* Tarjetas de Detalle Individual (replican el bloque Gerente/Tienda/Concepto del Excel) */
+  .detalle-cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem; }
+  .detalle-card { border: 1px solid var(--gray-200); border-radius: 10px; overflow: hidden; background: #fff; }
+  .detalle-card-head { padding: 0.7rem 0.85rem 0.5rem; }
+  .detalle-card-head .gerente { font-size: 0.72rem; color: var(--gray-400); font-weight: 600; }
+  .detalle-card-head .tienda { font-size: 0.9rem; font-weight: 700; color: var(--gray-800); margin-top: 2px; }
+  .detalle-badge-audit { display: inline-block; font-size: 0.6rem; font-weight: 700; color: #fff; background: #2E75B6; padding: 2px 7px; border-radius: 20px; margin-left: 6px; vertical-align: middle; }
+  .detalle-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  .detalle-table th.concepto-header { background: #fff; color: var(--gray-800); border-bottom: 2px solid var(--gray-200); }
+  .detalle-table th.pct-header { background: #2E75B6; color: #fff; width: 54px; }
+  .detalle-table th { padding: 0.4rem 0.6rem; text-align: left; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; }
+  .detalle-table td { padding: 0.4rem 0.6rem; border-top: 1px solid var(--gray-100); }
+  .detalle-table td.concepto { color: var(--gray-800); }
+  .detalle-table td.valor { text-align: center; font-weight: 600; }
+  .detalle-table td.valor.audit-cell { background: #2E75B6; }
+  .detalle-row-highlight td.concepto { font-weight: 700; color: var(--teal); }
+  .detalle-total-row td { background: var(--gray-600); color: #fff; font-weight: 700; }
+  .detalle-total-row td.valor { text-align: center; }
+  .detalle-card-foot { padding: 0.4rem 0.85rem 0.65rem; font-size: 0.72rem; color: var(--gray-400); }
+
+  /* Selector múltiple de meses (Detalle Individual) */
+  .ms-dropdown { position: relative; flex: 1; min-width: 190px; }
+  .ms-dropdown-btn {
+    width: 100%; text-align: left; padding: 0.4rem 0.65rem; border: 1px solid var(--gray-200);
+    border-radius: 8px; font-size: 0.82rem; color: var(--gray-800); background: var(--gray-50);
+    font-family: 'Inter', sans-serif; cursor: pointer;
+  }
+  .ms-dropdown-btn:hover { border-color: var(--teal); }
+  .ms-dropdown-panel {
+    position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; width: 280px; max-width: 90vw;
+    background: #fff; border: 1px solid var(--gray-200); border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12); padding: 0.6rem;
+  }
+  .ms-quick-row { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--gray-100); }
+  .ms-quick-btn {
+    font-size: 0.68rem; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 20px;
+    border: 1px solid var(--gray-200); background: var(--gray-50); color: var(--gray-600); cursor: pointer;
+  }
+  .ms-quick-btn:hover { background: var(--teal-light); border-color: var(--teal); color: var(--teal); }
+  .ms-checklist { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.15rem; }
+  .ms-checklist label {
+    display: flex; align-items: center; gap: 0.45rem; font-size: 0.8rem; color: var(--gray-800);
+    padding: 0.25rem 0.35rem; border-radius: 6px; cursor: pointer;
+  }
+  .ms-checklist label:hover { background: var(--gray-50); }
+  .ms-checklist input { accent-color: var(--teal); cursor: pointer; }
+  .btn-sm {
+    padding: 0.4rem 0.9rem; border-radius: 8px; font-size: 0.78rem;
+    font-family: 'Inter', sans-serif; cursor: pointer; font-weight: 600;
+    border: 1px solid var(--gray-200); color: var(--gray-600); background: var(--white);
+    transition: all 0.15s;
+  }
+  .btn-sm:hover { border-color: var(--teal); color: var(--teal); }
+  .btn-sm.danger:hover { border-color: var(--red); color: var(--red); }
+
+  /* — Trend Report — */
+  .trend-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 0.85rem; flex-wrap: wrap; gap: 0.5rem;
+  }
+  .trend-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 0.75rem;
+  }
+  .trend-card {
+    background: var(--white);
+    border-radius: 10px; padding: 1rem 1.1rem;
+    border: 1px solid var(--gray-200);
+  }
+  .trend-card h4 {
+    font-size: 0.82rem; font-weight: 700;
+    color: var(--gray-800); margin-bottom: 0.6rem;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .trend-row {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 0.3rem; font-size: 0.78rem;
+  }
+  .trend-label { color: var(--gray-400); }
+  .trend-val { font-weight: 600; color: var(--gray-800); }
+  .trend-bar-wrap { background: var(--gray-100); border-radius: 4px; height: 5px; margin: 0.5rem 0 0.3rem; overflow: hidden; }
+  .trend-bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s; }
+  .trend-arrow { font-size: 0.75rem; font-weight: 700; }
+  .arrow-up { color: var(--green); }
+  .arrow-down { color: var(--red); }
+  .arrow-flat { color: var(--gray-400); }
+
+  .tab-bar {
+    display: flex; gap: 0.4rem; margin-bottom: 0.85rem;
+    border-bottom: 2px solid var(--gray-200); padding-bottom: 0;
+  }
+  .tab-btn {
+    padding: 0.45rem 1rem; font-size: 0.82rem; font-weight: 600;
+    border: none; background: none; cursor: pointer; color: var(--gray-400);
+    border-bottom: 2px solid transparent; margin-bottom: -2px;
+    font-family: 'Inter', sans-serif; transition: color 0.15s;
+  }
+  .tab-btn.active { color: var(--teal); border-bottom-color: var(--teal); }
+  .tab-btn:hover:not(.active) { color: var(--gray-800); }
+
+  /* — Barra de vistas principal (Cargar / Historial / Tendencia / Detalle) — */
+  .gen-tabbar {
+    display: flex; gap: 0.4rem; flex-wrap: wrap;
+    background: var(--white); border-bottom: 1px solid var(--gray-200);
+    padding: 0.5rem 2rem;
+  }
+  .gen-tab {
+    padding: 0.5rem 1rem; font-size: 0.82rem; font-weight: 600;
+    border: 1px solid transparent; border-radius: 8px; background: none;
+    cursor: pointer; color: var(--gray-600); font-family: 'Inter', sans-serif;
+    transition: all 0.15s;
+  }
+  .gen-tab:hover:not(.active) { background: var(--gray-50); color: var(--gray-800); }
+  .gen-tab.active { background: var(--teal-light); color: var(--teal); }
+  .gen-view { display: flex; flex-direction: column; gap: 1.25rem; }
+  .sb-status {
+    font-size: 0.74rem; font-weight: 600; padding: 0.35rem 0.7rem; border-radius: 20px;
+    display: inline-flex; align-items: center; gap: 0.3rem; white-space: nowrap;
+    font-family: 'Inter', sans-serif;
+  }
+  .sb-status.checking { background: var(--gray-100); color: var(--gray-600); }
+  .sb-status.ok { background: #E8F5E9; color: #2E7D32; }
+  .sb-status.error { background: #FFEBEE; color: #C62828; cursor: help; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-box" id="logoBox">KUR</div>
+  <div class="header-text">
+    <h1 id="hdrTitle">Dashboard Ejecutivo — Generador PPTX</h1>
+    <p id="hdrSub">Cumplimiento de Procesos por Tienda</p>
+  </div>
+  <div style="margin-left:auto;display:flex;gap:0.5rem;align-items:center;">
+    <label id="razonWrap" style="display:none;align-items:center;gap:0.35rem;font-size:0.78rem;color:var(--gray-600);font-weight:600">
+      Razón social
+      <select id="razonSel" onchange="cambiarRazon()" style="padding:0.35rem 0.6rem;border:1px solid var(--gray-200);border-radius:8px;font-size:0.8rem;color:var(--gray-800);background:var(--white);font-family:'Inter',sans-serif;cursor:pointer"></select>
+    </label>
+  </div>
+</header>
+
+<div class="gen-tabbar" id="genTabbar">
+  <button class="gen-tab active" data-view="cargar" onclick="switchGenView('cargar')">📤 Cargar y Generar</button>
+  <button class="gen-tab" data-view="historial" onclick="switchGenView('historial')">🗄️ Historial</button>
+  <button class="gen-tab" data-view="tendencia" onclick="switchGenView('tendencia')">📈 Tendencia</button>
+  <button class="gen-tab" data-view="detalle" onclick="switchGenView('detalle')">🔎 Detalle Individual</button>
+  <span id="sbStatusBadge" class="sb-status checking" style="margin-left:auto">☁️ Verificando…</span>
+  <button class="gen-tab" onclick="descargarCapturaVista()">📸 PNG de esta pantalla</button>
+</div>
+
+<main>
+
+  <div id="view-cargar" class="gen-view">
+
+  <!-- Upload -->
+  <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+    <div class="upload-icon">📊</div>
+    <h2>Carga tu archivo Excel</h2>
+    <p>Arrastra y suelta aquí, o haz clic para seleccionar</p>
+    <div class="ext-badge">.xlsx · .xls</div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+  </div>
+
+  <label class="force-refresh-check" onclick="event.stopPropagation()">
+    <input type="checkbox" id="forceOverwrite">
+    <span>🔄 Reemplazar meses ya guardados con este archivo <em>(actívalo si necesitas corregir datos de un mes que ya se había cargado)</em></span>
+  </label>
+
+  <!-- Format guide -->
+  <div class="format-card">
+    <h3>Formato admitido — 1 hoja por mes (ej. "JUNIO 2026")</h3>
+    <div class="columns-grid">
+      <div class="col-pill required"><div class="col-dot"></div>Tabla resumen: Tienda / % / Cumplió</div>
+      <div class="col-pill required"><div class="col-dot"></div>Bloques por tienda: Gerente + Concepto/%</div>
+      <div class="col-pill required"><div class="col-dot"></div>Picking</div>
+      <div class="col-pill required"><div class="col-dot"></div>Traspasos</div>
+      <div class="col-pill required"><div class="col-dot"></div>Entrega en Obra</div>
+      <div class="col-pill required"><div class="col-dot"></div>Envíos SAP-Beetrack</div>
+      <div class="col-pill required"><div class="col-dot"></div>Rutas Pendientes-Beetrack</div>
+      <div class="col-pill required"><div class="col-dot"></div>Mermas</div>
+    </div>
+    <p class="note">
+      Sube el archivo completo (todas las hojas mensuales). El generador lee cada hoja tal cual está —
+      no requiere convertir nada a una tabla plana.<br>
+      <strong>Sin duplicados:</strong> si vuelves a subir el mismo archivo, los meses ya guardados se omiten
+      automáticamente y solo se agregan los meses nuevos que traiga.
+    </p>
+  </div>
+
+  <!-- Aviso: ya hay datos guardados en la nube, se puede generar sin subir archivo -->
+  <div id="cloudDataNote" class="filter-info" style="display:none;margin-bottom:0.9rem">
+    <strong>☁️ Ya tienes datos guardados en la nube</strong>
+    <span id="cloudDataDesc"></span> — puedes generar el dashboard directamente con los filtros de abajo, sin subir ningún archivo. Sube uno solo si quieres agregar meses nuevos.
+  </div>
+
+  <!-- Filter Panel -->
+  <div id="filterPanel">
+    <h3>🔍 Filtrar razón social, período y tienda</h3>
+    <div class="filter-row">
+      <div class="filter-group" id="filterRazonCargarGroup" style="display:none">
+        <label>Razón social</label>
+        <select id="filterRazonCargar" onchange="cambiarRazonFrom('filterRazonCargar')"></select>
+      </div>
+      <div class="filter-group">
+        <label>Tipo de período</label>
+        <select id="filterType" onchange="updateFilterOptions()">
+          <option value="all">Todo el período</option>
+          <option value="mes">Por Mes (uno o varios)</option>
+          <option value="bimestre">Por Bimestre</option>
+          <option value="semestre">Por Semestre</option>
+          <option value="anio">Por Año</option>
+        </select>
+      </div>
+      <div class="filter-group" id="filterValueGroup" style="display:none">
+        <label id="filterValueLabel">Período</label>
+        <select id="filterValue"></select>
+      </div>
+      <div class="filter-group" id="filterMesesGroup" style="display:none">
+        <label>Meses</label>
+        <div class="ms-dropdown" id="filterMesesDropdown">
+          <button type="button" class="ms-dropdown-btn" onclick="toggleFilterMesesDropdown()" id="filterMesesBtn">Todos los meses ▾</button>
+          <div class="ms-dropdown-panel" id="filterMesesPanel" style="display:none">
+            <div class="ms-quick-row" id="filterMesesQuick"></div>
+            <div class="ms-checklist" id="filterMesesChecklist"></div>
+          </div>
+        </div>
+      </div>
+      <div class="filter-group">
+        <label>Tienda</label>
+        <select id="filterStore">
+          <option value="all">Todas las tiendas</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Proceso</label>
+        <select id="filterProcess">
+          <option value="all">Todos (promedio general)</option>
+        </select>
+      </div>
+    </div>
+    <div class="filter-info" id="filterInfo">
+      <strong>Selección actual:</strong> <span id="filterDesc">Todo el período · Todas las tiendas</span>
+    </div>
+    <button class="generate-btn" id="generateBtn">
+      <span>📊</span> Generar Dashboard con los datos ya cargados
+    </button>
+  </div>
+
+  <!-- Status -->
+  <div id="statusArea">
+    <div class="status-header">
+      <div class="spinner" id="spinner"></div>
+      <div id="statusTitle">Procesando datos…</div>
+    </div>
+    <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressBar"></div></div>
+    <div class="log-lines" id="logLines"></div>
+  </div>
+
+  <!-- Preview & download -->
+  <div id="previewArea">
+    <div class="section-label">Vista previa de KPIs</div>
+    <div class="preview-grid" id="kpiGrid"></div>
+
+    <div class="section-label">Diapositivas incluidas</div>
+    <div class="slide-list">
+      <div class="slide-item"><div class="slide-num">1</div>Portada — KPIs semestral clave</div>
+      <div class="slide-item"><div class="slide-num">2</div>Resumen Ejecutivo — Evolución mensual de cumplimiento</div>
+      <div class="slide-item"><div class="slide-num">3</div>Mapa de Calor — Tienda × Mes</div>
+      <div class="slide-item"><div class="slide-num">4</div>Ranking de Tiendas — Promedio semestral</div>
+      <div class="slide-item"><div class="slide-num">5</div>Promedio Semestral por Proceso</div>
+      <div class="slide-item"><div class="slide-num">6</div>Infografía Resumen</div>
+    </div>
+
+    <button class="download-btn" id="downloadBtn">
+      <span>⬇️</span> Descargar Dashboard en PowerPoint
+    </button>
+    <button class="reset-btn" id="resetBtn">Cargar otro archivo</button>
+  </div>
+
+  </div> <!-- /view-cargar -->
+
+  <!-- Vista: Historial de Cargas -->
+  <div id="view-historial" class="gen-view" style="display:none">
+    <div id="storagePanel">
+      <h3>🗄️ Historial de Cargas</h3>
+      <div class="storage-filters">
+        <select id="filterRazonHist" onchange="cambiarRazonFrom('filterRazonHist')" style="display:none"></select>
+        <select id="storeFilter" onchange="renderStorageTable()">
+          <option value="all">Todas las tiendas</option>
+        </select>
+        <select id="yearFilter" onchange="renderStorageTable()">
+          <option value="all">Todos los años</option>
+        </select>
+        <div class="ms-dropdown" id="histMesDropdown">
+          <button type="button" class="ms-dropdown-btn" onclick="toggleHistMesDropdown()" id="histMesBtn">Todos los meses ▾</button>
+          <div class="ms-dropdown-panel" id="histMesPanel" style="display:none">
+            <div class="ms-quick-row" id="histMesQuick"></div>
+            <div class="ms-checklist" id="histMesChecklist"></div>
+          </div>
+        </div>
+        <select id="processFilterHist" onchange="renderStorageTable()">
+          <option value="all">Todos los procesos</option>
+        </select>
+      </div>
+      <div class="storage-table-wrap">
+        <table class="storage-table" id="storageTable">
+          <thead>
+            <tr>
+              <th>Tienda</th><th>Mes</th><th>Año</th>
+              <th>Promedio</th><th>Procesos</th><th>Cargado</th>
+            </tr>
+          </thead>
+          <tbody id="storageBody"></tbody>
+        </table>
+      </div>
+      <div class="storage-actions">
+        <button class="btn-sm danger" onclick="clearStorage()">🗑️ Limpiar historial</button>
+        <span id="storageCount" style="font-size:0.78rem;color:var(--gray-400);align-self:center;margin-left:auto"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vista: Detalle Individual por Tienda (tarjetas estilo Excel) -->
+  <div id="view-detalle" class="gen-view" style="display:none">
+    <div id="detallePanel">
+      <h3>🔎 Detalle Individual por Tienda</h3>
+      <p class="note" style="margin-top:0;margin-bottom:0.9rem">
+        Muestra cada tienda tal cual aparece en el Excel. Las celdas en <strong style="color:#2E75B6">azul</strong>
+        indican que ese mes la tienda fue calificada con una <strong>auditoría</strong> (el % final es la
+        calificación de la auditoría, no un promedio por proceso individual).
+      </p>
+      <div class="storage-filters">
+        <select id="filterRazonDetalle" onchange="cambiarRazonFrom('filterRazonDetalle')" style="display:none"></select>
+        <div class="ms-dropdown" id="detalleMesDropdown">
+          <button type="button" class="ms-dropdown-btn" onclick="toggleMesDropdown()" id="detalleMesBtn">Todos los meses ▾</button>
+          <div class="ms-dropdown-panel" id="detalleMesPanel" style="display:none">
+            <div class="ms-quick-row" id="detalleMesQuick"></div>
+            <div class="ms-checklist" id="detalleMesChecklist"></div>
+          </div>
+        </div>
+        <select id="detalleTienda" onchange="renderDetalleCards()"></select>
+        <select id="detalleAnio" onchange="renderDetalleCards()"></select>
+        <select id="detalleProceso" onchange="renderDetalleCards()"></select>
+      </div>
+      <div id="detalleCards" class="detalle-cards-grid"></div>
+    </div>
+  </div>
+
+  <!-- Vista: Informe de Tendencia por Sucursal -->
+  <div id="view-tendencia" class="gen-view" style="display:none">
+    <div id="trendArea">
+      <div class="section-label">📈 Informe de Tendencia por Sucursal</div>
+      <div class="storage-filters">
+        <select id="filterRazonTrend" onchange="cambiarRazonFrom('filterRazonTrend')" style="display:none"></select>
+        <select id="trendFilterTienda" onchange="renderTrend(currentTrendTab)">
+          <option value="all">Todas las tiendas</option>
+        </select>
+        <select id="trendFilterAnio" onchange="renderTrend(currentTrendTab)">
+          <option value="all">Todos los años</option>
+        </select>
+        <div class="ms-dropdown" id="trendMesDropdown">
+          <button type="button" class="ms-dropdown-btn" onclick="toggleTrendMesDropdown()" id="trendMesBtn">Todos los meses ▾</button>
+          <div class="ms-dropdown-panel" id="trendMesPanel" style="display:none">
+            <div class="ms-quick-row" id="trendMesQuick"></div>
+            <div class="ms-checklist" id="trendMesChecklist"></div>
+          </div>
+        </div>
+        <select id="trendFilterProceso" onchange="renderTrend(currentTrendTab)">
+          <option value="all">Promedio general</option>
+        </select>
+      </div>
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTrendTab('cumplimiento')">Cumplimiento</button>
+        <button class="tab-btn" onclick="switchTrendTab('procesos')">Procesos</button>
+        <button class="tab-btn" onclick="switchTrendTab('ranking')">Ranking</button>
+      </div>
+      <div id="trendContent"></div>
+      <div style="margin-top:0.85rem;display:flex;gap:0.5rem;">
+        <button class="download-btn" id="downloadWordBtn" style="background:var(--teal);max-width:320px;font-size:0.85rem;padding:0.7rem 1.2rem" onclick="downloadAuditWord()">
+          <span>📄</span> Descargar Informe de Auditoría (.rtf)
+        </button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>Generador de Dashboard Ejecutivo · Cumplimiento de Procesos</footer>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// PPTX COLOR CONSTANTS
+// ═══════════════════════════════════════════════════════════
+const C = {
+  navy:'0D1B3E', teal:'008080', teal2:'00A896', gold:'F0A500',
+  white:'FFFFFF', off:'F4F6FA', gray1:'64748B', gray2:'CBD5E1',
+  accent:'00C9B1', green:'2E7D32', orange:'E65100', red:'C62828',
+};
+
+// ═══════════════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════════════
+function isNA(v) {
+  if (v === null || v === undefined) return true;
+  if (typeof v === 'string' && v.trim().toUpperCase() === 'N/A') return true;
+  return false;
+}
+function toNum(v) {
+  if (isNA(v)) return null;
+  const n = parseFloat(v);
+  return isNaN(n) ? null : n;
+}
+function avg(arr) {
+  const valid = arr.filter(x => x !== null && x !== undefined);
+  if (!valid.length) return null;
+  return valid.reduce((a,b)=>a+b,0)/valid.length;
+}
+function heatFill(v) {
+  if (v === null || v === undefined) return 'E0E0E0';
+  if (v >= 80) return 'A5D6A7';
+  if (v >= 60) return 'FFF176';
+  if (v >= 40) return 'FFCC80';
+  return 'EF9A9A';
+}
+function heatTextColor(v) {
+  if (v >= 80) return '1B5E20';
+  if (v >= 60) return '7B6000';
+  if (v >= 40) return 'BF360C';
+  return '880E4F';
+}
+function barColor(v) {
+  return v >= 80 ? '2E7D32' : v >= 60 ? 'F57F17' : 'C62828';
+}
+// PowerPoint no puede abrir un .pptx si una gráfica lleva un valor no numérico
+// (NaN/Infinity). Estas funciones garantizan que a las diapositivas solo lleguen
+// números finitos, evitando el archivo "que no se puede leer".
+function sn(v){ v = Number(v); return Number.isFinite(v) ? v : 0; }        // número seguro
+function fx1(v){ v = Number(v); return Number.isFinite(v) ? v.toFixed(1) : '0.0'; } // toFixed(1) seguro
+
+// Orden calendario real (Ene→Dic) combinado con el año, para que meses de
+// distintos años (ej. "Abril 2025" y "Abril 2026") no se mezclen ni se pierdan.
+const MONTH_ORDER_KEY = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function monthKey(m) {
+  if (!m) return 999999;
+  const s = m.toLowerCase().trim();
+  const yearMatch = s.match(/\d{4}/);
+  const year = yearMatch ? parseInt(yearMatch[0], 10) : 0;
+  let idx = 99;
+  for (let i=0; i<MONTH_ORDER_KEY.length; i++) {
+    if (s.startsWith(MONTH_ORDER_KEY[i])) { idx = i; break; }
+  }
+  return year * 12 + idx;
+}
+function toMonthLabel(m) {
+  const s = (m||'').toLowerCase().trim();
+  const yearMatch = s.match(/\d{4}/);
+  const yy = yearMatch ? yearMatch[0].slice(2) : '';
+  const map = {ene:'Ene',feb:'Feb',mar:'Mar',abr:'Abr',may:'May',jun:'Jun',jul:'Jul',ago:'Ago',sep:'Sep',oct:'Oct',nov:'Nov',dic:'Dic'};
+  for (const [k,v] of Object.entries(map)) if (s.startsWith(k)) return yy ? `${v} '${yy}` : v;
+  return m.slice(0,3);
+}
+// Reescribe cualquier variante de un mes ("Octubre  2025", "octubre 2025", etc.) a UNA sola
+// forma de texto canónica ("Octubre 2025"), para que nunca aparezcan columnas/tiendas
+// duplicadas en el mapa de calor por simples diferencias de espacios o mayúsculas.
+function canonicalMesLabel(m) {
+  const s = (m||'').toString().toLowerCase().trim();
+  const yearMatch = s.match(/\d{4}/);
+  let idx = -1;
+  for (let i=0; i<MONTH_ORDER_KEY.length; i++) { if (s.startsWith(MONTH_ORDER_KEY[i])) { idx = i; break; } }
+  if (idx === -1 || !yearMatch) return (m||'').toString().replace(/\s+/g,' ').trim();
+  const name = MONTH_ORDER_KEY[idx];
+  return `${name[0].toUpperCase()}${name.slice(1)} ${yearMatch[0]}`;
+}
+
+const PROCESSES = ['Picking','Traspasos','Entrega en Obra','Envíos vs Beetrack','Rutas pendientes','Mermas'];
+
+// ═══════════════════════════════════════════════════════════
+// DATA PROCESSING
+// FIX: raw:true evita que XLSX formatee los decimales como "80%"
+// Con raw:true, Promedio=0.8 → ×100=80% ✓ (en lugar de "80%"→80→×100=8000 ✗)
+// ═══════════════════════════════════════════════════════════
+function processExcel(workbook) {
+  let sheetName = workbook.SheetNames.find(n => n.includes('Tabla') || n.includes('Consolidada') || n.includes('tabla'));
+  if (!sheetName) sheetName = workbook.SheetNames[0];
+
+  const ws = workbook.Sheets[sheetName];
+  // raw: true → retorna números como números, no strings formateados
+  const raw = XLSX.utils.sheet_to_json(ws, { defval: null, raw: true });
+
+  if (!raw.length) throw new Error('La hoja está vacía.');
+
+  const rows = raw.map(r => {
+    const obj = {};
+    for (const k of Object.keys(r)) obj[k.trim()] = r[k];
+    return obj;
+  });
+
+  const mesCol      = Object.keys(rows[0]).find(k => k.toLowerCase().includes('mes')) || 'Mes';
+  const tiendaCol   = Object.keys(rows[0]).find(k => k.toLowerCase().includes('tienda')) || 'Tienda';
+  const promedioCol = Object.keys(rows[0]).find(k => k.toLowerCase().includes('promedio')) || 'Promedio Cumplimiento';
+  const auditoriaCol= Object.keys(rows[0]).find(k => k.toLowerCase().includes('auditor')) || 'Auditoria';
+
+  const monthsRaw = [...new Set(rows.map(r => r[mesCol]).filter(Boolean))];
+  monthsRaw.sort((a,b) => monthKey(a)-monthKey(b));
+  const months = monthsRaw;
+  const monthLabels = months.map(toMonthLabel);
+
+  const stores = [...new Set(rows.map(r => (r[tiendaCol]||'').toString().trim()).filter(Boolean))];
+
+  function getRow(store, mes) {
+    return rows.find(r => (r[tiendaCol]||'').toString().trim()===store && r[mesCol]===mes);
+  }
+
+  // Promedio por mes — los valores en Promedio Cumplimiento son 0-1 (ej: 0.8 = 80%)
+  const evolucion = months.map(mes => {
+    const vals = rows.filter(r => r[mesCol]===mes).map(r => {
+      const v = toNum(r[promedioCol]);
+      return v !== null ? v * 100 : null;
+    }).filter(x => x !== null);
+    return avg(vals);
+  });
+
+  // Heatmap
+  const heatData = {};
+  for (const st of stores) {
+    heatData[st] = months.map(mes => {
+      const row = getRow(st, mes);
+      if (!row) return null;
+      const v = toNum(row[promedioCol]);
+      return v !== null ? Math.round(v * 100) : null;
+    });
+  }
+
+  // Ranking
+  const ranking = stores.map(st => {
+    const vals = months.map(mes => {
+      const row = getRow(st, mes);
+      if (!row) return null;
+      const v = toNum(row[promedioCol]);
+      return v !== null ? v * 100 : null;
+    }).filter(x => x !== null);
+    return { name: st, val: avg(vals) };
+  }).filter(r => r.val !== null);
+  ranking.sort((a,b) => b.val - a.val);
+
+  // Promedio por proceso — cada celda es 0 o 0.2 (5 procesos × 0.2 = 1.0)
+  // Para convertir a %: promedio × 500 (equivale a ÷0.2 ×100)
+  const keys = Object.keys(rows[0]);
+  const procCols = PROCESSES.map(p => keys.find(k => k.trim().toLowerCase().startsWith(p.toLowerCase())) || p);
+
+  const procAvg = procCols.map((col, i) => {
+    const vals = rows.flatMap(r => {
+      const v = toNum(r[col]);
+      return v !== null ? [v] : [];
+    });
+    const pct = vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length) * 500 : 0;
+    return { name: PROCESSES[i], val: Math.min(Math.round(pct * 10) / 10, 100) };
+  });
+  procAvg.sort((a,b) => b.val - a.val);
+
+  // Stats globales
+  const allPcts = rows.map(r => { const v=toNum(r[promedioCol]); return v!==null?v*100:null; }).filter(x=>x!==null);
+  const globalAvg = avg(allPcts);
+  const bestMonthIdx   = evolucion.reduce((bi,v,i,a)=>v>a[bi]?i:bi,0);
+  const worstMonthIdx  = evolucion.reduce((bi,v,i,a)=>v<a[bi]?i:bi,0);
+  const bestMonthLabel  = monthLabels[bestMonthIdx];
+  const bestMonthVal    = Math.max(...evolucion.filter(x=>x!==null));
+  const worstMonthLabel = monthLabels[worstMonthIdx];
+  const worstMonthVal   = Math.min(...evolucion.filter(x=>x!==null));
+
+  return { months, monthLabels, evolucion, stores, heatData, ranking, procAvg,
+    globalAvg, bestMonthLabel, bestMonthVal, worstMonthLabel, worstMonthVal };
+}
+
+// ═══════════════════════════════════════════════════════════
+// PARSER DEL FORMATO REAL — 1 hoja por mes, bloques por tienda
+// (Gerente/Administrador + "Tienda:" + filas Concepto/%) más una
+// tabla resumen (Tienda / % / Cumplió) al inicio de cada hoja.
+// Construye filas "planas" con las MISMAS columnas que el resto
+// del script ya espera (Mes, Tienda, Promedio Cumplimiento, y una
+// columna por proceso) — así processFromRows/buildPptx no cambian.
+// ═══════════════════════════════════════════════════════════
+function stripAcc(s) {
+  return (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+}
+function collapseWs(s) {
+  return (s||'').toString().replace(/\s+/g,' ').trim();
+}
+function normStore(s) {
+  return stripAcc(s).replace(/auditoria/g,'').replace(/[^a-z0-9ñ ]/gi,'').replace(/\s+/g,' ').trim().toUpperCase();
+}
+const CONCEPT_MAP = {
+  'picking':'Picking',
+  'traspasos':'Traspasos',
+  'entrega en obra':'Entrega en Obra',
+  'envios sap-beetrack':'Envíos vs Beetrack',
+  'envios sap beetrack':'Envíos vs Beetrack',
+  'rutas pendientes-beetrack':'Rutas pendientes',
+  'rutas pendientes beetrack':'Rutas pendientes',
+  'rutas abiertas y cerradas':'Rutas pendientes',
+  'mermas':'Mermas',
+  'entradas por compra':'Entradas por Compra',
+};
+function normConcept(name) {
+  const key = stripAcc(name).replace(/\s+/g,' ').trim();
+  return CONCEPT_MAP[key] || (name||'').toString().trim();
+}
+
+const MONTHS_FULL = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function monthNameFromToken(tok) {
+  const s = stripAcc(tok);
+  for (const full of MONTHS_FULL) if (full.startsWith(s)) return full;
+  return null;
+}
+// Extrae "Mes Año" (ej. "Abril 2025"). Prioriza el NOMBRE DE LA HOJA sobre el título
+// interno: en este archivo 2 de las 15 hojas (ej. "JUNIO 2026") tienen el título
+// mal actualizado (dice "...mayo 2026", copiado del mes anterior como plantilla).
+// El nombre de la pestaña es la fuente confiable de a qué mes pertenece cada hoja.
+function extractMonthLabel(grid, sheetName) {
+  const sm = (sheetName||'').match(/([A-Za-zÁÉÍÓÚÑáéíóúñ]+)\.?\s+(\d{4})/);
+  if (sm) {
+    const full = monthNameFromToken(sm[1]);
+    if (full) return `${full[0].toUpperCase()}${full.slice(1)} ${sm[2]}`;
+  }
+  for (let r = 0; r < Math.min(grid.length, 5); r++) {
+    const cell = (grid[r] && grid[r][0]) ? grid[r][0].toString() : '';
+    const m = cell.match(/procesos\s+([a-záéíóúñ]+)\s+(\d{4})/i);
+    if (m) return `${m[1][0].toUpperCase()}${m[1].slice(1).toLowerCase()} ${m[2]}`;
+  }
+  return sheetName;
+}
+
+// Lee la tabla resumen (Tienda / % / Cumplió) que aparece al inicio de cada hoja.
+function parseSummaryTable(grid) {
+  let headerRow = -1;
+  for (let r = 0; r < grid.length; r++) {
+    if (grid[r] && (grid[r][0]||'').toString().trim().toLowerCase() === 'tienda' &&
+        (grid[r][1]||'').toString().trim() === '%') { headerRow = r; break; }
+  }
+  const out = [];
+  if (headerRow === -1) return out;
+  for (let r = headerRow+1; r < grid.length; r++) {
+    const row = grid[r] || [];
+    const raw = row[0];
+    if (raw === null || raw === undefined || raw.toString().trim() === '') break;
+    const rawStr = raw.toString();
+    out.push({
+      tiendaRaw: collapseWs(rawStr.replace(/AUDITORIA/i,'')),
+      tiendaNorm: normStore(rawStr),
+      auditoria: /AUDITORIA/i.test(rawStr) ? 'Si' : 'No',
+      pct: toNum(row[1]),
+      cumplio: row[2] || null,
+    });
+  }
+  return out;
+}
+
+// Recorre toda la hoja buscando bloques "Tienda: X" con sus filas Concepto/%.
+function parseStoreBlocks(grid) {
+  const blocks = [];
+  const nRows = grid.length;
+  for (let r = 0; r < nRows; r++) {
+    const row = grid[r] || [];
+    for (let c = 0; c < row.length; c++) {
+      const cell = row[c];
+      if (typeof cell !== 'string') continue;
+      const m = cell.trim().match(/^tienda\s*:\s*(.+)$/i);
+      if (!m) continue;
+      const tiendaRaw = collapseWs(m[1]);
+      let gerente = null;
+      const above = (grid[r-1] && grid[r-1][c]) ? grid[r-1][c].toString().trim() : '';
+      const gm = above.match(/^(?:gerente|administrador)\s*:\s*(.+)$/i);
+      if (gm) gerente = gm[1].trim();
+
+      let dataStart = r+1;
+      const headerCell = (grid[r+1] && grid[r+1][c]) ? grid[r+1][c].toString().trim().toLowerCase() : '';
+      if (headerCell === 'concepto') dataStart = r+2;
+
+      const procesos = {};
+      const procesosRaw = []; // [{concepto, valor}] con el texto y orden EXACTOS del Excel
+      let total = null;
+      for (let rr = dataStart; rr < Math.min(dataStart+10, nRows); rr++) {
+        const conceptCell = grid[rr] ? grid[rr][c] : null;
+        const valueCell    = grid[rr] ? grid[rr][c+1] : null;
+        const conceptStr = (conceptCell !== null && conceptCell !== undefined) ? conceptCell.toString().trim() : '';
+        if (conceptStr) {
+          const val = toNum(valueCell);
+          procesos[normConcept(conceptStr)] = val;
+          procesosRaw.push({ concepto: conceptStr, valor: val });
+        } else {
+          const v = toNum(valueCell);
+          if (v !== null) total = v;
+          break;
+        }
+      }
+      // Cuando TODOS los conceptos quedaron en blanco (celdas en azul en el Excel) y sí
+      // hay un total al final, esa tienda fue calificada con una AUDITORIA ese mes
+      // (el % final es la calificación de la auditoría, no un promedio por proceso).
+      const esAuditoria = procesosRaw.length > 0 && procesosRaw.every(p => p.valor === null) && total !== null;
+      blocks.push({ tiendaRaw, tiendaNorm: normStore(tiendaRaw), gerente, procesos, procesosRaw, total, esAuditoria });
+    }
+  }
+  return blocks;
+}
+
+// Une tabla resumen + bloques de una hoja (un mes) en filas planas.
+function parseMonthSheet(grid, sheetName) {
+  const mesLabel = canonicalMesLabel(extractMonthLabel(grid, sheetName));
+  const summary = parseSummaryTable(grid);
+  const blocks = parseStoreBlocks(grid);
+  const usedBlocks = new Set();
+  const rows = [];
+
+  summary.forEach(s => {
+    let b = blocks.find((bl,i) => !usedBlocks.has(i) && bl.tiendaNorm === s.tiendaNorm);
+    let bi = b ? blocks.indexOf(b) : -1;
+    if (!b) {
+      bi = blocks.findIndex((bl,i) => !usedBlocks.has(i) && bl.tiendaNorm &&
+        (s.tiendaNorm.includes(bl.tiendaNorm) || bl.tiendaNorm.includes(s.tiendaNorm)));
+      b = bi !== -1 ? blocks[bi] : null;
+    }
+    if (bi !== -1) usedBlocks.add(bi);
+
+    const esAuditoria = s.auditoria === 'Si' || (b ? b.esAuditoria : false);
+    const row = {
+      'Mes': mesLabel,
+      'Tienda': s.tiendaRaw,
+      'Promedio Cumplimiento': s.pct,
+      'Cumplió': s.cumplio,
+      'Auditoria': esAuditoria ? 'Si' : 'No',
+      'Gerente': b ? b.gerente : null,
+      'Detalle': b ? b.procesosRaw : [],
+    };
+    if (b && !esAuditoria) for (const [k,v] of Object.entries(b.procesos)) row[k] = v;
+    rows.push(row);
+  });
+
+  blocks.forEach((b,i) => {
+    if (usedBlocks.has(i)) return;
+    const row = {
+      'Mes': mesLabel,
+      'Tienda': b.tiendaRaw,
+      'Promedio Cumplimiento': b.total,
+      'Cumplió': null,
+      'Auditoria': b.esAuditoria ? 'Si' : 'No',
+      'Gerente': b.gerente,
+      'Detalle': b.procesosRaw,
+    };
+    if (!b.esAuditoria) for (const [k,v] of Object.entries(b.procesos)) row[k] = v;
+    rows.push(row);
+  });
+
+  return rows;
+}
+
+// Recorre TODAS las hojas del libro (cada una es un mes) y devuelve las filas planas combinadas.
+function parseWorkbookBlocks(workbook) {
+  let rows = [];
+  for (const sheetName of workbook.SheetNames) {
+    const ws = workbook.Sheets[sheetName];
+    const grid = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
+    if (!grid.length) continue;
+    const summaryCheck = grid.some(r => r && (r[0]||'').toString().trim().toLowerCase() === 'tienda');
+    if (!summaryCheck) continue; // hoja sin datos reconocibles, se ignora
+    rows = rows.concat(parseMonthSheet(grid, sheetName));
+  }
+  return rows;
+}
+
+// Reconstruye el set completo de filas (todas las cargas anteriores, sin duplicar)
+// a partir del historial ya guardado, en la misma escala 0–1 que usa el resto del script.
+function allRowsFromHistory() {
+  return lsLoad().map(r => {
+    const row = { 'Mes': r.mes, 'Tienda': r.tienda, 'Promedio Cumplimiento': r.promedio !== null ? r.promedio/100 : null };
+    if (r.procesos) for (const [k,v] of Object.entries(r.procesos)) row[k] = (v !== null && v !== undefined) ? v/500 : null;
+    return row;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// SLIDE BUILDER
+// ═══════════════════════════════════════════════════════════
+async function buildPptx(d) {
+  const pres = new PptxGenJS();
+  pres.layout = 'LAYOUT_WIDE';
+
+  const {months:mnths, monthLabels:mLbls, evolucion:evo, stores,
+         heatData, ranking, procAvg, globalAvg,
+         bestMonthLabel, bestMonthVal, worstMonthLabel, worstMonthVal} = d;
+
+  const storesShort = stores.map(s => s.length > 14 ? s.slice(0,13)+'.' : s);
+  const top3 = ranking.slice(0,3);
+  const bot3 = ranking.slice(-3).reverse();
+
+  // ─── SLIDE 1 — PORTADA ────────────────────────────────────
+  {
+    const s = pres.addSlide();
+    s.background = { color: C.navy };
+    s.addShape(pres.ShapeType.rect, { x:0, y:0, w:0.45, h:7.5, fill:{color:C.teal} });
+    s.addShape(pres.ShapeType.rect, { x:0.45, y:0, w:12.85, h:0.08, fill:{color:C.gold} });
+
+    s.addText('DASHBOARD EJECUTIVO', {
+      x:0.7, y:1.5, w:9, h:0.9,
+      fontSize:38, bold:true, color:C.white, fontFace:'Calibri', charSpacing:4,
+    });
+    s.addText(`Cumplimiento de Procesos por Tienda${RAZON_ACTIVA ? '  ·  ' + RAZON_ACTIVA : ''}${d.procesoFiltro ? '  ·  Proceso: ' + d.procesoFiltro : ''}`, {
+      x:0.7, y:2.5, w:9, h:0.5,
+      fontSize:20, color:C.accent, fontFace:'Calibri', italic:true,
+    });
+    s.addShape(pres.ShapeType.rect, { x:0.7, y:3.2, w:5, h:0.65, fill:{color:C.teal} });
+    s.addText(`Semestre: ${mnths[0]} – ${mnths[mnths.length-1]}`, {
+      x:0.7, y:3.2, w:5, h:0.65,
+      fontSize:13, color:C.white, fontFace:'Calibri', bold:true, align:'center', valign:'middle',
+    });
+
+    const best = top3[0] || { name:'—', val:0 };
+    const kpis = [
+      { label:'Promedio Semestral', val:`${fx1(globalAvg)}%` },
+      { label:'Mejor Tienda', val:`${(best.name||'—').slice(0,10)}\n${fx1(best.val)}%` },
+      { label:'Mejor Mes', val:`${bestMonthLabel}\n${fx1(bestMonthVal)}%` },
+      { label:'Tiendas Analizadas', val:`${stores.length}` },
+    ];
+    kpis.forEach((k,i) => {
+      const x = 0.7 + i*3.1;
+      s.addShape(pres.ShapeType.rect, { x, y:4.3, w:2.9, h:1.5, fill:{color:'132347'},
+        shadow:{type:'outer', blur:8, offset:3, angle:135, color:'000000', opacity:0.4} });
+      s.addShape(pres.ShapeType.rect, { x, y:4.3, w:2.9, h:0.06, fill:{color:C.gold} });
+      s.addText(k.val, { x, y:4.42, w:2.9, h:0.85, fontSize:17, bold:true, color:C.accent, fontFace:'Calibri', align:'center', valign:'middle' });
+      s.addText(k.label, { x, y:5.27, w:2.9, h:0.5, fontSize:11, color:C.gray2, fontFace:'Calibri', align:'center', valign:'top' });
+    });
+
+    s.addShape(pres.ShapeType.rect, { x:0.45, y:7.3, w:12.85, h:0.2, fill:{color:C.gold} });
+    s.addText(`${razonNombre(RAZON_ACTIVA)} | Reporte Semestral de Cumplimiento`, {
+      x:0.7, y:7.1, w:12, h:0.25, fontSize:9, color:'8899AA', fontFace:'Calibri', align:'right',
+    });
+  }
+
+  // ─── SLIDE 2 — EVOLUCIÓN SEMESTRAL ───────────────────────
+  {
+    const s = pres.addSlide();
+    s.background = { color: C.off };
+    s.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.3, h:0.65, fill:{color:C.navy} });
+    s.addShape(pres.ShapeType.rect, { x:0, y:0.65, w:13.3, h:0.05, fill:{color:C.gold} });
+    s.addText('RESUMEN EJECUTIVO — EVOLUCIÓN SEMESTRAL', {
+      x:0.3, y:0, w:12, h:0.65, fontSize:18, bold:true, color:C.white, fontFace:'Calibri', valign:'middle',
+    });
+
+    s.addChart(pres.ChartType.line, [{
+      name:'Cumplimiento Promedio (%)',
+      labels: mLbls,
+      values: evo.map(v => Number.isFinite(v) ? Math.round(v*10)/10 : 0),
+    }], {
+      x:0.4, y:0.85, w:8.8, h:5.8,
+      lineSize:3, lineSmooth:false,
+      chartColors:[C.teal],
+      chartArea:{fill:{color:C.white}, roundedCorners:true},
+      plotArea:{fill:{color:C.white}},
+      catAxisLabelColor:C.gray1, valAxisLabelColor:C.gray1,
+      valGridLine:{color:'E2E8F0', size:0.75}, catGridLine:{style:'none'},
+      showValue:true, dataLabelColor:C.navy, dataLabelFontSize:13,
+      valAxisMinVal:0, valAxisMaxVal:100,
+      showTitle:true, title:'Cumplimiento Promedio Mensual (%)',
+      titleFontSize:13, titleColor:C.navy, showLegend:false,
+    });
+
+    const insights = [
+      { label:'Pico Máximo',    val:bestMonthLabel,  sub:`${fx1(bestMonthVal)}%`,  col:C.green },
+      { label:'Mes Más Bajo',   val:worstMonthLabel, sub:`${fx1(worstMonthVal)}%`, col:C.red },
+      { label:'Promedio General', val:'Semestre',    sub:`${fx1(globalAvg)}%`,      col:C.teal },
+      { label:'Tiendas',        val:'Analizadas',    sub:`${stores.length}`,             col:C.orange },
+    ];
+    insights.forEach((ins,i) => {
+      const y = 1.1 + i*1.35;
+      s.addShape(pres.ShapeType.rect, { x:9.55, y, w:3.4, h:1.15, fill:{color:C.white},
+        shadow:{type:'outer', blur:5, offset:2, angle:135, color:'000000', opacity:0.1} });
+      s.addShape(pres.ShapeType.rect, { x:9.55, y, w:0.12, h:1.15, fill:{color:ins.col} });
+      s.addText(ins.label, { x:9.75, y:y+0.07, w:3.1, h:0.32, fontSize:11, bold:true, color:ins.col, fontFace:'Calibri' });
+      s.addText(ins.val,   { x:9.75, y:y+0.38, w:3.1, h:0.28, fontSize:11, color:C.gray1, fontFace:'Calibri' });
+      s.addText(ins.sub,   { x:9.75, y:y+0.65, w:3.1, h:0.38, fontSize:18, bold:true, color:C.navy, fontFace:'Calibri' });
+    });
+    s.addText('* Cada punto representa el promedio de cumplimiento de todas las tiendas en ese mes', {
+      x:0.4, y:7.1, w:12, h:0.3, fontSize:9, color:C.gray1, italic:true, fontFace:'Calibri',
+    });
+  }
+
+  // ─── SLIDE 3 — MAPA DE CALOR ─────────────────────────────
+  {
+    const s = pres.addSlide();
+    s.background = { color: C.off };
+    s.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.3, h:0.65, fill:{color:C.navy} });
+    s.addShape(pres.ShapeType.rect, { x:0, y:0.65, w:13.3, h:0.05, fill:{color:C.gold} });
+    s.addText('MAPA DE CALOR — CUMPLIMIENTO POR TIENDA Y MES', {
+      x:0.3, y:0, w:12, h:0.65, fontSize:18, bold:true, color:C.white, fontFace:'Calibri', valign:'middle',
+    });
+
+    const nMonths = mnths.length;
+    const nStores = stores.length;
+    const cellW = Math.min(1.35, (13.3 - 2.3) / nMonths);
+    const cellH = Math.min(0.44, (7.5 - 0.9 - 0.45) / (nStores + 1));
+    const startX = 2.2;
+    const startY = 0.9;
+
+    mLbls.forEach((m,j) => {
+      s.addShape(pres.ShapeType.rect, { x:startX+j*cellW, y:startY, w:cellW-0.04, h:0.36, fill:{color:C.navy} });
+      s.addText(m, { x:startX+j*cellW, y:startY, w:cellW-0.04, h:0.36, fontSize:11, bold:true, color:C.white, fontFace:'Calibri', align:'center', valign:'middle' });
+    });
+
+    stores.forEach((store,i) => {
+      const y = startY + 0.4 + i*cellH;
+      s.addShape(pres.ShapeType.rect, { x:0.08, y, w:2.05, h:cellH-0.04, fill:{color: i%2===0?'E8EDF5':C.white} });
+      s.addText(storesShort[i], { x:0.1, y, w:2.05, h:cellH-0.04, fontSize:9, color:C.navy, fontFace:'Calibri', bold:true, valign:'middle' });
+
+      heatData[store].forEach((val,j) => {
+        const fill = heatFill(val);
+        s.addShape(pres.ShapeType.rect, { x:startX+j*cellW, y, w:cellW-0.04, h:cellH-0.04, fill:{color:fill}, line:{color:C.white, width:1} });
+        s.addText(val!==null?`${val}%`:'—', {
+          x:startX+j*cellW, y, w:cellW-0.04, h:cellH-0.04,
+          fontSize:Math.min(11, cellH*18), bold:true,
+          color:val!==null?heatTextColor(val):'999999',
+          fontFace:'Calibri', align:'center', valign:'middle',
+        });
+      });
+    });
+
+    const legend = [
+      {col:'A5D6A7', label:'≥ 80% Óptimo'}, {col:'FFF176', label:'60–79% Aceptable'},
+      {col:'FFCC80', label:'40–59% En Riesgo'}, {col:'EF9A9A', label:'< 40% Crítico'},
+    ];
+    s.addText('LEYENDA:', { x:0.2, y:7.05, w:1.0, h:0.28, fontSize:9, bold:true, color:C.navy, fontFace:'Calibri' });
+    legend.forEach((l,i) => {
+      s.addShape(pres.ShapeType.rect, { x:1.25+i*2.8, y:7.1, w:0.28, h:0.2, fill:{color:l.col} });
+      s.addText(l.label, { x:1.58+i*2.8, y:7.1, w:2.3, h:0.2, fontSize:9, color:C.gray1, fontFace:'Calibri', valign:'middle' });
+    });
+  }
+
+  // ─── SLIDE 4 — RANKING DE TIENDAS ────────────────────────
+  {
+    const s = pres.addSlide();
+    s.background = { color: C.off };
+    s.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.3, h:0.65, fill:{color:C.navy} });
+    s.addShape(pres.ShapeType.rect, { x:0, y:0.65, w:13.3, h:0.05, fill:{color:C.gold} });
+    s.addText('RANKING DE TIENDAS — PROMEDIO SEMESTRAL', {
+      x:0.3, y:0, w:12, h:0.65, fontSize:18, bold:true, color:C.white, fontFace:'Calibri', valign:'middle',
+    });
+
+    const rankLabels = ranking.map(r => r.name.length>16 ? r.name.slice(0,15)+'.' : r.name);
+    s.addChart(pres.ChartType.bar, [{
+      name:'Promedio Semestral (%)',
+      labels: rankLabels,
+      values: ranking.map(r=>Math.round(sn(r.val)*10)/10),
+    }], {
+      x:0.3, y:0.85, w:7.7, h:6.3, barDir:'bar',
+      chartColors: ranking.map(r=>barColor(sn(r.val))),
+      chartArea:{fill:{color:C.white}, roundedCorners:true},
+      plotArea:{fill:{color:C.white}},
+      catAxisLabelColor:C.navy, catAxisLabelFontSize:10,
+      valAxisLabelColor:C.gray1,
+      valGridLine:{color:'E2E8F0', size:0.5}, catGridLine:{style:'none'},
+      showValue:true, dataLabelColor:C.white, dataLabelFontSize:10,
+      dataLabelPosition:'inEnd',
+      valAxisMinVal:0, valAxisMaxVal:100,
+      showLegend:false, showTitle:false,
+    });
+
+    s.addText('PODIO SEMESTRAL', { x:8.3, y:0.9, w:4.7, h:0.4, fontSize:13, bold:true, color:C.navy, fontFace:'Calibri', align:'center' });
+
+    const medals = [
+      {place:'🥇 1°', col:'DAA520'}, {place:'🥈 2°', col:'9E9E9E'}, {place:'🥉 3°', col:'A0522D'},
+    ];
+    top3.forEach((r,i) => {
+      s.addShape(pres.ShapeType.rect, { x:8.3, y:1.4+i*1.15, w:4.7, h:1.0, fill:{color:C.white},
+        shadow:{type:'outer', blur:5, offset:2, angle:135, color:'000000', opacity:0.12} });
+      s.addShape(pres.ShapeType.rect, { x:8.3, y:1.4+i*1.15, w:0.1, h:1.0, fill:{color:medals[i].col} });
+      s.addText(medals[i].place, { x:8.5, y:1.45+i*1.15, w:4.4, h:0.3, fontSize:12, bold:true, color:medals[i].col, fontFace:'Calibri' });
+      s.addText(r.name.slice(0,20), { x:8.5, y:1.73+i*1.15, w:3.2, h:0.3, fontSize:11, color:C.navy, fontFace:'Calibri', bold:true });
+      s.addText(`${fx1(r.val)}%`, { x:11.0, y:1.68+i*1.15, w:1.8, h:0.4, fontSize:20, color:'2E7D32', fontFace:'Calibri', bold:true, align:'right' });
+    });
+
+    s.addShape(pres.ShapeType.rect, { x:8.3, y:5.0, w:4.7, h:2.2, fill:{color:C.navy},
+      shadow:{type:'outer', blur:6, offset:2, angle:135, color:'000000', opacity:0.2} });
+    s.addText('ESTADÍSTICAS GENERALES', { x:8.3, y:5.0, w:4.7, h:0.38, fontSize:11, bold:true, color:C.gold, fontFace:'Calibri', align:'center', valign:'middle' });
+    const t80 = ranking.filter(r=>r.val>=80).length;
+    const t60 = ranking.filter(r=>r.val>=60&&r.val<80).length;
+    const t40 = ranking.filter(r=>r.val<60).length;
+    const stats = [
+      {label:'Promedio Global:', val:`${fx1(globalAvg)}%`},
+      {label:'Tiendas ≥ 80%:', val:`${t80} / ${stores.length}`},
+      {label:'Tiendas 60–79%:', val:`${t60} / ${stores.length}`},
+      {label:'Tiendas < 60%:', val:`${t40} / ${stores.length}`},
+    ];
+    stats.forEach((st,i) => {
+      s.addText(st.label, { x:8.5, y:5.42+i*0.4, w:2.8, h:0.35, fontSize:11, color:C.gray2, fontFace:'Calibri' });
+      s.addText(st.val,   { x:11.1, y:5.42+i*0.4, w:1.8, h:0.35, fontSize:12, bold:true, color:C.accent, fontFace:'Calibri', align:'right' });
+    });
+  }
+
+  // ─── SLIDE 5 — PROMEDIO POR PROCESO ──────────────────────
+  {
+    const s = pres.addSlide();
+    s.background = { color: C.off };
+    s.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.3, h:0.65, fill:{color:C.navy} });
+    s.addShape(pres.ShapeType.rect, { x:0, y:0.65, w:13.3, h:0.05, fill:{color:C.gold} });
+    s.addText('PROMEDIO SEMESTRAL POR PROCESO', {
+      x:0.3, y:0, w:12, h:0.65, fontSize:18, bold:true, color:C.white, fontFace:'Calibri', valign:'middle',
+    });
+
+    s.addChart(pres.ChartType.bar, [{
+      name:'Promedio Semestral (%)',
+      labels: procAvg.map(p=>p.name),
+      values: procAvg.map(p=>Math.round(sn(p.val)*10)/10),
+    }], {
+      x:0.3, y:0.85, w:7.8, h:5.9, barDir:'bar',
+      chartColors: procAvg.map(p=>barColor(sn(p.val))),
+      chartArea:{fill:{color:C.white}, roundedCorners:true},
+      plotArea:{fill:{color:C.white}},
+      catAxisLabelColor:C.navy, catAxisLabelFontSize:11,
+      valAxisLabelColor:C.gray1,
+      valGridLine:{color:'E2E8F0', size:0.5}, catGridLine:{style:'none'},
+      showValue:true, dataLabelColor:C.white, dataLabelFontSize:11,
+      dataLabelPosition:'inEnd',
+      valAxisMinVal:0, valAxisMaxVal:100,
+      showLegend:false, showTitle:false,
+    });
+
+    s.addText('DETALLE POR PROCESO', { x:8.4, y:0.9, w:4.6, h:0.38, fontSize:13, bold:true, color:C.navy, fontFace:'Calibri', align:'center' });
+    procAvg.forEach((p,i) => {
+      const y = 1.38 + i*0.97;
+      const col = barColor(p.val);
+      s.addShape(pres.ShapeType.rect, { x:8.4, y, w:4.6, h:0.87, fill:{color:C.white},
+        shadow:{type:'outer', blur:4, offset:2, angle:135, color:'000000', opacity:0.1} });
+      s.addShape(pres.ShapeType.rect, { x:8.4, y, w:0.1, h:0.87, fill:{color:col} });
+      s.addText(p.name, { x:8.6, y:y+0.06, w:2.8, h:0.3, fontSize:10, bold:true, color:C.navy, fontFace:'Calibri' });
+      s.addText(`${fx1(p.val)}%`, { x:11.3, y:y+0.05, w:1.5, h:0.45, fontSize:21, bold:true, color:col, fontFace:'Calibri', align:'right' });
+      const barW = 3.8, filled = barW*sn(p.val)/100;
+      s.addShape(pres.ShapeType.rect, { x:8.6, y:y+0.57, w:barW, h:0.15, fill:{color:'E2E8F0'} });
+      s.addShape(pres.ShapeType.rect, { x:8.6, y:y+0.57, w:filled||0.01, h:0.15, fill:{color:col} });
+    });
+    s.addText('N/A excluido del cálculo. Tiendas con auditoría usan esa calificación como promedio del mes.', {
+      x:0.3, y:7.0, w:12.7, h:0.3, fontSize:9, color:C.gray1, italic:true, fontFace:'Calibri',
+    });
+  }
+
+  // ─── SLIDE 6 — INFOGRAFÍA RESUMEN ────────────────────────
+  {
+    const s = pres.addSlide();
+    s.background = { color: C.navy };
+    s.addShape(pres.ShapeType.rect, { x:0, y:0, w:0.35, h:7.5, fill:{color:C.teal} });
+    s.addShape(pres.ShapeType.rect, { x:0.35, y:0, w:12.95, h:0.06, fill:{color:C.gold} });
+    s.addText(`INFOGRAFÍA RESUMEN — Semestre ${mLbls[0]} ${mnths[0].match(/\d{4}/)?.[0]||''} – ${mLbls[mLbls.length-1]} ${mnths[mnths.length-1].match(/\d{4}/)?.[0]||''}`, {
+      x:0.55, y:0.12, w:11.5, h:0.5, fontSize:16, bold:true, color:C.white, fontFace:'Calibri', charSpacing:1,
+    });
+
+    const kpis4 = [
+      { val:`${fx1(globalAvg)}%`, label:'Cumplimiento\nGeneral', col:C.teal },
+      { val:`${stores.length}`, label:'Tiendas\nAnalizadas', col:C.gold },
+      { val:`${mnths.length}`, label:'Meses del\nSemestre', col:'5C7AEA' },
+      { val:`${procAvg.length}`, label:'Procesos\nEvaluados', col:'E57373' },
+    ];
+    kpis4.forEach((k,i) => {
+      const cx = 0.55 + i*2.2;
+      s.addShape(pres.ShapeType.ellipse, { x:cx, y:0.82, w:1.55, h:1.55, fill:{color:k.col}, line:{color:C.white, width:2} });
+      s.addText(k.val, { x:cx, y:0.92, w:1.55, h:0.75, fontSize:22, bold:true, color:C.white, fontFace:'Calibri', align:'center', valign:'middle' });
+      s.addText(k.label, { x:cx-0.1, y:2.47, w:1.75, h:0.5, fontSize:9, color:C.gray2, fontFace:'Calibri', align:'center' });
+    });
+
+    s.addText('PROCESOS — PROMEDIO SEMESTRAL', { x:0.55, y:3.1, w:8.8, h:0.35, fontSize:11, bold:true, color:C.gold, fontFace:'Calibri' });
+    procAvg.forEach((p,i) => {
+      const y = 3.55 + i*0.56;
+      const barW = 5.5, filled = barW*sn(p.val)/100;
+      const col2 = p.val>=80?'66BB6A':p.val>=60?'FFA726':'EF5350';
+      s.addText(p.name, { x:0.55, y, w:2.55, h:0.4, fontSize:10, color:C.white, fontFace:'Calibri', valign:'middle' });
+      s.addShape(pres.ShapeType.rect, { x:3.15, y:y+0.08, w:barW, h:0.25, fill:{color:'1B2D50'} });
+      s.addShape(pres.ShapeType.rect, { x:3.15, y:y+0.08, w:filled||0.01, h:0.25, fill:{color:col2} });
+      s.addText(`${fx1(p.val)}%`, { x:8.75, y, w:0.8, h:0.4, fontSize:10, bold:true, color:col2, fontFace:'Calibri' });
+    });
+
+    s.addShape(pres.ShapeType.rect, { x:9.55, y:0.82, w:3.55, h:6.45, fill:{color:'0A1628'},
+      shadow:{type:'outer', blur:8, offset:3, angle:135, color:'000000', opacity:0.3} });
+    s.addText('TOP TIENDAS', { x:9.65, y:0.9, w:3.35, h:0.38, fontSize:12, bold:true, color:C.gold, fontFace:'Calibri', align:'center' });
+    const topEmoji = ['🥇','🥈','🥉'];
+    top3.forEach((r,i) => {
+      const nm = r.name.length>14?r.name.slice(0,13)+'.':r.name;
+      s.addText(`${topEmoji[i]} ${nm}`, { x:9.7, y:1.35+i*0.52, w:2.3, h:0.45, fontSize:10, color:C.white, fontFace:'Calibri' });
+      s.addText(`${fx1(r.val)}%`, { x:11.85, y:1.35+i*0.52, w:1.1, h:0.45, fontSize:13, bold:true, color:'66BB6A', fontFace:'Calibri', align:'right' });
+    });
+
+    s.addShape(pres.ShapeType.line, { x:9.65, y:2.98, w:3.35, h:0, line:{color:'2A3F6B', width:1} });
+    s.addText('MEJORA NECESARIA', { x:9.65, y:3.05, w:3.35, h:0.38, fontSize:11, bold:true, color:'EF5350', fontFace:'Calibri', align:'center' });
+    bot3.forEach((r,i) => {
+      const nm = r.name.length>14?r.name.slice(0,13)+'.':r.name;
+      s.addText(`▼ ${nm}`, { x:9.7, y:3.5+i*0.52, w:2.3, h:0.45, fontSize:10, color:C.gray2, fontFace:'Calibri' });
+      s.addText(`${fx1(r.val)}%`, { x:11.85, y:3.5+i*0.52, w:1.1, h:0.45, fontSize:13, bold:true, color:'EF5350', fontFace:'Calibri', align:'right' });
+    });
+
+    s.addShape(pres.ShapeType.line, { x:9.65, y:5.14, w:3.35, h:0, line:{color:'2A3F6B', width:1} });
+    s.addText('MEJOR MES', { x:9.65, y:5.2, w:3.35, h:0.32, fontSize:11, bold:true, color:C.accent, fontFace:'Calibri', align:'center' });
+    s.addText(bestMonthLabel, { x:9.65, y:5.55, w:3.35, h:0.35, fontSize:12, color:C.white, fontFace:'Calibri', align:'center' });
+    s.addText(`${fx1(bestMonthVal)}%`, { x:9.65, y:5.9, w:3.35, h:0.5, fontSize:26, bold:true, color:C.accent, fontFace:'Calibri', align:'center' });
+
+    s.addShape(pres.ShapeType.rect, { x:0.35, y:7.28, w:12.95, h:0.22, fill:{color:C.gold} });
+    s.addText(`${razonNombre(RAZON_ACTIVA)} · Reporte Semestral de Cumplimiento de Procesos`, {
+      x:0.55, y:7.29, w:12, h:0.2, fontSize:9, color:C.navy, bold:true, fontFace:'Calibri', align:'center',
+    });
+  }
+
+  return pres;
+}
+
+// ═══════════════════════════════════════════════════════════
+// LOCALSTORAGE ENGINE
+// Key: "dashboard_data" → array of records { tienda, mes, anio, promedio, procesos, cargadoEn }
+// No overwrite if tienda+mes+anio already exists
+// ═══════════════════════════════════════════════════════════
+// ══ Razón social activa (la fija el dashboard padre por postMessage) ══
+// Cada razón (KNO / KS / KSA) guarda su historial por separado para que no
+// se mezclen los datos de una entidad con otra.
+var RAZON_ACTIVA = '';
+var RAZONES_DISP = [];
+var EMBEDDED = false; // true cuando el generador corre dentro del dashboard (iframe)
+var RAZON_NOMBRES = {KNO:'Kuroda Norte, S.A. de C.V.', KS:'Kuroda Sonora, S.A. de C.V.', KSC:'Kuroda Sonora, S.A. de C.V.', KSA:'Kuroda, S.A. de C.V.'};
+function razonNombre(r){ return RAZON_NOMBRES[String(r||'').toUpperCase()] || (r||'Grupo Kuroda'); }
+function LS_KEY(){ return 'kuroda_gen_' + (RAZON_ACTIVA ? RAZON_ACTIVA.toLowerCase() : 'general'); }
+
+// ══════════════════════════════════════════════════════════════════
+// PERSISTENCIA — Supabase (tabla generador_historial), namespaced por
+// razón social. HIST_CACHE guarda en memoria el historial de la razón
+// actualmente activa; lsLoad()/lsSave() siguen siendo síncronas (todo el
+// resto del script las usa así) pero ahora respaldan sus datos en la nube.
+// Si Supabase no está disponible, se degrada a un caché solo en memoria
+// (localStorage como último respaldo) para no romper la vista.
+// ══════════════════════════════════════════════════════════════════
+const SB_URL = 'https://xlygkolfmetytowixtnb.supabase.co';
+const SB_KEY = 'sb_publishable_qMc5NuOO1HUzYvQzFEr2fA_vVqBzXND';
+let _sbGenClient = null;
+function sbGenClient(){
+  if (_sbGenClient) return _sbGenClient;
+  try { _sbGenClient = supabase.createClient(SB_URL, SB_KEY, { auth:{ persistSession:false } }); }
+  catch(e) { console.warn('No se pudo iniciar cliente Supabase', e); _sbGenClient = null; }
+  return _sbGenClient;
+}
+
+let HIST_CACHE = [];
+let HIST_READY = false; // true una vez que se cargó el historial de la razón activa
+
+// Estado visible de la conexión a Supabase (para que un fallo NUNCA sea silencioso).
+// 'ok' = confirmado guardando/leyendo en la nube · 'error' = solo local · 'checking' = validando
+let SB_STATUS = 'checking';
+function setSbStatus(status, detail){
+  SB_STATUS = status;
+  const el = document.getElementById('sbStatusBadge');
+  if (!el) return;
+  if (status === 'ok') { el.textContent = '☁️ Supabase conectado'; el.className = 'sb-status ok'; el.title = 'El historial se está guardando en la nube (Supabase)'; }
+  else if (status === 'error') { el.textContent = '⚠️ Solo guardado local'; el.className = 'sb-status error'; el.title = detail || 'No se pudo conectar a Supabase — revisa que ejecutaste el SQL de la tabla generador_historial. Los datos SOLO viven en este navegador.'; }
+  else { el.textContent = '☁️ Verificando…'; el.className = 'sb-status checking'; el.title = ''; }
+}
+
+// Carga el historial de Supabase para la razón activa hacia HIST_CACHE.
+async function sbFetchHistorial(){
+  const razon = (RAZON_ACTIVA || 'GENERAL').toUpperCase();
+  const cli = sbGenClient();
+  if (!cli) {
+    try { HIST_CACHE = JSON.parse(localStorage.getItem(LS_KEY()) || '[]'); } catch { HIST_CACHE = []; }
+    HIST_READY = true;
+    setSbStatus('error', 'No se pudo iniciar el cliente de Supabase (SDK no cargó).');
+    return HIST_CACHE;
+  }
+  try {
+    const { data, error } = await cli.from('generador_historial').select('*').eq('razon', razon);
+    if (error) throw error;
+    HIST_CACHE = (data||[]).map(r => ({
+      tienda: r.tienda, mes: r.mes, anio: r.anio,
+      promedio: r.promedio, procesos: r.procesos || {},
+      cargadoEn: r.cargado_en, auditoria: !!r.auditoria,
+      gerente: r.gerente, cumplio: r.cumplio, detalle: r.detalle || [],
+    }));
+    setSbStatus('ok');
+  } catch(e) {
+    console.warn('No se pudo leer el historial de Supabase, usando respaldo local', e);
+    try { HIST_CACHE = JSON.parse(localStorage.getItem(LS_KEY()) || '[]'); } catch { HIST_CACHE = []; }
+    setSbStatus('error', 'Error al leer la tabla generador_historial: ' + (e.message||e));
+  }
+  HIST_READY = true;
+  return HIST_CACHE;
+}
+
+// Sube (upsert) el historial completo a Supabase. onConflict evita duplicados:
+// misma razón + tienda normalizada + mes = mismo registro (se actualiza, no se duplica).
+// Devuelve {ok, error} explícito — YA NO falla en silencio.
+async function sbPersistHistorial(data){
+  try { localStorage.setItem(LS_KEY(), JSON.stringify(data)); } catch(e) {} // respaldo local, siempre
+  const cli = sbGenClient();
+  if (!cli) { setSbStatus('error', 'Cliente de Supabase no disponible.'); return { ok:false, error:'Cliente de Supabase no disponible' }; }
+  const razon = (RAZON_ACTIVA || 'GENERAL').toUpperCase();
+  const rows = data.map(r => ({
+    razon, tienda: r.tienda, tienda_norm: normStore(r.tienda), mes: r.mes, anio: r.anio,
+    promedio: r.promedio, procesos: r.procesos || {}, auditoria: !!r.auditoria,
+    gerente: r.gerente || null, cumplio: r.cumplio || null, detalle: r.detalle || [],
+    cargado_en: r.cargadoEn || null,
+  }));
+  if (!rows.length) return { ok:true, error:null };
+  try {
+    const { error } = await cli.from('generador_historial').upsert(rows, { onConflict:'razon,tienda_norm,mes' });
+    if (error) throw error;
+    setSbStatus('ok');
+    return { ok:true, error:null };
+  } catch(e) {
+    console.warn('Supabase: no se pudo guardar el historial', e);
+    setSbStatus('error', 'Error al guardar: ' + (e.message||e));
+    return { ok:false, error: e.message || String(e) };
+  }
+}
+
+function lsLoad() {
+  return HIST_CACHE;
+}
+function lsSave(data) {
+  HIST_CACHE = data;
+  sbPersistHistorial(data); // dispara el guardado remoto; para confirmación explícita en el flujo de carga, ver handleFile()
+}
+
+// Limpia el historial de duplicados: misma tienda/mes guardados con texto ligeramente
+// distinto (espacios extra, o una etiqueta de mes que quedó mal formada en una carga
+// anterior). Se ejecuta sola al iniciar y después de cada carga — no requiere limpiar
+// el historial a mano. Si dos registros compiten por la misma tienda+mes, se queda con
+// el que tenga más información (detalle por proceso / promedio no nulo).
+function dedupeHistory() {
+  const data = lsLoad();
+  if (!data.length) return false;
+
+  // 1) Elegir UN nombre de tienda canónico por normStore (el más usado en el historial),
+  //    para que la misma tienda nunca aparezca partida en dos filas por mayúsculas/espacios.
+  const nameCounts = new Map(); // normStore -> Map(nombreVisible -> conteo)
+  data.forEach(r => {
+    const key = normStore(r.tienda);
+    if (!nameCounts.has(key)) nameCounts.set(key, new Map());
+    const inner = nameCounts.get(key);
+    const disp = collapseWs(r.tienda);
+    inner.set(disp, (inner.get(disp)||0) + 1);
+  });
+  const canonicalName = new Map();
+  nameCounts.forEach((inner, key) => {
+    let best = null, bestCount = -1;
+    inner.forEach((count, disp) => { if (count > bestCount) { best = disp; bestCount = count; } });
+    canonicalName.set(key, best);
+  });
+
+  // 2) Reescribir cada registro a su forma canónica (tienda + mes) y fusionar duplicados,
+  //    quedándose con el que tenga más información (detalle por proceso / promedio no nulo).
+  const map = new Map();
+  let changed = false;
+  data.forEach(r => {
+    const normKey = normStore(r.tienda);
+    const cleanTienda = canonicalName.get(normKey) || collapseWs(r.tienda);
+    const cleanMes = canonicalMesLabel(r.mes);
+    if (cleanTienda !== r.tienda || cleanMes !== r.mes) changed = true;
+    r.tienda = cleanTienda;
+    r.mes = cleanMes;
+    r.anio = getYear(cleanMes) || r.anio;
+    const k = `${normKey}||${cleanMes}`;
+    const prev = map.get(k);
+    if (!prev) { map.set(k, r); return; }
+    changed = true;
+    const score = rec => (rec.promedio !== null ? 2 : 0) + (rec.detalle ? rec.detalle.length : 0);
+    map.set(k, score(r) >= score(prev) ? r : prev);
+  });
+  if (changed) lsSave([...map.values()]);
+  return changed;
+}
+
+function lsMergeRows(rows, mesCol, tiendaCol, promedioCol, procCols, forceOverwrite) {
+  dedupeHistory(); // asegura que el historial existente ya esté canonicalizado antes de comparar
+  const existing = lsLoad();
+  const existIndex = new Map(existing.map((r,i) => [`${normStore(r.tienda)}||${r.mes}`, i]));
+  let added = 0, skipped = 0, updated = 0;
+
+  const PROCESSES_LOCAL = ['Picking','Traspasos','Entrega en Obra','Envíos vs Beetrack','Rutas pendientes','Mermas'];
+  const keys = rows.length ? Object.keys(rows[0]) : [];
+  const pCols = PROCESSES_LOCAL.map(p => keys.find(k => k.trim().toLowerCase().startsWith(p.toLowerCase())) || p);
+
+  const grouped = {};
+  rows.forEach(r => {
+    const tienda = collapseWs(r[tiendaCol]);
+    const mes    = canonicalMesLabel(r[mesCol]);
+    const anio   = getYear(mes) || 'Sin año';
+    const k      = `${normStore(tienda)}||${mes}`;
+    if (!grouped[k]) grouped[k] = { tienda, mes, anio, rows:[] };
+    grouped[k].rows.push(r);
+  });
+
+  for (const [k, g] of Object.entries(grouped)) {
+    const already = existIndex.has(k);
+    if (already && !forceOverwrite) { skipped++; continue; }
+    const promedioVals = g.rows.map(r=>{ const v=toNum(r[promedioCol]); return v!==null?v*100:null; }).filter(x=>x!==null);
+    const promedio = promedioVals.length ? promedioVals.reduce((a,b)=>a+b,0)/promedioVals.length : null;
+    const procData = {};
+    pCols.forEach((col, i) => {
+      const vals = g.rows.flatMap(r=>{ const v=toNum(r[col]); return v!==null?[v]:[];});
+      procData[PROCESSES_LOCAL[i]] = vals.length ? Math.min(Math.round((vals.reduce((a,b)=>a+b,0)/vals.length)*500*10)/10,100) : null;
+    });
+    const record = { tienda: g.tienda, mes: g.mes, anio: g.anio,
+      promedio: promedio!==null?Math.round(promedio*10)/10:null,
+      procesos: procData, cargadoEn: new Date().toLocaleDateString('es-MX'),
+      auditoria: g.rows[0]['Auditoria'] === 'Si',
+      gerente: g.rows[0]['Gerente'] || null,
+      cumplio: g.rows[0]['Cumplió'] || null,
+      detalle: g.rows[0]['Detalle'] || [] };
+    if (already) {
+      existing[existIndex.get(k)] = record;
+      updated++;
+    } else {
+      existing.push(record);
+      existIndex.set(k, existing.length - 1);
+      added++;
+    }
+  }
+  lsSave(existing);
+  return { added, skipped, updated };
+}
+
+function lsGetStoreTrend(tienda) {
+  const data = lsLoad().filter(r=>r.tienda===tienda);
+  data.sort((a,b)=>monthKey(a.mes)-monthKey(b.mes));
+  return data;
+}
+
+async function clearStorage() {
+  if (!confirm('¿Eliminar todo el historial guardado?')) return;
+  HIST_CACHE = [];
+  localStorage.removeItem(LS_KEY());
+  const cli = sbGenClient();
+  if (cli) {
+    try {
+      const { error } = await cli.from('generador_historial').delete().eq('razon', (RAZON_ACTIVA||'GENERAL').toUpperCase());
+      if (error) throw error;
+      setSbStatus('ok');
+    } catch(e) {
+      console.warn('No se pudo borrar el historial en Supabase', e);
+      setSbStatus('error', 'No se pudo borrar en Supabase: ' + (e.message||e));
+      alert('Se borró localmente, pero no se pudo borrar en Supabase: ' + (e.message||e));
+    }
+  }
+  renderStorageTable();
+}
+
+function populateStorageFilters() {
+  const data = lsLoad();
+  const stores = [...new Set(data.map(r=>r.tienda))].sort();
+  const years  = [...new Set(data.map(r=>r.anio))].sort();
+  const months = [...new Set(data.map(r=>r.mes))].sort((a,b)=>monthKey(a)-monthKey(b));
+
+  const stSel = document.getElementById('storeFilter');
+  stSel.innerHTML = '<option value="all">Todas las tiendas</option>' + stores.map(s=>`<option value="${s}">${s}</option>`).join('');
+  const yrSel = document.getElementById('yearFilter');
+  yrSel.innerHTML = '<option value="all">Todos los años</option>' + years.map(y=>`<option value="${y}">${y}</option>`).join('');
+  populateHistMeses(months);
+  const prSel = document.getElementById('processFilterHist');
+  const curPr = prSel.value;
+  prSel.innerHTML = '<option value="all">Todos los procesos</option>' + PROCESSES.map(p=>`<option value="${p}">${p}</option>`).join('');
+  if (PROCESSES.includes(curPr)) prSel.value = curPr;
+}
+
+// ── Selector múltiple de meses — Historial (mismo patrón que Detalle/Cargar) ──
+function toggleHistMesDropdown() {
+  const p = document.getElementById('histMesPanel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+document.addEventListener('click', (e) => {
+  const dd = document.getElementById('histMesDropdown');
+  if (dd && !dd.contains(e.target)) { const p = document.getElementById('histMesPanel'); if(p) p.style.display = 'none'; }
+});
+function updateHistMesBtnLabel(allMeses) {
+  const btn = document.getElementById('histMesBtn');
+  if (!btn) return;
+  if (histMesesSel.size === 0 || histMesesSel.size === allMeses.length) btn.textContent = 'Todos los meses ▾';
+  else if (histMesesSel.size === 1) btn.textContent = `${[...histMesesSel][0]} ▾`;
+  else btn.textContent = `${histMesesSel.size} meses seleccionados ▾`;
+}
+function histMesToggleOne(m) {
+  if (histMesesSel.has(m)) histMesesSel.delete(m); else histMesesSel.add(m);
+  histMesesCustom = true;
+  const allMeses = [...document.querySelectorAll('#histMesChecklist input')].map(i=>i.value);
+  updateHistMesBtnLabel(allMeses);
+  renderStorageTable();
+}
+function histMesQuickSelect(kind, allMeses) {
+  if (kind === 'all') { histMesesSel = new Set(allMeses); histMesesCustom = false; }
+  else if (kind === 'none') { histMesesSel = new Set(); histMesesCustom = true; }
+  else if (kind.startsWith('year:')) {
+    const y = kind.slice(5);
+    histMesesSel = new Set(allMeses.filter(m => getYear(m) === y));
+    histMesesCustom = true;
+  } else if (kind.startsWith('sem:')) {
+    const [, y, semNum] = kind.split(':');
+    const wanted = semNum === '1' ? 'Semestre 1 (Ene–Jun)' : 'Semestre 2 (Jul–Dic)';
+    histMesesSel = new Set(allMeses.filter(m => getYear(m) === y && getSemestre(m) === wanted));
+    histMesesCustom = true;
+  }
+  document.querySelectorAll('#histMesChecklist input').forEach(i => { i.checked = histMesesSel.has(i.value); });
+  updateHistMesBtnLabel(allMeses);
+  renderStorageTable();
+}
+function populateHistMeses(allMeses) {
+  if (!histMesesCustom) histMesesSel = new Set(allMeses);
+  else histMesesSel = new Set([...histMesesSel].filter(m => allMeses.includes(m)));
+  const checklist = document.getElementById('histMesChecklist');
+  checklist.innerHTML = allMeses.map(m => `<label>
+      <input type="checkbox" value="${m}" ${histMesesSel.has(m)?'checked':''} onchange="histMesToggleOne('${m}')">
+      ${m}
+    </label>`).join('');
+  const years = [...new Set(allMeses.map(getYear).filter(Boolean))].sort();
+  const mesesJs = '[' + allMeses.map(m=>`'${m}'`).join(',') + ']';
+  const quickHtml = [`<button type="button" class="ms-quick-btn" onclick="histMesQuickSelect('all',${mesesJs})">Todos</button>`,
+                      `<button type="button" class="ms-quick-btn" onclick="histMesQuickSelect('none',${mesesJs})">Ninguno</button>`];
+  years.forEach(y => {
+    quickHtml.push(`<button type="button" class="ms-quick-btn" onclick="histMesQuickSelect('year:${y}',${mesesJs})">Año ${y}</button>`);
+    ['1','2'].forEach(semNum => {
+      const wanted = semNum === '1' ? 'Semestre 1 (Ene–Jun)' : 'Semestre 2 (Jul–Dic)';
+      const has = allMeses.some(m => getYear(m) === y && getSemestre(m) === wanted);
+      if (has) quickHtml.push(`<button type="button" class="ms-quick-btn" onclick="histMesQuickSelect('sem:${y}:${semNum}',${mesesJs})">Sem ${semNum} · ${y}</button>`);
+    });
+  });
+  document.getElementById('histMesQuick').innerHTML = quickHtml.join('');
+  updateHistMesBtnLabel(allMeses);
+}
+
+function renderStorageTable() {
+  let data = lsLoad();
+  const sf = document.getElementById('storeFilter').value;
+  const yf = document.getElementById('yearFilter').value;
+  const pf = document.getElementById('processFilterHist').value;
+  const allMesesHist = [...new Set(lsLoad().map(r=>r.mes))];
+  if (sf!=='all') data = data.filter(r=>r.tienda===sf);
+  if (yf!=='all') data = data.filter(r=>r.anio===yf);
+  if (histMesesSel.size > 0 && histMesesSel.size < allMesesHist.length) data = data.filter(r=>histMesesSel.has(r.mes));
+  if (pf!=='all') data = data.filter(r=>r.procesos && r.procesos[pf]!==null && r.procesos[pf]!==undefined);
+
+  const tbody = document.getElementById('storageBody');
+  const PROCESSES_LOCAL = ['Picking','Traspasos','Entrega en Obra','Envíos vs Beetrack','Rutas pendientes','Mermas'];
+
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Sin registros guardados para esta selección</td></tr>';
+    document.getElementById('storageCount').textContent = '';
+    return;
+  }
+
+  data.sort((a,b)=>{ const t=a.tienda.localeCompare(b.tienda); return t!==0?t:monthKey(a.mes)-monthKey(b.mes); });
+
+  tbody.innerHTML = data.map(r => {
+    const pv = r.promedio!==null ? r.promedio.toFixed(1)+'%' : '—';
+    const cls = r.promedio>=80?'badge-ok':'badge-warn';
+    let procStr;
+    if (pf !== 'all') {
+      // Con un proceso elegido, resalta solo ese valor en vez del resumen completo
+      const v = r.procesos ? r.procesos[pf] : null;
+      procStr = v!==null && v!==undefined ? `${pf}: ${v}%` : '—';
+    } else {
+      procStr = r.procesos ? Object.entries(r.procesos).filter(([,v])=>v!==null).map(([k,v])=>`${k.slice(0,4)}:${v}%`).join(', ') : '—';
+    }
+    return `<tr>
+      <td><strong>${r.tienda}</strong></td>
+      <td>${r.mes}</td>
+      <td>${r.anio}</td>
+      <td><span class="${cls}">${pv}</span></td>
+      <td style="font-size:0.72rem;color:var(--gray-400);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${procStr}">${procStr}</td>
+      <td style="color:var(--gray-400)">${r.cargadoEn}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('storageCount').textContent = `${data.length} registro${data.length!==1?'s':''}`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// DETALLE INDIVIDUAL — tarjetas por tienda tal cual el Excel
+// ═══════════════════════════════════════════════════════════
+let detalleMesesSel = new Set(); // meses activos en el multi-select
+let detalleMesesCustom = false;   // true si el usuario ya eligió algo distinto de "Todos"
+
+// Mismo patrón de selector múltiple de meses, reutilizado en Historial y Tendencia
+// (antes solo existía en Detalle Individual y en el panel de Cargar y Generar).
+let histMesesSel = new Set();
+let histMesesCustom = false;
+let trendMesesSel = new Set();
+let trendMesesCustom = false;
+
+// Selector múltiple de meses del panel "Cargar y Generar" (filtro de período).
+// Igual que en Detalle Individual: permite elegir uno, varios o todos los
+// meses en vez de forzar a elegir un solo mes a la vez.
+let filterMesesSel = new Set();
+let filterMesesCustom = false;
+
+// ══════════════════════════════════════════════════════════════════
+// NAVEGACIÓN POR VISTAS — Cargar y Generar / Historial / Tendencia / Detalle
+// Cada botón cambia a su propia vista independiente (ya no se apilan
+// debajo unas de otras) y sigue funcionando con los filtros propios de
+// cada panel (tienda/mes/proceso, período, etc.)
+// ══════════════════════════════════════════════════════════════════
+function switchGenView(view){
+  document.querySelectorAll('.gen-view').forEach(v => v.style.display = 'none');
+  const target = document.getElementById('view-' + view);
+  if (target) target.style.display = 'flex';
+  document.querySelectorAll('.gen-tab').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+  if (view === 'historial') { populateStorageFilters(); renderStorageTable(); }
+  else if (view === 'tendencia') { renderTrend(currentTrendTab); }
+  else if (view === 'detalle') { populateDetalleFilters(); renderDetalleCards(); }
+}
+
+// Exporta la pantalla actualmente visible (con los filtros aplicados) como PNG,
+// para usarla como evidencia/anexo adicional fuera del PowerPoint.
+async function descargarCapturaVista(){
+  const target = [...document.querySelectorAll('.gen-view')].find(v => v.style.display !== 'none');
+  if (!target) { alert('No hay ninguna pantalla visible para capturar.'); return; }
+  const activeTab = document.querySelector('.gen-tab.active');
+  const nombreVista = activeTab ? activeTab.textContent.trim().replace(/[^\p{L}\p{N}]+/gu,'_') : 'vista';
+  const btn = event && event.target ? event.target : null;
+  const prevTxt = btn ? btn.textContent : null;
+  if (btn) { btn.textContent = '⏳ Generando…'; btn.disabled = true; }
+  try {
+    const canvas = await html2canvas(target, { backgroundColor:'#f5f6f8', scale:2, useCORS:true });
+    const link = document.createElement('a');
+    const fecha = new Date().toISOString().slice(0,10);
+    link.download = `Kuroda_${(RAZON_ACTIVA||'General')}_${nombreVista}_${fecha}.png`;
+    link.href = canvas.toDataURL('image/png');
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } catch(e) {
+    console.error(e);
+    alert('No se pudo generar la imagen de esta pantalla: ' + e.message);
+  } finally {
+    if (btn) { btn.textContent = prevTxt; btn.disabled = false; }
+  }
+}
+
+function toggleMesDropdown() {
+  const p = document.getElementById('detalleMesPanel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+document.addEventListener('click', (e) => {
+  const dd = document.getElementById('detalleMesDropdown');
+  if (dd && !dd.contains(e.target)) document.getElementById('detalleMesPanel').style.display = 'none';
+});
+
+function updateMesBtnLabel(allMeses) {
+  const btn = document.getElementById('detalleMesBtn');
+  if (detalleMesesSel.size === 0 || detalleMesesSel.size === allMeses.length) {
+    btn.textContent = 'Todos los meses ▾';
+  } else if (detalleMesesSel.size === 1) {
+    btn.textContent = `${[...detalleMesesSel][0]} ▾`;
+  } else {
+    btn.textContent = `${detalleMesesSel.size} meses seleccionados ▾`;
+  }
+}
+
+function mesToggleOne(m) {
+  if (detalleMesesSel.has(m)) detalleMesesSel.delete(m); else detalleMesesSel.add(m);
+  detalleMesesCustom = true;
+  const allMeses = [...document.querySelectorAll('#detalleMesChecklist input')].map(i=>i.value);
+  updateMesBtnLabel(allMeses);
+  renderDetalleCards();
+}
+
+function mesQuickSelect(kind, allMeses) {
+  if (kind === 'all') { detalleMesesSel = new Set(allMeses); detalleMesesCustom = false; }
+  else if (kind === 'none') { detalleMesesSel = new Set(); detalleMesesCustom = true; }
+  else if (kind.startsWith('year:')) {
+    const y = kind.slice(5);
+    detalleMesesSel = new Set(allMeses.filter(m => getYear(m) === y));
+    detalleMesesCustom = true;
+  } else if (kind.startsWith('sem:')) {
+    const [,y,semNum] = kind.split(':');
+    const wanted = semNum === '1' ? 'Semestre 1 (Ene–Jun)' : 'Semestre 2 (Jul–Dic)';
+    detalleMesesSel = new Set(allMeses.filter(m => getYear(m) === y && getSemestre(m) === wanted));
+    detalleMesesCustom = true;
+  }
+  document.querySelectorAll('#detalleMesChecklist input').forEach(i => { i.checked = detalleMesesSel.has(i.value); });
+  updateMesBtnLabel(allMeses);
+  renderDetalleCards();
+}
+
+function populateDetalleFilters() {
+  const data = lsLoad();
+  const meses   = [...new Set(data.map(r=>r.mes))].sort((a,b)=>monthKey(a)-monthKey(b));
+  const tiendas = [...new Set(data.map(r=>r.tienda))].sort();
+
+  // Meses: multi-select con casillas + atajos dinámicos por año/semestre
+  if (!detalleMesesCustom) detalleMesesSel = new Set(meses);
+  else detalleMesesSel = new Set([...detalleMesesSel].filter(m => meses.includes(m)));
+  const checklist = document.getElementById('detalleMesChecklist');
+  checklist.innerHTML = meses.map(m => `<label>
+      <input type="checkbox" value="${m}" ${detalleMesesSel.has(m)?'checked':''} onchange="mesToggleOne('${m}')">
+      ${m}
+    </label>`).join('');
+
+  const years = [...new Set(meses.map(getYear).filter(Boolean))].sort();
+  const quickHtml = ['<button type="button" class="ms-quick-btn" onclick="mesQuickSelect(\'all\',[' + meses.map(m=>`'${m}'`).join(',') + '])">Todos</button>',
+                      '<button type="button" class="ms-quick-btn" onclick="mesQuickSelect(\'none\',[])">Ninguno</button>'];
+  years.forEach(y => {
+    quickHtml.push(`<button type="button" class="ms-quick-btn" onclick="mesQuickSelect('year:${y}',[${meses.map(m=>`'${m}'`).join(',')}])">Año ${y}</button>`);
+    ['1','2'].forEach(semNum => {
+      const wanted = semNum === '1' ? 'Semestre 1 (Ene–Jun)' : 'Semestre 2 (Jul–Dic)';
+      const has = meses.some(m => getYear(m) === y && getSemestre(m) === wanted);
+      if (has) quickHtml.push(`<button type="button" class="ms-quick-btn" onclick="mesQuickSelect('sem:${y}:${semNum}',[${meses.map(m=>`'${m}'`).join(',')}])">Sem ${semNum} · ${y}</button>`);
+    });
+  });
+  document.getElementById('detalleMesQuick').innerHTML = quickHtml.join('');
+  updateMesBtnLabel(meses);
+
+  const tSel = document.getElementById('detalleTienda');
+  const curT = tSel.value;
+  tSel.innerHTML = '<option value="all">Todas las tiendas</option>' + tiendas.map(t=>`<option value="${t}">${t}</option>`).join('');
+  if (tiendas.includes(curT)) tSel.value = curT;
+
+  const aSel = document.getElementById('detalleAnio');
+  const curA = aSel.value;
+  aSel.innerHTML = '<option value="all">Todos los años</option>' + years.map(y=>`<option value="${y}">${y}</option>`).join('');
+  if (years.includes(curA)) aSel.value = curA;
+
+  // Procesos: se agrupan por nombre normalizado (ej. "Rutas Pendientes-Beetrack" y
+  // "Rutas abiertas y cerradas" cuentan como el mismo proceso), aunque cada tarjeta
+  // sigue mostrando el texto exacto que trae el Excel de esa tienda ese mes.
+  const procGroups = new Map(); // nombreNormalizado -> Set(variantes de texto)
+  data.forEach(r => (r.detalle||[]).forEach(d => {
+    const norm = normConcept(d.concepto);
+    if (!procGroups.has(norm)) procGroups.set(norm, new Set());
+    procGroups.get(norm).add(d.concepto);
+  }));
+  const pSel = document.getElementById('detalleProceso');
+  const curP = pSel.value;
+  const procNames = [...procGroups.keys()].sort();
+  pSel.innerHTML = '<option value="all">Todos los procesos</option>' + procNames.map(p=>`<option value="${p}">${p}</option>`).join('');
+  if (procNames.includes(curP)) pSel.value = curP;
+  window._procGroups = procGroups;
+}
+
+function renderDetalleCards() {
+  let data = lsLoad();
+  const allMeses = [...new Set(data.map(r=>r.mes))];
+  const tf = document.getElementById('detalleTienda').value;
+  const af = document.getElementById('detalleAnio').value;
+  const pf = document.getElementById('detalleProceso').value;
+  const pfVariants = (pf !== 'all' && window._procGroups && window._procGroups.get(pf)) || null;
+
+  if (detalleMesesSel.size > 0 && detalleMesesSel.size < allMeses.length) {
+    data = data.filter(r => detalleMesesSel.has(r.mes));
+  }
+  if (tf !== 'all') data = data.filter(r => r.tienda === tf);
+  if (af !== 'all') data = data.filter(r => getYear(r.mes) === af);
+  if (pfVariants) data = data.filter(r => (r.detalle||[]).some(d => pfVariants.has(d.concepto)));
+
+  data.sort((a,b) => { const t = monthKey(b.mes)-monthKey(a.mes); return t!==0 ? t : a.tienda.localeCompare(b.tienda); });
+
+  const wrap = document.getElementById('detalleCards');
+  if (!data.length) {
+    wrap.innerHTML = '<div class="empty-state">Sin registros para esta selección</div>';
+    return;
+  }
+
+  wrap.innerHTML = data.map(r => {
+    const detalle = r.detalle && r.detalle.length ? r.detalle : [];
+    const rowsHtml = detalle.map(d => {
+      const isHi = pfVariants && pfVariants.has(d.concepto);
+      const valTxt = (r.auditoria || d.valor === null) ? '' : `${Math.round(d.valor*100)}%`;
+      const valCls = r.auditoria ? 'valor audit-cell' : 'valor';
+      return `<tr class="${isHi ? 'detalle-row-highlight' : ''}">
+        <td class="concepto">${d.concepto}</td>
+        <td class="${valCls}">${valTxt}</td>
+      </tr>`;
+    }).join('');
+    const pv = r.promedio !== null ? `${Math.round(r.promedio)}%` : '—';
+    const auditBadge = r.auditoria ? '<span class="detalle-badge-audit">AUDITORÍA</span>' : '';
+    return `<div class="detalle-card">
+      <div class="detalle-card-head">
+        ${r.gerente ? `<div class="gerente">Gerente: ${r.gerente}</div>` : ''}
+        <div class="tienda">Tienda: ${r.tienda}${auditBadge}</div>
+      </div>
+      <table class="detalle-table">
+        <thead><tr><th class="concepto-header">Concepto</th><th class="pct-header">%</th></tr></thead>
+        <tbody>
+          ${rowsHtml || '<tr><td colspan="2" style="text-align:center;color:var(--gray-400);padding:0.6rem">Sin detalle por proceso</td></tr>'}
+          <tr class="detalle-total-row"><td></td><td class="valor">${pv}</td></tr>
+        </tbody>
+      </table>
+      <div class="detalle-card-foot">${r.mes}${r.cumplio ? ` · Cumplió: ${r.cumplio}` : ''}</div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// TREND REPORT
+// ═══════════════════════════════════════════════════════════
+let currentTrendTab = 'cumplimiento';
+
+function switchTrendTab(tab) {
+  currentTrendTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  renderTrend(tab);
+}
+
+function populateTrendFilters(data) {
+  const stores = [...new Set(data.map(r=>r.tienda))].sort();
+  const years  = [...new Set(data.map(r=>r.anio).filter(Boolean))].sort();
+  const months = [...new Set(data.map(r=>r.mes))].sort((a,b)=>monthKey(a)-monthKey(b));
+
+  const stSel = document.getElementById('trendFilterTienda');
+  const curSt = stSel.value;
+  stSel.innerHTML = '<option value="all">Todas las tiendas</option>' + stores.map(s=>`<option value="${s}">${s}</option>`).join('');
+  if (stores.includes(curSt)) stSel.value = curSt;
+
+  const yrSel = document.getElementById('trendFilterAnio');
+  const curYr = yrSel.value;
+  yrSel.innerHTML = '<option value="all">Todos los años</option>' + years.map(y=>`<option value="${y}">${y}</option>`).join('');
+  if (years.includes(curYr)) yrSel.value = curYr;
+
+  populateTrendMeses(months);
+
+  const prSel = document.getElementById('trendFilterProceso');
+  const curPr = prSel.value;
+  prSel.innerHTML = '<option value="all">Promedio general</option>' + PROCESSES.map(p=>`<option value="${p}">${p}</option>`).join('');
+  if (PROCESSES.includes(curPr)) prSel.value = curPr;
+}
+
+// ── Selector múltiple de meses — Tendencia (mismo patrón que Detalle/Cargar/Historial) ──
+function toggleTrendMesDropdown() {
+  const p = document.getElementById('trendMesPanel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+document.addEventListener('click', (e) => {
+  const dd = document.getElementById('trendMesDropdown');
+  if (dd && !dd.contains(e.target)) { const p = document.getElementById('trendMesPanel'); if(p) p.style.display = 'none'; }
+});
+function updateTrendMesBtnLabel(allMeses) {
+  const btn = document.getElementById('trendMesBtn');
+  if (!btn) return;
+  if (trendMesesSel.size === 0 || trendMesesSel.size === allMeses.length) btn.textContent = 'Todos los meses ▾';
+  else if (trendMesesSel.size === 1) btn.textContent = `${[...trendMesesSel][0]} ▾`;
+  else btn.textContent = `${trendMesesSel.size} meses seleccionados ▾`;
+}
+function trendMesToggleOne(m) {
+  if (trendMesesSel.has(m)) trendMesesSel.delete(m); else trendMesesSel.add(m);
+  trendMesesCustom = true;
+  const allMeses = [...document.querySelectorAll('#trendMesChecklist input')].map(i=>i.value);
+  updateTrendMesBtnLabel(allMeses);
+  renderTrend(currentTrendTab);
+}
+function trendMesQuickSelect(kind, allMeses) {
+  if (kind === 'all') { trendMesesSel = new Set(allMeses); trendMesesCustom = false; }
+  else if (kind === 'none') { trendMesesSel = new Set(); trendMesesCustom = true; }
+  else if (kind.startsWith('year:')) {
+    const y = kind.slice(5);
+    trendMesesSel = new Set(allMeses.filter(m => getYear(m) === y));
+    trendMesesCustom = true;
+  } else if (kind.startsWith('sem:')) {
+    const [, y, semNum] = kind.split(':');
+    const wanted = semNum === '1' ? 'Semestre 1 (Ene–Jun)' : 'Semestre 2 (Jul–Dic)';
+    trendMesesSel = new Set(allMeses.filter(m => getYear(m) === y && getSemestre(m) === wanted));
+    trendMesesCustom = true;
+  }
+  document.querySelectorAll('#trendMesChecklist input').forEach(i => { i.checked = trendMesesSel.has(i.value); });
+  updateTrendMesBtnLabel(allMeses);
+  renderTrend(currentTrendTab);
+}
+function populateTrendMeses(allMeses) {
+  if (!trendMesesCustom) trendMesesSel = new Set(allMeses);
+  else trendMesesSel = new Set([...trendMesesSel].filter(m => allMeses.includes(m)));
+  const checklist = document.getElementById('trendMesChecklist');
+  checklist.innerHTML = allMeses.map(m => `<label>
+      <input type="checkbox" value="${m}" ${trendMesesSel.has(m)?'checked':''} onchange="trendMesToggleOne('${m}')">
+      ${m}
+    </label>`).join('');
+  const years = [...new Set(allMeses.map(getYear).filter(Boolean))].sort();
+  const mesesJs = '[' + allMeses.map(m=>`'${m}'`).join(',') + ']';
+  const quickHtml = [`<button type="button" class="ms-quick-btn" onclick="trendMesQuickSelect('all',${mesesJs})">Todos</button>`,
+                      `<button type="button" class="ms-quick-btn" onclick="trendMesQuickSelect('none',${mesesJs})">Ninguno</button>`];
+  years.forEach(y => {
+    quickHtml.push(`<button type="button" class="ms-quick-btn" onclick="trendMesQuickSelect('year:${y}',${mesesJs})">Año ${y}</button>`);
+    ['1','2'].forEach(semNum => {
+      const wanted = semNum === '1' ? 'Semestre 1 (Ene–Jun)' : 'Semestre 2 (Jul–Dic)';
+      const has = allMeses.some(m => getYear(m) === y && getSemestre(m) === wanted);
+      if (has) quickHtml.push(`<button type="button" class="ms-quick-btn" onclick="trendMesQuickSelect('sem:${y}:${semNum}',${mesesJs})">Sem ${semNum} · ${y}</button>`);
+    });
+  });
+  document.getElementById('trendMesQuick').innerHTML = quickHtml.join('');
+  updateTrendMesBtnLabel(allMeses);
+}
+
+function renderTrend(tab) {
+  const content = document.getElementById('trendContent');
+  let data = lsLoad();
+  if (!data.length) {
+    content.innerHTML = '<div class="empty-state">Sin datos en historial. Carga archivos Excel para ver tendencias.</div>';
+    return;
+  }
+
+  const allMesesTrend = [...new Set(data.map(r=>r.mes))];
+  populateTrendFilters(data);
+  const tf = document.getElementById('trendFilterTienda').value;
+  const af = document.getElementById('trendFilterAnio').value;
+  const pf = document.getElementById('trendFilterProceso').value;
+  if (tf !== 'all') data = data.filter(r => r.tienda === tf);
+  if (af !== 'all') data = data.filter(r => r.anio === af);
+  if (trendMesesSel.size > 0 && trendMesesSel.size < allMesesTrend.length) data = data.filter(r => trendMesesSel.has(r.mes));
+
+  if (!data.length) {
+    content.innerHTML = '<div class="empty-state">Sin registros para esta selección</div>';
+    return;
+  }
+
+  // Si se eligió un proceso, cada registro usa el valor de ESE proceso en vez
+  // del promedio general (mismo criterio que el filtro del PPTX descargable).
+  const usaProceso = pf !== 'all';
+  const valorDe = (r) => usaProceso ? (r.procesos ? r.procesos[pf] : null) : r.promedio;
+
+  const stores = [...new Set(data.map(r=>r.tienda))].sort();
+  const PROCESSES_LOCAL = ['Picking','Traspasos','Entrega en Obra','Envíos vs Beetrack','Rutas pendientes','Mermas'];
+
+  if (tab === 'cumplimiento') {
+    const cards = stores.map(tienda => {
+      const records = data.filter(r=>r.tienda===tienda && valorDe(r)!==null && valorDe(r)!==undefined)
+                         .sort((a,b)=>monthKey(a.mes)-monthKey(b.mes));
+      if (!records.length) return '';
+      const vals = records.map(valorDe);
+      const latest = vals[vals.length-1];
+      const prev   = vals.length>1 ? vals[vals.length-2] : null;
+      const minV   = Math.min(...vals), maxV = Math.max(...vals);
+      const avgV   = vals.reduce((a,b)=>a+b,0)/vals.length;
+      const diff   = prev!==null ? latest-prev : 0;
+      const arrow  = diff>0.5?'▲':diff<-0.5?'▼':'→';
+      const arrowCls = diff>0.5?'arrow-up':diff<-0.5?'arrow-down':'arrow-flat';
+      const barColor = latest>=80?'#2E7D32':latest>=60?'#F0A500':'#C62828';
+      return `<div class="trend-card">
+        <h4>${tienda}</h4>
+        <div class="trend-row"><span class="trend-label">Último mes</span><span class="trend-val">${records[records.length-1].mes}</span></div>
+        <div class="trend-row"><span class="trend-label">${usaProceso ? pf : 'Cumplimiento actual'}</span><span class="trend-val" style="color:${barColor}">${latest.toFixed(1)}%</span></div>
+        <div class="trend-bar-wrap"><div class="trend-bar-fill" style="width:${latest}%;background:${barColor}"></div></div>
+        <div class="trend-row">
+          <span class="trend-label">Promedio histórico</span><span class="trend-val">${avgV.toFixed(1)}%</span>
+        </div>
+        <div class="trend-row">
+          <span class="trend-label">Rango</span><span class="trend-val">${minV.toFixed(1)}%–${maxV.toFixed(1)}%</span>
+        </div>
+        ${prev!==null?`<div class="trend-row"><span class="trend-label">Vs. mes anterior</span><span class="trend-arrow ${arrowCls}">${arrow} ${Math.abs(diff).toFixed(1)}pp</span></div>`:''}
+        <div class="trend-row"><span class="trend-label">Meses registrados</span><span class="trend-val">${records.length}</span></div>
+      </div>`;
+    }).join('');
+    content.innerHTML = `<div class="trend-grid">${cards}</div>`;
+
+  } else if (tab === 'procesos') {
+    const cards = stores.map(tienda => {
+      const records = data.filter(r=>r.tienda===tienda && r.procesos);
+      if (!records.length) return '';
+      const procHTML = PROCESSES_LOCAL.map(p => {
+        const vals = records.map(r=>r.procesos[p]).filter(v=>v!==null && v!==undefined);
+        if (!vals.length) return '';
+        const avg2 = vals.reduce((a,b)=>a+b,0)/vals.length;
+        const col = avg2>=80?'#2E7D32':avg2>=60?'#F0A500':'#C62828';
+        const hi = usaProceso && p === pf;
+        return `<div class="trend-row"${hi?' style="font-weight:700"':''}>
+          <span class="trend-label" style="font-size:0.72rem">${p.slice(0,18)}${hi?' ★':''}</span>
+          <span class="trend-val" style="color:${col}">${avg2.toFixed(1)}%</span>
+        </div>`;
+      }).join('');
+      return `<div class="trend-card"><h4>${tienda}</h4>${procHTML}</div>`;
+    }).join('');
+    content.innerHTML = `<div class="trend-grid">${cards}</div>`;
+
+  } else if (tab === 'ranking') {
+    const storeAvgs = stores.map(tienda => {
+      const records = data.filter(r=>r.tienda===tienda && valorDe(r)!==null && valorDe(r)!==undefined);
+      const avgV = records.length ? records.reduce((a,r)=>a+valorDe(r),0)/records.length : null;
+      const trend = (() => {
+        const vals = records.sort((a,b)=>monthKey(a.mes)-monthKey(b.mes)).map(valorDe);
+        if (vals.length<2) return 0;
+        return vals[vals.length-1]-vals[0];
+      })();
+      return { tienda, avgV, meses: records.length, trend };
+    }).filter(s=>s.avgV!==null).sort((a,b)=>b.avgV-a.avgV);
+
+    content.innerHTML = `<div style="background:var(--white);border-radius:10px;border:1px solid var(--gray-200);overflow:hidden">
+      <table class="storage-table" style="margin:0">
+        <thead><tr><th>#</th><th>Sucursal</th><th>${usaProceso ? pf : 'Prom. Histórico'}</th><th>Meses</th><th>Tendencia</th><th>Estado</th></tr></thead>
+        <tbody>${storeAvgs.map((s,i)=>{
+          const col = s.avgV>=80?'#2E7D32':s.avgV>=60?'#F0A500':'#C62828';
+          const tArr = s.trend>1?'▲ Mejorando':s.trend<-1?'▼ Bajando':'→ Estable';
+          const tCls = s.trend>1?'arrow-up':s.trend<-1?'arrow-down':'arrow-flat';
+          const badge = s.avgV>=80?'badge-ok':'badge-warn';
+          return `<tr>
+            <td><strong>${i+1}</strong></td>
+            <td><strong>${s.tienda}</strong></td>
+            <td><strong style="color:${col}">${s.avgV.toFixed(1)}%</strong></td>
+            <td>${s.meses}</td>
+            <td><span class="trend-arrow ${tCls}">${tArr}</span></td>
+            <td><span class="${badge}">${s.avgV>=80?'Óptimo':s.avgV>=60?'Aceptable':'En riesgo'}</span></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// WORD AUDIT REPORT — RTF real, carta, márgenes 1.5cm
+// RTF = texto plano, Word lo abre sin corrupción garantizado
+// ═══════════════════════════════════════════════════════════
+
+// Convierte texto a RTF: escapa \{}  y chars > 127 como \'xx
+function rtfEsc(str) {
+  if (str === null || str === undefined) return '---';
+  return String(str).split('').map(ch => {
+    const c = ch.charCodeAt(0);
+    if (ch === '\\') return '\\\\';
+    if (ch === '{')  return '\\{';
+    if (ch === '}')  return '\\}';
+    if (c > 127)     return "\\'" + c.toString(16).padStart(2,'0');
+    return ch;
+  }).join('');
+}
+
+// Fila de encabezado RTF (fondo navy, texto blanco)
+function rtfTH(cells, headers) {
+  let r = '\\trowd\\trgaph60\\trrh-290\\trqc';
+  cells.forEach(x => { r += `\\clcbpat2\\clcfpat7\\clbrdrt\\brdrs\\brdrw10\\clbrdrl\\brdrs\\brdrw10\\clbrdrb\\brdrs\\brdrw10\\clbrdrr\\brdrs\\brdrw10\\cellx${x}`; });
+  r += '\\intbl\\b\\fs17\\cf7 ' + headers.map(h => rtfEsc(h) + '\\cell').join(' ') + '\\b0\\row\n';
+  return r;
+}
+
+// Fila de datos RTF (fondo alternado opcional)
+function rtfTR(cells, values, even) {
+  let r = '\\trowd\\trgaph60\\trqc';
+  const bg = even ? '\\clcbpat8' : '';
+  cells.forEach(x => { r += `${bg}\\clbrdrt\\brdrs\\brdrw5\\clbrdrl\\brdrs\\brdrw5\\clbrdrb\\brdrs\\brdrw5\\clbrdrr\\brdrs\\brdrw5\\cellx${x}`; });
+  r += '\\intbl\\fs17\\cf0 ' + values.map(v => String(v) + '\\cell').join(' ') + '\\row\n';
+  return r;
+}
+
+async function downloadAuditWord() {
+  const btn = document.getElementById('downloadWordBtn');
+  btn.textContent = '⏳ Generando informe…';
+  btn.disabled = true;
+
+  const data = lsLoad();
+  if (!data.length) {
+    alert('Sin datos en historial para generar informe.');
+    btn.innerHTML = '<span>📄</span> Descargar Informe Word de Auditoría';
+    btn.disabled = false;
+    return;
+  }
+
+  const PROCESSES_LOCAL = ['Picking','Traspasos','Entrega en Obra','Envíos vs Beetrack','Rutas pendientes','Mermas'];
+  const stores = [...new Set(data.map(r => r.tienda))].sort();
+  const today = new Date().toLocaleDateString('es-MX', {year:'numeric', month:'long', day:'numeric'});
+
+  // Ranking con tendencia
+  const storeAvgs = stores.map(tienda => {
+    const recs = data.filter(r => r.tienda === tienda && r.promedio !== null)
+                     .sort((a, b) => monthKey(a.mes) - monthKey(b.mes));
+    const avg2  = recs.length ? recs.reduce((a, r) => a + r.promedio, 0) / recs.length : null;
+    const trend = recs.length >= 2 ? recs[recs.length-1].promedio - recs[0].promedio : 0;
+    return { tienda, avg: avg2, meses: recs.length, trend, recs };
+  }).filter(s => s.avg !== null).sort((a, b) => b.avg - a.avg);
+
+  const atRisk   = storeAvgs.filter(s => s.avg < 60);
+  const dropping = storeAvgs.filter(s => s.trend < -2);
+  const improving= storeAvgs.filter(s => s.trend > 2);
+
+  // ── Medidas RTF ───────────────────────────────────────────
+  // Carta: 8.5×11 in = 12240×15840 twips. Margen 1.5cm = 850 twips.
+  // Ancho útil = 12240 - 850*2 = 10540 twips
+
+  // Columnas tabla ranking (6 cols): #, Sucursal, Prom, Meses, Tendencia, Estado
+  const RANK_CELLS = [468, 3747, 5386, 6557, 8899, 10538];
+
+  // Columnas tabla detalle (10 cols): Mes, Año, Cumpl, 6 procesos abrev, Cargado
+  const DETAIL_CELLS = [1264, 2001, 3055, 4109, 5163, 6427, 7691, 8745, 9799, 10536];
+
+  // Colores RTF (índice 1-based en \colortbl):
+  // 1=teal #008080, 2=navy #0D1B3E, 3=gold #F0A500, 4=green #065f46,
+  // 5=warn #92400e, 6=bad #7f1d1d, 7=white #ffffff, 8=stripe #f3f4f6
+
+  function colIdx(val) { // retorna color por valor numérico
+    if (val >= 80) return 4; // verde
+    if (val >= 60) return 5; // ámbar
+    return 6;               // rojo
+  }
+
+  // Párrafo RTF con estilo
+  function rtfPar(text, opts={}) {
+    const sz   = opts.sz   || 20;      // half-points (20=10pt)
+    const bold = opts.bold ? '\\b '  : '';
+    const cf   = opts.cf   ? `\\cf${opts.cf} ` : '\\cf0 ';
+    const sb   = opts.sb   ? `\\sb${opts.sb}` : '\\sb80';
+    const sa   = opts.sa   ? `\\sa${opts.sa}` : '\\sa40';
+    return `\\pard${sb}${sa}\\f0\\fs${sz} ${bold}${cf}${rtfEsc(text)}\\b0\\cf0\\par\n`;
+  }
+
+  // ── Construcción RTF ──────────────────────────────────────
+  let rtf = `{\\rtf1\\ansi\\ansicpg1252\\deff0\\nouicompat
+{\\fonttbl{\\f0\\fswiss\\fcharset0 Calibri;}}
+{\\colortbl ;\\red0\\green128\\blue128;\\red13\\green27\\blue62;\\red240\\green165\\blue0;\\red6\\green95\\blue70;\\red146\\green64\\blue14;\\red127\\green29\\blue29;\\red255\\green255\\blue255;\\red243\\green244\\blue246;}
+\\paperw12240\\paperh15840\\margl850\\margr850\\margt850\\margb850
+\\widowctrl\\ftnbj\\aenddoc\\viewkind4\\uc1\n`;
+
+  // Título principal
+  rtf += `\\pard\\sb0\\sa120\\f0\\fs32\\b\\cf1 ${rtfEsc('Informe de Audit\u00f3ria — Tendencia de Cumplimiento de Procesos')}\\b0\\cf0\\par\n`;
+
+  // Bloque meta
+  rtf += rtfPar(`Fecha: ${today}   |   Sucursales: ${stores.length}   |   Registros: ${data.length}`, {sz:19, cf:2});
+  rtf += rtfPar(`Per\u00edodo cubierto: ${[...new Set(data.map(r=>r.mes))].join(', ')}`, {sz:19, cf:2});
+
+  // ── SECCIÓN 1: Ranking ────────────────────────────────────
+  rtf += `\\pard\\sb200\\sa60\\f0\\fs26\\b\\cf2 ${rtfEsc('1. Ranking de Sucursales')}\\b0\\cf0\\par\n`;
+
+  rtf += rtfTH(RANK_CELLS, ['#','Sucursal','Prom. Hist.','Meses','Tendencia','Estado']);
+  storeAvgs.forEach((s, i) => {
+    const ci  = colIdx(s.avg);
+    const st  = s.avg >= 80 ? '\u00d3ptimo' : s.avg >= 60 ? 'Aceptable' : 'En riesgo';
+    const tr  = s.trend > 1 ? 'Mejorando' : s.trend < -1 ? 'Bajando' : 'Estable';
+    const pv  = `{\\b\\cf${ci} ${s.avg.toFixed(1)}%}`;
+    const stv = `{\\b\\cf${ci} ${rtfEsc(st)}}`;
+    rtf += rtfTR(RANK_CELLS, [`${i+1}`, `{\\b ${rtfEsc(s.tienda)}}`, pv, `${s.meses}`, rtfEsc(tr), stv], i%2===1);
+  });
+  rtf += '\\pard\\par\n';
+
+  // ── SECCIÓN 2: Detalle por sucursal ───────────────────────
+  rtf += `\\pard\\sb200\\sa60\\f0\\fs26\\b\\cf2 ${rtfEsc('2. Detalle por Sucursal')}\\b0\\cf0\\par\n`;
+
+  const procAbrev = ['Picking','Traspasos','Entr.Obra','Env.Betrk','R.Pend.','Mermas'];
+
+  storeAvgs.forEach(s => {
+    rtf += `\\pard\\sb160\\sa40\\f0\\fs22\\b\\cf1 ${rtfEsc(s.tienda)}\\b0\\cf0\\par\n`;
+
+    const detHeaders = ['Mes','A\u00f1o','Cumpl.', ...procAbrev, 'Cargado'];
+    rtf += rtfTH(DETAIL_CELLS, detHeaders);
+
+    s.recs.forEach((r, i) => {
+      const pv  = r.promedio !== null ? r.promedio.toFixed(1)+'%' : '---';
+      const ci  = r.promedio !== null ? colIdx(r.promedio) : 0;
+      const pvf = r.promedio !== null ? `{\\b\\cf${ci} ${pv}}` : pv;
+
+      const procCells = PROCESSES_LOCAL.map(p => {
+        if (!r.procesos || r.procesos[p] == null) return 'N/A';
+        const v  = r.procesos[p].toFixed(1)+'%';
+        const pc = colIdx(r.procesos[p]);
+        return `{\\cf${pc} ${v}}`;
+      });
+
+      const rowVals = [rtfEsc(r.mes), rtfEsc(r.anio), pvf, ...procCells, `{\\cf0\\fs15 ${rtfEsc(r.cargadoEn)}}`];
+      rtf += rtfTR(DETAIL_CELLS, rowVals, i%2===1);
+    });
+
+    // Resumen de procesos
+    const procSummary = PROCESSES_LOCAL.map(p => {
+      const vals = s.recs.map(r => r.procesos && r.procesos[p] != null ? r.procesos[p] : null).filter(v=>v!==null);
+      if (!vals.length) return null;
+      return `${p}: ${(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1)}%`;
+    }).filter(Boolean).join('  |  ');
+    if (procSummary) rtf += rtfPar(`Promedio de procesos: ${procSummary}`, {sz:18, cf:2, sb:60, sa:80});
+
+    rtf += '\\pard\\par\n';
+  });
+
+  // ── SECCIÓN 3: Observaciones ──────────────────────────────
+  rtf += `\\pard\\sb200\\sa60\\f0\\fs26\\b\\cf2 ${rtfEsc('3. Observaciones y Recomendaciones')}\\b0\\cf0\\par\n`;
+  if (atRisk.length)
+    rtf += rtfPar(`RIESGO CRITICO (<60%): ${atRisk.map(s=>s.tienda).join(', ')}. Requiere intervencion inmediata y plan correctivo.`, {sz:19, bold:true, cf:6});
+  if (dropping.length)
+    rtf += rtfPar(`TENDENCIA NEGATIVA: ${dropping.map(s=>s.tienda).join(', ')}. Revisar procesos operativos con urgencia.`, {sz:19, bold:true, cf:5});
+  if (improving.length)
+    rtf += rtfPar(`MEJORA SOSTENIDA: ${improving.map(s=>s.tienda).join(', ')}. Documentar como modelo de buenas practicas.`, {sz:19, bold:true, cf:4});
+  if (!atRisk.length && !dropping.length)
+    rtf += rtfPar('Sin alertas criticas detectadas en el periodo analizado.', {sz:19, cf:4});
+
+  // Pie de página
+  rtf += `\\pard\\sb300\\sa0\\f0\\fs16\\cf0 ${rtfEsc(`Generado autom\u00e1ticamente \u00b7 Dashboard Ejecutivo \u2014 Cumplimiento de Procesos \u00b7 ${today}`)}\\par\n`;
+
+  rtf += '}';
+
+  // ── Descarga como .rtf (Word lo abre sin errores, sin librerías) ──
+  const blob = new Blob([rtf], { type: 'application/rtf' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `Auditoria_Tendencia_${new Date().toISOString().slice(0,10)}.rtf`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); document.body.removeChild(a); }, 500);
+
+  btn.innerHTML = '<span>📄</span> Descargar Informe Word de Auditoría';
+  btn.disabled = false;
+}
+
+
+let fileName = 'Dashboard_Ejecutivo_Cumplimiento.pptx';
+let rawWorkbook = null;
+let rawFileName = '';
+let allRows = [];      // all parsed rows from Excel
+let allMonths = [];    // all unique months (sorted)
+let allStores = [];    // all unique stores
+
+function log(icon, text, state='') {
+  const el = document.getElementById('logLines');
+  const line = document.createElement('div');
+  line.className = `log-line ${state}`;
+  line.innerHTML = `<span>${icon}</span> ${text}`;
+  el.appendChild(line);
+}
+function setProgress(pct) {
+  document.getElementById('progressBar').style.width = pct+'%';
+}
+
+// ─── FILTER HELPERS ──────────────────────────────────────
+function getYear(mesStr) {
+  const m = (mesStr||'').match(/\d{4}/);
+  return m ? m[0] : null;
+}
+
+function getSemestre(mesStr) {
+  const s = (mesStr||'').toLowerCase();
+  const sem1 = ['enero','febrero','marzo','abril','mayo','junio'];
+  const sem2 = ['julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  for (const w of sem1) if (s.includes(w)) return 'Semestre 1 (Ene–Jun)';
+  for (const w of sem2) if (s.includes(w)) return 'Semestre 2 (Jul–Dic)';
+  return null;
+}
+
+function getBimestre(mesStr) {
+  const s = (mesStr||'').toLowerCase();
+  const pairs = [
+    ['enero','febrero','Bimestre 1 (Ene–Feb)'],
+    ['marzo','abril','Bimestre 2 (Mar–Abr)'],
+    ['mayo','junio','Bimestre 3 (May–Jun)'],
+    ['julio','agosto','Bimestre 4 (Jul–Ago)'],
+    ['septiembre','octubre','Bimestre 5 (Sep–Oct)'],
+    ['noviembre','diciembre','Bimestre 6 (Nov–Dic)'],
+  ];
+  for (const [m1,m2,label] of pairs) {
+    if (s.includes(m1)||s.includes(m2)) return label;
+  }
+  return null;
+}
+
+// Abre/cierra el desplegable de meses del panel "Cargar y Generar"
+function toggleFilterMesesDropdown() {
+  const p = document.getElementById('filterMesesPanel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+function updateFilterMesesBtnLabel(allMeses) {
+  const btn = document.getElementById('filterMesesBtn');
+  if (!btn) return;
+  if (filterMesesSel.size === 0 || filterMesesSel.size === allMeses.length) {
+    btn.textContent = 'Todos los meses ▾';
+  } else if (filterMesesSel.size === 1) {
+    btn.textContent = `${[...filterMesesSel][0]} ▾`;
+  } else {
+    btn.textContent = `${filterMesesSel.size} meses seleccionados ▾`;
+  }
+}
+function fmesToggleOne(m) {
+  if (filterMesesSel.has(m)) filterMesesSel.delete(m); else filterMesesSel.add(m);
+  filterMesesCustom = true;
+  updateFilterMesesBtnLabel(allMonths);
+  updateFilterDesc();
+}
+function fmesQuickSelect(kind) {
+  if (kind === 'all') { filterMesesSel = new Set(allMonths); filterMesesCustom = false; }
+  else if (kind === 'none') { filterMesesSel = new Set(); filterMesesCustom = true; }
+  else if (kind.startsWith('year:')) {
+    const y = kind.slice(5);
+    filterMesesSel = new Set(allMonths.filter(m => getYear(m) === y));
+    filterMesesCustom = true;
+  } else if (kind.startsWith('sem:')) {
+    const [, y, semNum] = kind.split(':');
+    const wanted = semNum === '1' ? 'Semestre 1 (Ene–Jun)' : 'Semestre 2 (Jul–Dic)';
+    filterMesesSel = new Set(allMonths.filter(m => getYear(m) === y && getSemestre(m) === wanted));
+    filterMesesCustom = true;
+  }
+  document.querySelectorAll('#filterMesesChecklist input').forEach(i => { i.checked = filterMesesSel.has(i.value); });
+  updateFilterMesesBtnLabel(allMonths);
+  updateFilterDesc();
+}
+function populateFilterMeses() {
+  if (!filterMesesCustom) filterMesesSel = new Set(allMonths);
+  else filterMesesSel = new Set([...filterMesesSel].filter(m => allMonths.includes(m)));
+  const checklist = document.getElementById('filterMesesChecklist');
+  checklist.innerHTML = allMonths.map(m => `<label>
+      <input type="checkbox" value="${m}" ${filterMesesSel.has(m)?'checked':''} onchange="fmesToggleOne('${m}')">
+      ${m}
+    </label>`).join('');
+  const years = [...new Set(allMonths.map(getYear).filter(Boolean))].sort();
+  const quickHtml = ['<button type="button" class="ms-quick-btn" onclick="fmesQuickSelect(\'all\')">Todos</button>',
+                      '<button type="button" class="ms-quick-btn" onclick="fmesQuickSelect(\'none\')">Ninguno</button>'];
+  years.forEach(y => {
+    quickHtml.push(`<button type="button" class="ms-quick-btn" onclick="fmesQuickSelect('year:${y}')">Año ${y}</button>`);
+    ['1','2'].forEach(semNum => {
+      const wanted = semNum === '1' ? 'Semestre 1 (Ene–Jun)' : 'Semestre 2 (Jul–Dic)';
+      const has = allMonths.some(m => getYear(m) === y && getSemestre(m) === wanted);
+      if (has) quickHtml.push(`<button type="button" class="ms-quick-btn" onclick="fmesQuickSelect('sem:${y}:${semNum}')">Sem ${semNum} · ${y}</button>`);
+    });
+  });
+  document.getElementById('filterMesesQuick').innerHTML = quickHtml.join('');
+  updateFilterMesesBtnLabel(allMonths);
+}
+document.addEventListener('click', (e) => {
+  const dd = document.getElementById('filterMesesDropdown');
+  if (dd && !dd.contains(e.target)) { const p = document.getElementById('filterMesesPanel'); if(p) p.style.display = 'none'; }
+});
+
+function updateFilterOptions() {
+  const type = document.getElementById('filterType').value;
+  const valueGroup = document.getElementById('filterValueGroup');
+  const valueSel   = document.getElementById('filterValue');
+  const valueLabel = document.getElementById('filterValueLabel');
+  const mesesGroup = document.getElementById('filterMesesGroup');
+
+  if (type === 'all') {
+    valueGroup.style.display = 'none';
+    mesesGroup.style.display = 'none';
+    updateFilterDesc();
+    return;
+  }
+
+  if (type === 'mes') {
+    valueGroup.style.display = 'none';
+    mesesGroup.style.display = 'flex';
+    populateFilterMeses();
+    updateFilterDesc();
+    return;
+  }
+  mesesGroup.style.display = 'none';
+  valueGroup.style.display = 'flex';
+
+  let options = [];
+  if (type === 'anio') {
+    valueLabel.textContent = 'Año';
+    const years = [...new Set(allMonths.map(getYear).filter(Boolean))];
+    options = years.map(y => ({ val: y, label: y }));
+  } else if (type === 'semestre') {
+    valueLabel.textContent = 'Semestre';
+    const sems = [...new Set(allMonths.map(getSemestre).filter(Boolean))];
+    options = sems.map(s => ({ val: s, label: s }));
+  } else if (type === 'bimestre') {
+    valueLabel.textContent = 'Bimestre';
+    const bims = [...new Set(allMonths.map(getBimestre).filter(Boolean))];
+    options = bims.map(b => ({ val: b, label: b }));
+  }
+
+  valueSel.innerHTML = options.map(o => `<option value="${o.val}">${o.label}</option>`).join('');
+  updateFilterDesc();
+}
+
+function updateFilterDesc() {
+  const type = document.getElementById('filterType').value;
+  const value = document.getElementById('filterValue').value || '';
+  const store = document.getElementById('filterStore').value;
+  const proceso = document.getElementById('filterProcess').value;
+
+  let periodoTxt = 'Todo el período';
+  if (type === 'mes') {
+    if (filterMesesSel.size === 0 || filterMesesSel.size === allMonths.length) periodoTxt = 'Todos los meses';
+    else if (filterMesesSel.size === 1) periodoTxt = `Mes: ${[...filterMesesSel][0]}`;
+    else periodoTxt = `${filterMesesSel.size} meses seleccionados`;
+  } else if (type !== 'all' && value) {
+    const map = { anio:'Año', semestre:'Semestre', bimestre:'Bimestre' };
+    periodoTxt = `${map[type]}: ${value}`;
+  }
+  const razonTxt = RAZON_ACTIVA ? `Razón: ${RAZON_ACTIVA}` : '';
+  const storeTxt = store === 'all' ? 'Todas las tiendas' : `Tienda: ${store}`;
+  const procesoTxt = (!proceso || proceso === 'all') ? 'Todos los procesos' : `Proceso: ${proceso}`;
+  document.getElementById('filterDesc').textContent = [razonTxt, periodoTxt, storeTxt, procesoTxt].filter(Boolean).join(' · ');
+}
+
+function getFilteredRows() {
+  const type  = document.getElementById('filterType').value;
+  const value = document.getElementById('filterValue').value || '';
+  const store = document.getElementById('filterStore').value;
+
+  let rows = allRows;
+
+  // Filter by period
+  if (type === 'mes') {
+    if (filterMesesSel.size > 0 && filterMesesSel.size < allMonths.length) {
+      rows = rows.filter(r => filterMesesSel.has((r._mes||'').toString()));
+    }
+  } else if (type !== 'all' && value) {
+    rows = rows.filter(r => {
+      const mes = (r._mes||'').toString();
+      if (type === 'anio') return getYear(mes) === value;
+      if (type === 'semestre') return getSemestre(mes) === value;
+      if (type === 'bimestre') return getBimestre(mes) === value;
+      return true;
+    });
+  }
+
+  // Filter by store
+  if (store !== 'all') {
+    rows = rows.filter(r => (r._tienda||'').trim() === store);
+  }
+
+  return rows;
+}
+
+function buildFilteredLabel() {
+  const type  = document.getElementById('filterType').value;
+  const value = document.getElementById('filterValue').value || '';
+  const store = document.getElementById('filterStore').value;
+  const proceso = document.getElementById('filterProcess').value;
+  const parts = [];
+  if (RAZON_ACTIVA) parts.push(RAZON_ACTIVA);
+  if (type === 'mes' && filterMesesSel.size > 0 && filterMesesSel.size < allMonths.length) {
+    parts.push(filterMesesSel.size === 1 ? [...filterMesesSel][0] : `${filterMesesSel.size}meses`);
+  } else if (type !== 'all' && value) parts.push(value);
+  if (store !== 'all') parts.push(store);
+  if (proceso && proceso !== 'all') parts.push(proceso);
+  if (!parts.length) parts.push('Completo');
+  return parts.join(' · ');
+}
+
+// ─── PROCESS DATA FROM FILTERED ROW SET ───────────────────
+function processFromRows(rows, mesCol, tiendaCol, promedioCol, procesoFiltro) {
+  if (!rows.length) throw new Error('No hay datos para la selección actual.');
+
+  const monthsRaw = [...new Set(rows.map(r => r[mesCol]).filter(Boolean))];
+  monthsRaw.sort((a,b) => monthKey(a)-monthKey(b));
+  const months = monthsRaw;
+  const monthLabels = months.map(toMonthLabel);
+
+  const stores = [...new Set(rows.map(r => (r[tiendaCol]||'').toString().trim()).filter(Boolean))];
+
+  function getRow(store, mes) {
+    return rows.find(r => (r[tiendaCol]||'').toString().trim()===store && r[mesCol]===mes);
+  }
+
+  // Si se eligió un proceso específico, la métrica principal (evolución, mapa de
+  // calor, ranking) se calcula con la columna de ESE proceso en vez del promedio
+  // general de la tienda. Usa el mismo factor de escala que procAvg (x500).
+  const keys0 = rows.length ? Object.keys(rows[0]) : [];
+  const usaProceso = !!procesoFiltro && procesoFiltro !== 'all';
+  const valueCol = usaProceso
+    ? (keys0.find(k => k.trim().toLowerCase().startsWith(procesoFiltro.toLowerCase())) || procesoFiltro)
+    : promedioCol;
+  const valueScale = usaProceso ? 500 : 100;
+  const readVal = (row) => {
+    const v = toNum(row[valueCol]);
+    return v !== null ? Math.min(v * valueScale, 100) : null;
+  };
+
+  const evolucion = months.map(mes => {
+    const vals = rows.filter(r => r[mesCol]===mes).map(readVal).filter(x => x !== null);
+    return avg(vals);
+  });
+
+  const heatData = {};
+  for (const st of stores) {
+    heatData[st] = months.map(mes => {
+      const row = getRow(st, mes);
+      if (!row) return null;
+      const v = readVal(row);
+      return v !== null ? Math.round(v) : null;
+    });
+  }
+
+  const ranking = stores.map(st => {
+    const vals = months.map(mes => {
+      const row = getRow(st, mes);
+      if (!row) return null;
+      return readVal(row);
+    }).filter(x => x !== null);
+    return { name: st, val: avg(vals) };
+  }).filter(r => r.val !== null);
+  ranking.sort((a,b) => b.val - a.val);
+
+  const keys = Object.keys(rows[0]);
+  const procCols = PROCESSES.map(p => keys.find(k => k.trim().toLowerCase().startsWith(p.toLowerCase())) || p);
+  const procAvg = procCols.map((col, i) => {
+    const vals = rows.flatMap(r => {
+      const v = toNum(r[col]);
+      return v !== null ? [v] : [];
+    });
+    const pct = vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length) * 500 : 0;
+    return { name: PROCESSES[i], val: Math.min(Math.round(pct * 10) / 10, 100) };
+  });
+  procAvg.sort((a,b) => b.val - a.val);
+
+  const allPcts = rows.map(readVal).filter(x=>x!==null);
+  const globalAvg2 = avg(allPcts);
+  const evoValid = evolucion.filter(x=>x!==null);
+  const bestMonthIdx   = evolucion.reduce((bi,v,i,a)=>v!=null&&(a[bi]==null||v>a[bi])?i:bi,0);
+  const worstMonthIdx  = evolucion.reduce((bi,v,i,a)=>v!=null&&(a[bi]==null||v<a[bi])?i:bi,0);
+  const bestMonthLabel  = monthLabels[bestMonthIdx] || '—';
+  const bestMonthVal    = evoValid.length ? Math.max(...evoValid) : 0;
+  const worstMonthLabel = monthLabels[worstMonthIdx] || '—';
+  const worstMonthVal   = evoValid.length ? Math.min(...evoValid) : 0;
+
+  return { months, monthLabels, evolucion, stores, heatData, ranking, procAvg,
+    globalAvg: globalAvg2||0, bestMonthLabel, bestMonthVal, worstMonthLabel, worstMonthVal,
+    procesoFiltro: usaProceso ? procesoFiltro : null };
+}
+
+// ─── MAIN HANDLERS ───────────────────────────────────────
+// Popula los filtros y muestra el panel de generación de "Cargar y Generar"
+// directamente desde el historial ya guardado en la nube (Supabase), sin
+// necesidad de subir ningún archivo Excel. Se llama al abrir la página, al
+// cambiar de razón social y después de guardar una carga nueva.
+function cargarDesdeHistorial(){
+  allRows = allRowsFromHistory();
+  allRows.forEach(r => { r._mes = r['Mes']; r._tienda = (r['Tienda']||'').toString().trim(); });
+  allMonths = [...new Set(allRows.map(r => r._mes).filter(Boolean))].sort((a,b) => monthKey(a)-monthKey(b));
+  allStores = [...new Set(allRows.map(r => r._tienda).filter(Boolean))].sort();
+
+  const storeSel = document.getElementById('filterStore');
+  storeSel.innerHTML = '<option value="all">Todas las tiendas</option>' +
+    allStores.map(s => `<option value="${s}">${s}</option>`).join('');
+
+  const procSel = document.getElementById('filterProcess');
+  procSel.innerHTML = '<option value="all">Todos (promedio general)</option>' +
+    PROCESSES.map(p => `<option value="${p}">${p}</option>`).join('');
+
+  updateFilterOptions();
+
+  const hasData = allRows.length > 0;
+  const note = document.getElementById('cloudDataNote');
+  const desc = document.getElementById('cloudDataDesc');
+  if (hasData) {
+    if (desc) desc.textContent = ` (${allStores.length} tiendas · ${allMonths.length} meses)`;
+    if (note) note.style.display = 'block';
+    document.getElementById('filterPanel').style.display = 'block';
+    if (!rawFileName) rawFileName = 'Dashboard_Nube';
+  } else {
+    if (note) note.style.display = 'none';
+    document.getElementById('filterPanel').style.display = 'none';
+  }
+  return hasData;
+}
+
+async function handleFile(file) {
+  if (!file) return;
+  rawFileName = file.name.replace(/\.(xlsx|xls)$/i, '');
+  fileName = rawFileName + '_Dashboard.pptx';
+
+  document.getElementById('dropZone').style.display = 'none';
+  document.querySelector('.format-card').style.display = 'none';
+  document.getElementById('filterPanel').style.display = 'none';
+  document.getElementById('previewArea').style.display = 'none';
+  const cloudNote0 = document.getElementById('cloudDataNote'); if (cloudNote0) cloudNote0.style.display = 'none';
+
+  const status = document.getElementById('statusArea');
+  status.style.display = 'block';
+  document.getElementById('logLines').innerHTML = '';
+  document.querySelector('.spinner').style.display = '';
+  document.getElementById('statusTitle').textContent = 'Procesando datos…';
+  setProgress(0);
+
+  try {
+    if (!HIST_READY) { log('☁️','Conectando con el historial en la nube…','active'); await sbFetchHistorial(); }
+
+    log('📂','Leyendo archivo Excel…','active'); setProgress(10);
+    const buf = await file.arrayBuffer();
+    rawWorkbook = XLSX.read(buf, { type:'array' });
+
+    log('✅','Archivo cargado correctamente','done');
+    log('⚙️','Leyendo hojas mensuales y bloques por tienda…','active'); setProgress(25);
+
+    // Cada hoja del libro es un mes, con una tabla resumen (Tienda/%/Cumplió)
+    // y bloques por tienda (Gerente + Concepto/%). Se leen todas las hojas.
+    const uploadRows = parseWorkbookBlocks(rawWorkbook);
+    if (!uploadRows.length) throw new Error('No se reconoció ninguna hoja con el formato esperado (tabla resumen Tienda/%/Cumplió).');
+
+    const mesesEnArchivo = [...new Set(uploadRows.map(r => r['Mes']).filter(Boolean))];
+    log('✅',`${mesesEnArchivo.length} hoja(s) de mes leída(s) del archivo`,'done');
+    setProgress(45);
+
+    // Guarda en el historial — si el mes+tienda ya existía, se omite (no se duplica),
+    // salvo que el usuario haya activado "Reemplazar meses ya guardados".
+    const forceOverwrite = document.getElementById('forceOverwrite').checked;
+    log('💾', forceOverwrite ? 'Actualizando historial (reemplazando meses ya guardados)…' : 'Actualizando historial (sin duplicar meses ya guardados)…', 'active'); setProgress(55);
+    const { added, skipped, updated } = lsMergeRows(uploadRows, 'Mes', 'Tienda', 'Promedio Cumplimiento', null, forceOverwrite);
+
+    // Confirmación EXPLÍCITA del guardado en la nube — ya no es "fire and forget".
+    // Si Supabase falla (ej. la tabla generador_historial no existe todavía),
+    // esto lo dice en el log en vez de fallar en silencio.
+    log('☁️','Confirmando guardado en Supabase…','active');
+    const persistResult = await sbPersistHistorial(lsLoad());
+    if (persistResult.ok) {
+      log('✅','Guardado en Supabase confirmado (los datos ya están en la nube)','done');
+    } else {
+      log('⚠️',`No se pudo guardar en Supabase (${persistResult.error}). Por ahora quedó SOLO en este navegador — revisa que ejecutaste el SQL de la tabla generador_historial.`,'');
+    }
+
+    // El dashboard siempre se genera desde el historial COMPLETO ya depurado
+    // (no solo desde este archivo), para que cada carga solo sume el mes nuevo.
+    cargarDesdeHistorial();
+
+    log('✅',`Historial completo: ${allStores.length} tiendas · ${allMonths.length} meses`,'done');
+    setProgress(90);
+
+    document.querySelector('.spinner').style.display = 'none';
+    document.getElementById('statusTitle').textContent = '✅ Archivo cargado — Elige filtros y genera';
+    setProgress(100);
+
+    if (added > 0 || skipped > 0 || updated > 0) {
+      const parts = [];
+      if (added) parts.push(`${added} nuevo${added!==1?'s':''}`);
+      if (updated) parts.push(`${updated} actualizado${updated!==1?'s':''}`);
+      if (skipped) parts.push(`${skipped} ya existía${skipped!==1?'n':''}`);
+      log('📌', `De este archivo: ${parts.join(', ')} en el historial`, 'done');
+    }
+
+    // Muestra explícitamente el panel de filtros (cargarDesdeHistorial ya lo
+    // hace, pero se refuerza aquí porque venimos de un flujo de carga de archivo)
+    document.getElementById('filterPanel').style.display = 'block';
+
+  } catch(err) {
+    log('❌',`Error: ${err.message}`,'');
+    document.getElementById('statusTitle').textContent = 'Error al procesar el archivo';
+    document.querySelector('.spinner').style.display = 'none';
+    console.error(err);
+  }
+}
+
+async function generateDashboard() {
+  const status = document.getElementById('statusArea');
+  status.style.display = 'block';
+  document.getElementById('logLines').innerHTML = '';
+  document.querySelector('.spinner').style.display = '';
+  document.getElementById('statusTitle').textContent = 'Procesando datos…';
+  document.getElementById('previewArea').style.display = 'none';
+  setProgress(0);
+
+  try {
+    log('🔍','Aplicando filtros…','active'); setProgress(15);
+
+    const filteredRows = getFilteredRows();
+    if (!filteredRows.length) throw new Error('No hay datos para la selección actual. Ajusta los filtros.');
+
+    const mesCol      = Object.keys(allRows[0]).find(k => k.toLowerCase().includes('mes')) || 'Mes';
+    const tiendaCol   = Object.keys(allRows[0]).find(k => k.toLowerCase().includes('tienda')) || 'Tienda';
+    const promedioCol = Object.keys(allRows[0]).find(k => k.toLowerCase().includes('promedio')) || 'Promedio Cumplimiento';
+    const procesoSel  = document.getElementById('filterProcess').value;
+
+    const data = processFromRows(filteredRows, mesCol, tiendaCol, promedioCol, procesoSel);
+    const label = buildFilteredLabel();
+
+    log('✅',`${data.stores.length} tiendas · ${data.months.length} meses en selección`,'done');
+    log('📊','Construyendo diapositivas…','active'); setProgress(40);
+
+    const pres = await buildPptx(data);
+    generatedPres = pres;
+    fileName = `${rawFileName}_${label.replace(/[^a-zA-Z0-9_\-]/g,'_')}_Dashboard.pptx`;
+
+    log('✅','Diapositivas generadas (6)','done');
+    log('🎨','Aplicando estilos…','active'); setProgress(75);
+    await new Promise(r=>setTimeout(r,300));
+    log('✅','Estilos aplicados','done');
+    log('🔧','Finalizando presentación…','active'); setProgress(90);
+    await new Promise(r=>setTimeout(r,200));
+    log('✅','Dashboard listo para descargar','done');
+    setProgress(100);
+
+    document.querySelector('.spinner').style.display = 'none';
+    document.getElementById('statusTitle').textContent = '¡Dashboard listo!';
+
+    // KPI preview
+    const kpiGrid = document.getElementById('kpiGrid');
+    kpiGrid.innerHTML = '';
+    const kpis = [
+      {label:'Promedio del Período',  val:`${data.globalAvg.toFixed(1)}%`,        cls:'teal'},
+      {label:'Mejor Tienda',          val:data.ranking[0]?.name||'—',             cls:'green', sub:data.ranking[0]?`${data.ranking[0].val.toFixed(1)}%`:null},
+      {label:'Mejor Mes',             val:data.bestMonthLabel,                     cls:'gold',  sub:`${data.bestMonthVal.toFixed(1)}%`},
+      {label:'Tiendas Analizadas',    val:`${data.stores.length}`,                 cls:'teal'},
+      {label:'Meses del Período',     val:`${data.months.length}`,                 cls:'gold'},
+      {label:'Proceso Líder',         val:data.procAvg[0]?.name||'—',             cls:'green', sub:data.procAvg[0]?`${data.procAvg[0].val.toFixed(1)}%`:null},
+    ];
+    kpis.forEach(k => {
+      const card = document.createElement('div');
+      card.className = 'kpi-card';
+      card.innerHTML = `<div class="kpi-label">${k.label}</div><div class="kpi-value ${k.cls}">${k.val}</div>${k.sub?`<div class="kpi-sub">${k.sub}</div>`:''}`;
+      kpiGrid.appendChild(card);
+    });
+
+    setTimeout(() => { document.getElementById('previewArea').style.display='block'; }, 200);
+
+  } catch(err) {
+    log('❌',`Error: ${err.message}`,'');
+    document.getElementById('statusTitle').textContent = 'Error al generar el dashboard';
+    document.querySelector('.spinner').style.display = 'none';
+    console.error(err);
+  }
+}
+
+document.getElementById('generateBtn').addEventListener('click', generateDashboard);
+
+document.getElementById('filterType').addEventListener('change', updateFilterOptions);
+document.getElementById('filterValue').addEventListener('change', updateFilterDesc);
+document.getElementById('filterStore').addEventListener('change', updateFilterDesc);
+document.getElementById('filterProcess').addEventListener('change', updateFilterDesc);
+
+// Descarga robusta del .pptx. Dentro del dashboard, el generador vive en un
+// iframe `srcdoc` (origen about:srcdoc); en ese contexto la descarga directa
+// de un blob puede fallar o guardar un archivo ilegible. Por eso, si estamos
+// embebidos, le pasamos el archivo ya armado al dashboard padre (que sí tiene
+// un origen real) para que él lo descargue. Fuera del dashboard, descarga local.
+const PPTX_MIME='application/vnd.openxmlformats-officedocument.presentationml.presentation';
+// Reconstruye el .pptx desde base64. Base64 es texto puro: no se corrompe al
+// viajar por postMessage entre el iframe y el dashboard (a diferencia de un Blob).
+function b64ToBlobPptx(b64){
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i=0; i<bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: PPTX_MIME });
+}
+function descargarBlobLocal(blob, nombre){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = nombre;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+async function descargarPptx(pres, nombre){
+  // Generamos el archivo como base64 (texto). Si estamos embebidos, se lo
+  // pasamos así al dashboard padre —que sí tiene origen real— para que él
+  // haga la descarga sin corromper los bytes. Fuera del dashboard, descarga local.
+  const b64 = await pres.write({ outputType:'base64' });
+  if (EMBEDDED && window.parent && window.parent !== window) {
+    try { window.parent.postMessage({ type:'gen-download', b64, fileName:nombre }, '*'); return; }
+    catch(e){ /* si el padre no puede recibirlo, caemos a descarga local */ }
+  }
+  descargarBlobLocal(b64ToBlobPptx(b64), nombre);
+}
+document.getElementById('downloadBtn').addEventListener('click', async () => {
+  if (!generatedPres) return;
+  const btn = document.getElementById('downloadBtn');
+  btn.textContent = '⏳ Generando archivo…';
+  btn.disabled = true;
+  try { await descargarPptx(generatedPres, fileName); }
+  catch(e) { console.error(e); }
+  btn.innerHTML = '<span>⬇️</span> Descargar Dashboard en PowerPoint';
+  btn.disabled = false;
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  document.getElementById('dropZone').style.display = 'block';
+  document.querySelector('.format-card').style.display = 'block';
+  document.getElementById('statusArea').style.display = 'none';
+  document.getElementById('previewArea').style.display = 'none';
+  document.getElementById('fileInput').value = '';
+  document.getElementById('forceOverwrite').checked = false;
+  generatedPres = null;
+  rawWorkbook = null;
+  rawFileName = '';
+  filterMesesSel = new Set(); filterMesesCustom = false;
+  // El historial en la nube sigue disponible: se vuelve a poblar el panel de
+  // filtros con esos datos en vez de dejar la vista vacía.
+  cargarDesdeHistorial();
+  switchGenView('cargar');
+});
+
+document.getElementById('fileInput').addEventListener('change', e => {
+  if (e.target.files[0]) handleFile(e.target.files[0]);
+});
+
+// Carga el historial desde Supabase, lo depura y refresca las vistas de
+// Historial/Tendencia/Detalle apenas abre la página (antes eran botones que
+// se apilaban debajo; ahora son pestañas independientes siempre disponibles).
+(async function initHistorialGenerador(){
+  await sbFetchHistorial();
+  dedupeHistory();
+  cargarDesdeHistorial();
+  populateStorageFilters(); renderStorageTable();
+  renderTrend(currentTrendTab);
+  populateDetalleFilters(); renderDetalleCards();
+})();
+
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+
+// ══════════════════════════════════════════════════════════════════
+// RAZÓN SOCIAL — integración con el dashboard padre (Grupo Kuroda)
+// El dashboard envía las razones que la cuenta tiene permitidas. El
+// generador ajusta su marca (logo/título), su historial (localStorage
+// namespaced por razón) y, si hay varias, muestra un selector.
+// ══════════════════════════════════════════════════════════════════
+function aplicarRazonUI(){
+  var code = (RAZON_ACTIVA || '').toUpperCase();
+  var logo = document.getElementById('logoBox');
+  var title = document.getElementById('hdrTitle');
+  var sub  = document.getElementById('hdrSub');
+  if(logo)  logo.textContent = code ? code.slice(0,3) : 'KUR';
+  if(title) title.textContent = 'Dashboard Ejecutivo' + (code ? ' — ' + code : '');
+  if(sub)   sub.textContent = razonNombre(code);
+}
+async function refrescarVistasRazon(){
+  // Cada razón social tiene su propio historial en Supabase; al cambiar de
+  // razón se recarga y se refrescan las 3 vistas (Historial/Tendencia/Detalle).
+  HIST_READY = false;
+  await sbFetchHistorial();
+  dedupeHistory();
+  rawFileName = '';
+  cargarDesdeHistorial();
+  populateStorageFilters(); renderStorageTable();
+  renderTrend(currentTrendTab);
+  populateDetalleFilters(); renderDetalleCards();
+}
+// IDs de todos los selectores de razón social que deben mantenerse
+// sincronizados entre sí: el del header + uno por cada vista/panel de
+// filtro (Cargar y Generar, Historial, Tendencia, Detalle Individual).
+var RAZON_SELECT_IDS = ['razonSel','filterRazonCargar','filterRazonHist','filterRazonTrend','filterRazonDetalle'];
+function pintarSelectoresRazon(){
+  RAZON_SELECT_IDS.forEach(function(id){
+    var sel = document.getElementById(id);
+    var grp = document.getElementById(id + 'Group'); // solo existe para los de los paneles
+    if(!sel) return;
+    sel.innerHTML = RAZONES_DISP.map(function(r){
+      return '<option value="'+r+'"'+(r===RAZON_ACTIVA?' selected':'')+'>'+r+' · '+razonNombre(r)+'</option>';
+    }).join('');
+    // Solo se muestran cuando la cuenta tiene permiso para generar/ver más
+    // de una razón social; si solo tiene una, no hace falta filtrar por ella.
+    var mostrar = RAZONES_DISP.length > 1;
+    if(grp) grp.style.display = mostrar ? 'flex' : 'none';
+    else sel.style.display = mostrar ? '' : 'none';
+  });
+  var wrap = document.getElementById('razonWrap');
+  if(wrap) wrap.style.display = RAZONES_DISP.length > 1 ? 'flex' : 'none';
+}
+// Cambia la razón activa desde CUALQUIERA de los selectores sincronizados
+// (header o cualquiera de los 4 paneles) y refresca todas las vistas.
+async function cambiarRazonFrom(originId){
+  var origin = document.getElementById(originId);
+  if(!origin) return;
+  var val = origin.value || '';
+  // Defensa: solo se acepta un cambio a una razón que la cuenta tenga permitida
+  if(RAZONES_DISP.indexOf(val) < 0) return;
+  RAZON_ACTIVA = val;
+  RAZON_SELECT_IDS.forEach(function(id){
+    var sel = document.getElementById(id);
+    if(sel && sel.id !== originId) sel.value = RAZON_ACTIVA;
+  });
+  aplicarRazonUI();
+  await refrescarVistasRazon();
+}
+async function cambiarRazon(){
+  await cambiarRazonFrom('razonSel');
+}
+async function setRazones(razones, activa){
+  RAZONES_DISP = Array.isArray(razones) ? razones.filter(Boolean) : [];
+  // Normalizar: si no se recibió lista, se asume acceso a las 3 razones
+  if(!RAZONES_DISP.length) RAZONES_DISP = ['KNO','KSC','KSA'];
+  RAZON_ACTIVA = (activa && RAZONES_DISP.indexOf(activa) >= 0) ? activa : RAZONES_DISP[0];
+  pintarSelectoresRazon();
+  aplicarRazonUI();
+  await refrescarVistasRazon();
+}
+window.addEventListener('message', function(ev){
+  var d = ev.data;
+  if(!d || typeof d !== 'object') return;
+  if(d.type === 'gen-config'){ EMBEDDED = true; setRazones(d.razones, d.activa); }
+});
+// Aviso al padre de que el generador ya está listo para recibir su configuración
+try { parent.postMessage({type:'gen-ready'}, '*'); } catch(e){}
+// Marca por defecto mientras llega la configuración
+aplicarRazonUI();
+</script>
+</body>
+</html>
