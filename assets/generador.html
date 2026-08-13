@@ -618,12 +618,13 @@
 
     <div class="section-label">Diapositivas incluidas</div>
     <div class="slide-list">
-      <div class="slide-item"><div class="slide-num">1</div>Portada — KPIs semestral clave</div>
+      <div class="slide-item"><div class="slide-num">1</div>Portada — KPIs clave del período</div>
       <div class="slide-item"><div class="slide-num">2</div>Resumen Ejecutivo — Evolución mensual de cumplimiento</div>
       <div class="slide-item"><div class="slide-num">3</div>Mapa de Calor — Tienda × Mes</div>
-      <div class="slide-item"><div class="slide-num">4</div>Ranking de Tiendas — Promedio semestral</div>
-      <div class="slide-item"><div class="slide-num">5</div>Promedio Semestral por Proceso</div>
-      <div class="slide-item"><div class="slide-num">6</div>Infografía Resumen</div>
+      <div class="slide-item"><div class="slide-num">4</div>Mapa de Calor — Tienda × Proceso</div>
+      <div class="slide-item"><div class="slide-num">5</div>Ranking de Tiendas — Promedio del período</div>
+      <div class="slide-item"><div class="slide-num">6</div>Promedio por Proceso</div>
+      <div class="slide-item"><div class="slide-num">7</div>Infografía Resumen</div>
     </div>
 
     <button class="download-btn" id="downloadBtn">
@@ -913,6 +914,19 @@ function processExcel(workbook) {
   });
   procAvg.sort((a,b) => b.val - a.val);
 
+  // Mapa de calor Tienda × Proceso — promedio de cada tienda en cada proceso,
+  // a través de todos los meses (mismo factor ×500 que procAvg).
+  const heatProc = {};
+  for (const st of stores) {
+    heatProc[st] = procCols.map(col => {
+      const vals = rows.filter(r => (r[tiendaCol]||'').toString().trim()===st)
+        .map(r => toNum(r[col])).filter(v => v !== null);
+      if (!vals.length) return null;
+      const pct = (vals.reduce((a,b)=>a+b,0)/vals.length) * 500;
+      return Math.min(Math.round(pct), 100);
+    });
+  }
+
   // Stats globales
   const allPcts = rows.map(r => { const v=toNum(r[promedioCol]); return v!==null?v*100:null; }).filter(x=>x!==null);
   const globalAvg = avg(allPcts);
@@ -923,7 +937,7 @@ function processExcel(workbook) {
   const worstMonthLabel = monthLabels[worstMonthIdx];
   const worstMonthVal   = Math.min(...evolucion.filter(x=>x!==null));
 
-  return { months, monthLabels, evolucion, stores, heatData, ranking, procAvg,
+  return { months, monthLabels, evolucion, stores, heatData, heatProc, procNames: PROCESSES, ranking, procAvg,
     globalAvg, bestMonthLabel, bestMonthVal, worstMonthLabel, worstMonthVal };
 }
 
@@ -1140,8 +1154,16 @@ async function buildPptx(d) {
   pres.layout = 'LAYOUT_WIDE';
 
   const {months:mnths, monthLabels:mLbls, evolucion:evo, stores,
-         heatData, ranking, procAvg, globalAvg,
+         heatData, heatProc, procNames, ranking, procAvg, globalAvg,
          bestMonthLabel, bestMonthVal, worstMonthLabel, worstMonthVal} = d;
+
+  // Evita la palabra "semestral" cuando el rango de datos supera los 6 meses.
+  const nMesesPeriodo = mnths.length;
+  const esSemestral = nMesesPeriodo <= 6;
+  const PERIODO_ADJ = esSemestral ? 'SEMESTRAL' : 'DEL PERÍODO';       // para títulos en mayúsculas
+  const PERIODO_ADJ_CAP = esSemestral ? 'Semestral' : 'del Período';  // para texto con mayúscula inicial
+  const PERIODO_SUST = esSemestral ? 'Semestre' : 'Período';          // sustantivo capitalizado
+  const PERIODO_SUST_LOW = esSemestral ? 'semestre' : 'período';
 
   const storesShort = stores.map(s => s.length > 14 ? s.slice(0,13)+'.' : s);
   const top3 = ranking.slice(0,3);
@@ -1163,14 +1185,14 @@ async function buildPptx(d) {
       fontSize:20, color:C.accent, fontFace:'Calibri', italic:true,
     });
     s.addShape(pres.ShapeType.rect, { x:0.7, y:3.2, w:5, h:0.65, fill:{color:C.teal} });
-    s.addText(`Semestre: ${mnths[0]} – ${mnths[mnths.length-1]}`, {
+    s.addText(`${PERIODO_SUST}: ${mnths[0]} – ${mnths[mnths.length-1]}`, {
       x:0.7, y:3.2, w:5, h:0.65,
       fontSize:13, color:C.white, fontFace:'Calibri', bold:true, align:'center', valign:'middle',
     });
 
     const best = top3[0] || { name:'—', val:0 };
     const kpis = [
-      { label:'Promedio Semestral', val:`${fx1(globalAvg)}%` },
+      { label:`Promedio ${PERIODO_ADJ_CAP}`, val:`${fx1(globalAvg)}%` },
       { label:'Mejor Tienda', val:`${(best.name||'—').slice(0,10)}\n${fx1(best.val)}%` },
       { label:'Mejor Mes', val:`${bestMonthLabel}\n${fx1(bestMonthVal)}%` },
       { label:'Tiendas Analizadas', val:`${stores.length}` },
@@ -1185,18 +1207,18 @@ async function buildPptx(d) {
     });
 
     s.addShape(pres.ShapeType.rect, { x:0.45, y:7.3, w:12.85, h:0.2, fill:{color:C.gold} });
-    s.addText(`${razonNombre(RAZON_ACTIVA)} | Reporte Semestral de Cumplimiento`, {
+    s.addText(`${razonNombre(RAZON_ACTIVA)} | Reporte ${PERIODO_ADJ_CAP} de Cumplimiento`, {
       x:0.7, y:7.1, w:12, h:0.25, fontSize:9, color:'8899AA', fontFace:'Calibri', align:'right',
     });
   }
 
-  // ─── SLIDE 2 — EVOLUCIÓN SEMESTRAL ───────────────────────
+  // ─── SLIDE 2 — EVOLUCIÓN MENSUAL ─────────────────────────
   {
     const s = pres.addSlide();
     s.background = { color: C.off };
     s.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.3, h:0.65, fill:{color:C.navy} });
     s.addShape(pres.ShapeType.rect, { x:0, y:0.65, w:13.3, h:0.05, fill:{color:C.gold} });
-    s.addText('RESUMEN EJECUTIVO — EVOLUCIÓN SEMESTRAL', {
+    s.addText('RESUMEN EJECUTIVO — EVOLUCIÓN ' + PERIODO_ADJ, {
       x:0.3, y:0, w:12, h:0.65, fontSize:18, bold:true, color:C.white, fontFace:'Calibri', valign:'middle',
     });
 
@@ -1221,7 +1243,7 @@ async function buildPptx(d) {
     const insights = [
       { label:'Pico Máximo',    val:bestMonthLabel,  sub:`${fx1(bestMonthVal)}%`,  col:C.green },
       { label:'Mes Más Bajo',   val:worstMonthLabel, sub:`${fx1(worstMonthVal)}%`, col:C.red },
-      { label:'Promedio General', val:'Semestre',    sub:`${fx1(globalAvg)}%`,      col:C.teal },
+      { label:'Promedio General', val:PERIODO_SUST,    sub:`${fx1(globalAvg)}%`,      col:C.teal },
       { label:'Tiendas',        val:'Analizadas',    sub:`${stores.length}`,             col:C.orange },
     ];
     insights.forEach((ins,i) => {
@@ -1288,19 +1310,69 @@ async function buildPptx(d) {
     });
   }
 
-  // ─── SLIDE 4 — RANKING DE TIENDAS ────────────────────────
+  // ─── SLIDE 4 — MAPA DE CALOR TIENDA × PROCESO ────────────
   {
     const s = pres.addSlide();
     s.background = { color: C.off };
     s.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.3, h:0.65, fill:{color:C.navy} });
     s.addShape(pres.ShapeType.rect, { x:0, y:0.65, w:13.3, h:0.05, fill:{color:C.gold} });
-    s.addText('RANKING DE TIENDAS — PROMEDIO SEMESTRAL', {
+    s.addText('MAPA DE CALOR — CUMPLIMIENTO POR TIENDA Y PROCESO', {
+      x:0.3, y:0, w:12, h:0.65, fontSize:18, bold:true, color:C.white, fontFace:'Calibri', valign:'middle',
+    });
+
+    const nProc = procNames.length;
+    const nStores2 = stores.length;
+    const cellW2 = Math.min(1.9, (13.3 - 2.3) / nProc);
+    const cellH2 = Math.min(0.44, (7.5 - 0.9 - 0.45) / (nStores2 + 1));
+    const startX2 = 2.2;
+    const startY2 = 0.9;
+
+    procNames.forEach((p,j) => {
+      s.addShape(pres.ShapeType.rect, { x:startX2+j*cellW2, y:startY2, w:cellW2-0.04, h:0.36, fill:{color:C.navy} });
+      s.addText(p, { x:startX2+j*cellW2, y:startY2, w:cellW2-0.04, h:0.36, fontSize:10, bold:true, color:C.white, fontFace:'Calibri', align:'center', valign:'middle' });
+    });
+
+    stores.forEach((store,i) => {
+      const y = startY2 + 0.4 + i*cellH2;
+      s.addShape(pres.ShapeType.rect, { x:0.08, y, w:2.05, h:cellH2-0.04, fill:{color: i%2===0?'E8EDF5':C.white} });
+      s.addText(storesShort[i], { x:0.1, y, w:2.05, h:cellH2-0.04, fontSize:9, color:C.navy, fontFace:'Calibri', bold:true, valign:'middle' });
+
+      (heatProc[store]||[]).forEach((val,j) => {
+        const fill = heatFill(val);
+        s.addShape(pres.ShapeType.rect, { x:startX2+j*cellW2, y, w:cellW2-0.04, h:cellH2-0.04, fill:{color:fill}, line:{color:C.white, width:1} });
+        s.addText(val!==null?`${val}%`:'—', {
+          x:startX2+j*cellW2, y, w:cellW2-0.04, h:cellH2-0.04,
+          fontSize:Math.min(11, cellH2*18), bold:true,
+          color:val!==null?heatTextColor(val):'999999',
+          fontFace:'Calibri', align:'center', valign:'middle',
+        });
+      });
+    });
+
+    s.addText('LEYENDA:', { x:0.2, y:7.05, w:1.0, h:0.28, fontSize:9, bold:true, color:C.navy, fontFace:'Calibri' });
+    const legend2 = [
+      {col:'A5D6A7', label:'≥ 80% Óptimo'}, {col:'FFF176', label:'60–79% Aceptable'},
+      {col:'FFCC80', label:'40–59% En Riesgo'}, {col:'EF9A9A', label:'< 40% Crítico'},
+    ];
+    legend2.forEach((l,i) => {
+      s.addShape(pres.ShapeType.rect, { x:1.25+i*2.8, y:7.1, w:0.28, h:0.2, fill:{color:l.col} });
+      s.addText(l.label, { x:1.58+i*2.8, y:7.1, w:2.3, h:0.2, fontSize:9, color:C.gray1, fontFace:'Calibri', valign:'middle' });
+    });
+  }
+
+  // ─── SLIDE 5 — RANKING DE TIENDAS ────────────────────────
+  {
+    const s = pres.addSlide();
+    s.background = { color: C.off };
+    s.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.3, h:0.65, fill:{color:C.navy} });
+    s.addShape(pres.ShapeType.rect, { x:0, y:0.65, w:13.3, h:0.05, fill:{color:C.gold} });
+    s.addText('RANKING DE TIENDAS — PROMEDIO ' + PERIODO_ADJ, {
       x:0.3, y:0, w:12, h:0.65, fontSize:18, bold:true, color:C.white, fontFace:'Calibri', valign:'middle',
     });
 
     const rankLabels = ranking.map(r => r.name.length>16 ? r.name.slice(0,15)+'.' : r.name);
     s.addChart(pres.ChartType.bar, [{
-      name:'Promedio Semestral (%)',
+      name:`Promedio ${PERIODO_ADJ_CAP} (%)`,
       labels: rankLabels,
       values: ranking.map(r=>Math.round(sn(r.val)*10)/10),
     }], {
@@ -1317,7 +1389,7 @@ async function buildPptx(d) {
       showLegend:false, showTitle:false,
     });
 
-    s.addText('PODIO SEMESTRAL', { x:8.3, y:0.9, w:4.7, h:0.4, fontSize:13, bold:true, color:C.navy, fontFace:'Calibri', align:'center' });
+    s.addText('PODIO ' + PERIODO_ADJ, { x:8.3, y:0.9, w:4.7, h:0.4, fontSize:13, bold:true, color:C.navy, fontFace:'Calibri', align:'center' });
 
     const medals = [
       {place:'🥇 1°', col:'DAA520'}, {place:'🥈 2°', col:'9E9E9E'}, {place:'🥉 3°', col:'A0522D'},
@@ -1349,18 +1421,18 @@ async function buildPptx(d) {
     });
   }
 
-  // ─── SLIDE 5 — PROMEDIO POR PROCESO ──────────────────────
+  // ─── SLIDE 6 — PROMEDIO POR PROCESO ──────────────────────
   {
     const s = pres.addSlide();
     s.background = { color: C.off };
     s.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.3, h:0.65, fill:{color:C.navy} });
     s.addShape(pres.ShapeType.rect, { x:0, y:0.65, w:13.3, h:0.05, fill:{color:C.gold} });
-    s.addText('PROMEDIO SEMESTRAL POR PROCESO', {
+    s.addText('PROMEDIO ' + PERIODO_ADJ + ' POR PROCESO', {
       x:0.3, y:0, w:12, h:0.65, fontSize:18, bold:true, color:C.white, fontFace:'Calibri', valign:'middle',
     });
 
     s.addChart(pres.ChartType.bar, [{
-      name:'Promedio Semestral (%)',
+      name:`Promedio ${PERIODO_ADJ_CAP} (%)`,
       labels: procAvg.map(p=>p.name),
       values: procAvg.map(p=>Math.round(sn(p.val)*10)/10),
     }], {
@@ -1395,20 +1467,20 @@ async function buildPptx(d) {
     });
   }
 
-  // ─── SLIDE 6 — INFOGRAFÍA RESUMEN ────────────────────────
+  // ─── SLIDE 7 — INFOGRAFÍA RESUMEN ────────────────────────
   {
     const s = pres.addSlide();
     s.background = { color: C.navy };
     s.addShape(pres.ShapeType.rect, { x:0, y:0, w:0.35, h:7.5, fill:{color:C.teal} });
     s.addShape(pres.ShapeType.rect, { x:0.35, y:0, w:12.95, h:0.06, fill:{color:C.gold} });
-    s.addText(`INFOGRAFÍA RESUMEN — Semestre ${mLbls[0]} ${mnths[0].match(/\d{4}/)?.[0]||''} – ${mLbls[mLbls.length-1]} ${mnths[mnths.length-1].match(/\d{4}/)?.[0]||''}`, {
+    s.addText(`INFOGRAFÍA RESUMEN — ${PERIODO_SUST} ${mLbls[0]} ${mnths[0].match(/\d{4}/)?.[0]||''} – ${mLbls[mLbls.length-1]} ${mnths[mnths.length-1].match(/\d{4}/)?.[0]||''}`, {
       x:0.55, y:0.12, w:11.5, h:0.5, fontSize:16, bold:true, color:C.white, fontFace:'Calibri', charSpacing:1,
     });
 
     const kpis4 = [
       { val:`${fx1(globalAvg)}%`, label:'Cumplimiento\nGeneral', col:C.teal },
       { val:`${stores.length}`, label:'Tiendas\nAnalizadas', col:C.gold },
-      { val:`${mnths.length}`, label:'Meses del\nSemestre', col:'5C7AEA' },
+      { val:`${mnths.length}`, label:'Meses del\n'+PERIODO_SUST, col:'5C7AEA' },
       { val:`${procAvg.length}`, label:'Procesos\nEvaluados', col:'E57373' },
     ];
     kpis4.forEach((k,i) => {
@@ -1418,7 +1490,7 @@ async function buildPptx(d) {
       s.addText(k.label, { x:cx-0.1, y:2.47, w:1.75, h:0.5, fontSize:9, color:C.gray2, fontFace:'Calibri', align:'center' });
     });
 
-    s.addText('PROCESOS — PROMEDIO SEMESTRAL', { x:0.55, y:3.1, w:8.8, h:0.35, fontSize:11, bold:true, color:C.gold, fontFace:'Calibri' });
+    s.addText('PROCESOS — PROMEDIO ' + PERIODO_ADJ, { x:0.55, y:3.1, w:8.8, h:0.35, fontSize:11, bold:true, color:C.gold, fontFace:'Calibri' });
     procAvg.forEach((p,i) => {
       const y = 3.55 + i*0.56;
       const barW = 5.5, filled = barW*sn(p.val)/100;
@@ -1453,7 +1525,7 @@ async function buildPptx(d) {
     s.addText(`${fx1(bestMonthVal)}%`, { x:9.65, y:5.9, w:3.35, h:0.5, fontSize:26, bold:true, color:C.accent, fontFace:'Calibri', align:'center' });
 
     s.addShape(pres.ShapeType.rect, { x:0.35, y:7.28, w:12.95, h:0.22, fill:{color:C.gold} });
-    s.addText(`${razonNombre(RAZON_ACTIVA)} · Reporte Semestral de Cumplimiento de Procesos`, {
+    s.addText(`${razonNombre(RAZON_ACTIVA)} · Reporte ${PERIODO_ADJ_CAP} de Cumplimiento de Procesos`, {
       x:0.55, y:7.29, w:12, h:0.2, fontSize:9, color:C.navy, bold:true, fontFace:'Calibri', align:'center',
     });
   }
@@ -2735,8 +2807,20 @@ function processFromRows(rows, mesCol, tiendaCol, promedioCol, procesoFiltro) {
   });
   procAvg.sort((a,b) => b.val - a.val);
 
-  const allPcts = rows.map(readVal).filter(x=>x!==null);
-  const globalAvg2 = avg(allPcts);
+  // Mapa de calor Tienda × Proceso — promedio de cada tienda en cada proceso,
+  // a través de todos los meses de la selección (mismo factor ×500 que procAvg).
+  const heatProc = {};
+  for (const st of stores) {
+    heatProc[st] = procCols.map(col => {
+      const vals = rows.filter(r => (r[tiendaCol]||'').toString().trim()===st)
+        .map(r => toNum(r[col])).filter(v => v !== null);
+      if (!vals.length) return null;
+      const pct = (vals.reduce((a,b)=>a+b,0)/vals.length) * 500;
+      return Math.min(Math.round(pct), 100);
+    });
+  }
+
+  const globalAvg2 = avg(rows.map(readVal).filter(x=>x!==null));
   const evoValid = evolucion.filter(x=>x!==null);
   const bestMonthIdx   = evolucion.reduce((bi,v,i,a)=>v!=null&&(a[bi]==null||v>a[bi])?i:bi,0);
   const worstMonthIdx  = evolucion.reduce((bi,v,i,a)=>v!=null&&(a[bi]==null||v<a[bi])?i:bi,0);
@@ -2745,7 +2829,7 @@ function processFromRows(rows, mesCol, tiendaCol, promedioCol, procesoFiltro) {
   const worstMonthLabel = monthLabels[worstMonthIdx] || '—';
   const worstMonthVal   = evoValid.length ? Math.min(...evoValid) : 0;
 
-  return { months, monthLabels, evolucion, stores, heatData, ranking, procAvg,
+  return { months, monthLabels, evolucion, stores, heatData, heatProc, procNames: PROCESSES, ranking, procAvg,
     globalAvg: globalAvg2||0, bestMonthLabel, bestMonthVal, worstMonthLabel, worstMonthVal,
     procesoFiltro: usaProceso ? procesoFiltro : null };
 }
@@ -2901,7 +2985,7 @@ async function generateDashboard() {
     generatedPres = pres;
     fileName = `${rawFileName}_${label.replace(/[^a-zA-Z0-9_\-]/g,'_')}_Dashboard.pptx`;
 
-    log('✅','Diapositivas generadas (6)','done');
+    log('✅','Diapositivas generadas (7)','done');
     log('🎨','Aplicando estilos…','active'); setProgress(75);
     await new Promise(r=>setTimeout(r,300));
     log('✅','Estilos aplicados','done');
