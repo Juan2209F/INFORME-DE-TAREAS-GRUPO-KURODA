@@ -3525,12 +3525,9 @@ function openActividad(id){
     '<div class="fg" style="grid-column:1/3"><label>Asignado a <span style="font-weight:400;color:var(--muted);text-transform:none">(elige uno o varios: la actividad se califica para todos)</span></label>'+
       '<input id="a-asignado" value="'+esc(a.asignado)+'" placeholder="Nombre, o varios separados por /" oninput="pintarChipsAuditores()">'+
       '<div id="a-asig-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:7px"></div></div>'+
-    '<div class="fg"><label>Estimado Inicio</label><input type="date" id="a-estinicio" value="'+di(a.estInicio)+'" oninput="calcDurEst()"></div>'+
-    '<div class="fg"><label>Estimado Finalización</label><input type="date" id="a-estfin" value="'+di(a.estFin)+'" oninput="calcDurEst()"></div>'+
-    '<div class="fg"><label>Duración estimada (días)</label><input type="number" id="a-durest" value="'+calcDias(a.estInicio,a.estFin)+'" readonly style="background:#f1f5f9"></div>'+
-    '<div class="fg"><label>Real Inicio</label><input type="date" id="a-realinicio" value="'+di(a.realInicio)+'" oninput="calcDurReal()"></div>'+
-    '<div class="fg"><label>Real Finalización</label><input type="date" id="a-realfin" value="'+di(a.realFin)+'" oninput="calcDurReal()"></div>'+
-    '<div class="fg"><label>Duración real (días)</label><input type="number" id="a-durreal" value="'+calcDias(a.realInicio,a.realFin)+'" readonly style="background:#f1f5f9"></div>'+
+    '<div class="fg"><label>Fecha de Inicio</label><input type="date" id="a-estinicio" value="'+di(a.estInicio)+'" oninput="calcDurEst()"></div>'+
+    '<div class="fg"><label>Fecha de Finalización</label><input type="date" id="a-estfin" value="'+di(a.estFin)+'" oninput="calcDurEst()"></div>'+
+    '<div class="fg"><label>Duración (días)</label><input type="number" id="a-durest" value="'+calcDias(a.estInicio,a.estFin)+'" readonly style="background:#f1f5f9"></div>'+
     '<div class="fg" style="grid-column:1/3"><label>Comentario</label><input id="a-comentario" value="'+esc(a.comentario)+'"></div>'+
     '<div class="fg" style="grid-column:1/3"><label>Apoyos requeridos</label><input id="a-apoyos" value="'+esc(a.apoyos)+'"></div>'+
     '<label style="grid-column:1/3;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--txt)"><input type="checkbox" id="a-programada"'+(a.programada?' checked':'')+'> Actividad programada (desmarcar si es NO PROGRAMADA)</label>'+
@@ -3646,7 +3643,6 @@ async function saveActividad(id,isNew){
     razon:_razonFinal,
     creado_por:(_session&&(_session.nombre||_session.username))||null,
     est_inicio:dv('a-estinicio'), est_fin:dv('a-estfin'), dur_estimada:nv('a-durest'),
-    real_inicio:dv('a-realinicio'), real_fin:dv('a-realfin'), dur_real:nv('a-durreal'),
     comentario:document.getElementById('a-comentario').value.trim()||null,
     apoyos:document.getElementById('a-apoyos').value.trim()||null,
     programada:document.getElementById('a-programada').checked
