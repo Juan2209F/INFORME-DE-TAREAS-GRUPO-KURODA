@@ -3445,12 +3445,12 @@ function renderActividades(){
     return '<input type="date" class="act-fecha-inline" style="'+inlineFieldStyle()+'" value="'+val+'" onchange="updateCampoActividadInline(\''+a.id+'\',\''+campo+'\',this.value)">';
   }
   function filaActividad(a){
-    /* La columna se llama "Dur.real" pero calculaba Est.Inicio→Est.Fin (la
-       duración ESTIMADA), no la real. Esto hacía parecer que una actividad
-       ya tenía avance real registrado cuando en realidad solo tenía fechas
-       estimadas — y por eso una actividad sin Real Fin capturado (todavía
-       pendiente de verdad) podía leerse como si ya tuviera duración real. */
-    var dur=calcDias(a.realInicio,a.realFin);
+    /* La columna mostraba Dur.real calculada con Real.Inicio/Real.Fin, pero
+       esos campos ya no se capturan en ningún lado (se quitaron del modal de
+       edición) — por eso siempre salía "—" aunque Est.Inicio/Est.Fin sí
+       tuvieran fecha. Ahora se calcula con las mismas fechas que se editan
+       en esta tabla (Est.Inicio/Est.Fin), igual que en el modal. */
+    var dur=calcDias(a.estInicio,a.estFin);
     return '<tr>'+
       '<td>'+(a.mes||'—')+'</td>'+
       '<td style="min-width:200px"><b>'+(a.actividad||'—')+'</b></td>'+
@@ -3465,7 +3465,7 @@ function renderActividades(){
   }
 
   var thead='<thead><tr><th>Mes</th><th>Actividad/Proyecto</th><th>Estado</th><th>Categoría</th><th>Asignado</th>'+
-    '<th>Est.Inicio</th><th>Est.Fin</th><th>Dur.real</th><th></th></tr></thead>';
+    '<th>Est.Inicio</th><th>Est.Fin</th><th>Duración</th><th></th></tr></thead>';
 
   var prog=arr.filter(function(a){return a.programada;});
   var noProg=arr.filter(function(a){return !a.programada;});
