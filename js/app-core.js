@@ -1501,14 +1501,19 @@ function _buildConsumosXLSX(data){
   }).catch(function(err){ toast('⚠ Error al generar Excel: '+err.message); });
 }
 
-/* Barra de datos: Vigentes = auditorías activas que NO están finalizadas
-   (mismo criterio que la vista de Auditorías); Finalizadas = archivadas.
-   Se llama en refreshAll y también al terminar loadFinalizadas (cargan async). */
+/* Barra de datos: En curso = mismo cálculo EXACTO que usa la vista de
+   Auditorías (auditoriasVigentesDeduplicadas: descarta las que ya no tienen
+   tareas pendientes y omite duplicados por tienda/centro+mes+%cumplimiento,
+   típicos de volver a cargar el mismo Excel). Antes este contador usaba
+   estaFinalizada(), que solo detecta el archivo en Finalizadas y por eso
+   podía mostrar un total mayor al de la vista real de Auditorías.
+   Finalizadas = archivadas. Se llama en refreshAll y también al terminar
+   loadFinalizadas (cargan async). */
 function actualizarStrip(){
   var elV=document.getElementById('ds-aud');
   var finList=(typeof FINALIZADAS!=='undefined')?FINALIZADAS.filter(function(f){return !f._pending;}):[];
-  var vigentes=(typeof estaFinalizada==='function')
-    ? STORE.auditorias.filter(function(a){return !estaFinalizada(a);}).length
+  var vigentes=(typeof auditoriasVigentesDeduplicadas==='function')
+    ? auditoriasVigentesDeduplicadas(STORE.auditorias).length
     : STORE.auditorias.length;
   if(elV)elV.textContent=vigentes;
   var elF=document.getElementById('ds-fin'); if(elF)elF.textContent=finList.length;
@@ -2953,18 +2958,26 @@ async function deleteAuditoria(a){
   }catch(e){toast('⚠ '+e.message);}
 }
 
-function renderAuditoriasView(){
-  fillAudFilters();
-  var arr=filteredAudByView();
-  /* Excluir auditorías ya resueltas (0 pendientes) de la tabla activa.
-     Antes esto además exigía que existiera un registro en Finalizadas con
-     la misma clave — pero la retención de 7 días borra ese registro pasado
-     ese plazo, y una auditoría que sigue genuinamente con 0 pendientes se
-     quedaba sin "memoria" de que ya se había finalizado y reaparecía en la
-     tabla activa. El estado real (0 pendientes) ya se calcula aquí mismo en
-     vivo, así que basta con eso — no hace falta que el registro de
-     Finalizadas siga existiendo para saber que ya terminó. */
-  arr=arr.filter(function(a){
+/* Auditorías realmente VIGENTES a partir de una lista cualquiera de
+   auditorías: descarta las que ya no tienen ninguna tarea pendiente
+   asociada (aunque nunca se hayan archivado en Finalizadas — más fiable que
+   estaFinalizada(), que depende de un registro en Finalizadas que la
+   retención de 7 días puede haber borrado) y, dentro de cada clase, omite
+   duplicados (misma tienda/centro + mes + % de cumplimiento) — el caso
+   típico de volver a cargar el mismo Excel y que reaparezcan auditorías que
+   ya estaban registradas (incluso ya finalizadas). Se usa tanto para pintar
+   la vista de Auditorías como para el contador "En curso" de la barra
+   superior, para que ambos SIEMPRE coincidan. */
+function auditoriasVigentesDeduplicadas(lista){
+  function claseCanonicaLocal(a){
+    var c=norm(a.clase||'');
+    if(c.includes('colaboracion')||c.includes('colab'))return '__colab';
+    if(c.includes('orden')||c.includes('limpieza'))return '__orden';
+    if(c.includes('cartera'))return '__cartera';
+    return a.clase||'SIN CLASE';
+  }
+  // 1) Solo las que aún tienen al menos una tarea pendiente asociada en Tareas
+  var conPendientes=lista.filter(function(a){
     var tipoClase=tipoTareaDeClase(a.clase);
     var tareasDeAud=STORE.tareas.filter(function(t){
       if(norm(t.tienda)!==norm(a.tienda)||norm(t.centro)!==norm(a.centro))return false;
@@ -2974,11 +2987,29 @@ function renderAuditoriasView(){
     var sinPend=tareasDeAud.length>0&&tareasDeAud.filter(esPendiente).length===0;
     return !sinPend;
   });
-  /* Contar auditorías con al menos 1 tarea pendiente */
-  var audConPend=arr.filter(function(a){
-    var stats=calcAudStats(a,arr);
-    return stats.pendientes>0;
-  }).length;
+  // 2) Deduplicar DENTRO de cada clase (misma tienda/centro + mes + % cumplimiento)
+  var grupos={};
+  conPendientes.forEach(function(a){
+    var k=claseCanonicaLocal(a);
+    (grupos[k]=grupos[k]||[]).push(a);
+  });
+  var resultado=[];
+  Object.keys(grupos).forEach(function(k){
+    var vistos={};
+    grupos[k].forEach(function(a){
+      var pct=parseFloat(a.pctCumpl)||0;if(pct>1)pct=pct/100;
+      var key=[norm(a.centro||a.tienda||''),norm(a.mes||''),Math.round(pct*100)].join('|');
+      if(vistos[key])return;
+      vistos[key]=true;
+      resultado.push(a);
+    });
+  });
+  return resultado;
+}
+
+function renderAuditoriasView(){
+  fillAudFilters();
+  var arr=auditoriasVigentesDeduplicadas(filteredAudByView());
   document.getElementById('aud-count').textContent='';
   var cont=document.getElementById('auditorias-tables');
   if(!arr.length){cont.innerHTML='<div class="empty" style="padding:30px">Sin auditorías. Verifica los filtros o carga datos desde el módulo principal.</div>';return;}
@@ -2997,22 +3028,6 @@ function renderAuditoriasView(){
     var k=claseCanonica(a);
     if(!grupos[k])grupos[k]=[];
     grupos[k].push(a);
-  });
-
-  /* Omitir duplicados DENTRO de cada clase: misma tienda/centro + mismo mes +
-     mismo % de cumplimiento casi seguro es la misma auditoría capturada o
-     importada dos veces. Se compara solo dentro de la misma clase — una
-     Colaboración y una Orden y Limpieza del mismo centro/mes son auditorías
-     distintas y nunca se consideran duplicado entre sí. */
-  Object.keys(grupos).forEach(function(k){
-    var vistos={};
-    grupos[k]=grupos[k].filter(function(a){
-      var pct=parseFloat(a.pctCumpl)||0;if(pct>1)pct=pct/100;
-      var key=[norm(a.centro||a.tienda||''),norm(a.mes||''),Math.round(pct*100)].join('|');
-      if(vistos[key])return false;
-      vistos[key]=true;
-      return true;
-    });
   });
 
   var html='';
