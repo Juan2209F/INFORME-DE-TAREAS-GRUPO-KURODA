@@ -2411,6 +2411,7 @@ function setView(v){
     var loaders2=[];
     if(!AJUSTES.length) loaders2.push(loadAjustes());
     if(!MERMAS.length) loaders2.push(loadMermas());
+    if(!ACTIVIDADES.length) loaders2.push(loadActividades());
     if(!STORE.auditorias.length) loaders2.push(loadDataFromSupabase());
     if(loaders2.length) Promise.all(loaders2).then(renderEvaluacion);
     else renderEvaluacion();
