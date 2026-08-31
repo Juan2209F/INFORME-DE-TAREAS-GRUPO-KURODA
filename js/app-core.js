@@ -825,14 +825,16 @@ async function commitToSupabase(nuevas, actualizar, audStaged, omitidas, prevTar
   toast('✓ '+insOk+' nuevas · '+updOk+' actualizadas · '+omitidas+' omitidas (idénticas)');
 }
 
-/* Helper: obtener cliente Supabase */
+/* Helper: obtener cliente Supabase (SIEMPRE reutiliza _sb si ya existe).
+   Antes, si _sb aún no existía, este helper creaba un cliente nuevo con
+   supabase.createClient(...) pero NO lo guardaba en _sb — así que la
+   siguiente llamada volvía a crear OTRO cliente, y así sucesivamente.
+   Eso es justo lo que provoca el aviso de Supabase "Multiple GoTrueClient
+   instances detected in the same browser context". Ahora delega en
+   initSupabase(), que sí asigna _sb, para que solo exista una instancia. */
 function getSbClient(){
   if(_sb)return _sb;
-  try{return supabase.createClient(SB_URL,SB_KEY,{
-    auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
-    realtime:{enabled:false},
-    global:{headers:{'x-client-info':'monitor-cumplimiento'}}
-  });}catch(e){return null;}
+  return initSupabase();
 }
 /* ════════════════════════════════════════════════════════════════════
    FILTROS
@@ -2056,12 +2058,8 @@ function openFileIfAllowed(){
   document.getElementById('file-input').click();
 }
 async function syncTaskToSupabase(rec, isNew){
-  var client=_sb;
-  if(!client){try{client=supabase.createClient(SB_URL,SB_KEY,{
-    auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
-    realtime:{enabled:false},
-    global:{headers:{'x-client-info':'monitor-cumplimiento'}}
-  });}catch(e){return;}}
+  var client=_sb||initSupabase();
+  if(!client)return;
   var tid=String(rec.id);
   var _rowRaw={
     tarea_id:tid,tarea_key:tareaKey(tid,rec.razon),razon:rec.razon||null,centro:rec.centro||null,
@@ -2120,12 +2118,8 @@ async function syncTaskToSupabase(rec, isNew){
   }catch(e){toast('⚠ Error Supabase: '+e.message);console.error('syncTaskToSupabase:',e);}
 }
 async function deleteTaskFromSupabase(taskId,razon){
-  var client=_sb;
-  if(!client){try{client=supabase.createClient(SB_URL,SB_KEY,{
-    auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
-    realtime:{enabled:false},
-    global:{headers:{'x-client-info':'monitor-cumplimiento'}}
-  });}catch(e){return;}}
+  var client=_sb||initSupabase();
+  if(!client)return;
   try{
     /* Delete por clave compuesta ID+RAZÓN (no toca la misma tarea de otra razón) */
     var r=await client.from('tareas').delete().eq('tarea_key',tareaKey(taskId,razon));
@@ -5526,14 +5520,8 @@ async function loadDataFromSupabase(){
 
 /* ── sincronizar Excel subido → Supabase ── */
 async function syncToSupabase(parsed){
-  var client=_sb;
-  if(!client){
-    try{client=supabase.createClient(SB_URL,SB_KEY,{
-    auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
-    realtime:{enabled:false},
-    global:{headers:{'x-client-info':'monitor-cumplimiento'}}
-  });}catch(e){return;}
-  }
+  var client=_sb||initSupabase();
+  if(!client)return;
   var upload_id='upload_'+Date.now(), audOk=0, tarOk=0, errMsg=null;
   try{
     if(parsed.auditorias&&parsed.auditorias.length>0){
