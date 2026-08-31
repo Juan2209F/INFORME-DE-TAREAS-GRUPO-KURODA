@@ -3315,7 +3315,7 @@ function filteredActividades(){
   return ACTIVIDADES.filter(function(a){
     if(mes!=='ALL'&&norm(a.mes)!==norm(mes))return false;
     if(est!=='ALL'&&norm(a.estado)!==norm(est))return false;
-    if(cat!=='ALL'&&a.categoria!==cat)return false;
+    if(cat!=='ALL'&&norm(a.categoria)!==norm(cat))return false;
     if(asig!=='ALL'&&!auditoresDeActividad(a).some(function(x){return norm(x)===norm(asig);}))return false;
     if(raz==='SIN_RAZON'){if(a.razon)return false;}
     else if(raz!=='ALL'&&razKey(a.razon)!==razKey(raz))return false;
@@ -3419,7 +3419,7 @@ function renderActividades(){
   }
   function categoriaCelda(a){
     if(!canEdit)return (a.categoria||'—');
-    var cats=['Evaluacion','Auditoria','Entrega','Inventario','Revision','Apoyo Juridico','Apoyo a RH'];
+    var cats=['Evaluación','Auditoría','Entrega','Inventario','Revisión','Apoyo Jurídico','Apoyo a RH','Capacitación','Validación de Merma','Vacaciones','Antidoping','Inducción','Informe','Apoyo Seguridad Patrimonial','Donación','Apoyo Almacén','Reunión'];
     var opts='<option value=""'+(!a.categoria?' selected':'')+'>—</option>'+
       cats.map(function(c){return '<option value="'+c+'"'+(norm(a.categoria)===norm(c)?' selected':'')+'>'+c+'</option>';}).join('');
     return '<select class="act-cat-inline" style="'+inlineFieldStyle()+'" onchange="updateCampoActividadInline(\''+a.id+'\',\'categoria\',this.value)">'+opts+'</select>';
@@ -3524,7 +3524,7 @@ function openActividad(id){
   var _rzOpts=[...new Set(_RAZONES_FIJAS.concat(_rzAsig||[]).concat(STORE.tareas.map(function(t){return t.razon;})).concat(STORE.auditorias.map(function(x){return x.razon;})).filter(Boolean).map(function(r){return r.toUpperCase();}))];
   function di(d){if(!d)return'';var x=fromISO(d);return x?fmtInput(x):'';}
   var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  var cats=['Evaluacion','Auditoria','Entrega','Inventario','Revision','Apoyo Juridico','Apoyo a RH'];
+  var cats=['Evaluación','Auditoría','Entrega','Inventario','Revisión','Apoyo Jurídico','Apoyo a RH','Capacitación','Validación de Merma','Vacaciones','Antidoping','Inducción','Informe','Apoyo Seguridad Patrimonial','Donación','Apoyo Almacén','Reunión'];
   var estados=['Completado','En curso','Reprogramado','Sin comenzar'];
   var _rzBloqueada=_rzAsig&&_rzAsig.length===1;
   var body='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
