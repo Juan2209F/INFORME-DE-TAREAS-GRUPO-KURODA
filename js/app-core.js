@@ -177,11 +177,19 @@ var CENTRO_TIENDA={
   'KS21':'KS PLOMELEC EXPRESS'
 };
 /* Alias de centros: algunos centros comparten la misma tienda física bajo más
-   de un código (histórico, de sistema origen, etc.). KN06 y KN18 son la misma
-   tienda — cualquier dato que llegue etiquetado KN06 (carga de Excel, fila de
-   Supabase, captura manual) se centra en KN18 desde este único punto, para no
-   fragmentar sus auditorías/tareas en dos y mantener la actualización correcta. */
-var CENTRO_ALIAS={'KN06':'KN18'};
+   de un código (histórico, de sistema origen, etc.). Cualquier dato que
+   llegue etiquetado con la clave de un alias (carga de Excel, fila de
+   Supabase, captura manual) se centra en el centro destino desde este único
+   punto, para no fragmentar sus auditorías/tareas en dos.
+   NOTA: KN06 (KN MEXICALI MAYOREO) y KN18 (KN PEDREGAL) son tiendas
+   DISTINTAS — se corrigió el alias anterior que las fusionaba por error.
+   KN06 ya tiene su propia entrada en CENTRO_TIENDA y ahora se resuelve como
+   centro independiente; los datos históricos que quedaron bajo KN18 con el
+   nombre combinado "MEXICALI PEDREGAL Y MAYOREO" no se tocan retroactivamente
+   (no hay forma segura de saber, registro por registro, cuáles eran en
+   realidad de KN06), pero toda captura/importación NUEVA que traiga KN06 se
+   guardará ya como KN MEXICALI MAYOREO, sin mezclarse con KN18. */
+var CENTRO_ALIAS={};
 function canonCentro(c){
   var cc=String(c||'').toUpperCase().replace(/\s+/g,'').trim();
   return CENTRO_ALIAS[cc]||cc;
@@ -430,7 +438,7 @@ function parseWorkbook(buf){
           : nombreActN.includes('cartera') ? 'TAREAS CARTERA'
           : 'TAREAS AUDITORIA COL';
         /* El centro trae el nombre canónico de tienda; se respeta el del diccionario.
-           canonCentro también resuelve alias de centro (p.ej. KN06 se centra en KN18). */
+           canonCentro también resuelve alias de centro (CENTRO_ALIAS), si los hubiera. */
         const centro=canonCentro(String(r[c.centro]||'').trim());
         out.tareas.push({
           razon:String(r[c.razon]||'').trim(),
