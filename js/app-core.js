@@ -7214,8 +7214,9 @@ async function loadFinalizadas(){
    Supabase como de la lista en pantalla, para no acumular historial
    indefinidamente. Se corre cada vez que se recargan los datos. */
 /* Días que una auditoría debe permanecer al 100% resuelta antes de pasar a
-   Finalizadas. Evita moverla por una resolución momentánea. */
-var DIAS_PARA_FINALIZAR=3;
+   Finalizadas. En 0 se archiva de inmediato al llegar a 100% (decisión del
+   usuario: necesita ver el registro de finalización sin espera). */
+var DIAS_PARA_FINALIZAR=0;
 
 /* Clave única de una auditoría (misma fórmula en todo el dashboard) */
 function audKeyDe(a){
@@ -7359,7 +7360,7 @@ function renderFinalizadas(){
   document.getElementById('fin-count').textContent=arr.length+' finalizada(s)';
   var th=document.getElementById('fin-edit-th');if(th)th.style.display=isAdmin?'':'none';
   var tbody=document.getElementById('fin-tbody');
-  var nCols=isAdmin?9:8;
+  var nCols=isAdmin?10:9;
 
   if(!arr.length){
     tbody.innerHTML='<tr><td colspan="'+nCols+'" style="text-align:center;color:var(--muted);padding:24px">Sin registros finalizados.</td></tr>';
@@ -7386,6 +7387,22 @@ function renderFinalizadas(){
       });
     }
     return (fi&&ff)?diasEntre(fi,ff):null;
+  }
+
+  /* Estado de finalización: se revisan las tareas reales de la auditoría
+     (mismo cruce tienda+clase que usa getDur) y si alguna quedó marcada
+     "atrasada" en su estado, la finalización completa se considera atrasada.
+     Sin tareas para cruzar, no se puede juzgar y se marca "—". */
+  function getEstado(f){
+    var tipoC=tipoTareaDeClase(f.clase||'');
+    var td=STORE.tareas.filter(function(t){
+      if(norm(t.tienda)!==norm(f.tienda||''))return false;
+      if(tipoC&&tipoNormLocal(t.tipoTarea)!==tipoC)return false;
+      return true;
+    });
+    if(!td.length)return null;
+    var huboAtraso=td.some(function(t){return norm(t.estado||'').includes('atrasad');});
+    return huboAtraso?'atrasada':'entiempo';
   }
 
   function claseGrupo(f){
@@ -7422,6 +7439,12 @@ function renderFinalizadas(){
       var dur=getDur(f);
       var diasStr=dur!=null?dur+'d':'—';
       var semsStr=dur!=null?(Math.round(dur/7*10)/10)+' sem':'—';
+      var estado=getEstado(f);
+      var estadoCell=estado==='atrasada'?
+        '<td style="text-align:center"><span class="badge b-red">Atrasada</span></td>':
+        estado==='entiempo'?
+        '<td style="text-align:center"><span class="badge b-green">En tiempo</span></td>':
+        '<td style="text-align:center;color:var(--muted)">—</td>';
       var editTd=isAdmin?'<td style="text-align:center"><button class="icon-btn" data-fid="'+esc(f.id||'')+'" onclick="finDeleteClick(this)" title="Eliminar">✕</button></td>':'';
       var fechaCell=isAdmin?
         '<td style="text-align:center"><input class="seg-date-input" type="date" value="'+(f.fecha_finalizacion||'')+'" '+
@@ -7448,6 +7471,7 @@ function renderFinalizadas(){
         fechaCell+
         '<td style="text-align:center;color:var(--muted)">'+diasStr+'</td>'+
         '<td style="text-align:center;color:var(--muted)">'+semsStr+'</td>'+
+        estadoCell+
         editTd+'</tr>';
     }).join('');
 
@@ -7459,6 +7483,7 @@ function renderFinalizadas(){
       '<td></td>'+
       '<td style="text-align:center;color:'+meta.color+'">'+(promDias!=null?promDias+' d':'—')+'</td>'+
       '<td style="text-align:center;color:'+meta.color+'">'+(promSems!=null?promSems+' sem':'—')+'</td>'+
+      '<td></td>'+
       (isAdmin?'<td></td>':'')+'</tr>';
 
     return '<tr><td colspan="'+nCols+'" style="padding:10px 12px 4px;font-weight:800;font-size:12px;color:'+meta.color+';text-transform:uppercase;letter-spacing:.04em;border-top:2px solid '+meta.color+';background:var(--soft)">'+
@@ -7470,7 +7495,7 @@ function renderFinalizadas(){
     '<th style="padding:8px 10px">#</th><th>Tienda</th>'+
     '<th class="c">% Cumpl.</th><th class="c">Tareas</th>'+
     '<th class="c">Resueltas</th><th class="c">Fecha Fin</th>'+
-    '<th class="c">Días</th><th class="c">Semanas</th>'+
+    '<th class="c">Días</th><th class="c">Semanas</th><th class="c">Estado</th>'+
     (isAdmin?'<th class="c">✕</th>':'')+'</tr>';
 
   var html=orden.map(function(k){
