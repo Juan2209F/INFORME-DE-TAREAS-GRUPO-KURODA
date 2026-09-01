@@ -480,24 +480,8 @@
         </div>
       </div>
 
-      <!-- Tabla -->
-      <div class="card" style="padding:0">
-        <div class="ajustes-table-wrap">
-          <table>
-            <thead><tr>
-              <th>#</th><th>Tienda</th>
-              <th class="c">% Cumpl.</th><th class="c">Tareas</th>
-              <th class="c">Resueltas</th><th class="c">Fecha Fin</th>
-              <th class="c">Días</th><th class="c">Semanas</th>
-              <th class="c">Estado</th>
-              <th class="c" id="fin-edit-th" style="display:none"></th>
-            </tr></thead>
-            <tbody id="fin-tbody">
-              <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px">Cargando…</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <!-- Tablas (una por clase, mismo formato que el módulo Auditorías) -->
+      <div id="fin-tables"></div>
     </div><!-- /view-finalizadas -->
 
     <!-- (Módulo Archivo eliminado: el histórico completo vive ahora en Auditorías Finalizadas) -->
@@ -564,13 +548,13 @@
           <datalist id="na-tienda-list"></datalist>
         </div>
         <div class="form-field">
-          <label>Centro</label>
+          <label>Centro *</label>
           <input id="na-centro" list="na-centro-list" placeholder="Ej. KN01">
           <datalist id="na-centro-list"></datalist>
         </div>
         <div class="form-field">
-          <label>Razón</label>
-          <input id="na-razon" list="na-razon-list" placeholder="Ej. KNO">
+          <label>Razón *</label>
+          <input id="na-razon" list="na-razon-list" placeholder="KNO, KSC o KSA">
           <datalist id="na-razon-list"></datalist>
         </div>
         <div class="form-field">
@@ -592,7 +576,7 @@
           <input type="number" id="na-pct" min="0" max="100" step="0.1" placeholder="Ej. 74">
         </div>
         <div class="form-field">
-          <label>Total tareas</label>
+          <label>Total tareas *</label>
           <input type="number" id="na-tareas" min="0" placeholder="Ej. 10" oninput="naAutoCalc()">
         </div>
         <div class="form-field">
