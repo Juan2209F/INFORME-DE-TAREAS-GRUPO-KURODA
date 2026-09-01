@@ -1561,6 +1561,20 @@ const SB_KEY = 'sb_publishable_qMc5NuOO1HUzYvQzFEr2fA_vVqBzXND';
 let _sbGenClient = null;
 function sbGenClient(){
   if (_sbGenClient) return _sbGenClient;
+  /* Si este archivo está corriendo DENTRO del iframe de index.html (mismo
+     origen), la app principal ya tiene su propio cliente Supabase vivo en
+     window.parent. Reutilizarlo evita crear una segunda instancia de
+     GoTrueClient en el mismo contexto de navegador (eso es justo lo que
+     dispara el aviso "Multiple GoTrueClient instances detected"). Si se
+     abre este archivo de forma independiente (sin index.html como padre,
+     o en otro origen), window.parent.getSbClient lanza/no existe y cae al
+     bloque catch, que crea su propio cliente como antes. */
+  try{
+    if (window.parent && window.parent !== window && typeof window.parent.getSbClient === 'function') {
+      var parentClient = window.parent.getSbClient();
+      if (parentClient) { _sbGenClient = parentClient; return _sbGenClient; }
+    }
+  } catch(e) { /* cross-origin u otro caso: seguir al fallback de abajo */ }
   try { _sbGenClient = supabase.createClient(SB_URL, SB_KEY, { auth:{ persistSession:false } }); }
   catch(e) { console.warn('No se pudo iniciar cliente Supabase', e); _sbGenClient = null; }
   return _sbGenClient;
