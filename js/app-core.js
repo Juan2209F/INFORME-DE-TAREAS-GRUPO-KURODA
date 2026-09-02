@@ -3128,15 +3128,44 @@ function downloadAuditoriasPNG(){
    HISTORIAL DE AUDITORÍAS POR SUCURSAL — PNG consolidado
    Junta en una sola imagen, agrupado por tienda, TODAS las auditorías:
    las vigentes/atrasadas (STORE.auditorias, aún sin archivar) y las ya
-   finalizadas (FINALIZADAS), cada una con su estado en tiempo/atrasada,
-   ordenadas de la más reciente a la más vieja (mismo criterio que
-   claveOrdenMes usa en las tablas de Auditorías/Finalizadas). Usa
-   renderPNG (off-screen, ancho completo) en vez de html2canvas directo,
-   porque combina datos de dos módulos que nunca están pintados juntos
-   en pantalla al mismo tiempo. */
+   finalizadas (FINALIZADAS), ordenadas de la más reciente a la más vieja
+   (mismo criterio que claveOrdenMes usa en las tablas de Auditorías/
+   Finalizadas). Cada fila muestra las mismas columnas que la tabla de
+   Auditorías en pantalla (% Cumplimiento, Total, Pendientes,
+   Vigentes/Atraso, Resueltos, % Resuelto), para que el PNG no pierda
+   ese detalle frente a la vista en vivo.
+   Respeta el FILTRO GLOBAL de arriba (razón / centro / tienda, #f-razon
+   #f-centro #f-tienda) — el mismo que ya usan downloadDashboardPNG() y
+   pngHeader() para anunciar el filtro activo en el encabezado — así que
+   para sacar el historial de UNA sola sucursal basta con seleccionarla
+   ahí arriba y luego pulsar este botón. Usa renderPNG (off-screen, ancho
+   completo) en vez de html2canvas directo, porque combina datos de dos
+   módulos que nunca están pintados juntos en pantalla al mismo tiempo. */
+function tiendasPermitidasPorRazon(razon){
+  if(!razon||razon==='ALL')return null; /* null = sin restricción */
+  var set={};
+  (STORE.auditorias||[]).forEach(function(a){
+    if(razKey(a.razon)===razKey(razon)&&a.tienda)set[norm(a.tienda)]=true;
+  });
+  (STORE.tareas||[]).forEach(function(t){
+    if(razKey(t.razon)===razKey(razon)&&t.tienda)set[norm(t.tienda)]=true;
+  });
+  return set;
+}
+function vigAtrasoTexto(abiertas,atrasadas){
+  var out='';
+  if(abiertas>0)out+='<span style="color:#2563eb;font-weight:800">'+abiertas+'↑</span> ';
+  if(atrasadas>0)out+='<span style="color:#dc2626;font-weight:800">'+atrasadas+'🔴</span>';
+  if(!out)out='<span style="color:#16a34a">✓</span>';
+  return out;
+}
 function historialAuditoriasPorSucursalHTML(){
+  var f=getFilterState();
+  var tiendasPermitidas=tiendasPermitidasPorRazon(f.razon);
   var porTienda={};
   function addReg(tienda,reg){
+    if(f.tienda!=='ALL'&&norm(tienda)!==norm(f.tienda))return;
+    if(tiendasPermitidas&&!tiendasPermitidas[norm(tienda||'')])return;
     var key=tienda||'—';
     (porTienda[key]=porTienda[key]||[]).push(reg);
   }
@@ -3144,22 +3173,40 @@ function historialAuditoriasPorSucursalHTML(){
   /* Vigentes + atrasadas: mismo filtro/dedup que usa la vista Auditorías */
   var vig=auditoriasVigentesDeduplicadas((STORE.auditorias||[]).filter(function(a){return !estaFinalizada(a);}));
   vig.forEach(function(a){
+    if(f.razon!=='ALL'&&razKey(a.razon)!==razKey(f.razon))return;
+    if(f.centro!=='ALL'&&norm(a.centro||'')!==norm(f.centro))return;
     var stats=calcAudStats(a);
+    var esCartera=norm(a.clase||'').includes('cartera');
     var estado = stats.abiertasAtrasadas>0 ? 'atrasada' :
                  stats.abiertas>0 ? 'vigente' :
                  (stats.resueltasAtrasadas||0)>0 ? 'atrasada' : 'entiempo';
-    addReg(a.tienda,{mes:a.mes||'—',clase:a.clase||'',fecha:a.fecha||null,estado:estado,origen:'En curso'});
+    addReg(a.tienda,{
+      mes:a.mes||'—',clase:a.clase||'',fecha:a.fecha||null,estado:estado,origen:'En curso',
+      pctCumpl:esCartera?null:pctFmt(a.pctCumpl),
+      total:stats.tareas,pendientes:stats.pendientes,
+      abiertas:stats.abiertas,abiertasAtrasadas:stats.abiertasAtrasadas,
+      resueltos:stats.resueltas,pctResuelto:pctFmt(stats.pctResuelto)
+    });
   });
 
-  /* Finalizadas: usa finEstado() — el mismo criterio que pinta la tabla de Finalizadas */
-  (FINALIZADAS||[]).forEach(function(f){
-    var est=finEstado(f);
-    addReg(f.tienda,{mes:f.mes||'—',clase:f.clase||'',fecha:f.fecha_finalizacion||null,
-      estado:est==='atrasada'?'atrasada':'entiempo',origen:'Finalizada'});
+  /* Finalizadas: usa finEstado() — el mismo criterio que pinta la tabla de Finalizadas.
+     Ya no tienen pendientes (se archivaron al 100%), así que Vigentes/Atraso
+     siempre sale en ✓; lo que sí puede variar es si se resolvieron a tiempo. */
+  (FINALIZADAS||[]).forEach(function(fz){
+    var est=finEstado(fz);
+    var esCartera=norm(fz.clase||'').includes('cartera');
+    var total=parseInt(fz.total_tareas)||0,res=parseInt(fz.resueltas)||0;
+    addReg(fz.tienda,{
+      mes:fz.mes||'—',clase:fz.clase||'',fecha:fz.fecha_finalizacion||null,
+      estado:est==='atrasada'?'atrasada':'entiempo',origen:'Finalizada',
+      pctCumpl:esCartera?null:pctFmt(fz.pct_cumpl),
+      total:total,pendientes:0,abiertas:0,abiertasAtrasadas:0,
+      resueltos:res,pctResuelto:total?Math.round(res/total*100)+'%':'—'
+    });
   });
 
   var tiendas=Object.keys(porTienda).sort();
-  if(!tiendas.length)return '<div class="empty">Sin auditorías registradas.</div>';
+  if(!tiendas.length)return '<div class="empty">Sin auditorías registradas'+(f.tienda!=='ALL'?' para "'+esc(f.tienda)+'"':'')+' con los filtros actuales.</div>';
 
   var html='';
   tiendas.forEach(function(t){
@@ -3169,13 +3216,24 @@ function historialAuditoriasPorSucursalHTML(){
       var badge = r.estado==='atrasada' ? '<span class="badge b-red">🔴 Atrasada</span>' :
                   r.estado==='vigente' ? '<span class="badge b-blue">↑ Vigente</span>' :
                   '<span class="badge b-green">✓ En tiempo</span>';
-      return '<tr><td class="tname">'+esc(r.mes)+'</td><td class="tsub">'+esc(r.clase||'—')+'</td>'+
-        '<td class="cell-c">'+badge+'</td>'+
-        '<td class="cell-c"><span class="badge b-gray">'+esc(r.origen)+'</span></td></tr>';
+      return '<tr>'+
+        '<td class="tname">'+esc(r.mes)+'</td>'+
+        '<td class="tsub">'+esc(r.clase||'—')+'</td>'+
+        '<td class="cell-c">'+(r.pctCumpl!=null?r.pctCumpl:'—')+'</td>'+
+        '<td class="cell-c" style="font-weight:800">'+r.total+'</td>'+
+        '<td class="cell-c">'+r.pendientes+'</td>'+
+        '<td class="cell-c" style="font-size:10.5px">'+vigAtrasoTexto(r.abiertas,r.abiertasAtrasadas)+'</td>'+
+        '<td class="cell-c">'+r.resueltos+'</td>'+
+        '<td class="cell-c">'+r.pctResuelto+'</td>'+
+        '<td class="cell-c" style="font-size:10px">'+badge+'</td>'+
+        '<td class="cell-c"><span class="badge b-gray">'+esc(r.origen)+'</span></td>'+
+      '</tr>';
     }).join('');
     html+='<div class="store-block"><div class="store-block-hdr"><span class="sname">'+esc(t)+'</span>'+
       '<span class="scount">'+arr.length+' auditoría(s)'+(nAtr?' · '+nAtr+' atrasada(s)':'')+'</span></div>'+
-      '<table><thead><tr><th>Mes</th><th>Tipo</th><th class="c">Estado</th><th class="c">Situación</th></tr></thead>'+
+      '<table><thead><tr><th>Mes</th><th>Tipo</th><th class="c">% Cumpl.</th><th class="c">Total</th>'+
+      '<th class="c">Pendientes</th><th class="c">Vigentes/Atraso</th><th class="c">Resueltos</th>'+
+      '<th class="c">% Resuelto</th><th class="c">Estado</th><th class="c">Situación</th></tr></thead>'+
       '<tbody>'+rowsHTML+'</tbody></table></div>';
   });
   return html;
