@@ -149,7 +149,10 @@ var CENTRO_TIENDA={
   'KN00':'KN 20 DE NOV MENUDEO',
   'KN01':'KN EXPRESS',
   'KN03':'KN ENSENADA MAYOREO',
-  'KN04':'KN ENSENADA MENUDEO',
+  'KN04':'KN ENSENADA MENUDEO', /* fusionado con KN03 vía CENTRO_ALIAS: se deja
+     este nombre solo para que centroDeTienda() reconozca texto histórico
+     "ENSENADA MENUDEO" sin centro; canonTienda()/canonCentro() siempre
+     resuelven KN04 como KN03 "KN ENSENADA MAYOREO" (ver CENTRO_ALIAS). */
   'KN05':'KN MEXICALI MENUDEO',
   'KN06':'KN MEXICALI MAYOREO',
   'KN07':'KN PEÑASCO',
@@ -181,15 +184,20 @@ var CENTRO_TIENDA={
    llegue etiquetado con la clave de un alias (carga de Excel, fila de
    Supabase, captura manual) se centra en el centro destino desde este único
    punto, para no fragmentar sus auditorías/tareas en dos.
-   NOTA: KN06 (KN MEXICALI MAYOREO) y KN18 (KN PEDREGAL) son tiendas
-   DISTINTAS — se corrigió el alias anterior que las fusionaba por error.
-   KN06 ya tiene su propia entrada en CENTRO_TIENDA y ahora se resuelve como
-   centro independiente; los datos históricos que quedaron bajo KN18 con el
-   nombre combinado "MEXICALI PEDREGAL Y MAYOREO" no se tocan retroactivamente
-   (no hay forma segura de saber, registro por registro, cuáles eran en
-   realidad de KN06), pero toda captura/importación NUEVA que traiga KN06 se
-   guardará ya como KN MEXICALI MAYOREO, sin mezclarse con KN18. */
-var CENTRO_ALIAS={};
+   - KN04 y KN03 SÍ son la misma tienda física (Ensenada Mayoreo): se fusionan
+     bajo KN03 / "KN ENSENADA MAYOREO". La entrada 'KN04' se conserva en
+     CENTRO_TIENDA (más abajo) solo para que centroDeTienda() siga
+     reconociendo el texto histórico "ENSENADA MENUDEO" en registros viejos
+     de Ajustes/Mermas que no traen centro — ese código resuelto se vuelve a
+     pasar por este alias y termina igual en KN03.
+   - KN06 (KN MEXICALI MAYOREO) y KN18 (KN PEDREGAL) son tiendas DISTINTAS —
+     NO llevan alias entre sí (se corrigió un alias anterior que las fusionaba
+     por error). Los datos históricos que quedaron bajo KN18 con el nombre
+     combinado "MEXICALI PEDREGAL Y MAYOREO" no se tocan retroactivamente (no
+     hay forma segura de saber, registro por registro, cuáles eran en
+     realidad de KN06), pero toda captura/importación NUEVA que traiga KN06
+     se guarda ya como KN MEXICALI MAYOREO, sin mezclarse con KN18. */
+var CENTRO_ALIAS={'KN04':'KN03'};
 function canonCentro(c){
   var cc=String(c||'').toUpperCase().replace(/\s+/g,'').trim();
   return CENTRO_ALIAS[cc]||cc;
@@ -2530,15 +2538,31 @@ function tipoNormLocal(tipo){
    que ya usan ajustes y mermas (centroDeTienda), y solo si eso tampoco
    resuelve se cae al texto literal como último recurso. */
 function mismaTiendaAud(x,a){
-  var cx=norm(x.centro), ca=norm(a.centro);
+  var cx=canonCentro(x.centro), ca=canonCentro(a.centro);
   if(cx&&ca)return cx===ca;
-  var dx=cx||(typeof centroDeTienda==='function'?norm(centroDeTienda(x.tienda||'')):'');
-  var da=ca||(typeof centroDeTienda==='function'?norm(centroDeTienda(a.tienda||'')):'');
+  var dx=cx||(typeof centroDeTienda==='function'?canonCentro(centroDeTienda(x.tienda||'')):'');
+  var da=ca||(typeof centroDeTienda==='function'?canonCentro(centroDeTienda(a.tienda||'')):'');
   if(dx&&da)return dx===da;
   return norm(x.tienda)===norm(a.tienda);
 }
 
-function calcAudStats(a, rowsMismaClase){
+/* ════════════════════════════════════════════════════════════════════
+   FUENTE ÚNICA DE VERDAD: qué tareas pertenecen a una auditoría.
+   Antes existían DOS implementaciones distintas de este emparejamiento:
+   una aquí (con ventana de mes ± GRACIA_DIAS y desambiguación entre
+   auditorías "hermanas" del mismo centro/clase) usada solo para pintar la
+   pantalla de Auditorías, y otra más simple (tienda+centro+tipo, SIN mes)
+   duplicada dentro de registrarFinalizada() y de
+   auditoriasVigentesDeduplicadas(). Como esas dos no filtraban por mes,
+   cuando una tienda tenía 2+ auditorías de la misma clase en meses
+   distintos (p.ej. Ensenada con Orden y Limpieza en marzo Y en mayo), le
+   atribuían a UNA sola auditoría las tareas de TODOS los meses juntos
+   ("amontonadero" de tareas que en realidad son de auditorías distintas), y
+   además esa mezcla casi nunca llegaba exactamente al 100%, así que la
+   auditoría se quedaba atascada en "Auditorías" y nunca pasaba a
+   "Finalizadas". Ahora las tres funciones llaman a ÉSTA, así que siempre ven
+   el mismo conjunto de tareas por auditoría. */
+function tareasRealesDeAuditoria(a){
   var tipoClase = tipoTareaDeClase(a.clase);
 
   /* Hermanas = TODAS las auditorías del mismo centro+clase que existen
@@ -2601,6 +2625,7 @@ function calcAudStats(a, rowsMismaClase){
     }
     var desdeMes=new Date(anioAud,mesMes,1-GRACIA_DIAS);
     var hastaMes=new Date(anioAud,mesMes+1,GRACIA_DIAS);
+    var aMesIdx=anioAud*12+mesMes; /* mes+año de ESTA auditoría, para comparar por CONTENIDO */
     /* Precalcular mes+año de cada hermana con mes reconocible */
     var hermanas=audsMismaTienda.map(function(sib){
       var sm=mesIndexFromNombre(sib.mes);
@@ -2615,14 +2640,27 @@ function calcAudStats(a, rowsMismaClase){
       if(d<desdeMes||d>hastaMes)return false; /* fuera del margen de ESTA auditoría: no es candidata */
       if(hermanas.length<2)return true; /* no hay realmente con quién competir */
       var tMes=d.getFullYear()*12+d.getMonth();
+      /* mejorEsEsta se decide por MES+AÑO (aMesIdx), no por identidad de objeto:
+         así funciona igual si "a" es la auditoría real de STORE.auditorias o un
+         objeto "espejo" reconstruido (p.ej. desde Finalizadas), que nunca es el
+         mismo objeto en memoria pero sí tiene el mismo mes. Antes comparaba
+         "h.aud===a" y con un espejo nunca coincidía, así que devolvía 0 tareas
+         aunque sí hubiera tareas reales ligadas. */
       var mejorDist=Infinity,mejorEsEsta=false;
       hermanas.forEach(function(h){
         var dist=Math.abs(tMes-h.mesIdx);
-        if(dist<mejorDist||(dist===mejorDist&&h.aud===a)){mejorDist=dist;mejorEsEsta=(h.aud===a);}
+        if(dist<mejorDist||(dist===mejorDist&&h.mesIdx===aMesIdx)){mejorDist=dist;mejorEsEsta=(h.mesIdx===aMesIdx);}
       });
       return mejorEsEsta;
     });
   }
+
+  return tt;
+}
+
+function calcAudStats(a, rowsMismaClase){
+  var tipoClase = tipoTareaDeClase(a.clase);
+  var tt = tareasRealesDeAuditoria(a);
 
   if(!tt.length){
     if(typeof console!=='undefined'&&console.warn){
@@ -2764,7 +2802,9 @@ function audTablaPorClase(titulo,color,rows){
     if(stats.dinamico&&stats.pendientes===0&&stats.tareas>0){
       registrarFinalizada(a);
     }
-    var mark=stats.dinamico?'<span style="font-size:9px;color:var(--teal);margin-left:3px" title="En tiempo real">⟳</span>':'';
+    var mark=stats.dinamico?
+      '<span style="font-size:9px;color:var(--teal);margin-left:3px" title="Vinculada: sus tareas reales se cuentan en vivo">⟳</span>':
+      '<span style="font-size:9px;color:var(--k-red,#dc2626);margin-left:3px;cursor:help" title="Sin vincular: ninguna tarea real coincide en centro+tipo+mes con esta auditoría. Revisa el centro capturado.">⚠</span>';
     /* Color de fila según estado leyenda — adaptado a modo oscuro */
     var _isDark=document.documentElement.getAttribute('data-theme')==='dark';
     var rowBg=stats.abiertasAtrasadas>0?(_isDark?'rgba(252,129,129,.10)':'#fff5f5'):
@@ -2841,9 +2881,12 @@ function audTablaPorClaseCarteraRender(titulo,color,rows){
     }
     var akey=[norm(a.tienda||''),norm(a.mes||''),norm(a.clase||''),a.fecha||''].join('|');
     window._audItemCache[akey]=a;
+    var mark=stats.dinamico?
+      '<span style="font-size:9px;color:var(--teal);margin-left:3px" title="Vinculada: sus tareas reales se cuentan en vivo">⟳</span>':
+      '<span style="font-size:9px;color:var(--k-red,#dc2626);margin-left:3px;cursor:help" title="Sin vincular: ninguna tarea real coincide en centro+tipo+mes con esta auditoría. Revisa el centro capturado.">⚠</span>';
     var editBtn=canEditAud?'<td style="text-align:center"><button class="icon-btn" data-akey="'+akey+'" onclick="openEditAuditoriaKey(this)" title="Editar">✎</button></td>':'<td></td>';
     return '<tr>'+
-      '<td><b>'+(a.tienda||'—')+'</b></td>'+
+      '<td><b>'+(a.tienda||'—')+'</b>'+mark+'</td>'+
       '<td>'+(a.mes||'—')+'</td>'+
       '<td style="text-align:center">'+total+'</td>'+
       '<td style="text-align:center;color:'+pc+';font-weight:800">'+pend+'</td>'+
@@ -2981,12 +3024,7 @@ function auditoriasVigentesDeduplicadas(lista){
   }
   // 1) Solo las que aún tienen al menos una tarea pendiente asociada en Tareas
   var conPendientes=lista.filter(function(a){
-    var tipoClase=tipoTareaDeClase(a.clase);
-    var tareasDeAud=STORE.tareas.filter(function(t){
-      if(norm(t.tienda)!==norm(a.tienda)||norm(t.centro)!==norm(a.centro))return false;
-      if(tipoClase&&tipoNormLocal(t.tipoTarea)!==tipoClase)return false;
-      return true;
-    });
+    var tareasDeAud=tareasRealesDeAuditoria(a);
     var sinPend=tareasDeAud.length>0&&tareasDeAud.filter(esPendiente).length===0;
     return !sinPend;
   });
@@ -4477,6 +4515,72 @@ async function _soloLegacy(val){
   return false;
 }
 
+/* ════════════════════════════════════════════════════════════════════
+   DIAGNÓSTICO: "auditorías sin tareas" / "tareas sin auditoría"
+   Recorre auditorías VIGENTES + FINALIZADAS y, para cada una, obtiene sus
+   tareas reales con tareasRealesDeAuditoria() — la misma fuente única de
+   verdad que usan la pantalla de Auditorías, Finalizadas y el archivado.
+   Reporta:
+   - Auditorías con 0 tareas reales ligadas: existe el registro de auditoría
+     pero ninguna tarea coincide en centro+tipo+mes. La causa más común es
+     que las tareas de esa tienda se cargaron con un CENTRO distinto al de
+     la auditoría (p.ej. una tienda con dos centros que comparten nombre).
+   - Tareas que no quedan ligadas a NINGUNA auditoría: existe la tarea pero
+     ninguna auditoría de su mismo centro+tipo+mes la reclama.
+   Es solo un reporte: no reasigna nada automáticamente, porque adivinar a
+   qué auditoría pertenece una tarea huérfana puede acertar o puede mover un
+   dato a la tienda/mes equivocado. La corrección real es revisar el Excel de
+   origen (o el campo "centro" en Supabase) para esas filas. */
+async function diagnosticarOrfanas(){
+  var st=document.getElementById('mig-status');
+  if(st)st.textContent='Analizando…';
+
+  var finComoAud=(FINALIZADAS||[]).filter(function(f){return f&&!f._pending;}).map(function(f){
+    var espejo=audEspejoDeFinalizada(f);
+    return Object.assign({_origen:'Finalizada'},espejo);
+  });
+  var todasAud=(STORE.auditorias||[]).map(function(a){return Object.assign({_origen:'Vigente'},a);}).concat(finComoAud);
+
+  var audsSinTareas=[];
+  var tareasLigadas={};
+  todasAud.forEach(function(a){
+    var tt=tareasRealesDeAuditoria(a);
+    if(!tt.length){
+      audsSinTareas.push('['+a._origen+'] '+(a.centro||'¿centro?')+' — '+(a.tienda||'')+' · '+(a.mes||'')+' · '+(a.clase||''));
+    }else{
+      tt.forEach(function(t){ if(t.id!=null)tareasLigadas[tareaKey(t.id,t.razon)]=true; });
+    }
+  });
+
+  var tareasSinAud=(STORE.tareas||[]).filter(function(t){
+    return t.id!=null && !tareasLigadas[tareaKey(t.id,t.razon)];
+  });
+  var porCentro={};
+  tareasSinAud.forEach(function(t){
+    var k=(t.centro||'¿centro?')+' — '+(t.tienda||'');
+    (porCentro[k]=porCentro[k]||[]).push(t);
+  });
+  var repTareas=Object.keys(porCentro).map(function(k){
+    var lote=porCentro[k];
+    var fechas=lote.map(function(t){return t.fechaCreacion;}).filter(Boolean);
+    var fechaMin=fechas.length?fechas.reduce(function(a,b){return a<b?a:b;}):'?';
+    var fechaMax=fechas.length?fechas.reduce(function(a,b){return a>b?a:b;}):'?';
+    return k+': '+lote.length+' tarea(s), creadas entre '+fechaMin+' y '+fechaMax;
+  });
+
+  if(st)st.textContent='';
+  var msg='DIAGNÓSTICO AUDITORÍAS ↔ TAREAS\n\n'+
+    '⚠ AUDITORÍAS SIN NINGUNA TAREA REAL LIGADA ('+audsSinTareas.length+'):\n'+
+    (audsSinTareas.length?audsSinTareas.join('\n'):'— ninguna —')+
+    '\n\n⚠ TAREAS SIN NINGUNA AUDITORÍA QUE LAS RECLAME ('+tareasSinAud.length+'):\n'+
+    (repTareas.length?repTareas.join('\n'):'— ninguna —')+
+    '\n\nEsto no se corrige solo: lo más común es que una tienda con más de un '+
+    'centro (p.ej. dos centros con nombre parecido) tenga tareas cargadas con '+
+    'el centro que no es. Revisa el campo "centro" de esas tareas/auditorías '+
+    'en el Excel de origen o en Supabase y vuelve a cargar.';
+  alert(msg);
+}
+
 /* Diagnóstico: recorre las tablas y reporta, por cada una, cuántos registros
    están en texto plano, cuántos abre la clave compartida, cuántos abre la clave
    de ESTE usuario (legacy) y cuántos no abre ninguna (cifrados por otro usuario). */
@@ -5632,6 +5736,8 @@ function openUsuarios(){
   document.getElementById('usr-overlay').classList.add('show');
   loadUsuarios();
   mostrarBotonMigracion();
+  var ow=document.getElementById('orf-wrap');
+  if(ow)ow.style.display='block';
   restringirCheckboxRazonesUI('nu');
 }
 /* Quien crea o edita un usuario solo puede otorgarle sus MISMAS razones
@@ -7133,6 +7239,21 @@ var FINALIZADAS=[];
 var _finMesManual=false; /* true cuando el usuario elige mes/año a mano en Finalizadas */
 var _finLoaded=false;
 
+/* Construye una auditoría "espejo" a partir de un registro de Finalizadas
+   (que no guarda centro), con el centro EXACTO de la auditoría original si
+   sigue en memoria — mismo criterio que usa registrarFinalizada() al
+   archivar — para poder pasarla a tareasRealesDeAuditoria() y que TODA
+   función que necesite las tareas reales de una finalizada (loadFinalizadas,
+   finEstado, finDuracion, diagnosticarOrfanas) vea siempre el mismo
+   conjunto, en vez de que cada una reimplemente su propio filtro. */
+function audEspejoDeFinalizada(f){
+  var mesRes=(f.mes&&f.mes.length<20)?f.mes:(f.aud_key?(f.aud_key.split('|')[1]||'').toUpperCase():f.mes);
+  var claseRes=(f.clase&&f.clase.length<60)?f.clase:(f.aud_key?f.aud_key.split('|')[2]||f.clase:f.clase);
+  var audOriginal=(STORE.auditorias||[]).find(function(a){return audKeyMes(a)===audKeyMes(f);});
+  var centroRes=audOriginal?(audOriginal.centro||''):(centroDeTienda(f.tienda||'')||'');
+  return {centro:centroRes,tienda:f.tienda||'',clase:claseRes,mes:mesRes,fecha:f.fecha_inicio||null};
+}
+
 async function loadFinalizadas(){
   var client=getSbClient();
   if(!client){toast('⚠ Sin Supabase');return;}
@@ -7166,25 +7287,39 @@ async function loadFinalizadas(){
     }
 
     FINALIZADAS=_finDec.map(function(f){
-      /* duracion_dias: calcular desde fechas reales de tareas cuando sea posible */
-      var fechaIni=f.fecha_inicio;
-      var fechaFinRec=f.fecha_finalizacion;
-      /* Si fecha_inicio es null, buscarla en STORE.tareas */
-      if((!fechaIni||!fechaFinRec)&&STORE.tareas.length>0){
-        var tipoC=tipoTareaDeClase(f.clase||'');
-        var td2=STORE.tareas.filter(function(t){
-          if(norm(t.tienda)!==norm(f.tienda||''))return false;
-          if(tipoC&&tipoNormLocal(t.tipoTarea)!==tipoC)return false;
-          return true;
-        });
-        if(!fechaIni&&td2.length>0){
-          td2.forEach(function(t){
+      var tiendaRes=resolverTienda(f);
+      var mesRes=(f.mes&&f.mes.length<20)?f.mes:(f.aud_key?(f.aud_key.split('|')[1]||'').toUpperCase():f.mes);
+      var claseRes=(f.clase&&f.clase.length<60)?f.clase:(f.aud_key?f.aud_key.split('|')[2]||f.clase:f.clase);
+
+      /* total_tareas, resueltas y fechas: recalculados desde las tareas REALES
+         con tareasRealesDeAuditoria() — la MISMA fuente que usan la pantalla de
+         Auditorías y registrarFinalizada() al archivar — en vez de dos filtros
+         propios que había antes aquí (uno sin CENTRO, otro sin MES). Sin acotar
+         por centro, una tienda con dos centros homónimos mezclaba sus tareas;
+         sin acotar por mes, una tienda con dos auditorías de la misma clase en
+         meses distintos se llevaba las tareas de la otra auditoría, inflando el
+         conteo mostrado ("amontonadero"). Se arma una auditoría-espejo con el
+         centro EXACTO de la auditoría original (si sigue en memoria) para que
+         tareasRealesDeAuditoria() aplique la misma ventana de mes que aplicó al
+         archivar. Si no hay ninguna tarea real (p.ej. ya se purgaron o la
+         auditoría original ya no está en memoria), se conserva el snapshot
+         guardado al archivar en vez de mostrar 0. */
+      var audEspejo=audEspejoDeFinalizada(Object.assign({},f,{tienda:tiendaRes,mes:mesRes,clase:claseRes}));
+      var ttReal=(STORE.tareas.length>0)?tareasRealesDeAuditoria(audEspejo):[];
+
+      var fechaIni=f.fecha_inicio, fechaFinRec=f.fecha_finalizacion;
+      var total=f.total_tareas||0, res=f.resueltas||0;
+      if(ttReal.length>0){
+        total=ttReal.length;
+        res=ttReal.filter(function(t){return!esPendiente(t);}).length;
+        if(!fechaIni){
+          ttReal.forEach(function(t){
             var fc=t.fechaCreacion?String(t.fechaCreacion).split('T')[0]:null;
             if(fc&&(!fechaIni||fc<fechaIni))fechaIni=fc;
           });
         }
-        if(!fechaFinRec&&td2.length>0){
-          td2.forEach(function(t){
+        if(!fechaFinRec){
+          ttReal.forEach(function(t){
             var fd=t.fechaCumpl?String(t.fechaCumpl).split('T')[0]:
                    (t.fechaTerm?String(t.fechaTerm).split('T')[0]:null);
             if(fd&&(!fechaFinRec||fd>fechaFinRec))fechaFinRec=fd;
@@ -7196,37 +7331,10 @@ async function loadFinalizadas(){
       /* pct_cumpl: normalizar — puede llegar como 0.74 o como 74 */
       var pct=parseFloat(f.pct_cumpl)||0;
       if(pct>1)pct=pct/100;
-      /* total_tareas y resueltas desde STORE.
-         IMPORTANTE: se debe acotar por CENTRO además de tienda+clase — si no,
-         una tienda con dos auditorías de la misma clase en meses distintos
-         (una ya finalizada, otra todavía vigente con pendientes) mezcla las
-         tareas de ambas al recalcular. Eso hacía que la finalizada antigua
-         se "desarchivara" sola por pendientes que en realidad eran de la
-         auditoría vigente, descuadrando Vigentes contra Finalizadas.
-         Se busca primero la auditoría original (misma tienda+mes+clase) en
-         STORE.auditorias para tomar su centro exacto, igual que hace
-         registrarFinalizada() al archivar. Si no se encuentra (por ejemplo,
-         la auditoría original ya no está en memoria), se cae al criterio
-         anterior (tienda+clase) como respaldo. */
-      var total=f.total_tareas||0;
-      var res=f.resueltas||0;
-      if(STORE.tareas.length>0&&f.aud_key){
-        var tipoClase=tipoTareaDeClase(f.clase||'');
-        var audOriginal=(STORE.auditorias||[]).find(function(a){return audKeyMes(a)===audKeyMes(f);});
-        var centroOriginal=audOriginal?norm(audOriginal.centro||''):'';
-        var td=STORE.tareas.filter(function(t){
-          if(norm(t.tienda)!==norm(f.tienda||''))return false;
-          if(tipoClase&&tipoNormLocal(t.tipoTarea)!==tipoClase)return false;
-          if(centroOriginal&&norm(t.centro||'')!==centroOriginal)return false;
-          return true;
-        });
-        if(td.length>0){total=td.length;res=td.filter(function(t){return!esPendiente(t);}).length;}
-      }
       return Object.assign({},f,{
-        tienda: resolverTienda(f),
-        mes: (f.mes&&f.mes.length<20)?f.mes:(f.aud_key?(f.aud_key.split('|')[1]||'').toUpperCase():f.mes),
-        clase: (f.clase&&f.clase.length<60)?f.clase:(f.aud_key?f.aud_key.split('|')[2]||f.clase:f.clase),
+        tienda: tiendaRes, mes: mesRes, clase: claseRes,
         duracion_dias:dur,pct_cumpl:pct,total_tareas:total,resueltas:res,
+        _vinculada: ttReal.length>0,
         completadoPor:f.completado_por||''});
     });
     FINALIZADAS=FINALIZADAS.filter(function(f){return f._pending||tiendaVisible(f.tienda);});
@@ -7394,14 +7502,9 @@ function filteredFinalizadas(){
    función propia (antes vivía dentro de renderFinalizadas) para poder
    reutilizarla en la tabla y en cualquier exportación futura. */
 function finEstado(f){
-  var tipoC=tipoTareaDeClase(f.clase||'');
-  var td=STORE.tareas.filter(function(t){
-    if(norm(t.tienda)!==norm(f.tienda||''))return false;
-    if(tipoC&&tipoNormLocal(t.tipoTarea)!==tipoC)return false;
-    return true;
-  });
-  if(!td.length)return null;
-  var huboAtraso=td.some(function(t){return norm(t.estado||'').includes('atrasad');});
+  var tt=tareasRealesDeAuditoria(audEspejoDeFinalizada(f));
+  if(!tt.length)return null;
+  var huboAtraso=tt.some(function(t){return norm(t.estado||'').includes('atrasad');});
   return huboAtraso?'atrasada':'entiempo';
 }
 
@@ -7411,17 +7514,12 @@ function finDuracion(f){
   if(f.duracion_dias!=null)return f.duracion_dias;
   var fi=f.fecha_inicio;var ff=f.fecha_finalizacion;
   if(!fi||!ff){
-    var tipoC=tipoTareaDeClase(f.clase||'');
-    var td=STORE.tareas.filter(function(t){
-      if(norm(t.tienda)!==norm(f.tienda||''))return false;
-      if(tipoC&&tipoNormLocal(t.tipoTarea)!==tipoC)return false;
-      return true;
-    });
-    if(!fi&&td.length>0)td.forEach(function(t){
+    var tt=tareasRealesDeAuditoria(audEspejoDeFinalizada(f));
+    if(!fi&&tt.length>0)tt.forEach(function(t){
       var fc=t.fechaCreacion?String(t.fechaCreacion).split('T')[0]:null;
       if(fc&&(!fi||fc<fi))fi=fc;
     });
-    if(!ff&&td.length>0)td.forEach(function(t){
+    if(!ff&&tt.length>0)tt.forEach(function(t){
       var fd=t.fechaCumpl?String(t.fechaCumpl).split('T')[0]:(t.fechaTerm?String(t.fechaTerm).split('T')[0]:null);
       if(fd&&(!ff||fd>ff))ff=fd;
     });
@@ -7454,8 +7552,11 @@ function finTablaPorClase(titulo,color,rows,esCartera){
       '<span style="color:var(--muted)">—</span>';
     var editBtn=isAdmin?'<td style="text-align:center"><button class="icon-btn" data-fid="'+esc(f.id||'')+'" onclick="openEditFinalizada(this)" title="Editar / eliminar">✎</button></td>':'<td></td>';
     var pctCell=esCartera?'':'<td style="text-align:center">'+((f.pct_cumpl>0)?Math.round(f.pct_cumpl*100)+'%':'—')+'</td>';
+    var mark=f._vinculada?
+      '<span style="font-size:9px;color:var(--teal);margin-left:3px" title="Vinculada: total y resueltos vienen de sus tareas reales">⟳</span>':
+      '<span style="font-size:9px;color:var(--k-red,#dc2626);margin-left:3px;cursor:help" title="Sin vincular: no se encontró ninguna tarea real que coincida en centro+tipo+mes; se muestra el dato guardado al archivar.">⚠</span>';
     return '<tr style="background:'+rowBg+';border-left:'+rowBd+'">'+
-      '<td><b>'+(f.tienda||'—')+'</b></td>'+
+      '<td><b>'+(f.tienda||'—')+'</b>'+mark+'</td>'+
       '<td>'+(f.mes||'—')+'</td>'+
       pctCell+
       '<td style="text-align:center;font-weight:800">'+(parseInt(f.total_tareas)||0)+'</td>'+
@@ -7599,19 +7700,13 @@ async function registrarFinalizada(a){
   _finRegistrandoEnVuelo[akm]=true;
   FINALIZADAS.unshift({aud_key:ak,_pending:true});
 
-  var tipoClase=tipoTareaDeClase(a.clase);
-  var tareasDeAud=STORE.tareas.filter(function(t){
-    if(norm(t.tienda)!==norm(a.tienda||''))return false;
-    if(norm(t.centro)!==norm(a.centro||''))return false;
-    if(tipoClase&&tipoNormLocal(t.tipoTarea)!==tipoClase)return false;
-    return true;
-  });
+  var tareasDeAud=tareasRealesDeAuditoria(a);
   var totalTareas=tareasDeAud.length;
   var resueltas=tareasDeAud.filter(function(t){return!esPendiente(t);}).length;
 
-  /* Blindaje: solo se archiva al 100%. Sin esto se colaban auditorías a medias
-     (KN EXPRESS entró con 9/19) porque el conteo de aquí no siempre coincide
-     con el de calcAudStats. */
+  /* Blindaje: solo se archiva al 100%. Se mantiene aunque ahora el conteo usa
+     la misma fuente que calcAudStats (tareasRealesDeAuditoria), como último
+     resguardo por si la sincronización llega a llamar esto con datos viejos. */
   if(totalTareas<=0||resueltas<totalTareas){
     FINALIZADAS=FINALIZADAS.filter(function(f){return !(f.aud_key===ak&&f._pending);});
     delete _finRegistrandoEnVuelo[akm];
