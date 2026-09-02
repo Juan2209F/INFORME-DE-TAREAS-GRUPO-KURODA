@@ -619,6 +619,12 @@
         <button onclick="limpiarIlegibles()" title="Respalda y borra los registros que nadie puede descifrar, para poder reimportar el Excel sin duplicados" style="padding:8px 14px;border-radius:10px;border:1px solid var(--k-red,#f5365c);background:transparent;color:var(--k-red,#f5365c);font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;margin-left:6px">Respaldar y limpiar ilegibles</button>
         <span id="mig-status" style="font-size:11.5px;color:var(--muted);margin-left:10px;font-weight:600"></span>
       </div>
+      <!-- Diagnóstico auditorías ↔ tareas huérfanas (solo admin) -->
+      <div id="orf-wrap" style="display:none;margin-bottom:14px;padding:12px 14px;border:1px dashed var(--k-blue,#5e72e4);border-radius:12px;background:rgba(94,114,228,.06)">
+        <div style="font-size:12px;font-weight:700;color:var(--k-blue,#5e72e4);margin-bottom:4px">🔗 Auditorías ↔ Tareas</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px;line-height:1.5">Revisa auditorías sin ninguna tarea real ligada y tareas que no pertenecen a ninguna auditoría (típicamente por un centro mal capturado al importar).</div>
+        <button onclick="diagnosticarOrfanas()" style="padding:8px 14px;border-radius:10px;border:1px solid var(--k-blue,#5e72e4);background:transparent;color:var(--k-blue,#5e72e4);font-weight:700;font-size:12px;cursor:pointer;font-family:inherit">Diagnosticar auditorías/tareas huérfanas</button>
+      </div>
       <!-- Tabla de usuarios -->
       <div class="table-wrap" style="margin-bottom:16px">
         <table class="usr-table" id="usr-table-body">
