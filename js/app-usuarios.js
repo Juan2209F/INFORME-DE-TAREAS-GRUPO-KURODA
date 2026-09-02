@@ -47,7 +47,7 @@ function razonesExportables(){
 ════════════════════════════════════════════════════════════════════ */
 function _claveTienda(rec){
   var c=String(rec.centro||'').trim();
-  if(c && !pareceCifrado(c)) return 'C:'+norm(c);
+  if(c && !pareceCifrado(c)) return 'C:'+norm((typeof canonCentro==='function'?canonCentro(c):c));
   return 'T:'+norm(rec.tienda||'');
 }
 /* Clase: 'ol' (Orden y Limpieza) o 'proc' (Procesos/Colaboración/Cartera) */
