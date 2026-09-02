@@ -367,7 +367,7 @@ textarea{resize:vertical;min-height:46px}
       <div class="card-header"><span class="card-icon icon-blue">🎛️</span><h2>Configuración</h2></div>
       <div class="card-body"><div class="grid">
         <div><label>Razón social</label><select id="p_razon" onchange="pptPreview()"></select></div>
-        <div><label>Mes del reporte</label><select id="p_mes" onchange="pptPreview()"></select></div>
+        <div><label>Mes del reporte</label><select id="p_mes" onchange="onPptMesChange()"></select></div>
         <div class="span2"><label>Título de la portada</label><input id="p_titulo" value="Programa de Auditoría"></div>
         <div><label>Nombre de la clase "Procesos"</label><input id="p_nomproc" value="Tareas Auditoría de Procesos"></div>
         <div class="span2"><label>Meses del histórico <span style="font-weight:400;color:var(--muted);text-transform:none">(elige los que quieras)</span></label>
@@ -2093,6 +2093,19 @@ function pptRangoMeses(){
   }
   /* mantener el orden natural del calendario */
   return M.filter(function(m){return _mesesSel.indexOf(m)>=0;});
+}
+/* Se llama al cambiar el <select> "Mes del reporte". Antes _mesesSel solo se
+   calculaba UNA vez (la primera vez que se pedía el rango) y quedaba
+   congelado para el resto de la sesión: si el usuario cambiaba de mes
+   después, el histórico/tendencia seguía mostrando el rango del mes
+   anterior — por eso un mes recién seleccionado (p.ej. Julio) podía no
+   aparecer nunca en esa sección aunque sí tuviera auditorías. Al resetear
+   _mesesSel aquí, pptRangoMeses() vuelve a calcular la ventana de 4 meses
+   terminando en el mes que se acaba de elegir. */
+function onPptMesChange(){
+  _mesesSel=null;
+  pptChipsMeses();
+  pptPreview();
 }
 function pptChipsMeses(){
   var cont=document.getElementById('p_meses_chips'); if(!cont)return;
