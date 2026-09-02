@@ -2501,6 +2501,19 @@ function mesIndexFromNombre(nombre){
   return MESES_NOMBRE.indexOf(n);
 }
 
+/* Clave de orden mes/año más reciente primero, más viejo al final.
+   Usa el año real de `fechaStr` (fecha de auditoría o de finalización)
+   cuando existe; si no hay fecha, cae al año actual como base para que
+   el orden por mes siga siendo consistente entre filas sin fecha. Filas
+   sin mes reconocible quedan al final (clave mínima). */
+function claveOrdenMes(mesNombre,fechaStr){
+  var mi=mesIndexFromNombre(mesNombre);
+  if(mi<0)return -1;
+  var d=fechaStr?fromISO(String(fechaStr).split('T')[0]):null;
+  var anio=d?d.getFullYear():new Date().getFullYear();
+  return anio*12+mi;
+}
+
 /* Mapea clase de auditoría → tipoTarea de tareas */
 function tipoTareaDeClase(clase){
   var c=norm(clase||'');
@@ -2789,6 +2802,8 @@ function audTablaPorClase(titulo,color,rows){
   /* Una auditoría archivada en Finalizadas ya no es "vigente": se excluye para
      que no aparezca (ni se sume) en los dos módulos a la vez. */
   rows=(rows||[]).filter(function(a){return !estaFinalizada(a);});
+  /* Orden por mes/año, más reciente primero y más viejo al final. */
+  rows=rows.slice().sort(function(a,b){return claveOrdenMes(b.mes,b.fecha)-claveOrdenMes(a.mes,a.fecha);});
   var canEditAud=_session&&['admin','admin_auditor','auditor'].includes(_session.rol);
   /* Cache global indexado por clave única (no por título que puede colisionar) */
   window._audItemCache=window._audItemCache||{};
@@ -2860,6 +2875,8 @@ function audTablaPorClaseCartera(titulo,color,rows,esCartera){
 /* Tabla especial CARTERA — sin % cumplimiento, solo seguimiento de tareas */
 function audTablaPorClaseCarteraRender(titulo,color,rows){
   rows=(rows||[]).filter(function(a){return !estaFinalizada(a);});
+  /* Orden por mes/año, más reciente primero y más viejo al final. */
+  rows=rows.slice().sort(function(a,b){return claveOrdenMes(b.mes,b.fecha)-claveOrdenMes(a.mes,a.fecha);});
   var canEditAud=_session&&['admin','admin_auditor','auditor'].includes(_session.rol);
   window._audItemCache=window._audItemCache||{};
   var filas=rows.map(function(a){
@@ -3105,6 +3122,72 @@ function downloadAuditoriasPNG(){
     link.click();
     toast('✓ PNG descargado');
   }).catch(function(e){toast('⚠ Error: '+e.message);});
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   HISTORIAL DE AUDITORÍAS POR SUCURSAL — PNG consolidado
+   Junta en una sola imagen, agrupado por tienda, TODAS las auditorías:
+   las vigentes/atrasadas (STORE.auditorias, aún sin archivar) y las ya
+   finalizadas (FINALIZADAS), cada una con su estado en tiempo/atrasada,
+   ordenadas de la más reciente a la más vieja (mismo criterio que
+   claveOrdenMes usa en las tablas de Auditorías/Finalizadas). Usa
+   renderPNG (off-screen, ancho completo) en vez de html2canvas directo,
+   porque combina datos de dos módulos que nunca están pintados juntos
+   en pantalla al mismo tiempo. */
+function historialAuditoriasPorSucursalHTML(){
+  var porTienda={};
+  function addReg(tienda,reg){
+    var key=tienda||'—';
+    (porTienda[key]=porTienda[key]||[]).push(reg);
+  }
+
+  /* Vigentes + atrasadas: mismo filtro/dedup que usa la vista Auditorías */
+  var vig=auditoriasVigentesDeduplicadas((STORE.auditorias||[]).filter(function(a){return !estaFinalizada(a);}));
+  vig.forEach(function(a){
+    var stats=calcAudStats(a);
+    var estado = stats.abiertasAtrasadas>0 ? 'atrasada' :
+                 stats.abiertas>0 ? 'vigente' :
+                 (stats.resueltasAtrasadas||0)>0 ? 'atrasada' : 'entiempo';
+    addReg(a.tienda,{mes:a.mes||'—',clase:a.clase||'',fecha:a.fecha||null,estado:estado,origen:'En curso'});
+  });
+
+  /* Finalizadas: usa finEstado() — el mismo criterio que pinta la tabla de Finalizadas */
+  (FINALIZADAS||[]).forEach(function(f){
+    var est=finEstado(f);
+    addReg(f.tienda,{mes:f.mes||'—',clase:f.clase||'',fecha:f.fecha_finalizacion||null,
+      estado:est==='atrasada'?'atrasada':'entiempo',origen:'Finalizada'});
+  });
+
+  var tiendas=Object.keys(porTienda).sort();
+  if(!tiendas.length)return '<div class="empty">Sin auditorías registradas.</div>';
+
+  var html='';
+  tiendas.forEach(function(t){
+    var arr=porTienda[t].slice().sort(function(a,b){return claveOrdenMes(b.mes,b.fecha)-claveOrdenMes(a.mes,a.fecha);});
+    var nAtr=arr.filter(function(r){return r.estado==='atrasada';}).length;
+    var rowsHTML=arr.map(function(r){
+      var badge = r.estado==='atrasada' ? '<span class="badge b-red">🔴 Atrasada</span>' :
+                  r.estado==='vigente' ? '<span class="badge b-blue">↑ Vigente</span>' :
+                  '<span class="badge b-green">✓ En tiempo</span>';
+      return '<tr><td class="tname">'+esc(r.mes)+'</td><td class="tsub">'+esc(r.clase||'—')+'</td>'+
+        '<td class="cell-c">'+badge+'</td>'+
+        '<td class="cell-c"><span class="badge b-gray">'+esc(r.origen)+'</span></td></tr>';
+    }).join('');
+    html+='<div class="store-block"><div class="store-block-hdr"><span class="sname">'+esc(t)+'</span>'+
+      '<span class="scount">'+arr.length+' auditoría(s)'+(nAtr?' · '+nAtr+' atrasada(s)':'')+'</span></div>'+
+      '<table><thead><tr><th>Mes</th><th>Tipo</th><th class="c">Estado</th><th class="c">Situación</th></tr></thead>'+
+      '<tbody>'+rowsHTML+'</tbody></table></div>';
+  });
+  return html;
+}
+function downloadHistorialAuditoriasPNG(){
+  if(!FINALIZADAS.length){loadFinalizadas().then(downloadHistorialAuditoriasPNG);return;}
+  renderPNG(pngHeader('🗂️ Historial de auditorías por sucursal')+
+    '<div class="sec"><div class="sec-t"><span class="sdot" style="background:#7c3aed"></span>Vigentes, atrasadas y finalizadas · más recientes primero</div>'+
+    historialAuditoriasPorSucursalHTML()+'</div>'+
+    '<div class="ft">📊 Monitor de Cumplimiento — Grupo Cerezo</div>',
+    'historial_auditorias_'+new Date().toISOString().slice(0,10)+'.png',
+    event&&event.target?event.target.closest('button'):null);
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -7535,6 +7618,8 @@ function finDuracion(f){
    calcular Estado/Duración — igual que ya hacía Auditorías con
    syncAuditoriaDinamico/calcAudStats sobre sus propias filas. */
 function finTablaPorClase(titulo,color,rows,esCartera){
+  /* Orden por mes/año de finalización, más reciente primero y más viejo al final. */
+  rows=(rows||[]).slice().sort(function(a,b){return claveOrdenMes(b.mes,b.fecha_finalizacion)-claveOrdenMes(a.mes,a.fecha_finalizacion);});
   var isAdmin=puedeModificarModulo('finalizadas');
   window._finItemCache=window._finItemCache||{};
   var filas=rows.map(function(f){
