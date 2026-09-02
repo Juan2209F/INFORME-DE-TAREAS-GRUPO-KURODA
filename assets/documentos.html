@@ -1502,52 +1502,70 @@ function construirPresentacion(D, cfg, PptxGenJS){
   }
 
   /* ══════ 3 y 4 · TAREAS POR CLASE (dona + tabla) ══════ */
+  const FILAS_POR_PAGINA_CLASE=8;
   const slideClase = (titulo, det, res) => {
-    const s = pres.addSlide();
-    cabecera(s, titulo);
     if(!det.length){
+      const s = pres.addSlide();
+      cabecera(s, titulo);
       s.addText('Sin auditorías registradas para esta clase en el período.',
         {x:0.5, y:2.0, w:10, h:0.4, fontSize:12, color:C.gris, fontFace:'Arial', margin:0});
       pie(s); return;
     }
-    /* Dona = % de cumplimiento de TAREAS (resueltas / total), coherente con la tabla */
-    s.addText('Cumplimiento de tareas', {x:0.5, y:1.25, w:3.3, h:0.35, fontSize:12, bold:true,
-      color:C.marino, align:'center', fontFace:'Arial', margin:0});
-    s.addImage({data:donaPNG(res.pctResuelto, colorPct(res.pctResuelto), `${res.resueltas} de ${res.tareas}`),
-      x:0.75, y:1.7, w:2.8, h:2.8});
-    panelTareas(s, 4.0, 1.7, 3.2, res, 'Resumen de tareas');
+    /* ANTES: det.slice(0,8) cortaba la tabla en la fila 8 y perdía en silencio
+       cualquier tienda extra del mes, mientras la fila TOTAL de abajo seguía
+       sumando TODAS las tiendas (visibles y no visibles) — el total no
+       cuadraba con las filas que sí se veían. Ahora se pagina igual que el
+       histórico: si hay más de 8 tiendas, se generan las diapositivas que
+       hagan falta para mostrarlas todas. */
+    const totalPaginas=Math.max(1, Math.ceil(det.length/FILAS_POR_PAGINA_CLASE));
+    for(let pag=0; pag<totalPaginas; pag++){
+      const s = pres.addSlide();
+      const sufijoPag = totalPaginas>1 ? ` (${pag+1}/${totalPaginas})` : '';
+      cabecera(s, `${titulo}${sufijoPag}`);
+      /* Dona = % de cumplimiento de TAREAS (resueltas / total), coherente con la tabla */
+      s.addText('Cumplimiento de tareas', {x:0.5, y:1.25, w:3.3, h:0.35, fontSize:12, bold:true,
+        color:C.marino, align:'center', fontFace:'Arial', margin:0});
+      s.addImage({data:donaPNG(res.pctResuelto, colorPct(res.pctResuelto), `${res.resueltas} de ${res.tareas}`),
+        x:0.75, y:1.7, w:2.8, h:2.8});
+      panelTareas(s, 4.0, 1.7, 3.2, res, 'Resumen de tareas');
 
-    /* Tabla por tienda — encabezados con aire, sin amontonar */
-    const rows=[[th('TIENDA'), th('MES'), th('RESULT. AUD.'), th('TOTAL'),
-                 th('PEND.'), th('RESUELT.'), th('% CUMPL.')]];
-    det.slice(0,8).forEach((d,i)=>{
-      const bg=i%2?C.grisFila:C.blanco;
-      const tot=d.pendientes+d.resueltas;
+      /* Tabla por tienda — encabezados con aire, sin amontonar */
+      const rows=[[th('TIENDA'), th('MES'), th('RESULT. AUD.'), th('TOTAL'),
+                   th('PEND.'), th('RESUELT.'), th('% CUMPL.')]];
+      const lote=det.slice(pag*FILAS_POR_PAGINA_CLASE, (pag+1)*FILAS_POR_PAGINA_CLASE);
+      lote.forEach((d,i)=>{
+        const bg=i%2?C.grisFila:C.blanco;
+        const tot=d.pendientes+d.resueltas;
+        rows.push([
+          td(d.tienda, {bold:true, fill:{color:bg}, fontSize:8.5}),
+          td(d.mes, {align:'center', color:C.gris, fill:{color:bg}, fontSize:8.5}),
+          td(d.pctAud+'%', {align:'center', bold:true, color:C.marino2, fill:{color:bg}}),
+          td(String(tot), {align:'center', fill:{color:bg}}),
+          td(String(d.pendientes), {align:'center', bold:true, color:d.pendientes>0?C.rojo:C.verde, fill:{color:bg}}),
+          td(String(d.resueltas), {align:'center', color:C.verde, fill:{color:bg}}),
+          td(d.pctResuelto+'%', {align:'center', bold:true, color:colorPct(d.pctResuelto), fill:{color:bg}})
+        ]);
+      });
+      /* El TOTAL siempre es el de TODAS las tiendas del mes (res), no solo las
+         de esta página — se etiqueta "(todas las tiendas)" en la última
+         página para dejarlo claro cuando hay más de una. */
       rows.push([
-        td(d.tienda, {bold:true, fill:{color:bg}, fontSize:8.5}),
-        td(d.mes, {align:'center', color:C.gris, fill:{color:bg}, fontSize:8.5}),
-        td(d.pctAud+'%', {align:'center', bold:true, color:C.marino2, fill:{color:bg}}),
-        td(String(tot), {align:'center', fill:{color:bg}}),
-        td(String(d.pendientes), {align:'center', bold:true, color:d.pendientes>0?C.rojo:C.verde, fill:{color:bg}}),
-        td(String(d.resueltas), {align:'center', color:C.verde, fill:{color:bg}}),
-        td(d.pctResuelto+'%', {align:'center', bold:true, color:colorPct(d.pctResuelto), fill:{color:bg}})
+        {text: totalPaginas>1 ? 'TOTAL (todas las tiendas)' : 'TOTAL',
+         options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, margin:[3,3,3,3]}},
+        {text:'—', options:{color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
+        {text:'—', options:{color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
+        {text:String(res.tareas),     options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
+        {text:String(res.pendientes), options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
+        {text:String(res.resueltas),  options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
+        {text:res.pctResuelto+'%',    options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}}
       ]);
-    });
-    rows.push([
-      {text:'TOTAL', options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, margin:[3,3,3,3]}},
-      {text:'—', options:{color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
-      {text:'—', options:{color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
-      {text:String(res.tareas),     options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
-      {text:String(res.pendientes), options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
-      {text:String(res.resueltas),  options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}},
-      {text:res.pctResuelto+'%',    options:{bold:true, color:C.blanco, fill:{color:C.marino2}, fontSize:9, align:'center'}}
-    ]);
-    s.addTable(rows, {x:7.5, y:1.35, w:5.35, colW:[1.35,0.6,0.9,0.62,0.58,0.66,0.64], rowH:0.34,
-      border:{type:'solid', color:C.grisLinea, pt:0.5}, fontFace:'Arial', valign:'middle'});
+      s.addTable(rows, {x:7.5, y:1.35, w:5.35, colW:[1.35,0.6,0.9,0.62,0.58,0.66,0.64], rowH:0.34,
+        border:{type:'solid', color:C.grisLinea, pt:0.5}, fontFace:'Arial', valign:'middle'});
 
-    s.addText('El "Resultado de auditoría" es la calificación de la visita; el "% de cumplimiento" mide las tareas resueltas de esa auditoría. Son métricas distintas.',
-      {x:0.5, y:4.95, w:6.6, h:0.7, fontSize:9, color:C.gris, fontFace:'Arial', margin:0, italic:true});
-    pie(s);
+      s.addText('El "Resultado de auditoría" es la calificación de la visita; el "% de cumplimiento" mide las tareas resueltas de esa auditoría. Son métricas distintas.',
+        {x:0.5, y:4.95, w:6.6, h:0.7, fontSize:9, color:C.gris, fontFace:'Arial', margin:0, italic:true});
+      pie(s);
+    }
   };
   if(cfg.s3!==false) slideClase(cfg.nombreProcesos || 'Tareas Auditoría de Procesos',
                                 D.procesosDetalle, D.procesos);
@@ -1588,50 +1606,68 @@ function construirPresentacion(D, cfg, PptxGenJS){
   }
 
   /* ══════ 6 y 7 · HISTÓRICO (barras) ══════ */
+  const FILAS_POR_PAGINA_HIST=11;
   const slideHist = (titulo, hist) => {
-    const s = pres.addSlide();
     const rango = hist.meses.length
       ? `${String(hist.meses[0]).slice(0,3).toUpperCase()}-${String(hist.meses[hist.meses.length-1]).slice(0,3).toUpperCase()} ${D.anio}`
       : String(D.anio);
-    cabecera(s, `${titulo} · ${rango}`);
     if(!hist.filas.length){
+      const s = pres.addSlide();
+      cabecera(s, `${titulo} · ${rango}`);
       s.addText('Sin histórico en el rango seleccionado.', {x:0.5, y:2.0, w:10, h:0.4,
         fontSize:12, color:C.gris, fontFace:'Arial', margin:0});
       pie(s); return;
     }
-    const rows=[[th('TIENDA'), th('MES'), th('RESULT. AUD.'), th('TOTAL'),
-                 th('PEND.'), th('RESUELT.'), th('% CUMPL.')]];
-    hist.filas.slice(0,11).forEach((d,i)=>{
-      const bg=i%2?C.grisFila:C.blanco;
-      rows.push([
-        td(d.tienda, {bold:true, fill:{color:bg}, fontSize:8}),
-        td(String(d.mes).toUpperCase(), {align:'center', color:C.gris, fill:{color:bg}, fontSize:8}),
-        td(d.pctAud+'%', {align:'center', bold:true, color:C.marino2, fill:{color:bg}, fontSize:8.5}),
-        td(String(d.pendientes+d.resueltas), {align:'center', fill:{color:bg}, fontSize:8.5}),
-        td(String(d.pendientes), {align:'center', bold:true,
-          color: d.pendientes===0 ? C.verde : ((d.pendVenc||0)>0 ? C.rojo : C.azul),
-          fill:{color:bg}, fontSize:8.5}),
-        td(String(d.resueltas), {align:'center', color:C.verde, fill:{color:bg}, fontSize:8.5}),
-        td(d.pctResuelto+'%', {align:'center', bold:true, color:colorPct(d.pctResuelto), fill:{color:bg}, fontSize:8.5})
-      ]);
-    });
-    s.addTable(rows, {x:0.5, y:1.3, w:6.6, colW:[1.6,0.74,1.0,0.66,0.82,0.86,0.92], rowH:0.33,
-      border:{type:'solid', color:C.grisLinea, pt:0.5}, fontFace:'Arial', valign:'middle'});
+    /* ANTES: hist.filas.slice(0,11) cortaba la tabla en la fila 11 y perdía en
+       silencio cualquier mes que quedara después (p.ej. con marzo-junio ya
+       sumando 11 filas, julio y agosto nunca se llegaban a dibujar, aunque sí
+       tuvieran auditorías reales — por eso la gráfica de la derecha, que se
+       arma con hist.meses/hist.pctMes, sí mostraba julio/agosto pero la tabla
+       no). Ahora se PAGINA: si hay más de 11 filas, se generan tantas
+       diapositivas como haga falta para mostrarlas todas, en vez de
+       descartarlas. */
+    const totalPaginas=Math.max(1, Math.ceil(hist.filas.length/FILAS_POR_PAGINA_HIST));
+    for(let pag=0; pag<totalPaginas; pag++){
+      const s = pres.addSlide();
+      const sufijoPag = totalPaginas>1 ? ` (${pag+1}/${totalPaginas})` : '';
+      cabecera(s, `${titulo} · ${rango}${sufijoPag}`);
+      const lote = hist.filas.slice(pag*FILAS_POR_PAGINA_HIST, (pag+1)*FILAS_POR_PAGINA_HIST);
+      const rows=[[th('TIENDA'), th('MES'), th('RESULT. AUD.'), th('TOTAL'),
+                   th('PEND.'), th('RESUELT.'), th('% CUMPL.')]];
+      lote.forEach((d,i)=>{
+        const bg=i%2?C.grisFila:C.blanco;
+        rows.push([
+          td(d.tienda, {bold:true, fill:{color:bg}, fontSize:8}),
+          td(String(d.mes).toUpperCase(), {align:'center', color:C.gris, fill:{color:bg}, fontSize:8}),
+          td(d.pctAud+'%', {align:'center', bold:true, color:C.marino2, fill:{color:bg}, fontSize:8.5}),
+          td(String(d.pendientes+d.resueltas), {align:'center', fill:{color:bg}, fontSize:8.5}),
+          td(String(d.pendientes), {align:'center', bold:true,
+            color: d.pendientes===0 ? C.verde : ((d.pendVenc||0)>0 ? C.rojo : C.azul),
+            fill:{color:bg}, fontSize:8.5}),
+          td(String(d.resueltas), {align:'center', color:C.verde, fill:{color:bg}, fontSize:8.5}),
+          td(d.pctResuelto+'%', {align:'center', bold:true, color:colorPct(d.pctResuelto), fill:{color:bg}, fontSize:8.5})
+        ]);
+      });
+      s.addTable(rows, {x:0.5, y:1.3, w:6.6, colW:[1.6,0.74,1.0,0.66,0.82,0.86,0.92], rowH:0.33,
+        border:{type:'solid', color:C.grisLinea, pt:0.5}, fontFace:'Arial', valign:'middle'});
 
-    /* Barras: cumplimiento por mes, todas del mismo color */
-    s.addImage({data:barrasPNG(hist.meses, hist.pctMes, hist.meses.map(()=>C.marino2),
-      'Cumplimiento de tareas por mes'), x:7.35, y:1.3, w:5.5, h:2.85});
+      /* Barras: cumplimiento por mes, todas del mismo color. Se repite igual
+         en cada página — es el mismo resumen de TODO el rango, no de la
+         página — así cada diapositiva se puede leer por separado. */
+      s.addImage({data:barrasPNG(hist.meses, hist.pctMes, hist.meses.map(()=>C.marino2),
+        'Cumplimiento de tareas por mes'), x:7.35, y:1.3, w:5.5, h:2.85});
 
-    /* Semáforo — orden de derecha a izquierda: el color va a la derecha, el texto lo precede hacia la izquierda.
-       Colores alineados al módulo de Auditorías del dashboard: rojo = atrasada, azul = vigente (sin atraso), verde = sin pendientes. */
-    const ley=[['Sin tareas pendientes.',C.verde],['Tareas pendientes vigentes.',C.azul],['Tareas pendientes atrasadas.',C.rojo]];
-    ley.forEach((L,i)=>{
-      const y=4.45+i*0.3;
-      s.addText(L[0], {x:7.4, y:y-0.06, w:3.38, h:0.28, fontSize:9, bold:true, color:C.texto,
-        fontFace:'Arial', margin:0, valign:'middle', align:'right'});
-      s.addShape(pres.ShapeType.rect, {x:10.94, y, w:0.16, h:0.16, fill:{color:L[1]}, line:{color:C.texto}});
-    });
-    pie(s);
+      /* Semáforo — orden de derecha a izquierda: el color va a la derecha, el texto lo precede hacia la izquierda.
+         Colores alineados al módulo de Auditorías del dashboard: rojo = atrasada, azul = vigente (sin atraso), verde = sin pendientes. */
+      const ley=[['Sin tareas pendientes.',C.verde],['Tareas pendientes vigentes.',C.azul],['Tareas pendientes atrasadas.',C.rojo]];
+      ley.forEach((L,i)=>{
+        const y=4.45+i*0.3;
+        s.addText(L[0], {x:7.4, y:y-0.06, w:3.38, h:0.28, fontSize:9, bold:true, color:C.texto,
+          fontFace:'Arial', margin:0, valign:'middle', align:'right'});
+        s.addShape(pres.ShapeType.rect, {x:10.94, y, w:0.16, h:0.16, fill:{color:L[1]}, line:{color:C.texto}});
+      });
+      pie(s);
+    }
   };
   if(cfg.s6!==false) slideHist(cfg.nombreProcesos || 'Tareas de Procesos', D.histProcesos);
   if(cfg.s7!==false) slideHist('Tareas Orden y Limpieza', D.histOrden);
