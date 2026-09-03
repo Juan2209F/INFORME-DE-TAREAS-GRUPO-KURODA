@@ -370,7 +370,7 @@
             <select id="aj-f-año" onchange="ajPerChanged()"><option value="ALL">Todos</option></select></div>
           <div class="fg"><label>TIENDA</label>
             <select id="aj-f-tienda" onchange="renderAjustes()"><option value="ALL">Todas</option></select></div>
-          <div style="display:flex;gap:8px;align-items:end">
+          <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
             <button class="btn btn-blue" id="btn-nuevo-ajuste" onclick="openNuevoAjuste()" style="display:none">➕ Nuevo ajuste</button>
             <button class="btn btn-teal" id="btn-excel-ajuste" onclick="document.getElementById('aj-file-input').click()" style="display:none" title="Cargar Excel de ajustes">📥 Cargar Excel</button>
             <input type="file" id="aj-file-input" accept=".xlsx,.xls" style="display:none" onchange="importAjustesExcel(this.files)">
