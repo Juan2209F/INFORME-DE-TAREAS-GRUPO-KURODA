@@ -334,6 +334,15 @@ table.seg tbody tr:hover{background:var(--soft)}
 .modal-body{padding:22px 24px;overflow-y:auto}
 .modal-foot{padding:16px 24px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
 
+/* PNG EXPORT — filtros + vista previa (solo Inicio) */
+.png-export-body{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start}
+.png-export-filters{flex:0 0 200px;display:flex;flex-direction:column;gap:12px}
+.png-export-preview{flex:1;min-width:260px;background:var(--soft);border:1px solid var(--border);
+  border-radius:12px;padding:14px;display:flex;align-items:flex-start;justify-content:center}
+.png-preview-wrap{overflow:auto;border:1px solid var(--border);border-radius:8px;background:#fff;max-height:480px}
+.png-preview-frame{border:none;display:block;transform-origin:top left}
+.png-preview-hint{font-size:11px;color:var(--muted);margin-top:8px}
+
 /* FORM */
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .form-field{display:flex;flex-direction:column;gap:5px}
