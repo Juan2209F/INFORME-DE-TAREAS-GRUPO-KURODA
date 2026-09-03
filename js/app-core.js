@@ -2358,6 +2358,21 @@ function setView(v){
     return;
   }
   VIEW=v;
+  /* La barra de filtros globales (Razón/Centro/Tienda/Tipo/Fechas/Mes/Rango)
+     solo alimenta filteredTareas()/filteredAuditorias(), usadas por Inicio,
+     Tareas y Auditorías. Actividades, Ajustes, Mermas, Finalizadas,
+     Desempeño, Evaluación KPIs, Documentos y Generador ya tienen sus propios
+     filtros locales (mes/año/tienda propios) y no leen esta barra: mostrarla
+     ahí no hace nada y solo confunde. Se oculta también el data-strip de
+     importación (Cargar Excel/Generar) porque ese flujo alimenta las mismas
+     dos colecciones (STORE.tareas/STORE.auditorias). */
+  var _barraFiltrosVistas=(v==='dash'||v==='tareas'||v==='auditorias');
+  var _filtrosBar=document.querySelector('.filters');
+  if(_filtrosBar)_filtrosBar.style.display=_barraFiltrosVistas?'flex':'none';
+  var _dataStrip=document.querySelector('.data-strip');
+  if(_dataStrip)_dataStrip.style.display=_barraFiltrosVistas?'flex':'none';
+  var _prog=document.getElementById('prog');
+  if(_prog)_prog.style.display=_barraFiltrosVistas?'':'none';
   document.getElementById('view-dash').style.display=v==='dash'?'flex':'none';
   document.getElementById('view-tareas').style.display=v==='tareas'?'flex':'none';
   var va=document.getElementById('view-actividades');
@@ -2445,6 +2460,16 @@ function setView(v){
     syncDocsTheme();
   }
   else render();
+  /* Reinicia la animación de entrada (fadeUp) en la vista recién mostrada.
+     Se relee offsetWidth para forzar reflow: sin esto, si la misma vista ya
+     tenía la clase de una visita anterior, el navegador no vuelve a disparar
+     la animación al removerla y agregarla en el mismo tick. */
+  var _vEl=document.getElementById('view-'+v);
+  if(_vEl){
+    _vEl.classList.remove('view-fade');
+    void _vEl.offsetWidth;
+    _vEl.classList.add('view-fade');
+  }
 }
 
 /* ════════════════════════════════════════════════════════════════════
