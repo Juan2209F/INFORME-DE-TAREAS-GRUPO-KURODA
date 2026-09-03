@@ -342,12 +342,22 @@
             <select id="aud-f-centro" onchange="renderAuditoriasView()"><option value="ALL">Todos</option></select></div>
         </div>
       </div>
+      <!-- Filtro de tipo de auditoría: no se muestra en pantalla, solo lo usan
+           los menús emergentes de los botones PNG (openAuditoriasPngMenu /
+           openHistorialPngMenu) para acotar Colaboración / Orden y Limpieza /
+           Cartera al generar la imagen. -->
+      <select id="aud-f-tipo" style="display:none">
+        <option value="ALL">Todas</option>
+        <option value="AUDITORIAS DE COLABORACION">Auditorías de Colaboración</option>
+        <option value="AUDITORIA ORDEN Y LIMPIEZA">Orden y Limpieza</option>
+        <option value="AUDITORIA CARTERA">Cartera</option>
+      </select>
 
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-blue" id="btn-nueva-auditoria" onclick="openNuevaAuditoriaIfAllowed()" style="display:none">➕ Nueva auditoría</button>
         <button class="btn btn-ghost" onclick="loadDataFromSupabase().then(renderAuditoriasView)">🔄 Recargar</button>
-        <button class="btn btn-teal" onclick="downloadAuditoriasPNG()">🖼️ PNG</button>
-        <button class="btn btn-teal" onclick="downloadHistorialAuditoriasPNG()" title="Usa el filtro de Tienda/Razón/Centro de arriba: selecciona una sucursal ahí para generar el historial de solo esa tienda">🗂️ PNG Historial por sucursal</button>
+        <button class="btn btn-teal" onclick="openAuditoriasPngMenu()">🖼️ PNG</button>
+        <button class="btn btn-teal" onclick="openHistorialPngMenu()" title="Elige tienda, mes y tipo de auditoría para generar el historial">🗂️ PNG Historial por sucursal</button>
         <span id="aud-count" style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600;align-self:center"></span>
       </div>
 
@@ -476,7 +486,7 @@
             <select id="fin-f-tienda" onchange="renderFinalizadas()"><option value="ALL">Todas</option></select></div>
           <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
             <button class="btn btn-ghost" onclick="loadFinalizadas()">🔄 Recargar</button>
-            <button class="btn btn-teal" onclick="downloadHistorialAuditoriasPNG()" title="Usa el filtro de Tienda/Razón/Centro de arriba: selecciona una sucursal ahí para generar el historial de solo esa tienda">🗂️ PNG Historial por sucursal</button>
+            <button class="btn btn-teal" onclick="openHistorialPngMenu()" title="Elige tienda, mes y tipo de auditoría para generar el historial">🗂️ PNG Historial por sucursal</button>
             <span id="fin-count" style="font-size:11px;color:var(--green);font-weight:700;align-self:center"></span>
           </div>
         </div>
