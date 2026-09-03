@@ -923,9 +923,56 @@ function inRange(d,f){
   if(f.hasta&&d>f.hasta)return false;
   return true;
 }
+/* Filtro LOCAL de la vista Tareas (#tf-razon/#tf-tienda/#tf-tipo/#tf-mes),
+   independiente del filtro global (que ahora solo vive en Inicio). */
+function fillTareasFilters(){
+  var selR=document.getElementById('tf-razon');
+  if(!selR)return;
+  if(!selR.options.length){
+    var razonesT=_razonesAsignadas();
+    if(razonesT&&razonesT.length===1){
+      selR.innerHTML='<option value="'+razonesT[0]+'">'+razonesT[0]+'</option>';
+      selR.disabled=true;
+    }else{
+      selR.disabled=false;
+      selR.innerHTML='<option value="ALL">Todas</option>'+(razonesT||['KNO','KSC','KSA']).map(function(r){return'<option value="'+r+'">'+r+'</option>';}).join('');
+    }
+  }
+  var razT=selR.value||'ALL';
+  var selT=document.getElementById('tf-tienda');
+  var vT=selT.value;
+  var tiendasT=[...new Set(STORE.tareas.filter(function(t){return razT==='ALL'||t.razon===razT;}).map(function(t){return t.tienda;}).filter(Boolean))].sort();
+  selT.innerHTML='<option value="ALL">Todas</option>'+limpiarOpciones(tiendasT).map(function(t){return'<option>'+t+'</option>';}).join('');
+  if(vT&&[...selT.options].some(function(o){return o.value===vT;}))selT.value=vT;
+}
+function tareasFiltroChanged(){ fillTareasFilters(); renderTareasView(); }
+function getTareasFilterState(){
+  return{
+    razon:(document.getElementById('tf-razon')||{}).value||'ALL',
+    tienda:(document.getElementById('tf-tienda')||{}).value||'ALL',
+    tipo:(document.getElementById('tf-tipo')||{}).value||'ALL',
+    mesGran:(document.getElementById('tf-mes')||{}).value||'ALL'
+  };
+}
 function filteredTareas(){
-  const f=getFilterState();
   const anio=new Date().getFullYear();
+  /* La vista Tareas usa su propio filtro local; el resto (Inicio) sigue
+     usando el filtro global de arriba. */
+  if(VIEW==='tareas'&&document.getElementById('tf-razon')){
+    const ft=getTareasFilterState();
+    return STORE.tareas.filter(t=>{
+      if(ft.razon!=='ALL'&&t.razon!==ft.razon)return false;
+      if(ft.tienda!=='ALL'&&t.tienda!==ft.tienda)return false;
+      if(!matchTipo(t,ft.tipo))return false;
+      if(ft.mesGran!=='ALL'){
+        const cr=fromISO(t.fechaCreacion);
+        if(!cr)return false;
+        if(cr.getMonth()+1!==parseInt(ft.mesGran)||cr.getFullYear()!==anio)return false;
+      }
+      return true;
+    });
+  }
+  const f=getFilterState();
   return STORE.tareas.filter(t=>{
     if(f.razon!=='ALL'&&t.razon!==f.razon)return false;
     if(f.centro!=='ALL'&&t.centro!==f.centro)return false;
@@ -1923,6 +1970,7 @@ function renderVencTable(tareas){
    VISTA TAREAS (editable)
 ════════════════════════════════════════════════════════════════════ */
 function renderTareasView(tareas){
+  if(!tareas)tareas=filteredTareas();
   document.getElementById('tareas-count').textContent=`${tareas.length} tarea(s)`;
   const el=document.getElementById('tareas-table');
   if(!tareas.length){el.innerHTML='<div class="empty">Sin tareas para el filtro actual.</div>';return;}
@@ -2147,8 +2195,38 @@ async function deleteTaskFromSupabase(taskId,razon){
 /* ════════════════════════════════════════════════════════════════════
    PENDIENTES POR SUCURSAL (modal + PNG)
 ════════════════════════════════════════════════════════════════════ */
-function pendientesPorSucursalHTML(){
-  const tareas=filteredTareas().filter(esPendiente);
+/* Filtro LOCAL del modal "Sucursales / pendientes" (#pend-f-*), independiente
+   de cualquier otro filtro — se puede abrir este modal desde cualquier vista. */
+function fillPendFiltros(){
+  var selT=document.getElementById('pend-f-tienda');
+  if(!selT)return;
+  var tiendas=[...new Set(STORE.tareas.map(function(t){return t.tienda;}).filter(Boolean))].sort();
+  var vT=selT.value;
+  selT.innerHTML='<option value="ALL">Todas</option>'+limpiarOpciones(tiendas).map(function(t){return'<option>'+t+'</option>';}).join('');
+  if(vT&&[...selT.options].some(function(o){return o.value===vT;}))selT.value=vT;
+}
+function pendFiltroChanged(){
+  var el=document.getElementById('pend-content');
+  if(el)el.innerHTML=pendientesPorSucursalHTML(true);
+}
+function filteredTareasPendLocal(){
+  var tienda=(document.getElementById('pend-f-tienda')||{}).value||'ALL';
+  var tipo=(document.getElementById('pend-f-tipo')||{}).value||'ALL';
+  var mes=(document.getElementById('pend-f-mes')||{}).value||'ALL';
+  var anio=new Date().getFullYear();
+  return STORE.tareas.filter(function(t){
+    if(tienda!=='ALL'&&t.tienda!==tienda)return false;
+    if(!matchTipo(t,tipo))return false;
+    if(mes!=='ALL'){
+      var cr=fromISO(t.fechaCreacion);
+      if(!cr)return false;
+      if(cr.getMonth()+1!==parseInt(mes)||cr.getFullYear()!==anio)return false;
+    }
+    return true;
+  });
+}
+function pendientesPorSucursalHTML(useLocalFilter){
+  const tareas=(useLocalFilter?filteredTareasPendLocal():filteredTareas()).filter(esPendiente);
   if(!tareas.length)return '<div class="empty">✅ No hay tareas pendientes con el filtro actual.</div>';
   const byS={};
   tareas.forEach(t=>{(byS[t.tienda]=byS[t.tienda]||[]).push(t);});
@@ -2174,11 +2252,22 @@ function pendientesPorSucursalHTML(){
 }
 function openPendientes(){
   actualizarEstadosVencidos(); /* actualizar Abierta→Abierta atrasada antes de mostrar */
-  const html=`<div id="pend-content">${pendientesPorSucursalHTML()}</div>`;
+  var meses='<option value="ALL">Todos</option>'+
+    ['01,Enero','02,Febrero','03,Marzo','04,Abril','05,Mayo','06,Junio','07,Julio','08,Agosto','09,Septiembre','10,Octubre','11,Noviembre','12,Diciembre']
+      .map(function(p){var kv=p.split(',');return '<option value="'+kv[0]+'">'+kv[1]+'</option>';}).join('');
+  var filtroHTML='<div class="card" style="padding:10px 12px;margin-bottom:10px">'+
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">'+
+      '<div class="fg"><label>Sucursal / Tienda</label><select id="pend-f-tienda" onchange="pendFiltroChanged()"><option value="ALL">Todas</option></select></div>'+
+      '<div class="fg"><label>Tipo de tarea</label><select id="pend-f-tipo" onchange="pendFiltroChanged()">'+
+        '<option value="ALL">Todas</option><option value="ol">Orden y Limpieza</option><option value="col">Auditoría Colaboración</option><option value="cartera">Cartera</option></select></div>'+
+      '<div class="fg"><label>Mes</label><select id="pend-f-mes" onchange="pendFiltroChanged()">'+meses+'</select></div>'+
+    '</div></div>';
+  const html=`${filtroHTML}<div id="pend-content">${pendientesPorSucursalHTML(true)}</div>`;
   openModal('🏬 Tareas pendientes por sucursal',html,[
     {label:'🖼️ Descargar PNG',cls:'btn-teal',fn:()=>downloadPendientesPNG()},
     {label:'Cerrar',cls:'btn-ghost',fn:closeModal}
   ]);
+  fillPendFiltros();
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -2241,19 +2330,64 @@ async function renderPNG(innerHTML,filename,btnEl){
   }catch(err){toast('⚠ Error al generar PNG: '+err.message);}
   finally{document.body.removeChild(iframe);if(btnEl)btnEl.disabled=false;}
 }
-function pngHeader(title){
-  const f=getFilterState();
-  const today=new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'long',year:'numeric'});
+/* Resumen del filtro activo para el encabezado del PNG. Cada módulo ahora
+   tiene su propio filtro local (el filtro de arriba solo aplica a Inicio),
+   así que el encabezado lee el filtro del módulo desde el que se generó
+   la imagen, en vez de asumir siempre el filtro global. */
+function filterSummaryParts(){
   const parts=[];
+  if(VIEW==='tareas'&&document.getElementById('tf-razon')){
+    const ft=getTareasFilterState();
+    if(ft.razon!=='ALL')parts.push('Razón: '+ft.razon);
+    if(ft.tienda!=='ALL')parts.push('Sucursal: '+ft.tienda);
+    if(ft.tipo!=='ALL')parts.push('Tipo: '+ft.tipo);
+    if(ft.mesGran!=='ALL')parts.push('Mes: '+ft.mesGran);
+    return parts;
+  }
+  if(VIEW==='auditorias'&&document.getElementById('aud-f-razon')){
+    const r=document.getElementById('aud-f-razon').value,
+          t=document.getElementById('aud-f-tienda').value,
+          c=document.getElementById('aud-f-centro').value,
+          m=document.getElementById('aud-f-mes').value;
+    if(r&&r!=='ALL')parts.push('Razón: '+r);
+    if(t&&t!=='ALL')parts.push('Sucursal: '+t);
+    if(c&&c!=='ALL')parts.push('Centro: '+c);
+    if(m&&m!=='ALL')parts.push('Mes: '+m);
+    return parts;
+  }
+  if(VIEW==='finalizadas'&&document.getElementById('fin-f-tienda')){
+    const t=document.getElementById('fin-f-tienda').value,
+          m=document.getElementById('fin-f-mes').value,
+          a=document.getElementById('fin-f-año').value;
+    if(t&&t!=='ALL')parts.push('Sucursal: '+t);
+    if(m&&m!=='ALL')parts.push('Mes: '+m);
+    if(a&&a!=='ALL')parts.push('Año: '+a);
+    return parts;
+  }
+  var pT=document.getElementById('pend-f-tienda');
+  if(pT){
+    const t=pT.value,ti=(document.getElementById('pend-f-tipo')||{}).value,m=(document.getElementById('pend-f-mes')||{}).value;
+    if(t&&t!=='ALL')parts.push('Sucursal: '+t);
+    if(ti&&ti!=='ALL')parts.push('Tipo: '+ti);
+    if(m&&m!=='ALL')parts.push('Mes: '+m);
+    return parts;
+  }
+  /* Por defecto (Inicio): filtro global */
+  const f=getFilterState();
   if(f.razon!=='ALL')parts.push('Razón: '+f.razon);
   if(f.centro!=='ALL')parts.push('Centro: '+f.centro);
   if(f.tienda!=='ALL')parts.push('Sucursal: '+f.tienda);
   if(f.desde||f.hasta)parts.push(`Rango: ${f.desde?fmtDate(f.desde):'inicio'} → ${f.hasta?fmtDate(f.hasta):'hoy'}`);
+  return parts;
+}
+function pngHeader(title){
+  const parts=filterSummaryParts();
+  const today=new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'long',year:'numeric'});
   return `<div class="hd"><h2>${title}</h2><p>${parts.join(' · ')||'Todos los datos'} · Generado el ${today}</p></div>`;
 }
 function downloadPendientesPNG(){
   renderPNG(pngHeader('🏬 Tareas pendientes por sucursal')+
-    `<div class="sec"><div class="sec-t"><span class="sdot" style="background:#ea580c"></span>Detalle por sucursal</div>${pendientesPorSucursalHTML()}</div>`+
+    `<div class="sec"><div class="sec-t"><span class="sdot" style="background:#ea580c"></span>Detalle por sucursal</div>${pendientesPorSucursalHTML(true)}</div>`+
     `<div class="ft">📊 Monitor de Cumplimiento — Grupo Cerezo</div>`,
     `pendientes_por_sucursal_${new Date().toISOString().slice(0,10)}.png`);
 }
@@ -2358,21 +2492,10 @@ function setView(v){
     return;
   }
   VIEW=v;
-  /* La barra de filtros globales (Razón/Centro/Tienda/Tipo/Fechas/Mes/Rango)
-     solo alimenta filteredTareas()/filteredAuditorias(), usadas por Inicio,
-     Tareas y Auditorías. Actividades, Ajustes, Mermas, Finalizadas,
-     Desempeño, Evaluación KPIs, Documentos y Generador ya tienen sus propios
-     filtros locales (mes/año/tienda propios) y no leen esta barra: mostrarla
-     ahí no hace nada y solo confunde. Se oculta también el data-strip de
-     importación (Cargar Excel/Generar) porque ese flujo alimenta las mismas
-     dos colecciones (STORE.tareas/STORE.auditorias). */
-  var _barraFiltrosVistas=(v==='dash'||v==='tareas'||v==='auditorias');
-  var _filtrosBar=document.querySelector('.filters');
-  if(_filtrosBar)_filtrosBar.style.display=_barraFiltrosVistas?'flex':'none';
-  var _dataStrip=document.querySelector('.data-strip');
-  if(_dataStrip)_dataStrip.style.display=_barraFiltrosVistas?'flex':'none';
-  var _prog=document.getElementById('prog');
-  if(_prog)_prog.style.display=_barraFiltrosVistas?'':'none';
+  /* El filtro global de arriba (Razón/Centro/Sucursal/Tipo/fechas/mes) ahora
+     solo aplica a Inicio; cada módulo tiene su propio filtro local. */
+  var gf=document.getElementById('global-filters');
+  if(gf)gf.style.display=v==='dash'?'flex':'none';
   document.getElementById('view-dash').style.display=v==='dash'?'flex':'none';
   document.getElementById('view-tareas').style.display=v==='tareas'?'flex':'none';
   var va=document.getElementById('view-actividades');
@@ -2459,27 +2582,22 @@ function setView(v){
     if(ifd&&!ifd.getAttribute('src')){ ifd.src='assets/documentos.html'; }
     syncDocsTheme();
   }
+  else if(v==='tareas'){ fillTareasFilters(); render(); }
   else render();
-  /* Reinicia la animación de entrada (fadeUp) en la vista recién mostrada.
-     Se relee offsetWidth para forzar reflow: sin esto, si la misma vista ya
-     tenía la clase de una visita anterior, el navegador no vuelve a disparar
-     la animación al removerla y agregarla en el mismo tick. */
-  var _vEl=document.getElementById('view-'+v);
-  if(_vEl){
-    _vEl.classList.remove('view-fade');
-    void _vEl.offsetWidth;
-    _vEl.classList.add('view-fade');
-  }
 }
 
 /* ════════════════════════════════════════════════════════════════════
    MÓDULO AUDITORÍAS (vista por clase, datos de tabla auditorias)
 ════════════════════════════════════════════════════════════════════ */
 function fillAudFilters(){
-  /* Alcance por razón social: la razón activa en el filtro global (#f-razon)
-     también acota qué meses/tiendas/centros aparecen aquí — antes se listaban
-     mezclados los de las 3 razones sin importar cuál estuviera seleccionada. */
-  var razFA=(document.getElementById('f-razon')||{}).value||'ALL';
+  /* Alcance por razón social: usa el filtro LOCAL de Auditorías (#aud-f-razon),
+     independiente del filtro global (que ahora solo vive en Inicio). */
+  var selRA=document.getElementById('aud-f-razon');
+  if(selRA&&!selRA.options.length){
+    var razonesAud=_razonesAsignadas()||['KNO','KSC','KSA'];
+    selRA.innerHTML='<option value="ALL">Todas</option>'+razonesAud.map(function(r){return'<option value="'+r+'">'+r+'</option>';}).join('');
+  }
+  var razFA=(selRA||{}).value||'ALL';
   var audFA=STORE.auditorias.filter(function(a){return razFA==='ALL'||razKey(a.razon)===razKey(razFA);});
   /* Deduplicar meses sin distinguir mayúsculas/minúsculas (en Supabase el
      campo mes está guardado con mezcla de mayúsculas y Formato Título para
@@ -2506,7 +2624,7 @@ function filteredAudByView(){
   var mes=document.getElementById('aud-f-mes').value;
   var tienda=document.getElementById('aud-f-tienda').value;
   var centro=document.getElementById('aud-f-centro').value;
-  var razon=(document.getElementById('f-razon')||{}).value||'ALL';
+  var razon=(document.getElementById('aud-f-razon')||{}).value||'ALL';
   return STORE.auditorias.filter(function(a){
     if(razon!=='ALL'&&razKey(a.razon)!==razKey(razon))return false;
     if(mes!=='ALL'&&norm(a.mes)!==norm(mes))return false;
@@ -3184,8 +3302,23 @@ function vigAtrasoTexto(abiertas,atrasadas){
   if(!out)out='<span style="color:#16a34a">✓</span>';
   return out;
 }
+/* Filtro activo para el PNG de Historial por sucursal — ya NO depende del
+   filtro global (que ahora solo vive en Inicio). Lee el filtro LOCAL del
+   módulo desde el que se pulsó el botón (Auditorías o Finalizadas), para
+   que "generar el historial de una sola tienda" siga siendo tan simple
+   como elegirla en el filtro de esa misma pantalla. */
+function historialFiltroActivo(){
+  if(VIEW==='finalizadas'){
+    var tF=(document.getElementById('fin-f-tienda')||{}).value||'ALL';
+    return {razon:'ALL',centro:'ALL',tienda:tF};
+  }
+  var r=(document.getElementById('aud-f-razon')||{}).value||'ALL';
+  var t=(document.getElementById('aud-f-tienda')||{}).value||'ALL';
+  var c=(document.getElementById('aud-f-centro')||{}).value||'ALL';
+  return {razon:r,centro:c,tienda:t};
+}
 function historialAuditoriasPorSucursalHTML(){
-  var f=getFilterState();
+  var f=historialFiltroActivo();
   var tiendasPermitidas=tiendasPermitidasPorRazon(f.razon);
   var porTienda={};
   function addReg(tienda,reg){
@@ -5146,12 +5279,15 @@ function renderDesempeno(){
 
   /* RAZÓN SOCIAL EN DESEMPEÑO — se respeta SIEMPRE el aislamiento de datos:
      un auditor solo ve registros de SU(S) razón(es) social(es). Únicamente los
-     roles admin y viewer ven las tres razones completas. Por tanto, el módulo
-     usa el filtro global de razón tal como quede aplicado a cada cuenta (a los
-     auditores se les fija y bloquea en su razón). Consecuencia esperada: los
-     totales de un mismo auditor pueden diferir según el alcance de quien
-     consulta — es el precio correcto de no mezclar razones. */
-  var _razonSelDesp=(document.getElementById('f-razon')||{}).value||'ALL';
+     roles admin y viewer ven las tres razones completas y pueden acotar con
+     su propio filtro local (#desp-f-razon, independiente del filtro de
+     Inicio) — a los auditores se les fija y bloquea en su razón. Consecuencia
+     esperada: los totales de un mismo auditor pueden diferir según el
+     alcance de quien consulta — es el precio correcto de no mezclar razones. */
+  var _razonesAsigDesp=_razonesAsignadas();
+  var _razonSelDesp=(_razonesAsigDesp&&_razonesAsigDesp.length===1)
+    ? _razonesAsigDesp[0]
+    : ((document.getElementById('desp-f-razon')||{}).value||'ALL');
   function rzOk(rec){
     if(_razonSelDesp==='ALL')return true;
     var r=rec.razon||razonDeCentro(centroDeTienda(rec.tienda||''));
@@ -5480,6 +5616,11 @@ function renderDesempeno(){
           '<option value="ALL">Todos los meses</option>'+
           MORD.map(function(m){return'<option'+(m===mesFilter?' selected':'')+'>'+m+'</option>';}).join('')+
         '</select>'+
+        (_razonesAsigDesp&&_razonesAsigDesp.length===1?'':
+        '<select id="desp-f-razon" onchange="renderDesempeno()" title="Filtro local de Desempeño (independiente del filtro de Inicio)" style="padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft)">'+
+          '<option value="ALL"'+(_razonSelDesp==='ALL'?' selected':'')+'>Todas las razones</option>'+
+          ['KNO','KSC','KSA'].map(function(r){return'<option value="'+r+'"'+(r===_razonSelDesp?' selected':'')+'>'+r+'</option>';}).join('')+
+        '</select>')+
         /* Filtro de auditor: se llena solo con los usuarios que tienen rol de
            auditor; los nuevos aparecen automáticamente al crearse. */
         '<select id="desp-auditor" onchange="renderDesempeno()" title="Filtra por auditor. La lista se actualiza sola con los usuarios que tengan rol de auditor." style="padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft);max-width:200px">'+
@@ -6927,6 +7068,24 @@ function evMesesUltimos(n){
 
 var _evMesManual=false; /* true cuando el usuario elige mes a mano en Evaluación */
 function evMesChanged(){_evMesManual=true;renderEvaluacion();}
+function evFiltroChanged(){ fillEvFiltros(true); renderEvaluacion(); }
+function fillEvFiltros(razonCambio){
+  var selR=document.getElementById('ev-f-razon');
+  if(!selR)return;
+  if(!selR.options.length){
+    var razonesEv=_razonesAsignadas()||['KNO','KSC','KSA'];
+    selR.innerHTML='<option value="ALL">Todas las razones</option>'+razonesEv.map(function(r){return'<option value="'+r+'">'+r+'</option>';}).join('');
+  }
+  var razEv=selR.value||'ALL';
+  var selT=document.getElementById('ev-f-tienda');
+  if(!selT)return;
+  var vT=razonCambio?'ALL':selT.value;
+  var tiendasEv=[...new Set((STORE.auditorias||[]).concat(STORE.tareas||[])
+    .filter(function(r){return razEv==='ALL'||razKey(r.razon)===razKey(razEv);})
+    .map(function(r){return r.tienda;}).filter(Boolean))].sort();
+  selT.innerHTML='<option value="ALL">Todas las sucursales</option>'+limpiarOpciones(tiendasEv).map(function(t){return'<option>'+t+'</option>';}).join('');
+  if(vT&&[...selT.options].some(function(o){return o.value===vT;}))selT.value=vT;
+}
 function renderEvaluacion(){
   var host=document.getElementById('view-evaluacion');
   if(!host)return;
@@ -6936,6 +7095,8 @@ function renderEvaluacion(){
     '<div class="ev-hdr">'+
       '<div><h2>🎯 Evaluación de KPIs</h2><p>Cumplimiento de Mermas, Ajustes, Auditorías y Actividades — actualizado en vivo</p></div>'+
       '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+        '<select id="ev-f-razon" onchange="evFiltroChanged()" title="Filtro local de Evaluación KPIs (independiente del filtro de Inicio)" style="padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft)"></select>'+
+        '<select id="ev-f-tienda" onchange="renderEvaluacion()" style="padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft);max-width:200px"></select>'+
         '<select id="ev-mes" onchange="evMesChanged()" title="Mes (por defecto el mes en curso)" style="padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft)"></select>'+
         '<div style="position:relative">'+
           '<span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--muted);pointer-events:none">🔍</span>'+
@@ -6954,11 +7115,18 @@ function renderEvaluacion(){
     '</div>';
   }
 
-  /* ── Filtros: barra global aporta razón/tienda/fechas; el mes lo controla
-     este módulo con su propio selector (por defecto el mes en curso). ── */
-  var gf=(typeof getFilterState==='function')?getFilterState():null;
+  /* ── Filtros: este módulo ya NO usa la barra global (que ahora solo vive en
+     Inicio); tiene su propio filtro local de Razón/Sucursal (#ev-f-razon /
+     #ev-f-tienda) y su propio selector de mes (por defecto el mes en curso). ── */
+  fillEvFiltros(false);
+  var gf={
+    razon:(document.getElementById('ev-f-razon')||{}).value||'ALL',
+    centro:'ALL',
+    tienda:(document.getElementById('ev-f-tienda')||{}).value||'ALL',
+    desde:null,hasta:null
+  };
   function refDate(s){return s?new Date(String(s).split('T')[0]+'T12:00:00'):null;}
-  /* gBase: razón + tienda + rango de fechas de la barra global (SIN mes: el mes
+  /* gBase: razón + tienda del filtro local de este módulo (SIN mes: el mes
      se aplica aparte para poder mostrar la tendencia de 6 meses completa). */
   function gBase(rec,fechaRef){
     if(!gf)return true;
