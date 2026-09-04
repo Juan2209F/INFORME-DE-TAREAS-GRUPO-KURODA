@@ -3492,10 +3492,12 @@ function historialAuditoriasPorSucursalHTML(filtroExtra){
   var fe=filtroExtra||{};
   var mesExtra=fe.mes&&fe.mes!=='ALL'?norm(fe.mes):null;
   var claseExtra=fe.clase&&fe.clase!=='ALL'?norm(fe.clase):null;
+  var tiendaExtra=fe.tienda&&fe.tienda!=='ALL'?fe.tienda:null;
   var tiendasPermitidas=tiendasPermitidasPorRazon(f.razon);
   var porTienda={};
   function addReg(tienda,reg){
-    if(f.tienda!=='ALL'&&norm(tienda)!==norm(f.tienda))return;
+    var tFiltro=tiendaExtra!=null?tiendaExtra:f.tienda;
+    if(tFiltro!=='ALL'&&norm(tienda)!==norm(tFiltro))return;
     if(tiendasPermitidas&&!tiendasPermitidas[norm(tienda||'')])return;
     if(mesExtra&&norm(reg.mes||'')!==mesExtra)return;
     if(claseExtra&&norm(reg.clase||'')!==claseExtra)return;
@@ -3616,6 +3618,24 @@ function pngMenuFieldsHTML(tiendaHTML,mesHTML,tipoHTML){
     '<div class="fg"><label>Tipo de auditoría</label><select id="pngmenu-tipo">'+tipoHTML+'</select></div>'+
     '</div></div>';
 }
+/* Igual que pngMenuFieldsHTML, pero con onchange para refrescar la vista previa
+   del Historial por sucursal en vivo (sin descargar el PNG) — igual que hace
+   el apartado de Sucursales (openPendientes/renderPendContent). */
+function historialPngMenuFieldsHTML(tiendaHTML,mesHTML,tipoHTML){
+  return '<div class="png-export-body"><div class="png-export-filters" style="display:grid;grid-template-columns:1fr;gap:12px">'+
+    '<div class="fg"><label>Tienda / Sucursal</label><select id="pngmenu-tienda" onchange="renderHistorialPngPreview()">'+tiendaHTML+'</select></div>'+
+    '<div class="fg"><label>Mes</label><select id="pngmenu-mes" onchange="renderHistorialPngPreview()">'+mesHTML+'</select></div>'+
+    '<div class="fg"><label>Tipo de auditoría</label><select id="pngmenu-tipo" onchange="renderHistorialPngPreview()">'+tipoHTML+'</select></div>'+
+    '</div><div id="historial-png-preview" style="margin-top:14px;max-height:380px;overflow:auto"></div></div>';
+}
+function renderHistorialPngPreview(){
+  var cont=document.getElementById('historial-png-preview');
+  if(!cont)return;
+  var tienda=document.getElementById('pngmenu-tienda').value;
+  var mes=document.getElementById('pngmenu-mes').value;
+  var tipo=document.getElementById('pngmenu-tipo').value;
+  cont.innerHTML=historialAuditoriasPorSucursalHTML({tienda:tienda,mes:mes,clase:tipo});
+}
 function openAuditoriasPngMenu(){
   var o=pngMenuOptsAuditorias();
   openModal('🖼️ Descargar PNG — Auditorías',pngMenuFieldsHTML(o.tiendaHTML,o.mesHTML,TIPO_AUDITORIA_HTML),[
@@ -3644,13 +3664,14 @@ function pngMenuGenerarAuditorias(){
 }
 function openHistorialPngMenu(){
   var o=pngMenuOptsAuditorias();
-  openModal('🗂️ Descargar PNG — Historial por sucursal',pngMenuFieldsHTML(o.tiendaHTML,o.mesHTML,TIPO_AUDITORIA_HTML),[
+  openModal('🗂️ Descargar PNG — Historial por sucursal',historialPngMenuFieldsHTML(o.tiendaHTML,o.mesHTML,TIPO_AUDITORIA_HTML),[
     {label:'Cancelar',cls:'btn-ghost',fn:closeModal},
     {label:'🖼️ Generar PNG',cls:'btn-teal',fn:pngMenuGenerarHistorial}
   ]);
   document.getElementById('pngmenu-tienda').value=document.getElementById('f-tienda').value||'ALL';
   document.getElementById('pngmenu-mes').value='ALL';
   document.getElementById('pngmenu-tipo').value='ALL';
+  renderHistorialPngPreview();
 }
 function pngMenuGenerarHistorial(){
   var tienda=document.getElementById('pngmenu-tienda').value;
