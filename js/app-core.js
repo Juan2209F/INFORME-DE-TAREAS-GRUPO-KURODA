@@ -1922,7 +1922,40 @@ function renderVencTable(tareas){
 /* ════════════════════════════════════════════════════════════════════
    VISTA TAREAS (editable)
 ════════════════════════════════════════════════════════════════════ */
+let _tareasViewBase=[];
+function tareaEstadoCat(t){
+  const n=norm(t.estado||'');
+  if(n.includes('abierta')&&n.includes('atrasad'))return'abierta_atrasada';
+  if(n.includes('abierta'))return'abierta';
+  if(n.includes('resuelta')&&n.includes('atrasad'))return'resuelta_atrasada';
+  return'resuelta';
+}
+/* Rellena el filtro de sucursal propio de la pestaña Tareas (independiente
+   del filtro global de arriba), a partir de todas las tiendas conocidas. */
+function fillTareasLocalFilters(){
+  const sel=document.getElementById('tar-f-tienda');
+  if(!sel)return;
+  const cur=sel.value;
+  const tiendas=limpiarOpciones(uniq(STORE.tareas.map(t=>t.tienda)));
+  sel.innerHTML='<option value="ALL">Todas</option>'+tiendas.map(t=>`<option>${t}</option>`).join('');
+  if([...sel.options].some(o=>o.value===cur))sel.value=cur;
+}
+/* Punto de entrada llamado por render(): guarda la lista ya filtrada por el
+   filtro global y aplica encima el filtro propio (sucursal/estado) de esta
+   pestaña, sin perder la selección al cambiar de vista. */
 function renderTareasView(tareas){
+  _tareasViewBase=tareas;
+  applyTareasFilters();
+}
+function applyTareasFilters(){
+  let tareas=_tareasViewBase||[];
+  const suc=document.getElementById('tar-f-tienda');
+  const est=document.getElementById('tar-f-estado');
+  if(suc&&suc.value&&suc.value!=='ALL')tareas=tareas.filter(t=>t.tienda===suc.value);
+  if(est&&est.value&&est.value!=='ALL')tareas=tareas.filter(t=>tareaEstadoCat(t)===est.value);
+  renderTareasTable(tareas);
+}
+function renderTareasTable(tareas){
   document.getElementById('tareas-count').textContent=`${tareas.length} tarea(s)`;
   const el=document.getElementById('tareas-table');
   if(!tareas.length){el.innerHTML='<div class="empty">Sin tareas para el filtro actual.</div>';return;}
@@ -2147,8 +2180,29 @@ async function deleteTaskFromSupabase(taskId,razon){
 /* ════════════════════════════════════════════════════════════════════
    PENDIENTES POR SUCURSAL (modal + PNG)
 ════════════════════════════════════════════════════════════════════ */
-function pendientesPorSucursalHTML(){
-  const tareas=filteredTareas().filter(esPendiente);
+/* ov permite sobreescribir tienda/mesGran/tipo sin tocar el filtro global
+   de arriba, para el filtro propio del modal de Sucursales. */
+function pendientesPorSucursalHTML(ov){
+  ov=ov||{};
+  const base=getFilterState();
+  const f={...base,
+    tienda:ov.tienda!==undefined?ov.tienda:base.tienda,
+    mesGran:ov.mesGran!==undefined?ov.mesGran:base.mesGran,
+    tipo:ov.tipo!==undefined?ov.tipo:base.tipo};
+  const anio=new Date().getFullYear();
+  const tareas=STORE.tareas.filter(t=>{
+    if(f.razon!=='ALL'&&t.razon!==f.razon)return false;
+    if(f.centro!=='ALL'&&t.centro!==f.centro)return false;
+    if(f.tienda!=='ALL'&&t.tienda!==f.tienda)return false;
+    if(!matchTipo(t,f.tipo))return false;
+    if(f.desde||f.hasta){if(!inRange(fromISO(t.fechaCreacion),f))return false;}
+    if(f.mesGran&&f.mesGran!=='ALL'){
+      const cr=fromISO(t.fechaCreacion);
+      if(!cr)return false;
+      if(cr.getMonth()+1!==parseInt(f.mesGran)||cr.getFullYear()!==anio)return false;
+    }
+    return true;
+  }).filter(esPendiente);
   if(!tareas.length)return '<div class="empty">✅ No hay tareas pendientes con el filtro actual.</div>';
   const byS={};
   tareas.forEach(t=>{(byS[t.tienda]=byS[t.tienda]||[]).push(t);});
@@ -2172,13 +2226,42 @@ function pendientesPorSucursalHTML(){
         </tr>`;}).join('')}</tbody></table></div></div>`;
   }).join('');
 }
+/* Filtro (tienda/mes/tipo) + PNG, todo dentro de la misma pestaña del
+   modal de Sucursales — sin abrir un segundo modal. */
+function pendFilterFieldsHTML(){
+  const tiendas=limpiarOpciones([...new Set(STORE.tareas.map(t=>t.tienda).filter(Boolean))]).sort();
+  const tiendaHTML='<option value="ALL">Todas</option>'+tiendas.map(t=>`<option>${t}</option>`).join('');
+  const mesHTML=document.getElementById('f-gran').innerHTML;
+  const tipoHTML=document.getElementById('f-tipo').innerHTML;
+  return `<div class="card" style="padding:12px 14px;margin-bottom:10px">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+      <div class="fg"><label>SUCURSAL</label><select id="pend-f-tienda" onchange="renderPendContent()">${tiendaHTML}</select></div>
+      <div class="fg"><label>MES</label><select id="pend-f-mes" onchange="renderPendContent()">${mesHTML}</select></div>
+      <div class="fg"><label>TIPO</label><select id="pend-f-tipo" onchange="renderPendContent()">${tipoHTML}</select></div>
+    </div>
+  </div>`;
+}
+function pendFilterOverrides(){
+  return{
+    tienda:document.getElementById('pend-f-tienda')?.value||'ALL',
+    mesGran:document.getElementById('pend-f-mes')?.value||'ALL',
+    tipo:document.getElementById('pend-f-tipo')?.value||'ALL'
+  };
+}
+function renderPendContent(){
+  const content=document.getElementById('pend-content');
+  if(content)content.innerHTML=pendientesPorSucursalHTML(pendFilterOverrides());
+}
 function openPendientes(){
   actualizarEstadosVencidos(); /* actualizar Abierta→Abierta atrasada antes de mostrar */
-  const html=`<div id="pend-content">${pendientesPorSucursalHTML()}</div>`;
+  const html=pendFilterFieldsHTML()+`<div id="pend-content">${pendientesPorSucursalHTML()}</div>`;
   openModal('🏬 Tareas pendientes por sucursal',html,[
-    {label:'🖼️ Descargar PNG',cls:'btn-teal',fn:()=>openPendientesPngMenu()},
+    {label:'🖼️ Descargar PNG',cls:'btn-teal',fn:()=>downloadPendientesPNG()},
     {label:'Cerrar',cls:'btn-ghost',fn:closeModal}
   ]);
+  document.getElementById('pend-f-tienda').value=document.getElementById('f-tienda').value||'ALL';
+  document.getElementById('pend-f-mes').value=document.getElementById('f-gran').value||'ALL';
+  document.getElementById('pend-f-tipo').value=document.getElementById('f-tipo').value||'ALL';
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -2252,19 +2335,12 @@ function pngHeader(title){
   return `<div class="hd"><h2>${title}</h2><p>${parts.join(' · ')||'Todos los datos'} · Generado el ${today}</p></div>`;
 }
 function downloadPendientesPNG(btnEl){
+  const ov=pendFilterOverrides();
   return renderPNG(pngHeader('🏬 Tareas pendientes por sucursal')+
-    `<div class="sec"><div class="sec-t"><span class="sdot" style="background:#ea580c"></span>Detalle por sucursal</div>${pendientesPorSucursalHTML()}</div>`+
+    `<div class="sec"><div class="sec-t"><span class="sdot" style="background:#ea580c"></span>Detalle por sucursal</div>${pendientesPorSucursalHTML(ov)}</div>`+
     `<div class="ft">📊 Monitor de Cumplimiento — Grupo Cerezo</div>`,
     `pendientes_por_sucursal_${new Date().toISOString().slice(0,10)}.png`,
     btnEl);
-}
-function downloadTareasPNG(){
-  const tareas=filteredTareas();
-  const inner=document.getElementById('tareas-table').innerHTML;
-  renderPNG(pngHeader('📝 Tareas filtradas')+
-    `<div class="sec"><div class="sec-t"><span class="sdot" style="background:#2563eb"></span>${tareas.length} tarea(s)</div>${inner}</div>`+
-    `<div class="ft">📊 Monitor de Cumplimiento — Grupo Cerezo</div>`,
-    `tareas_${new Date().toISOString().slice(0,10)}.png`);
 }
 /* Construye el HTML del PNG de Inicio (Resumen) a partir de los filtros
    activos en ese momento (los del filtro global de arriba). Separado de
@@ -2468,6 +2544,93 @@ function b64ToUtf8(b64){
   for(var i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
   return new TextDecoder('utf-8').decode(bytes);
 }
+/* ════════════════════════════════════════════════════════════════════
+   MÓDULOS EMBEBIDOS (Generador / Documentos) — integración nativa
+   Ambos viven en su propio HTML/CSS/JS (mismo origen) para no arriesgar
+   choques de nombres con el resto del dashboard, pero se presentan como
+   si fueran parte de la app: sin marco visible, sin cabecera duplicada
+   y con su alto ajustado al contenido (nada de doble scroll).
+════════════════════════════════════════════════════════════════════ */
+function fitEmbeddedIframe(ifr){
+  try{
+    var doc=ifr.contentDocument;
+    if(!doc)return;
+    var h=Math.max(doc.documentElement.scrollHeight,(doc.body&&doc.body.scrollHeight)||0);
+    if(h>0)ifr.style.height=h+'px';
+  }catch(e){/* cross-origin u otro fallo silencioso: se queda con el alto previo */}
+}
+function primeEmbeddedIframe(ifr){
+  ifr.addEventListener('load',function(){
+    try{
+      var doc=ifr.contentDocument;
+      var st=doc.createElement('style');
+      /* Se oculta solo el logo/título repetidos (el nombre del módulo ya
+         lo muestra la barra superior del dashboard) y se le quita la caja
+         al header para que no se vea como una ventana aparte. Se dejan
+         intactos los controles que sí hacen falta: el botón "← Inicio" de
+         Documentos y el selector de razón social de Generador. */
+      st.textContent='header{background:transparent!important;border:none!important;'+
+        'box-shadow:none!important;position:static!important;padding:6px 0 10px!important}'+
+        'header .logo-box,header .htxt,header .header-text{display:none!important}'+
+        'body{background:transparent!important}';
+      doc.head.appendChild(st);
+    }catch(e){}
+    fitEmbeddedIframe(ifr);
+    try{
+      var ro=new ResizeObserver(function(){fitEmbeddedIframe(ifr);});
+      ro.observe(ifr.contentDocument.body);
+    }catch(e){}
+    try{
+      ifr.contentWindow.addEventListener('click',function(){setTimeout(function(){fitEmbeddedIframe(ifr);},80);});
+      ifr.contentWindow.addEventListener('input',function(){setTimeout(function(){fitEmbeddedIframe(ifr);},80);});
+    }catch(e){}
+  });
+}
+/* Le indica al generador qué razones sociales puede usar la cuenta activa
+   (el generador ya sabe interpretar este mensaje: 'gen-config'). Se llama
+   apenas el generador avisa que está listo ('gen-ready'), y también al
+   entrar a la vista por si el aviso llegó antes de engancharse. */
+function sendRazonesToGenerador(){
+  var ifr=document.getElementById('iframe-generador');
+  if(!ifr||!ifr.contentWindow)return;
+  var razones=_razonesAsignadas();
+  var activa=(razones&&razones.length)?razones[0]:null;
+  try{ifr.contentWindow.postMessage({type:'gen-config',razones:razones,activa:activa},'*');}catch(e){}
+}
+/* Reconstruye el .pptx que el generador entrega en base64 (vía postMessage,
+   porque desde dentro del iframe la descarga directa no siempre es fiable)
+   y dispara la descarga real desde el dashboard, que sí tiene origen propio. */
+function descargarPptxDesdeGenerador(b64,fileName){
+  try{
+    var bin=atob(b64);
+    var bytes=new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+    var blob=new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.presentationml.presentation'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url;a.download=fileName||'dashboard.pptx';
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(function(){URL.revokeObjectURL(url);},4000);
+  }catch(e){console.warn('descargarPptxDesdeGenerador:',e);toast('⚠ No se pudo descargar el archivo');}
+}
+/* Avisa al módulo Documentos (que ya sabe escuchar {type:'theme'}) cuál es
+   el tema activo, para que no se vea "distinto" del resto del dashboard. */
+function syncDocsTheme(){
+  var ifd=document.getElementById('iframe-documentos');
+  if(!ifd||!ifd.contentWindow)return;
+  var isDark=document.documentElement.getAttribute('data-theme')==='dark';
+  try{ifd.contentWindow.postMessage({type:'theme',dark:isDark},'*');}catch(e){}
+}
+window.addEventListener('message',function(ev){
+  var d=ev.data;if(!d||typeof d!=='object')return;
+  if(d.type==='gen-ready')sendRazonesToGenerador();
+  else if(d.type==='gen-download')descargarPptxDesdeGenerador(d.b64,d.fileName);
+});
+/* Si el tema cambia mientras Documentos ya está abierto, se le avisa en
+   vivo (independientemente de qué botón haya disparado el cambio). */
+new MutationObserver(function(){syncDocsTheme();})
+  .observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+
 function setView(v){
   /* Guardia de solo lectura: el rol viewer no accede a herramientas de
      creación (Documentos / Generador), aunque intente forzar la vista. */
@@ -2574,12 +2737,20 @@ function setView(v){
          (mismo dominio en GitHub Pages), así que localStorage (usado por el
          Historial de Cargas y la Tendencia del generador) persiste igual
          que antes — ya no hace falta empaquetarlo como base64 embebido. */
+      primeEmbeddedIframe(ifr);
       ifr.src='assets/generador.html';
+    }else if(ifr){
+      setTimeout(function(){fitEmbeddedIframe(ifr);},30);
     }
   }
   else if(v==='documentos'){
     var ifd=document.getElementById('iframe-documentos');
-    if(ifd&&!ifd.getAttribute('src')){ ifd.src='assets/documentos.html'; }
+    if(ifd&&!ifd.getAttribute('src')){
+      primeEmbeddedIframe(ifd);
+      ifd.src='assets/documentos.html';
+    }else if(ifd){
+      setTimeout(function(){fitEmbeddedIframe(ifd);},30);
+    }
     syncDocsTheme();
   }
   else render();
@@ -3491,35 +3662,6 @@ function pngMenuGenerarHistorial(){
   closeModal();
   Promise.resolve(downloadHistorialAuditoriasPNG({mes:mes,clase:tipo},btn)).then(function(){
     document.getElementById('f-tienda').value=original;
-  });
-}
-function openPendientesPngMenu(){
-  var tiendas=limpiarOpciones([...new Set(STORE.tareas.map(function(t){return t.tienda;}).filter(Boolean))]).sort();
-  var tiendaHTML='<option value="ALL">Todas</option>'+tiendas.map(function(t){return '<option>'+t+'</option>';}).join('');
-  var mesHTML=document.getElementById('f-gran').innerHTML;
-  var tipoHTML=document.getElementById('f-tipo').innerHTML;
-  openModal('🖼️ Descargar PNG — Sucursales (pendientes)',pngMenuFieldsHTML(tiendaHTML,mesHTML,tipoHTML),[
-    {label:'Cancelar',cls:'btn-ghost',fn:closeModal},
-    {label:'🖼️ Generar PNG',cls:'btn-teal',fn:pngMenuGenerarPendientes}
-  ]);
-  document.getElementById('pngmenu-tienda').value=document.getElementById('f-tienda').value||'ALL';
-  document.getElementById('pngmenu-mes').value=document.getElementById('f-gran').value||'ALL';
-  document.getElementById('pngmenu-tipo').value=document.getElementById('f-tipo').value||'ALL';
-}
-function pngMenuGenerarPendientes(){
-  var original={tienda:document.getElementById('f-tienda').value,gran:document.getElementById('f-gran').value,tipo:document.getElementById('f-tipo').value};
-  document.getElementById('f-tienda').value=document.getElementById('pngmenu-tienda').value;
-  document.getElementById('f-gran').value=document.getElementById('pngmenu-mes').value;
-  document.getElementById('f-tipo').value=document.getElementById('pngmenu-tipo').value;
-  closeModal();
-  var content=document.getElementById('pend-content');
-  if(content)content.innerHTML=pendientesPorSucursalHTML();
-  Promise.resolve(downloadPendientesPNG()).then(function(){
-    document.getElementById('f-tienda').value=original.tienda;
-    document.getElementById('f-gran').value=original.gran;
-    document.getElementById('f-tipo').value=original.tipo;
-    var content2=document.getElementById('pend-content');
-    if(content2)content2.innerHTML=pendientesPorSucursalHTML();
   });
 }
 
@@ -5984,6 +6126,7 @@ function patchedFillFilters(){
     fr.innerHTML='<option value="ALL">Todas</option>'+razonesList.map(function(r){return'<option>'+r+'</option>';}).join('');
   }
   fillCentroTienda();
+  fillTareasLocalFilters();
 }
 
 function doLogout(){
