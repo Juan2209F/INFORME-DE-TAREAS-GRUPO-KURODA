@@ -63,6 +63,24 @@
   [data-theme="dark"] .kpi-value.green{color:#4ade80}
   [data-theme="dark"] .download-btn:hover{background:#26a980}
   [data-theme="dark"] .generate-btn:hover{background:#e0ab2e}
+  /* Mismo look "vidrio esmerilado" que .filters/.card en el resto de la app
+     (css/main.css) para que los paneles del generador no se vean como
+     bloques sólidos distintos al resto del dashboard en modo oscuro. */
+  [data-theme="dark"] header,
+  [data-theme="dark"] footer,
+  [data-theme="dark"] .format-card,
+  [data-theme="dark"] #statusArea,
+  [data-theme="dark"] .kpi-card,
+  [data-theme="dark"] .slide-item,
+  [data-theme="dark"] #filterPanel,
+  [data-theme="dark"] #storagePanel,
+  [data-theme="dark"] .detalle-card,
+  [data-theme="dark"] .ms-dropdown-panel {
+    background: rgba(255,255,255,.04);
+    backdrop-filter: blur(14px);
+  }
+  [data-theme="dark"] .upload-zone{background:rgba(255,255,255,.04)}
+  [data-theme="dark"] .upload-zone:hover, [data-theme="dark"] .upload-zone.drag-over{background:var(--teal-light)}
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -389,13 +407,13 @@
 
   /* Tarjetas de Detalle Individual (replican el bloque Gerente/Tienda/Concepto del Excel) */
   .detalle-cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem; }
-  .detalle-card { border: 1px solid var(--gray-200); border-radius: 10px; overflow: hidden; background: #fff; }
+  .detalle-card { border: 1px solid var(--gray-200); border-radius: 10px; overflow: hidden; background: var(--white); }
   .detalle-card-head { padding: 0.7rem 0.85rem 0.5rem; }
   .detalle-card-head .gerente { font-size: 0.72rem; color: var(--gray-400); font-weight: 600; }
   .detalle-card-head .tienda { font-size: 0.9rem; font-weight: 700; color: var(--gray-800); margin-top: 2px; }
   .detalle-badge-audit { display: inline-block; font-size: 0.6rem; font-weight: 700; color: #fff; background: #2E75B6; padding: 2px 7px; border-radius: 20px; margin-left: 6px; vertical-align: middle; }
   .detalle-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-  .detalle-table th.concepto-header { background: #fff; color: var(--gray-800); border-bottom: 2px solid var(--gray-200); }
+  .detalle-table th.concepto-header { background: var(--white); color: var(--gray-800); border-bottom: 2px solid var(--gray-200); }
   .detalle-table th.pct-header { background: #2E75B6; color: #fff; width: 54px; }
   .detalle-table th { padding: 0.4rem 0.6rem; text-align: left; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; }
   .detalle-table td { padding: 0.4rem 0.6rem; border-top: 1px solid var(--gray-100); }
@@ -417,7 +435,7 @@
   .ms-dropdown-btn:hover { border-color: var(--teal); }
   .ms-dropdown-panel {
     position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; width: 280px; max-width: 90vw;
-    background: #fff; border: 1px solid var(--gray-200); border-radius: 10px;
+    background: var(--white); border: 1px solid var(--gray-200); border-radius: 10px;
     box-shadow: 0 8px 24px rgba(0,0,0,0.12); padding: 0.6rem;
   }
   .ms-quick-row { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--gray-100); }
