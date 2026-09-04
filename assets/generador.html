@@ -119,11 +119,14 @@
 
   /* — Main — */
   main {
-    max-width: 800px;
+    max-width: 1600px;
     margin: 0 auto;
-    padding: 2rem 1.5rem;
+    padding: 2rem 2.5rem;
     display: flex; flex-direction: column;
     gap: 1.25rem;
+  }
+  @media (max-width: 900px) {
+    main { padding: 1.25rem 1rem; }
   }
 
   /* — Upload zone — */
