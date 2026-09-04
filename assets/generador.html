@@ -28,6 +28,41 @@
     --gray-800: #1f2937;
     --white: #ffffff;
   }
+  /* Tema oscuro — se activa con [data-theme="dark"] en <html>, igual que el
+     resto del dashboard (Documentos ya lo usa). Los componentes que ya usan
+     las variables de arriba se adaptan solos; el puñado que tenía colores
+     fijos (badges, hover de botones, celda de auditoría) se ajusta aparte. */
+  [data-theme="dark"] {
+    --teal: #3ddc97;
+    --teal-light: rgba(61,220,151,.14);
+    --gold: #ffc94d;
+    --gold-light: rgba(255,201,77,.14);
+    --accent: #2dd4bf;
+    --green: #4ade80;
+    --red: #fc8181;
+    --orange: #fb923c;
+    --gray-50: #0a0e23;
+    --gray-100: rgba(255,255,255,.06);
+    --gray-200: rgba(255,255,255,.14);
+    --gray-400: #8b93b5;
+    --gray-600: #bcc4d6;
+    --gray-800: #f1f2f8;
+    --white: #141834;
+  }
+  [data-theme="dark"] body{background:radial-gradient(circle at 20% 0%,#1a1f4d 0%,#0a0e23 55%) fixed}
+  [data-theme="dark"] .ext-badge{border-color:rgba(255,201,77,.4)}
+  [data-theme="dark"] .filter-info{border-color:rgba(61,220,151,.35)}
+  [data-theme="dark"] .badge-ok{background:rgba(61,220,151,.16);color:#6ee7b7}
+  [data-theme="dark"] .badge-warn{background:rgba(255,201,77,.16);color:#fcd34d}
+  [data-theme="dark"] .sb-status.ok{background:rgba(61,220,151,.16);color:#6ee7b7}
+  [data-theme="dark"] .sb-status.error{background:rgba(252,129,129,.16);color:#fc8181}
+  [data-theme="dark"] .sb-status.checking{background:rgba(255,255,255,.08);color:#bcc4d6}
+  [data-theme="dark"] .detalle-badge-audit,
+  [data-theme="dark"] .detalle-table th.pct-header,
+  [data-theme="dark"] .detalle-table td.valor.audit-cell{background:#3b5f8a}
+  [data-theme="dark"] .kpi-value.green{color:#4ade80}
+  [data-theme="dark"] .download-btn:hover{background:#26a980}
+  [data-theme="dark"] .generate-btn:hover{background:#e0ab2e}
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -479,6 +514,19 @@
 </style>
 </head>
 <body>
+<script>
+/* Sincroniza el tema con el dashboard (mismo mecanismo que usa Documentos):
+   toma el tema guardado al cargar y se actualiza en vivo si el dashboard
+   padre lo cambia mientras este módulo está abierto. */
+(function(){
+  function apply(dark){document.documentElement.setAttribute('data-theme',dark?'dark':'light');}
+  var t;try{t=localStorage.getItem('kg-theme');}catch(e){}
+  apply(t!=='light');
+  window.addEventListener('message',function(ev){
+    if(ev.data&&ev.data.type==='theme')apply(!!ev.data.dark);
+  });
+})();
+</script>
 
 <header>
   <div class="logo-box" id="logoBox">KUR</div>
