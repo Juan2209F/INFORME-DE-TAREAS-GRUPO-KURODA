@@ -444,7 +444,13 @@
     background: var(--white); border: 1px solid var(--gray-200); border-radius: 10px;
     box-shadow: 0 8px 24px rgba(0,0,0,0.12); padding: 0.6rem;
   }
-  .ms-quick-row { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--gray-100); }
+  .ms-quick-row {
+    display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 0.3rem;
+    margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--gray-100);
+    scrollbar-width: thin;
+  }
+  .ms-quick-row::-webkit-scrollbar { height: 4px; }
+  .ms-quick-btn { flex-shrink: 0; }
   .ms-quick-btn {
     font-size: 0.68rem; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 20px;
     border: 1px solid var(--gray-200); background: var(--gray-50); color: var(--gray-600); cursor: pointer;
@@ -456,7 +462,6 @@
     padding: 0.3rem 0.4rem; border-radius: 6px; cursor: pointer; white-space: nowrap;
   }
   .ms-checklist label:hover { background: var(--gray-50); }
-  .ms-checklist label:has(input:checked) { background: var(--teal-light); color: var(--teal); font-weight: 600; }
   .ms-checklist input { accent-color: var(--teal); cursor: pointer; }
   .btn-sm {
     padding: 0.4rem 0.9rem; border-radius: 8px; font-size: 0.78rem;
