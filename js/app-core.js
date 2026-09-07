@@ -975,7 +975,7 @@ function filteredAuditorias(){
    importar si el texto de "estado" quedó desactualizado. Esto mantiene
    sincronizados Auditorías, Cartera, Dashboard y Tareas entre sí.
 ════════════════════════════════════════════════════════════════════ */
-function esPendiente(t){if(t.fechaCumpl)return false;return norm(t.estado).includes('abierta');}
+function esPendiente(t){if(t.fechaCumpl)return false;return norm(t.estado).includes('abierta')||norm(t.estado).includes('expirad');}
 function esResuelta(t){if(t.fechaCumpl)return true;return norm(t.estado).includes('resuelta');}
 /* Vencida = pendiente y su fechaTerm ya pasó — calculado por FECHA, no por
    el texto "atrasada" guardado en estado. El texto solo se corrige cuando
@@ -1012,7 +1012,12 @@ function estadoAutomatico(fechaTerm, fechaCumpl){
   if(!ft)return 'Abierta';
   var hoy=new Date();hoy.setHours(0,0,0,0);
   var ftD2=new Date(ft);ftD2.setHours(0,0,0,0);
-  return ftD2<hoy?'Abierta atrasada':'Abierta';
+  if(ftD2>=hoy)return 'Abierta';
+  /* Nunca se resolvió (sigue sin fecha de cumplimiento) y ya pasaron 3 meses
+     de su fecha de término: pasa de "Abierta atrasada" a "Expirado". */
+  var limite3m=new Date(ft.getFullYear(),ft.getMonth()+3,ft.getDate());
+  limite3m.setHours(0,0,0,0);
+  return limite3m<=hoy?'Expirado':'Abierta atrasada';
 }
 /* Resuelta atrasada = ya está resuelta pero su fecha de cumplimiento quedó
    después de su fecha de término — calculado por FECHA, igual que
@@ -1041,6 +1046,7 @@ function estadoBadge(estado){
   const n=norm(estado);
   if(n.includes('resuelta')&&n.includes('atrasad'))return `<span class="badge b-orange">Resuelta atrasada</span>`;
   if(n.includes('resuelta'))return `<span class="badge b-green">✓ Resuelta</span>`;
+  if(n.includes('expirad'))return `<span class="badge b-dark">⛔ Expirado</span>`;
   if(n.includes('abierta')&&n.includes('atrasad'))return `<span class="badge b-red">🔴 Abierta atrasada</span>`;
   if(n.includes('abierta'))return `<span class="badge b-blue">Abierta</span>`;
   return `<span class="badge b-gray">${estado||'—'}</span>`;
@@ -1925,6 +1931,7 @@ function renderVencTable(tareas){
 let _tareasViewBase=[];
 function tareaEstadoCat(t){
   const n=norm(t.estado||'');
+  if(n.includes('expirad'))return'expirado';
   if(n.includes('abierta')&&n.includes('atrasad'))return'abierta_atrasada';
   if(n.includes('abierta'))return'abierta';
   if(n.includes('resuelta')&&n.includes('atrasad'))return'resuelta_atrasada';
@@ -1977,8 +1984,8 @@ function renderTareasTable(tareas){
       const tipo=tipoNorm(t.tipoTarea)==='ol'?'O&L':tipoNorm(t.tipoTarea)==='cartera'?'Cart.':'Colab.';
       const tipoCls=tipoNorm(t.tipoTarea)==='ol'?'#16a34a':tipoNorm(t.tipoTarea)==='cartera'?'#7c3aed':'#2563eb';
       const nEst=norm(t.estado||'');
-      const estCol=nEst.includes('atrasad')?'#dc2626':nEst.includes('resuelta')&&nEst.includes('atrasad')?'#d97706':nEst.includes('resuelta')?'#16a34a':'#2563eb';
-      const estTxt=nEst.includes('abierta')&&nEst.includes('atrasad')?'Ab. Atr.':nEst.includes('abierta')?'Abierta':nEst.includes('resuelta')&&nEst.includes('atrasad')?'Res. Atr.':'Resuelta';
+      const estCol=nEst.includes('expirad')?'#1f2937':nEst.includes('atrasad')?'#dc2626':nEst.includes('resuelta')&&nEst.includes('atrasad')?'#d97706':nEst.includes('resuelta')?'#16a34a':'#2563eb';
+      const estTxt=nEst.includes('expirad')?'Expirado':nEst.includes('abierta')&&nEst.includes('atrasad')?'Ab. Atr.':nEst.includes('abierta')?'Abierta':nEst.includes('resuelta')&&nEst.includes('atrasad')?'Res. Atr.':'Resuelta';
       const ftColor=fromISO(t.fechaTerm)&&fromISO(t.fechaTerm)<new Date()&&esPendiente(t)?'#dc2626':'var(--muted)';
       return `<tr style="background:${bg};border-bottom:1px solid var(--rowline)">
         <td style="padding:5px 8px;color:var(--muted);font-size:11px;white-space:nowrap;font-family:monospace">${t.id}</td>
@@ -2000,7 +2007,7 @@ function renderTareasTable(tareas){
     }).join('')}</tbody></table>`;
 }
 
-const ESTADOS=['Abierta','Abierta atrasada','Resuelta','Resuelta Atrasada'];
+const ESTADOS=['Abierta','Abierta atrasada','Expirado','Resuelta','Resuelta Atrasada'];
 function editBtn(id){
   if(_session&&['admin','admin_auditor','auditor'].includes(_session.rol)){
     return '<button class="icon-btn" onclick="openEditIfAllowed(\''+String(id).replace(/\'/g,'')+'\')" >✎</button>';
@@ -2061,7 +2068,7 @@ function actualizarEstadoPreview(){
   var fc=dval('e-fcumpl')?dval('e-fcumpl')+'T12:00:00':null;
   var est=estadoAutomatico(ft?toISO(new Date(ft)):null, fc?toISO(new Date(fc)):null);
   el.textContent=est;
-  var colores={'Resuelta':'#16a34a','Resuelta Atrasada':'#d97706','Abierta':'#2563eb','Abierta atrasada':'#dc2626'};
+  var colores={'Resuelta':'#16a34a','Resuelta Atrasada':'#d97706','Abierta':'#2563eb','Abierta atrasada':'#dc2626','Expirado':'#1f2937'};
   el.style.color=colores[est]||'inherit';
   el.style.borderColor=colores[est]||'var(--border)';
 }
