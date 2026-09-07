@@ -1661,7 +1661,8 @@ function renderKPIs(tareas,aud){
   // distribución de estados (mismos conteos que el donut)
   const resOk=tareas.filter(t=>esResuelta(t)&&!norm(t.estado).includes('atrasad')).length;
   const resAtr=tareas.filter(t=>esResuelta(t)&&norm(t.estado).includes('atrasad')).length;
-  const abOk=tareas.filter(t=>esPendiente(t)&&!norm(t.estado).includes('atrasad')).length;
+  const expiradas=tareas.filter(t=>norm(t.estado).includes('expirad')).length;
+  const abOk=tareas.filter(t=>esPendiente(t)&&!norm(t.estado).includes('atrasad')&&!norm(t.estado).includes('expirad')).length;
   const abAtr=tareas.filter(t=>esPendiente(t)&&norm(t.estado).includes('atrasad')).length;
 
   const kpis=[
@@ -1677,6 +1678,7 @@ function renderKPIs(tareas,aud){
     {c:'k-orange',ico:'🟠',lbl:'Resueltas atrasadas',val:resAtr,sub:total?pctStr(resAtr/total)+' del total':'—'},
     {c:'k-blue',ico:'🔵',lbl:'Abiertas en plazo',val:abOk,sub:total?pctStr(abOk/total)+' del total':'—'},
     {c:'k-red',ico:'🔴',lbl:'Abiertas atrasadas',val:abAtr,sub:total?pctStr(abAtr/total)+' del total':'—'},
+    {c:'k-dark',ico:'⛔',lbl:'Expiradas',val:expiradas,sub:total?pctStr(expiradas/total)+' del total':'—'},
   ];
   // render only selected KPIs
   const sel=loadKpiSelection()||[];
@@ -1707,7 +1709,7 @@ function openKpiCfg(){
   const groups=[
     {lbl:'Cumplimiento',keys:['Cumplimiento prom.','Cumpl. ponderado','% Resolución']},
     {lbl:'Volumen de tareas',keys:['Tareas en período','Resueltas','Pendientes','Pend. vencidas','Sucursales']},
-    {lbl:'Distribución de estado',keys:['Resueltas a tiempo','Resueltas atrasadas','Abiertas en plazo','Abiertas atrasadas']},
+    {lbl:'Distribución de estado',keys:['Resueltas a tiempo','Resueltas atrasadas','Abiertas en plazo','Abiertas atrasadas','Expiradas']},
   ];
   let html='';
   groups.forEach(g=>{
@@ -1855,9 +1857,10 @@ function renderDonut(tareas){
   const resOk=tareas.filter(t=>esResuelta(t)&&!norm(t.estado).includes('atrasad')).length;
   const resAtr=tareas.filter(t=>esResuelta(t)&&norm(t.estado).includes('atrasad')).length;
   const abAtr=tareas.filter(t=>esPendiente(t)&&norm(t.estado).includes('atrasad')).length;
-  const ab=tareas.filter(t=>esPendiente(t)&&!norm(t.estado).includes('atrasad')).length;
+  const expiradas=tareas.filter(t=>norm(t.estado).includes('expirad')).length;
+  const ab=tareas.filter(t=>esPendiente(t)&&!norm(t.estado).includes('atrasad')&&!norm(t.estado).includes('expirad')).length;
   const segs=[['Resueltas a tiempo','#16a34a',resOk],['Resueltas atrasadas','#ea580c',resAtr],
-    ['Abiertas en plazo','#2563eb',ab],['Abiertas atrasadas','#dc2626',abAtr]];
+    ['Abiertas en plazo','#2563eb',ab],['Abiertas atrasadas','#dc2626',abAtr],['Expiradas','#1f2937',expiradas]];
   destroyChart('donut');
   const ctx=document.getElementById('chart-donut');
   if(!ctx){return;}
@@ -2293,12 +2296,13 @@ const PNG_CSS=`
   .tname{font-weight:700}.tsub{font-size:10px;color:#7c8696}.cell-c{text-align:center}
   .badge{border-radius:6px;padding:3px 9px;font-size:10px;font-weight:800;white-space:nowrap;display:inline-block}
   .b-green{background:#dcfce7;color:#166534}.b-red{background:#fee2e2;color:#991b1b}
+  .b-dark{background:#1f2937;color:#ffffff}
   .b-blue{background:#dbeafe;color:#1e40af}.b-orange{background:#ffedd5;color:#9a3412;border:1px solid #fed7aa}.b-gray{background:#f1f3f7;color:#475569}
   .rank-pill{display:inline-flex;align-items:center;justify-content:center;width:23px;height:23px;border-radius:7px;font-size:10px;font-weight:800;color:#fff}
   .store-block{border:1px solid #e7eaef;border-radius:12px;margin-bottom:14px;overflow:hidden}
   .store-block-hdr{display:flex;align-items:center;gap:10px;padding:11px 15px;background:#f8fafc;border-bottom:1px solid #e7eaef}
   .store-block-hdr .sname{font-size:13.5px;font-weight:800}.store-block-hdr .scount{margin-left:auto;font-size:12px;font-weight:800;color:#dc2626}
-  .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:8px}
+  .kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:8px}
   .kpi-b{border:1px solid #e7eaef;border-radius:12px;padding:13px 15px;border-left:4px solid #2563eb}
   .kpi-b .l{font-size:10px;font-weight:700;text-transform:uppercase;color:#7c8696;letter-spacing:.04em}
   .kpi-b .v{font-size:24px;font-weight:800;margin-top:5px}
@@ -2359,11 +2363,13 @@ function buildDashboardPngHTML(){
   const avgCumpl=aud.length?Math.round(aud.reduce((a,r)=>a+r.pctCumpl,0)/aud.length*100):0;
   const res=tareas.filter(esResuelta).length,pend=tareas.filter(esPendiente).length;
   const venc=tareas.filter(t=>esPendiente(t)&&diasVenc(t)!==null&&diasVenc(t)<0).length;
+  const expiradas=tareas.filter(t=>norm(t.estado).includes('expirad')).length;
   const kpiHTML=`<div class="kpi-row">
     <div class="kpi-b" style="border-left-color:#2563eb"><div class="l">Cumplimiento prom.</div><div class="v">${avgCumpl}%</div><div class="s">${aud.length} auditorías</div></div>
     <div class="kpi-b" style="border-left-color:#0d9488"><div class="l">Tareas</div><div class="v">${tareas.length}</div><div class="s">en período</div></div>
     <div class="kpi-b" style="border-left-color:var(--k-greenok)"><div class="l">Resueltas</div><div class="v">${res}</div><div class="s">${tareas.length?Math.round(res/tareas.length*100):0}%</div></div>
     <div class="kpi-b" style="border-left-color:#dc2626"><div class="l">Pendientes</div><div class="v">${pend}</div><div class="s">${venc} vencidas</div></div>
+    <div class="kpi-b" style="border-left-color:#1f2937"><div class="l">Expiradas</div><div class="v">${expiradas}</div><div class="s">${tareas.length?Math.round(expiradas/tareas.length*100):0}% del total</div></div>
   </div>`;
   // ranking de sucursales menor cumplimiento
   const byS={};aud.forEach(a=>{const k=a.tienda;if(!byS[k])byS[k]={s:0,n:0,c:a.centro};byS[k].s+=a.pctCumpl;byS[k].n++;});
@@ -2515,7 +2521,7 @@ function exportCSV(){
 /* ════════════════════════════════════════════════════════════════════
    MODAL / TOAST / VISTAS
 ════════════════════════════════════════════════════════════════════ */
-function openModal(title,html,footBtns){
+function openModal(title,html,footBtns,opts){
   document.getElementById('modal-title').innerHTML=title;
   document.getElementById('modal-body').innerHTML=html;
   const foot=document.getElementById('modal-foot');
@@ -2523,6 +2529,14 @@ function openModal(title,html,footBtns){
     foot.style.display='flex';foot.innerHTML='';
     footBtns.forEach(b=>{const el=document.createElement('button');el.className='btn '+b.cls;el.textContent=b.label;el.onclick=b.fn;foot.appendChild(el);});
   }else foot.style.display='none';
+  /* Tamaño del modal: por defecto siempre se resetea al de css/main.css
+     (880px/88vh) para que un modal grande (p. ej. Historial por sucursal)
+     nunca deje "pegado" ese tamaño al siguiente modal que se abra. */
+  const box=document.querySelector('#modal-overlay .modal');
+  if(box){
+    box.style.maxWidth=(opts&&opts.maxWidth)||'';
+    box.style.maxHeight=(opts&&opts.maxHeight)||'';
+  }
   document.getElementById('modal-overlay').classList.add('show');
 }
 function openConfirm(title,html,okLabel,okCls,okFn){
@@ -3030,7 +3044,7 @@ function calcAudStats(a, rowsMismaClase){
       }
     }
     return {tareas:a.tareas||0,resueltas:a.resueltas||0,pendientes:a.pendientes||0,
-            abiertas:a.pendientes||0,abiertasAtrasadas:0,resueltasAtrasadas:0,
+            abiertas:a.pendientes||0,abiertasAtrasadas:0,resueltasAtrasadas:0,expiradas:0,
             pctResuelto:a.pctResuelto||0,tieneAtrasada:false,dinamico:false};
   }
 
@@ -3044,12 +3058,13 @@ function calcAudStats(a, rowsMismaClase){
   var pendientesTareas = tt.filter(esPendiente);
   var abiertasAtrasadas = pendientesTareas.filter(tareaVencidaPorFecha).length;
   var abiertas = pendientesTareas.length - abiertasAtrasadas;
+  var expiradas = pendientesTareas.filter(function(t){return norm(t.estado).includes('expirad');}).length;
   var pctResuelto = total>0 ? resueltas/total : 0;
 
   return {
     tareas:total, resueltas:resueltas, pendientes:pendientes,
     abiertas:abiertas, abiertasAtrasadas:abiertasAtrasadas,
-    resueltasAtrasadas:resueltasAtrasadas,
+    resueltasAtrasadas:resueltasAtrasadas, expiradas:expiradas,
     pctResuelto:pctResuelto, dinamico:true
   };
 }
@@ -3519,14 +3534,15 @@ function historialAuditoriasPorSucursalHTML(filtroExtra){
     if(f.centro!=='ALL'&&norm(a.centro||'')!==norm(f.centro))return;
     var stats=calcAudStats(a);
     var esCartera=norm(a.clase||'').includes('cartera');
-    var estado = stats.abiertasAtrasadas>0 ? 'atrasada' :
+    var estado = stats.expiradas>0 ? 'expirada' :
+                 stats.abiertasAtrasadas>0 ? 'atrasada' :
                  stats.abiertas>0 ? 'vigente' :
                  (stats.resueltasAtrasadas||0)>0 ? 'atrasada' : 'entiempo';
     addReg(a.tienda,{
       mes:a.mes||'—',clase:a.clase||'',fecha:a.fecha||null,estado:estado,origen:'En curso',
       pctCumpl:esCartera?null:pctFmt(a.pctCumpl),
       total:stats.tareas,pendientes:stats.pendientes,
-      abiertas:stats.abiertas,abiertasAtrasadas:stats.abiertasAtrasadas,
+      abiertas:stats.abiertas,abiertasAtrasadas:stats.abiertasAtrasadas,expiradas:stats.expiradas,
       resueltos:stats.resueltas,pctResuelto:pctFmt(stats.pctResuelto)
     });
   });
@@ -3542,7 +3558,7 @@ function historialAuditoriasPorSucursalHTML(filtroExtra){
       mes:fz.mes||'—',clase:fz.clase||'',fecha:fz.fecha_finalizacion||null,
       estado:est==='atrasada'?'atrasada':'entiempo',origen:'Finalizada',
       pctCumpl:esCartera?null:pctFmt(fz.pct_cumpl),
-      total:total,pendientes:0,abiertas:0,abiertasAtrasadas:0,
+      total:total,pendientes:0,abiertas:0,abiertasAtrasadas:0,expiradas:0,
       resueltos:res,pctResuelto:total?Math.round(res/total*100)+'%':'—'
     });
   });
@@ -3554,8 +3570,10 @@ function historialAuditoriasPorSucursalHTML(filtroExtra){
   tiendas.forEach(function(t){
     var arr=porTienda[t].slice().sort(function(a,b){return claveOrdenMes(b.mes,b.fecha)-claveOrdenMes(a.mes,a.fecha);});
     var nAtr=arr.filter(function(r){return r.estado==='atrasada';}).length;
+    var nExp=arr.filter(function(r){return r.estado==='expirada';}).length;
     var rowsHTML=arr.map(function(r){
-      var badge = r.estado==='atrasada' ? '<span class="badge b-red">🔴 Atrasada</span>' :
+      var badge = r.estado==='expirada' ? '<span class="badge b-dark">⛔ Expirada</span>' :
+                  r.estado==='atrasada' ? '<span class="badge b-red">🔴 Atrasada</span>' :
                   r.estado==='vigente' ? '<span class="badge b-blue">↑ Vigente</span>' :
                   '<span class="badge b-green">✓ En tiempo</span>';
       return '<tr>'+
@@ -3565,6 +3583,7 @@ function historialAuditoriasPorSucursalHTML(filtroExtra){
         '<td class="cell-c" style="font-weight:800">'+r.total+'</td>'+
         '<td class="cell-c">'+r.pendientes+'</td>'+
         '<td class="cell-c" style="font-size:10.5px">'+vigAtrasoTexto(r.abiertas,r.abiertasAtrasadas)+'</td>'+
+        '<td class="cell-c" style="font-weight:800;color:'+(r.expiradas>0?'#dc2626':'inherit')+'">'+r.expiradas+'</td>'+
         '<td class="cell-c">'+r.resueltos+'</td>'+
         '<td class="cell-c">'+r.pctResuelto+'</td>'+
         '<td class="cell-c" style="font-size:10px">'+badge+'</td>'+
@@ -3572,9 +3591,9 @@ function historialAuditoriasPorSucursalHTML(filtroExtra){
       '</tr>';
     }).join('');
     html+='<div class="store-block"><div class="store-block-hdr"><span class="sname">'+esc(t)+'</span>'+
-      '<span class="scount">'+arr.length+' auditoría(s)'+(nAtr?' · '+nAtr+' atrasada(s)':'')+'</span></div>'+
+      '<span class="scount">'+arr.length+' auditoría(s)'+(nAtr?' · '+nAtr+' atrasada(s)':'')+(nExp?' · '+nExp+' expirada(s)':'')+'</span></div>'+
       '<table><thead><tr><th>Mes</th><th>Tipo</th><th class="c">% Cumpl.</th><th class="c">Total</th>'+
-      '<th class="c">Pendientes</th><th class="c">Vigentes/Atraso</th><th class="c">Resueltos</th>'+
+      '<th class="c">Pendientes</th><th class="c">Vigentes/Atraso</th><th class="c">Expiradas</th><th class="c">Resueltos</th>'+
       '<th class="c">% Resuelto</th><th class="c">Estado</th><th class="c">Situación</th></tr></thead>'+
       '<tbody>'+rowsHTML+'</tbody></table></div>';
   });
@@ -3633,7 +3652,7 @@ function historialPngMenuFieldsHTML(tiendaHTML,mesHTML,tipoHTML){
     '<div class="fg"><label>Tienda / Sucursal</label><select id="pngmenu-tienda" onchange="renderHistorialPngPreview()">'+tiendaHTML+'</select></div>'+
     '<div class="fg"><label>Mes</label><select id="pngmenu-mes" onchange="renderHistorialPngPreview()">'+mesHTML+'</select></div>'+
     '<div class="fg"><label>Tipo de auditoría</label><select id="pngmenu-tipo" onchange="renderHistorialPngPreview()">'+tipoHTML+'</select></div>'+
-    '</div><div id="historial-png-preview" style="margin-top:14px;max-height:380px;overflow:auto"></div></div>';
+    '</div><div id="historial-png-preview" style="margin-top:14px;max-height:60vh;overflow:auto"></div></div>';
 }
 function renderHistorialPngPreview(){
   var cont=document.getElementById('historial-png-preview');
@@ -3674,7 +3693,7 @@ function openHistorialPngMenu(){
   openModal('🗂️ Descargar PNG — Historial por sucursal',historialPngMenuFieldsHTML(o.tiendaHTML,o.mesHTML,TIPO_AUDITORIA_HTML),[
     {label:'Cancelar',cls:'btn-ghost',fn:closeModal},
     {label:'🖼️ Generar PNG',cls:'btn-teal',fn:pngMenuGenerarHistorial}
-  ]);
+  ],{maxWidth:'1180px',maxHeight:'92vh'});
   document.getElementById('pngmenu-tienda').value=document.getElementById('f-tienda').value||'ALL';
   document.getElementById('pngmenu-mes').value='ALL';
   document.getElementById('pngmenu-tipo').value='ALL';
@@ -4679,7 +4698,8 @@ function generatePpt(opts){
   var pctRes=res/total;
   var resOk=tareas.filter(function(t){return esResuelta(t)&&!norm(t.estado).includes('atrasad');}).length;
   var resAtr=tareas.filter(function(t){return esResuelta(t)&&norm(t.estado).includes('atrasad');}).length;
-  var abOk=tareas.filter(function(t){return esPendiente(t)&&!norm(t.estado).includes('atrasad');}).length;
+  var expiradas=tareas.filter(function(t){return norm(t.estado).includes('expirad');}).length;
+  var abOk=tareas.filter(function(t){return esPendiente(t)&&!norm(t.estado).includes('atrasad')&&!norm(t.estado).includes('expirad');}).length;
   var abAtr=tareas.filter(function(t){return esPendiente(t)&&norm(t.estado).includes('atrasad');}).length;
   var sucursales=uniq(tareas.map(function(t){return t.tienda;})).length;
   var cumplPond=Math.round((aud.reduce(function(a,r){return a+r.pctCumpl*(r.tareas||1);},0)/(aud.reduce(function(a,r){return a+(r.tareas||1);},0)||1))*100);
@@ -4815,7 +4835,8 @@ function generatePpt(opts){
       {id:'res_ok',     v:resOk,                        l:'Resueltas a tiempo',    su:pp(resOk)+' del total',      ac:GRN, bg:PGRN},
       {id:'res_atr',    v:resAtr,                       l:'Resueltas atrasadas',   su:pp(resAtr)+' del total',     ac:AMB, bg:PAMB},
       {id:'ab_ok',      v:abOk,                         l:'Abiertas en plazo',     su:pp(abOk)+' del total',       ac:BLU, bg:PBLU},
-      {id:'ab_atr',     v:abAtr,                        l:'Abiertas atrasadas',    su:pp(abAtr)+' del total',      ac:RED, bg:PRED}
+      {id:'ab_atr',     v:abAtr,                        l:'Abiertas atrasadas',    su:pp(abAtr)+' del total',      ac:RED, bg:PRED},
+      {id:'expiradas',  v:expiradas,                     l:'Expiradas',             su:pp(expiradas)+' del total',  ac:SLT, bg:LIN}
     ];
     var sel=(opts.kpis&&opts.kpis.length)?opts.kpis:CAT.map(function(k){return k.id;});
     var kpis=CAT.filter(function(k){return sel.indexOf(k.id)>=0;});
@@ -4892,7 +4913,8 @@ function generatePpt(opts){
       {lbl:'Resueltas a tiempo',  cnt:resOk,  ac:GRN},
       {lbl:'Resueltas atrasadas', cnt:resAtr, ac:ORG},
       {lbl:'Abiertas en plazo',   cnt:abOk,   ac:BLU},
-      {lbl:'Abiertas atrasadas',  cnt:abAtr,  ac:RED}
+      {lbl:'Abiertas atrasadas',  cnt:abAtr,  ac:RED},
+      {lbl:'Expiradas',           cnt:expiradas, ac:SLT}
     ];
     var tot3=tareas.length||1;
     /* Donut chart nativo de PowerPoint */
