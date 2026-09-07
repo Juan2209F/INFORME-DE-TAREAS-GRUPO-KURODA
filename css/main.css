@@ -262,6 +262,7 @@ table.dt tbody tr:last-child td{border-bottom:none}
 .b-blue{background:var(--blue-soft);color:#4456c9}
 .b-orange{background:var(--orange-soft);color:#c44a26;border:1px solid #ffd9c4}
 .b-gray{background:#f1f3f9;color:#65748a}
+.b-dark{background:#1f2937;color:#ffffff}
 .rank-pill{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;
   border-radius:8px;font-size:10px;font-weight:700;color:#fff}
 .icon-btn{border:1px solid var(--border);background:var(--white);border-radius:9px;width:30px;height:28px;
