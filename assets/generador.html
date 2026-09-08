@@ -2036,7 +2036,7 @@ async function descargarCapturaVista(){
   const prevTxt = btn ? btn.textContent : null;
   if (btn) { btn.textContent = '⏳ Generando…'; btn.disabled = true; }
   try {
-    const canvas = await html2canvas(target, { backgroundColor:'#f5f6f8', scale:2, useCORS:true });
+    const canvas = await html2canvas(target, { backgroundColor:'#f5f6f8', scale:2, useCORS:true, letterRendering:true });
     const link = document.createElement('a');
     const fecha = new Date().toISOString().slice(0,10);
     link.download = `Kuroda_${(RAZON_ACTIVA||'General')}_${nombreVista}_${fecha}.png`;
