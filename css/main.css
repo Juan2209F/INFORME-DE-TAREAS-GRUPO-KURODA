@@ -153,9 +153,10 @@ nav.sidebar .logo{width:40px;height:40px;border-radius:12px;
 #rec-count{font-size:11px;color:var(--muted);font-weight:600}
 
 /* SECTION LABEL */
-.slbl{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--txt);
+.slbl{display:flex;align-items:center;flex-wrap:wrap;row-gap:4px;gap:8px;font-size:13px;font-weight:700;color:var(--txt);
   letter-spacing:0}
 .slbl .dot{width:9px;height:9px;border-radius:3px;flex-shrink:0}
+.slbl>span{white-space:nowrap}
 
 /* KPI GRID — soft ui card style with icon badge */
 .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
