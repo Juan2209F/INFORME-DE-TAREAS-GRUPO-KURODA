@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+  <!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -26,6 +26,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head><body>
 <script src="js/theme-init.js"></script>
@@ -378,7 +379,7 @@
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-blue" id="btn-nueva-auditoria" onclick="openNuevaAuditoriaIfAllowed()" style="display:none">➕ Nueva auditoría</button>
         <button class="btn btn-ghost" onclick="loadDataFromSupabase().then(renderAuditoriasView)">🔄 Recargar</button>
-        <button class="btn btn-teal" onclick="openAuditoriasPngMenu()">🖼️ PNG</button>
+        <button class="btn btn-teal" onclick="openAuditoriasPngMenu()" title="Descargar esta sección en PNG, PDF o PPTX">📤 Descargar</button>
         <button class="btn btn-teal" onclick="openHistorialPngMenu()" title="Elige tienda, mes y tipo de auditoría para generar el historial">🗂️ PNG Historial por sucursal</button>
         <span id="aud-count" style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600;align-self:center"></span>
       </div>
