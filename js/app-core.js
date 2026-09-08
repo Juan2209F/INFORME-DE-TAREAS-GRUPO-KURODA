@@ -3194,6 +3194,9 @@ function audTablaPorClase(titulo,color,rows){
       ((stats.abiertasAtrasadas||0)>0?'<span style="color:var(--k-red);font-weight:700">'+(stats.abiertasAtrasadas||0)+'🔴</span>':
        (stats.abiertas||0)===0&&(stats.abiertasAtrasadas||0)===0?'<span style="color:var(--k-greenok)">✓</span>':'')+
       '</td>'+
+      '<td style="text-align:center;font-size:10px">'+
+      ((stats.expiradas||0)>0?'<span style="color:#1f2937;font-weight:700">'+(stats.expiradas||0)+'⛔</span>':'<span style="color:var(--muted)">—</span>')+
+      '</td>'+
       '<td style="text-align:center">'+stats.resueltas+mark+'</td>'+
       '<td style="text-align:center">'+pctFmt(stats.pctResuelto)+mark+'</td>'+
       editBtn+
@@ -3204,14 +3207,15 @@ function audTablaPorClase(titulo,color,rows){
     '<span><span style="color:var(--k-red);font-weight:800">●</span> Atrasada</span>'+
     '<span><span style="color:var(--k-blue);font-weight:800">●</span> Vigente</span>'+
     '<span><span style="color:var(--k-orange);font-weight:800">●</span> Resuelta c/atraso</span>'+
+    '<span><span style="color:#1f2937;font-weight:800">⛔</span> Expirada</span>'+
     '<span><span style="color:var(--k-greenok);font-weight:800">●</span> Al corriente</span></span>';
   var tablaHTML='<div class="slbl" style="margin:4px 0 4px;color:'+color+'">'+
     '<span class="dot" style="background:'+color+'"></span>'+titulo+
     ' <span style="font-weight:600;font-size:10px;color:var(--muted)">('+rows.length+')</span>'+
     leyenda+'</div>'+
     '<div class="card" style="padding:8px 10px;margin-bottom:10px"><div class="tbl-scroll"><table class="dt">'+
-    '<thead><tr><th>Tienda</th><th>Mes Auditoría</th><th class="c">% Cumplimiento</th><th class="c">Total</th><th class="c">Pendientes</th><th class="c">Vigentes/Atraso</th><th class="c">Resueltos</th><th class="c">% Resuelto</th>'+editTh+'</tr></thead>'+
-    '<tbody>'+(filas||'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:18px">Sin registros</td></tr>')+'</tbody></table></div></div>';
+    '<thead><tr><th>Tienda</th><th>Mes Auditoría</th><th class="c">% Cumplimiento</th><th class="c">Total</th><th class="c">Pendientes</th><th class="c">Vigentes/Atraso</th><th class="c">Expiradas</th><th class="c">Resueltos</th><th class="c">% Resuelto</th>'+editTh+'</tr></thead>'+
+    '<tbody>'+(filas||'<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:18px">Sin registros</td></tr>')+'</tbody></table></div></div>';
 
   return tablaHTML+'<div style="margin-bottom:22px"></div>';
 }
@@ -3461,19 +3465,104 @@ function renderAuditoriasView(){
   cont.innerHTML=html;
 }
 
-function downloadAuditoriasPNG(){
-  toast('⏳ Generando PNG...');
+/* Captura #auditorias-tables a un <canvas>. Compartida por PNG/PDF/PPTX
+   para que los 3 formatos muestren siempre exactamente lo mismo (incluye
+   la columna "Expiradas" y cualquier cambio futuro a esta sección). */
+function capturarAuditoriasCanvas(){
   var el=document.getElementById('auditorias-tables');
-  if(typeof html2canvas==='undefined'){toast('⚠ Librería de captura no disponible');return Promise.resolve();}
+  if(typeof html2canvas==='undefined'){toast('⚠ Librería de captura no disponible');return Promise.reject(new Error('html2canvas no disponible'));}
   return html2canvas(el,{scale:2,backgroundColor:'#fff',letterRendering:true,
     onclone:function(clonedDoc){
       clonedDoc.querySelectorAll('*').forEach(function(node){node.style.letterSpacing='0px';});
-    }}).then(function(canvas){
+    }});
+}
+function downloadAuditoriasPNG(){
+  toast('⏳ Generando PNG...');
+  return capturarAuditoriasCanvas().then(function(canvas){
     var link=document.createElement('a');
     link.download='auditorias_por_clase.png';
     link.href=canvas.toDataURL('image/png');
     link.click();
     toast('✓ PNG descargado');
+  }).catch(function(e){toast('⚠ Error: '+e.message);});
+}
+function downloadAuditoriasPDF(){
+  var jsPDFLib=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
+  if(typeof jsPDFLib==='undefined'){toast('⚠ Librería de PDF no disponible');return Promise.resolve();}
+  toast('⏳ Generando PDF...');
+  return capturarAuditoriasCanvas().then(function(canvas){
+    /* Página tamaño carta, orientación según el ancho de la tabla capturada,
+       partiendo la imagen en varias páginas si es más alta que una hoja. */
+    var landscape=canvas.width>canvas.height;
+    var pdf=new jsPDFLib({orientation:landscape?'l':'p',unit:'pt',format:'letter'});
+    var pageW=pdf.internal.pageSize.getWidth(), pageH=pdf.internal.pageSize.getHeight();
+    var margin=24;
+    var imgW=pageW-margin*2;
+    var imgH=imgW*canvas.height/canvas.width;
+    var imgData=canvas.toDataURL('image/png',1.0);
+    if(imgH<=pageH-margin*2){
+      pdf.addImage(imgData,'PNG',margin,margin,imgW,imgH);
+    }else{
+      /* Recorta el canvas alto en franjas del tamaño de una página y las va
+         agregando en páginas sucesivas, para no deformar ni cortar filas a
+         la mitad de forma ilegible. */
+      var pageContentH=pageH-margin*2;
+      var sliceHpx=Math.floor(pageContentH*canvas.width/imgW);
+      var y=0,first=true;
+      while(y<canvas.height){
+        var h=Math.min(sliceHpx,canvas.height-y);
+        var sliceCanvas=document.createElement('canvas');
+        sliceCanvas.width=canvas.width; sliceCanvas.height=h;
+        sliceCanvas.getContext('2d').drawImage(canvas,0,y,canvas.width,h,0,0,canvas.width,h);
+        var sliceImg=sliceCanvas.toDataURL('image/png',1.0);
+        var sliceImgH=imgW*h/canvas.width;
+        if(!first)pdf.addPage();
+        pdf.addImage(sliceImg,'PNG',margin,margin,imgW,sliceImgH);
+        first=false; y+=h;
+      }
+    }
+    pdf.save('auditorias_por_clase.pdf');
+    toast('✓ PDF descargado');
+  }).catch(function(e){toast('⚠ Error: '+e.message);});
+}
+function downloadAuditoriasPPTX(){
+  if(typeof PptxGenJS==='undefined'){toast('⚠ PptxGenJS no cargado');return Promise.resolve();}
+  toast('⏳ Generando PPTX...');
+  return capturarAuditoriasCanvas().then(function(canvas){
+    var pptx=new PptxGenJS();
+    pptx.layout='LAYOUT_16x9';
+    var W=13.333,H=7.5;
+    var imgData=canvas.toDataURL('image/png',1.0);
+    /* Igual que en el PDF: si la tabla es más alta que una diapositiva a
+       todo lo ancho, se reparte en varias diapositivas en vez de achicar
+       el texto hasta hacerlo ilegible. */
+    var margin=.4;
+    var slideContentW=W-margin*2, slideContentH=H-margin*2;
+    var imgWFull=slideContentW;
+    var imgHFull=imgWFull*canvas.height/canvas.width;
+    if(imgHFull<=slideContentH){
+      var s=pptx.addSlide();
+      s.background={color:'FFFFFF'};
+      s.addImage({data:imgData,x:margin,y:margin,w:imgWFull,h:imgHFull});
+    }else{
+      var sliceHpx=Math.floor(slideContentH*canvas.width/imgWFull);
+      var y=0;
+      while(y<canvas.height){
+        var h=Math.min(sliceHpx,canvas.height-y);
+        var sliceCanvas=document.createElement('canvas');
+        sliceCanvas.width=canvas.width; sliceCanvas.height=h;
+        sliceCanvas.getContext('2d').drawImage(canvas,0,y,canvas.width,h,0,0,canvas.width,h);
+        var sliceImg=sliceCanvas.toDataURL('image/png',1.0);
+        var sliceImgH=imgWFull*h/canvas.width;
+        var s=pptx.addSlide();
+        s.background={color:'FFFFFF'};
+        s.addImage({data:sliceImg,x:margin,y:margin,w:imgWFull,h:sliceImgH});
+        y+=h;
+      }
+    }
+    return pptx.writeFile({fileName:'auditorias_por_clase.pptx'});
+  }).then(function(){
+    toast('✓ PPTX descargado');
   }).catch(function(e){toast('⚠ Error: '+e.message);});
 }
 
@@ -3670,23 +3759,26 @@ function renderHistorialPngPreview(){
 }
 function openAuditoriasPngMenu(){
   var o=pngMenuOptsAuditorias();
-  openModal('🖼️ Descargar PNG — Auditorías',pngMenuFieldsHTML(o.tiendaHTML,o.mesHTML,TIPO_AUDITORIA_HTML),[
+  openModal('📤 Descargar — Auditorías',pngMenuFieldsHTML(o.tiendaHTML,o.mesHTML,TIPO_AUDITORIA_HTML),[
     {label:'Cancelar',cls:'btn-ghost',fn:closeModal},
-    {label:'🖼️ Generar PNG',cls:'btn-teal',fn:pngMenuGenerarAuditorias}
+    {label:'🖼️ PNG',cls:'btn-ghost',fn:function(){auditoriasMenuGenerar('png');}},
+    {label:'📄 PDF',cls:'btn-ghost',fn:function(){auditoriasMenuGenerar('pdf');}},
+    {label:'📊 PPTX',cls:'btn-teal',fn:function(){auditoriasMenuGenerar('pptx');}}
   ]);
   document.getElementById('pngmenu-tienda').value=document.getElementById('aud-f-tienda').value||'ALL';
   document.getElementById('pngmenu-mes').value=document.getElementById('aud-f-mes').value||'ALL';
   document.getElementById('pngmenu-tipo').value=document.getElementById('aud-f-tipo').value||'ALL';
 }
-function pngMenuGenerarAuditorias(){
+function auditoriasMenuGenerar(formato){
   var original={tienda:document.getElementById('aud-f-tienda').value,mes:document.getElementById('aud-f-mes').value,tipo:document.getElementById('aud-f-tipo').value};
   document.getElementById('aud-f-tienda').value=document.getElementById('pngmenu-tienda').value;
   document.getElementById('aud-f-mes').value=document.getElementById('pngmenu-mes').value;
   document.getElementById('aud-f-tipo').value=document.getElementById('pngmenu-tipo').value;
   renderAuditoriasView();
   closeModal();
+  var gen=formato==='pdf'?downloadAuditoriasPDF:formato==='pptx'?downloadAuditoriasPPTX:downloadAuditoriasPNG;
   setTimeout(function(){
-    downloadAuditoriasPNG().then(function(){
+    gen().then(function(){
       document.getElementById('aud-f-tienda').value=original.tienda;
       document.getElementById('aud-f-mes').value=original.mes;
       document.getElementById('aud-f-tipo').value=original.tipo;
