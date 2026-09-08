@@ -2349,7 +2349,7 @@ function downloadPendientesPNG(btnEl){
   const ov=pendFilterOverrides();
   return renderPNG(pngHeader('🏬 Tareas pendientes por sucursal')+
     `<div class="sec"><div class="sec-t"><span class="sdot" style="background:#ea580c"></span>Detalle por sucursal</div>${pendientesPorSucursalHTML(ov)}</div>`+
-    `<div class="ft">📊 Monitor de Cumplimiento — Grupo Cerezo</div>`,
+    `<div class="ft">📊 Monitor de Cumplimiento — Grupo Kuroda (Auditoría)</div>`,
     `pendientes_por_sucursal_${new Date().toISOString().slice(0,10)}.png`,
     btnEl);
 }
@@ -2385,7 +2385,7 @@ function buildDashboardPngHTML(){
     `<div class="sec"><div class="sec-t"><span class="sdot" style="background:#2563eb"></span>Indicadores</div>${kpiHTML}</div>`+
     `<div class="sec"><div class="sec-t"><span class="sdot" style="background:#dc2626"></span>Sucursales por nivel de cumplimiento</div>${rankHTML}</div>`+
     `<div class="sec"><div class="sec-t"><span class="sdot" style="background:#ea580c"></span>Tareas pendientes por sucursal</div>${pendHTML}</div>`+
-    `<div class="ft">📊 Monitor de Cumplimiento — Grupo Cerezo</div>`;
+    `<div class="ft">📊 Monitor de Cumplimiento — Grupo Kuroda (Auditoría)</div>`;
 }
 function downloadDashboardPNG(){
   renderPNG(buildDashboardPngHTML(),
@@ -3602,9 +3602,9 @@ function historialAuditoriasPorSucursalHTML(filtroExtra){
 function downloadHistorialAuditoriasPNG(filtroExtra,btnEl){
   if(!FINALIZADAS.length){loadFinalizadas().then(function(){downloadHistorialAuditoriasPNG(filtroExtra,btnEl);});return Promise.resolve();}
   return renderPNG(pngHeader('🗂️ Historial de auditorías por sucursal')+
-    '<div class="sec"><div class="sec-t"><span class="sdot" style="background:#7c3aed"></span>Vigentes, atrasadas y finalizadas · más recientes primero</div>'+
+    '<div class="sec"><div class="sec-t"><span class="sdot" style="background:#7c3aed"></span>VIGENTES, ATRASADAS Y FINALIZADAS · MAS RECIENTES PRIMERO</div>'+
     historialAuditoriasPorSucursalHTML(filtroExtra)+'</div>'+
-    '<div class="ft">📊 Monitor de Cumplimiento — Grupo Cerezo</div>',
+    '<div class="ft">📊 Monitor de Cumplimiento — Grupo Kuroda (Auditoría)</div>',
     'historial_auditorias_'+new Date().toISOString().slice(0,10)+'.png',
     btnEl||(event&&event.target?event.target.closest('button'):null));
 }
