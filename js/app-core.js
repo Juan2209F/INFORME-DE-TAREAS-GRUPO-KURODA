@@ -2328,7 +2328,10 @@ async function renderPNG(innerHTML,filename,btnEl){
     iframe.style.width=w+'px';iframe.style.height=h+'px';
     await new Promise(r=>setTimeout(r,80));
     const canvas=await html2canvas(cap,{scale:2.4,backgroundColor:'#ffffff',logging:false,
-      width:w,height:h,windowWidth:w,windowHeight:h,letterRendering:true});
+      width:w,height:h,windowWidth:w,windowHeight:h,letterRendering:true,
+      onclone:function(clonedDoc){
+        clonedDoc.querySelectorAll('*').forEach(function(el){el.style.letterSpacing='0px';});
+      }});
     const a=document.createElement('a');
     a.download=filename;a.href=canvas.toDataURL('image/png',1.0);a.click();
     toast('✓ PNG descargado');
@@ -3462,7 +3465,10 @@ function downloadAuditoriasPNG(){
   toast('⏳ Generando PNG...');
   var el=document.getElementById('auditorias-tables');
   if(typeof html2canvas==='undefined'){toast('⚠ Librería de captura no disponible');return Promise.resolve();}
-  return html2canvas(el,{scale:2,backgroundColor:'#fff',letterRendering:true}).then(function(canvas){
+  return html2canvas(el,{scale:2,backgroundColor:'#fff',letterRendering:true,
+    onclone:function(clonedDoc){
+      clonedDoc.querySelectorAll('*').forEach(function(node){node.style.letterSpacing='0px';});
+    }}).then(function(canvas){
     var link=document.createElement('a');
     link.download='auditorias_por_clase.png';
     link.href=canvas.toDataURL('image/png');
