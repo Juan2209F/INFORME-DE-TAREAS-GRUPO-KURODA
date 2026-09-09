@@ -6371,9 +6371,13 @@ function applyVistasRestriction(){
          listas de vistas antiguas no incluían 'documentos'). */
       permitido=(_session.rol!=='viewer');
     }else if(_session.rol==='auditor'&&RESTRINGIDAS_JR.includes(key)){
-      permitido=!!(lista&&lista.includes(key));
+      /* 'nofinalizadas' es un módulo nuevo: las listas de vistas guardadas
+         antes de que existiera nunca lo incluyen. Se hereda automáticamente
+         del acceso a 'finalizadas' (su módulo hermano) para no dejar a
+         ninguna cuenta ya configurada sin verlo. */
+      permitido=!!(lista&&(lista.includes(key)||(key==='nofinalizadas'&&lista.includes('finalizadas'))));
     }else{
-      permitido=!lista||lista.includes(key);
+      permitido=!lista||lista.includes(key)||(key==='nofinalizadas'&&!!lista&&lista.includes('finalizadas'));
     }
     if(permitido&&key!=='usuarios')visibles.push(key);
     var navEl=document.getElementById(e[0]);
