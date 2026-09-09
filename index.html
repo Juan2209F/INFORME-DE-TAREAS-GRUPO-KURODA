@@ -95,8 +95,8 @@
   <div class="nav-item" id="nav-ajustes" title="Ajustes" onclick="setView('ajustes')">⚖️<span class="nav-lbl">Ajustes</span></div>
   <div class="nav-item" id="nav-mermas" title="Mermas" onclick="setView('mermas')">🗂️<span class="nav-lbl">Mermas</span></div>
   <div class="nav-item" id="nav-finalizadas" title="Auditorías Finalizadas" onclick="setView('finalizadas')">✅<span class="nav-lbl">Finalizadas</span></div>
+  <div class="nav-item" id="nav-nofinalizadas" title="Auditorías No Finalizadas (tareas expiradas)" onclick="setView('nofinalizadas')">⛔<span class="nav-lbl">No Finalizadas</span></div>
   <div class="nav-item" id="nav-desempeno" title="Desempeño de Auditores" onclick="setView('desempeno')">📊<span class="nav-lbl">Desempeño</span></div>
-  <div class="nav-item" id="nav-evaluacion" title="Evaluación KPIs" onclick="setView('evaluacion')">🎯<span class="nav-lbl">Evaluación KPIs</span></div>
   <div class="nav-item" id="nav-documentos" title="Generador de Documentos" onclick="setView('documentos')">📄<span class="nav-lbl">Documentos</span></div>
   <div class="nav-item" id="nav-generador" title="Generador de Dashboard Ejecutivo (todas las razones sociales)" onclick="setView('generador')" style="display:none">📊<span class="nav-lbl">Generador</span></div>
   <div class="nav-sep"></div>
@@ -520,11 +520,35 @@
 
     <!-- (Módulo Archivo eliminado: el histórico completo vive ahora en Auditorías Finalizadas) -->
 
+    <!-- ════════ VISTA AUDITORÍAS NO FINALIZADAS (tareas con estatus Expirado) ════════ -->
+    <div id="view-nofinalizadas" style="display:none;flex-direction:column;gap:14px">
+      <div class="slbl"><span class="dot" style="background:#1f2937"></span>Auditorías No Finalizadas
+        <span style="font-weight:600;font-size:10px;color:var(--muted);text-transform:none;margin-left:6px">Auditorías vigentes con al menos una tarea en estatus Expirado</span>
+      </div>
+      <p class="module-desc">Muestra todas las auditorías activas (aún no cerradas en Finalizadas) que tienen una o más tareas con estatus ⛔ Expirado.</p>
+
+      <!-- Filtros -->
+      <div class="card" style="padding:14px 16px">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-items:end">
+          <div class="fg"><label>MES AUDITORÍA</label>
+            <select id="nf-f-mes" onchange="renderNoFinalizadas()"><option value="ALL">Todos</option></select></div>
+          <div class="fg"><label>TIENDA</label>
+            <select id="nf-f-tienda" onchange="renderNoFinalizadas()"><option value="ALL">Todas</option></select></div>
+          <div class="fg"><label>CENTRO</label>
+            <select id="nf-f-centro" onchange="renderNoFinalizadas()"><option value="ALL">Todos</option></select></div>
+          <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+            <button class="btn btn-ghost" onclick="loadDataFromSupabase().then(renderNoFinalizadas)">🔄 Recargar</button>
+            <span id="nf-count" style="font-size:11px;color:#1f2937;font-weight:700;align-self:center"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tablas (mismo formato que el módulo Auditorías) -->
+      <div id="nofin-tables"></div>
+    </div><!-- /view-nofinalizadas -->
+
     <!-- ════════ VISTA DESEMPEÑO AUDITORES ════════ -->
     <div id="view-desempeno" style="display:none;flex-direction:column;gap:14px"></div>
-
-    <!-- ════════ VISTA EVALUACIÓN KPIs (Mermas / Ajustes / Auditorías) ════════ -->
-    <div id="view-evaluacion" style="display:none;flex-direction:column;gap:16px"></div>
 
     <!-- ════════ VISTA GENERADOR DE DASHBOARD EJECUTIVO (todas las razones) ════════
          Herramienta independiente (su propio HTML/CSS/JS) cargada en un
@@ -795,10 +819,10 @@
             <input type="checkbox" class="eu-vista-cb" value="finalizadas" style="width:14px;height:14px;cursor:pointer"> ✅ Finalizadas
           </label>
           <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;font-weight:600">
-            <input type="checkbox" class="eu-vista-cb" value="desempeno" style="width:14px;height:14px;cursor:pointer"> 📊 Desempeño
+            <input type="checkbox" class="eu-vista-cb" value="nofinalizadas" style="width:14px;height:14px;cursor:pointer"> ⛔ No Finalizadas
           </label>
           <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;font-weight:600">
-            <input type="checkbox" class="eu-vista-cb" value="evaluacion" style="width:14px;height:14px;cursor:pointer"> 🎯 Evaluación KPIs
+            <input type="checkbox" class="eu-vista-cb" value="desempeno" style="width:14px;height:14px;cursor:pointer"> 📊 Desempeño
           </label>
           <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;font-weight:600">
             <input type="checkbox" class="eu-vista-cb" value="documentos" style="width:14px;height:14px;cursor:pointer"> 📄 Documentos
