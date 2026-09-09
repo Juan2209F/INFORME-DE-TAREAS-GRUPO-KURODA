@@ -127,6 +127,8 @@
       <div class="stat"><b id="ds-fin">0</b><span>Finalizadas</span></div>
       <div class="stat"><b id="ds-tar">0</b><span>Tareas</span></div>
       <div class="stat"><b id="ds-pend">0</b><span>Pendientes</span></div>
+      <div class="stat" style="cursor:pointer" onclick="setView('nofinalizadas')" title="Auditorías con al menos una tarea expirada — ver en No Finalizadas"><b id="ds-audexp" style="color:var(--k-dark)">0</b><span>Aud. expiradas</span></div>
+      <div class="stat" style="cursor:pointer" onclick="setView('nofinalizadas')" title="Total de tareas en estatus Expirado — ver en No Finalizadas"><b id="ds-tarexp" style="color:var(--k-dark)">0</b><span>Tareas expiradas</span></div>
       <div class="filters-spacer"></div>
       <span id="staged-box"></span>
       <button class="btn btn-ghost" id="btn-recargar" onclick="recargarDatos()" title="Traer los últimos cambios desde Supabase">🔄 Recargar</button>
