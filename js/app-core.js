@@ -1543,23 +1543,29 @@ function _buildConsumosXLSX(data){
 }
 
 /* Barra de datos: En curso = mismo cálculo EXACTO que usa la vista de
-   Auditorías (auditoriasVigentesDeduplicadas: descarta las que ya no tienen
-   tareas pendientes y omite duplicados por tienda/centro+mes+%cumplimiento,
-   típicos de volver a cargar el mismo Excel). Antes este contador usaba
+   Auditorías (auditoriasVigentesDeduplicadas + exclusión de las que tienen
+   tareas expiradas: ver renderAuditoriasView). Antes este contador usaba
    estaFinalizada(), que solo detecta el archivo en Finalizadas y por eso
    podía mostrar un total mayor al de la vista real de Auditorías.
-   Finalizadas = archivadas. Se llama en refreshAll y también al terminar
-   loadFinalizadas (cargan async). */
+   Finalizadas = archivadas. Aud. expiradas / Tareas expiradas = mismo
+   universo que pinta el módulo "No Finalizadas": auditorías vigentes con
+   al menos una tarea real en estatus Expirado, y el total de esas tareas.
+   Se llama en refreshAll y también al terminar loadFinalizadas (cargan async). */
 function actualizarStrip(){
   var elV=document.getElementById('ds-aud');
   var finList=(typeof FINALIZADAS!=='undefined')?FINALIZADAS.filter(function(f){return !f._pending;}):[];
-  var vigentes=(typeof auditoriasVigentesDeduplicadas==='function')
-    ? auditoriasVigentesDeduplicadas(STORE.auditorias).length
-    : STORE.auditorias.length;
-  if(elV)elV.textContent=vigentes;
+  var vigentesTodas=(typeof auditoriasVigentesDeduplicadas==='function')
+    ? auditoriasVigentesDeduplicadas(STORE.auditorias)
+    : STORE.auditorias.slice();
+  var conExpiradas=vigentesTodas.filter(function(a){return calcAudStats(a,vigentesTodas).expiradas>0;});
+  var vigentesSinExpiradas=vigentesTodas.length-conExpiradas.length;
+  if(elV)elV.textContent=vigentesSinExpiradas;
   var elF=document.getElementById('ds-fin'); if(elF)elF.textContent=finList.length;
   var elT=document.getElementById('ds-tar'); if(elT)elT.textContent=STORE.tareas.length;
   var elP=document.getElementById('ds-pend'); if(elP)elP.textContent=STORE.tareas.filter(esPendiente).length;
+  var elAE=document.getElementById('ds-audexp'); if(elAE)elAE.textContent=conExpiradas.length;
+  var elTE=document.getElementById('ds-tarexp');
+  if(elTE)elTE.textContent=STORE.tareas.filter(function(t){return norm(t.estado).includes('expirad');}).length;
 }
 
 function refreshAll(){
