@@ -2668,7 +2668,20 @@ window.addEventListener('message',function(ev){
 });
 /* Si el tema cambia mientras Documentos ya está abierto, se le avisa en
    vivo (independientemente de qué botón haya disparado el cambio). */
-new MutationObserver(function(){syncDocsTheme();})
+new MutationObserver(function(){
+  syncDocsTheme();
+  /* Las tablas de Auditorías/Finalizadas/No Finalizadas "hornean" los
+     colores de fondo de cada fila según el tema en el momento en que se
+     generan (para poder pintarlas de un tono translúcido en oscuro y de
+     un tono pastel en claro). Si el tema cambia DESPUÉS de que la tabla ya
+     se pintó, esos colores quedan fijos en el HTML viejo — el texto (que
+     sí sigue las variables CSS) puede terminar casi ilegible sobre un
+     fondo pensado para el otro tema. Se vuelve a pintar la vista activa
+     para que sus colores siempre coincidan con el tema actual. */
+  if(VIEW==='auditorias'&&typeof renderAuditoriasView==='function')renderAuditoriasView();
+  else if(VIEW==='finalizadas'&&typeof renderFinalizadas==='function')renderFinalizadas();
+  else if(VIEW==='nofinalizadas'&&typeof renderNoFinalizadas==='function')renderNoFinalizadas();
+})
   .observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 
 function setView(v){
