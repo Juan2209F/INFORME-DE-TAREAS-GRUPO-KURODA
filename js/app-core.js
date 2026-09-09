@@ -641,6 +641,12 @@ async function generarImport(){
   }
 }
 
+/* Una vez que una tarea llega a estatus ⛔ Expirado, ese estatus queda
+   congelado para siempre: ni las recargas/reimportaciones de Excel ni
+   ninguna otra sincronización automática deben volver a pisarlo, sin
+   importar qué estatus traiga el archivo nuevo. */
+function esEstadoExpirado(v){return norm(v||'').includes('expirad');}
+
 /* Compara una tarea staged con la fila de Supabase — true si son idénticas */
 function tareaIgualSupabase(t, ex){
   function n(v){return (v===null||v===undefined||v==='')?'':String(v).trim();}
@@ -653,7 +659,9 @@ function tareaIgualSupabase(t, ex){
          n(t.actividad)===n(ex.actividad) &&
          n(t.nombre)===n(ex.nombre) &&
          n(t.tipoTarea)===n(ex.tipo_tarea) &&
-         n(t.estado)===n(ex.estado) &&
+         /* Si la tarea YA está Expirada en Supabase, se ignora cualquier
+            diferencia de estado que traiga el archivo — queda omitida. */
+         (esEstadoExpirado(ex.estado) || n(t.estado)===n(ex.estado)) &&
          fdate(t.fechaCreacion)===fdate(ex.fecha_creacion) &&
          /* fecha_term NO se compara: es de captura manual y no debe verse
             afectada por cargas/actualizaciones de Excel (ver toRowActualizar). */
@@ -669,7 +677,9 @@ function camposDiferentes(t, ex){
   function fdate(v){return v?String(v).split('T')[0]:'';}
   function corto(v,max){v=n(v)||'—';return v.length>max?v.slice(0,max)+'…':v;}
   var campos=[];
-  if(n(t.estado)!==n(ex.estado))campos.push('Estado: "'+corto(ex.estado,30)+'" → "'+corto(t.estado,30)+'"');
+  /* Tareas ya Expiradas: el estado queda congelado, no se marca como
+     "diferencia" aunque el archivo traiga otro estatus (ver esEstadoExpirado). */
+  if(!esEstadoExpirado(ex.estado) && n(t.estado)!==n(ex.estado))campos.push('Estado: "'+corto(ex.estado,30)+'" → "'+corto(t.estado,30)+'"');
   if(fdate(t.fechaCumpl)!==fdate(ex.fecha_cumpl))campos.push('F.Cumplimiento: "'+corto(fdate(ex.fecha_cumpl),20)+'" → "'+corto(fdate(t.fechaCumpl),20)+'"');
   if(fdate(t.fechaCreacion)!==fdate(ex.fecha_creacion))campos.push('F.Creación: "'+corto(fdate(ex.fecha_creacion),20)+'" → "'+corto(fdate(t.fechaCreacion),20)+'"');
   if(n(t.nombre)!==n(ex.nombre))campos.push('Nombre: "'+corto(ex.nombre,40)+'" → "'+corto(t.nombre,40)+'"');
@@ -731,8 +741,15 @@ async function commitToSupabase(nuevas, actualizar, audStaged, omitidas, prevTar
   /* Para ACTUALIZAR tareas ya existentes: igual que toRow pero sin fecha_term.
      La fecha de término es de captura manual (modal Editar tarea); las cargas/
      recargas de Excel nunca deben pisarla, solo se sincronizan el resto de
-     campos (estado, fecha_cumpl, etc.) con lo que trae el archivo. */
-  function toRowActualizar(t){var row=toRow(t);delete row.fecha_term;return row;}
+     campos (estado, fecha_cumpl, etc.) con lo que trae el archivo.
+     EXCEPCIÓN: si la tarea YA está Expirada en Supabase (exPrev), su estado
+     queda congelado — se omite del payload para que ninguna reimportación
+     de Excel pueda revertirla a otro estatus. */
+  function toRowActualizar(t,exPrev){
+    var row=toRow(t);delete row.fecha_term;
+    if(exPrev&&esEstadoExpirado(exPrev.estado))delete row.estado;
+    return row;
+  }
 
   try{
     /* INSERT nuevas — con upsert por tarea_id: si alguna ya existiera en
@@ -756,7 +773,7 @@ async function commitToSupabase(nuevas, actualizar, audStaged, omitidas, prevTar
     /* UPDATE las que cambiaron (con permiso) */
     if(!err&&actualizar.length){
       for(var j=0;j<actualizar.length;j++){
-        var row=toRowActualizar(actualizar[j]);
+        var row=toRowActualizar(actualizar[j],(prevTareas||[])[j]);
         var ru=await client.from('tareas').update(row).eq('tarea_key',row.tarea_key);
         if(ru.error){err='Update: '+ru.error.message;break;}
         updOk++;
@@ -1556,7 +1573,6 @@ function render(){
   const tareas=filteredTareas(), aud=filteredAuditorias();
   document.getElementById('rec-count').textContent=`${tareas.length} tarea(s) · ${aud.length} auditoría(s)`;
   if(VIEW==='dash')renderDashboard(tareas,aud);
-  else if(VIEW==='evaluacion'){if(typeof renderEvaluacion==='function')renderEvaluacion();}
   else if(VIEW==='desempeno'){if(typeof renderDesempeno==='function')renderDesempeno();}
   else if(VIEW==='auditorias'){ renderAuditoriasView(); }
   else renderTareasView(tareas);
@@ -2665,7 +2681,7 @@ function setView(v){
   VIEW=v;
   /* La barra de filtros globales (Razón/Centro/Tienda/Tipo/Fechas/Mes/Rango)
      ahora es EXCLUSIVA de Inicio. El resto de vistas (Tareas, Actividades,
-     Auditorías, Ajustes, Mermas, Finalizadas, Desempeño, Evaluación KPIs,
+     Auditorías, Ajustes, Mermas, Finalizadas, No Finalizadas, Desempeño,
      Documentos y Generador) ya tienen sus propios filtros locales o usan
      los menús de filtro emergentes de los botones PNG, así que mostrar la
      barra global ahí solo confunde. Los <select>/<input> de la barra siguen
@@ -2697,8 +2713,8 @@ function setView(v){
   if(vfin)vfin.style.display=v==='finalizadas'?'flex':'none';
   var vdesp=document.getElementById('view-desempeno');
   if(vdesp)vdesp.style.display=v==='desempeno'?'block':'none';
-  var vev=document.getElementById('view-evaluacion');
-  if(vev)vev.style.display=v==='evaluacion'?'flex':'none';
+  var vnf=document.getElementById('view-nofinalizadas');
+  if(vnf)vnf.style.display=v==='nofinalizadas'?'flex':'none';
   var vgen=document.getElementById('view-generador');
   if(vgen)vgen.style.display=v==='generador'?'flex':'none';
   var vdoc=document.getElementById('view-documentos');
@@ -2717,8 +2733,8 @@ function setView(v){
   if(nfin)nfin.classList.toggle('active',v==='finalizadas');
   var ndesp=document.getElementById('nav-desempeno');
   if(ndesp)ndesp.classList.toggle('active',v==='desempeno');
-  var nev=document.getElementById('nav-evaluacion');
-  if(nev)nev.classList.toggle('active',v==='evaluacion');
+  var nnf=document.getElementById('nav-nofinalizadas');
+  if(nnf)nnf.classList.toggle('active',v==='nofinalizadas');
   var ngen=document.getElementById('nav-generador');
   if(ngen)ngen.classList.toggle('active',v==='generador');
   var ndoc=document.getElementById('nav-documentos');
@@ -2742,14 +2758,9 @@ function setView(v){
     if(loaders.length) Promise.all(loaders).then(renderDesempeno);
     else renderDesempeno();
   }
-  else if(v==='evaluacion'){
-    var loaders2=[];
-    if(!AJUSTES.length) loaders2.push(loadAjustes());
-    if(!MERMAS.length) loaders2.push(loadMermas());
-    if(!ACTIVIDADES.length) loaders2.push(loadActividades());
-    if(!STORE.auditorias.length) loaders2.push(loadDataFromSupabase());
-    if(loaders2.length) Promise.all(loaders2).then(renderEvaluacion);
-    else renderEvaluacion();
+  else if(v==='nofinalizadas'){
+    if(!STORE.auditorias.length) loadDataFromSupabase().then(renderNoFinalizadas);
+    else renderNoFinalizadas();
   }
   else if(v==='generador'){
     var ifr=document.getElementById('iframe-generador');
@@ -3461,6 +3472,89 @@ function renderAuditoriasView(){
     html+='<div class="slbl" style="color:var(--k-blue);margin-bottom:8px"><span class="dot" style="background:var(--k-blue)"></span>AUDITORIAS DE COLABORACION <span style="font-size:10px;color:var(--muted);font-weight:500">(0 con los filtros actuales)</span></div>';
   if(!grupos['__orden']||!grupos['__orden'].length)
     html+='<div class="slbl" style="color:var(--k-greenok);margin-bottom:8px"><span class="dot" style="background:var(--k-greenok)"></span>ORDEN Y LIMPIEZA <span style="font-size:10px;color:var(--muted);font-weight:500">(0 con los filtros actuales)</span></div>';
+
+  cont.innerHTML=html;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   MÓDULO AUDITORÍAS NO FINALIZADAS — auditorías vigentes con al menos
+   una tarea en estatus ⛔ Expirado. Reutiliza exactamente la misma
+   infraestructura que Auditorías (calcAudStats, auditoriasVigentesDeduplicadas,
+   audTablaPorClase/audTablaPorClaseCartera) para heredar el mismo formato,
+   colores y comportamiento de sincronización — solo cambia el filtro final.
+════════════════════════════════════════════════════════════════════ */
+function fillNoFinFilters(){
+  var razFA=(document.getElementById('f-razon')||{}).value||'ALL';
+  var audFA=STORE.auditorias.filter(function(a){return razFA==='ALL'||razKey(a.razon)===razKey(razFA);});
+  var mesesVistos={};
+  audFA.forEach(function(a){
+    if(!a.mes)return;
+    var k=norm(a.mes);
+    if(!mesesVistos[k])mesesVistos[k]=a.mes.charAt(0).toUpperCase()+a.mes.slice(1).toLowerCase();
+  });
+  var meses=Object.values(mesesVistos).sort(function(a,b){return mesIndexFromNombre(a)-mesIndexFromNombre(b);});
+  var tiendas=[...new Set(audFA.map(a=>a.tienda).filter(Boolean))].sort();
+  var centros=[...new Set(audFA.map(a=>a.centro).filter(Boolean))].sort();
+  var sM=document.getElementById('nf-f-mes'), sT=document.getElementById('nf-f-tienda'), sC=document.getElementById('nf-f-centro');
+  if(!sM)return;
+  var vM=sM.value,vT=sT.value,vC=sC.value;
+  sM.innerHTML='<option value="ALL">Todos</option>'+meses.map(m=>'<option>'+m+'</option>').join('');
+  sT.innerHTML='<option value="ALL">Todas</option>'+limpiarOpciones(tiendas).map(t=>'<option>'+t+'</option>').join('');
+  sC.innerHTML='<option value="ALL">Todos</option>'+limpiarOpciones(centros).map(c=>'<option>'+c+'</option>').join('');
+  sM.value=vM;sT.value=vT;sC.value=vC;
+}
+
+function filteredAudByNoFin(){
+  var mes=document.getElementById('nf-f-mes').value;
+  var tienda=document.getElementById('nf-f-tienda').value;
+  var centro=document.getElementById('nf-f-centro').value;
+  var razon=(document.getElementById('f-razon')||{}).value||'ALL';
+  return STORE.auditorias.filter(function(a){
+    if(razon!=='ALL'&&razKey(a.razon)!==razKey(razon))return false;
+    if(mes!=='ALL'&&norm(a.mes)!==norm(mes))return false;
+    if(tienda!=='ALL'&&norm(a.tienda)!==norm(tienda))return false;
+    if(centro!=='ALL'&&norm(a.centro)!==norm(centro))return false;
+    return true;
+  });
+}
+
+function renderNoFinalizadas(){
+  fillNoFinFilters();
+  var base=auditoriasVigentesDeduplicadas(filteredAudByNoFin());
+  /* Solo auditorías con al menos una tarea real en estatus Expirado */
+  var arr=base.filter(function(a){return calcAudStats(a,base).expiradas>0;});
+  var cnt=document.getElementById('nf-count');
+  if(cnt)cnt.textContent=arr.length?arr.length+' auditoría(s) con tareas expiradas':'';
+  var cont=document.getElementById('nofin-tables');
+  if(!cont)return;
+  if(!arr.length){cont.innerHTML='<div class="empty" style="padding:30px">Sin auditorías con tareas expiradas. Verifica los filtros o carga datos desde el módulo principal.</div>';return;}
+
+  function claseCanonica(a){
+    var c=norm(a.clase||'');
+    if(c.includes('colaboracion')||c.includes('colab'))return '__colab';
+    if(c.includes('orden')||c.includes('limpieza'))return '__orden';
+    if(c.includes('cartera'))return '__cartera';
+    return a.clase||'SIN CLASE';
+  }
+
+  var grupos={};
+  arr.forEach(function(a){
+    var k=claseCanonica(a);
+    if(!grupos[k])grupos[k]=[];
+    grupos[k].push(a);
+  });
+
+  var html='';
+  if(grupos['__colab']&&grupos['__colab'].length)
+    html+=audTablaPorClaseCartera('AUDITORIAS DE COLABORACION','#2563eb',grupos['__colab'],false);
+  if(grupos['__orden']&&grupos['__orden'].length)
+    html+=audTablaPorClaseCartera('ORDEN Y LIMPIEZA','#16a34a',grupos['__orden'],false);
+  if(grupos['__cartera']&&grupos['__cartera'].length)
+    html+=audTablaPorClaseCartera('AUDITORIA CARTERA','#7c3aed',grupos['__cartera'],true);
+  Object.keys(grupos).forEach(function(k){
+    if(k==='__colab'||k==='__orden'||k==='__cartera')return;
+    html+=audTablaPorClase(k.toUpperCase(),'#7c8696',grupos[k]);
+  });
 
   cont.innerHTML=html;
 }
@@ -6248,14 +6342,14 @@ function applyVistasRestriction(){
     'nav-dash':'dash','nav-tareas':'tareas','nav-pend':'sucursales',
     'nav-actividades':'actividades','nav-auditorias':'auditorias',
     'nav-ajustes':'ajustes','nav-mermas':'mermas','nav-finalizadas':'finalizadas',
-    'nav-desempeno':'desempeno','nav-evaluacion':'evaluacion',
+    'nav-nofinalizadas':'nofinalizadas','nav-desempeno':'desempeno',
     'nav-generador':'generador','nav-documentos':'documentos','nav-usuarios':'usuarios'
   };
   /* Módulos restringidos para Auditor Jr: solo con acceso explícito.
      'usuarios' se quitó de aquí a propósito: la gestión de usuarios es
      exclusiva de admin/admin_auditor y ya no puede habilitarse para
      'auditor' aunque se le marque en sus vistas_permitidas. */
-  var RESTRINGIDAS_JR=['finalizadas','desempeno','evaluacion'];
+  var RESTRINGIDAS_JR=['finalizadas','nofinalizadas','desempeno'];
   var visibles=[];
   Object.entries(navMap).forEach(function(e){
     var key=e[1],permitido;
@@ -7473,241 +7567,6 @@ function renderMrDonut(arr){
     '<span class="legend-lbl">A tiempo</span><span class="legend-val" style="margin-left:12px">'+ok+'</span></div>'+
     '<div class="legend-item"><span class="legend-dot" style="background:#dc2626"></span>'+
     '<span class="legend-lbl">Destiempo</span><span class="legend-val" style="margin-left:12px">'+mal+'</span></div>';
-}
-
-/* ════════════════════════════════════════════════════════════════════
-   MÓDULO EVALUACIÓN KPIs — Mermas · Ajustes · Auditorías (dinámico)
-════════════════════════════════════════════════════════════════════ */
-var _evCharts={};
-function evDestroy(k){if(_evCharts[k]){_evCharts[k].destroy();_evCharts[k]=null;}}
-
-function evKpiCard(label,pct,n,color,icon,note){
-  var safe=isFinite(pct)?Math.round(pct):0;
-  return '<div class="ev-kpi-card">'+
-    '<div class="ev-kpi-top"><span class="ev-kpi-icon" style="background:linear-gradient(135deg,'+color+',#1a1f3c)">'+icon+'</span>'+
-    '<div><div class="ev-kpi-lbl">'+label+'</div><div class="ev-kpi-n">'+n+' registros</div></div></div>'+
-    '<div class="ev-kpi-bar"><div class="ev-kpi-bar-fill" style="width:'+safe+'%;background:linear-gradient(90deg,'+color+',#0ce7fe)"></div></div>'+
-    '<div class="ev-kpi-pct" style="color:'+color+'">'+safe+'% cumplimiento</div>'+
-    (note?'<div style="font-size:10px;color:var(--muted);font-weight:600;margin-top:6px">'+note+'</div>':'')+
-  '</div>';
-}
-
-function evMesesUltimos(n){
-  var MN=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
-  var out=[],d=new Date();
-  d.setDate(1);
-  for(var i=n-1;i>=0;i--){
-    var dd=new Date(d.getFullYear(),d.getMonth()-i,1);
-    out.push({key:MN[dd.getMonth()],año:dd.getFullYear(),mesIdx:dd.getMonth()});
-  }
-  return out;
-}
-
-var _evMesManual=false; /* true cuando el usuario elige mes a mano en Evaluación */
-function evMesChanged(){_evMesManual=true;renderEvaluacion();}
-function renderEvaluacion(){
-  var host=document.getElementById('view-evaluacion');
-  if(!host)return;
-  if(!host.dataset.built){
-    host.dataset.built='1';
-    host.innerHTML=
-    '<div class="ev-hdr">'+
-      '<div><h2>🎯 Evaluación de KPIs</h2><p>Cumplimiento de Mermas, Ajustes, Auditorías y Actividades — actualizado en vivo</p></div>'+
-      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
-        '<select id="ev-mes" onchange="evMesChanged()" title="Mes (por defecto el mes en curso)" style="padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft)"></select>'+
-        '<div style="position:relative">'+
-          '<span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--muted);pointer-events:none">🔍</span>'+
-          '<select id="ev-auditor" onchange="renderEvaluacion()" style="padding:7px 10px 7px 30px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft)"></select>'+
-        '</div>'+
-        '<button class="btn btn-blue" onclick="renderEvaluacion()">⟳ Actualizar</button>'+
-      '</div>'+
-    '</div>'+
-    '<div class="ev-kpi-grid" id="ev-kpi-grid"></div>'+
-    '<div class="ev-chart-grid">'+
-      '<div class="card ev-chart-card"><h3>Tendencia de cumplimiento por mes</h3><div class="ev-chart-box" style="height:240px"><canvas id="ev-trend"></canvas></div></div>'+
-      '<div class="card ev-chart-card"><h3>Ajustes: a tiempo vs destiempo</h3><div class="ev-chart-box" style="height:240px"><canvas id="ev-aj-donut"></canvas></div></div>'+
-      '<div class="card ev-chart-card"><h3>Mermas: a tiempo vs destiempo</h3><div class="ev-chart-box" style="height:240px"><canvas id="ev-mr-donut"></canvas></div></div>'+
-      '<div class="card ev-chart-card" style="grid-column:span 2"><h3>Auditorías: % resuelto promedio por clase</h3><div class="ev-chart-box" style="height:260px"><canvas id="ev-aud-bar"></canvas></div></div>'+
-      '<div class="card ev-chart-card"><h3>Actividades: a tiempo vs fuera de tiempo</h3><div class="ev-chart-box" style="height:240px"><canvas id="ev-act-donut"></canvas></div></div>'+
-    '</div>';
-  }
-
-  /* ── Filtros: barra global aporta razón/tienda/fechas; el mes lo controla
-     este módulo con su propio selector (por defecto el mes en curso). ── */
-  var gf=(typeof getFilterState==='function')?getFilterState():null;
-  function refDate(s){return s?new Date(String(s).split('T')[0]+'T12:00:00'):null;}
-  /* gBase: razón + tienda + rango de fechas de la barra global (SIN mes: el mes
-     se aplica aparte para poder mostrar la tendencia de 6 meses completa). */
-  function gBase(rec,fechaRef){
-    if(!gf)return true;
-    if(gf.razon&&gf.razon!=='ALL'){
-      var _rz=rec.razon||razonDeCentro(centroDeTienda(rec.tienda||''));
-      if(razKey(_rz)!==razKey(gf.razon))return false;
-    }
-    if(gf.tienda&&gf.tienda!=='ALL'&&norm(rec.tienda||'')!==norm(gf.tienda))return false;
-    if(gf.desde||gf.hasta){
-      if(!fechaRef)return false;
-      if(gf.desde&&fechaRef<gf.desde)return false;
-      if(gf.hasta&&fechaRef>gf.hasta)return false;
-    }
-    return true;
-  }
-
-  var MNFULL=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
-
-  /* Filtro por auditor (solo Ajustes y Mermas) */
-  var selEl=document.getElementById('ev-auditor');
-  var audSel=selEl?selEl.value:'ALL';
-  var auds=getAuditores();
-  if(selEl){
-    selEl.innerHTML='<option value="ALL">Todos los auditores</option>'+
-      auds.map(function(n){return'<option value="'+esc(n)+'"'+(norm(n)===norm(audSel)?' selected':'')+'>'+esc(n)+'</option>';}).join('');
-    if(audSel!=='ALL'&&!auds.some(function(n){return norm(n)===norm(audSel);}))audSel='ALL';
-    selEl.value=audSel;
-  }
-  function audMatch(name){return audSel==='ALL'||norm(name||'')===norm(audSel);}
-
-  /* Auditorías base (razón/centro/tienda/fechas de la barra global, SIN mes) */
-  var audAll=(STORE.auditorias||[]).filter(function(a){
-    if(gf){
-      if(gf.razon&&gf.razon!=='ALL'&&razKey(a.razon)!==razKey(gf.razon))return false;
-      if(gf.centro&&gf.centro!=='ALL'&&norm(a.centro)!==norm(gf.centro))return false;
-      if(gf.tienda&&gf.tienda!=='ALL'&&norm(a.tienda)!==norm(gf.tienda))return false;
-      if(gf.desde||gf.hasta){var d=refDate(a.fecha);if(!d)return false;if(gf.desde&&d<gf.desde)return false;if(gf.hasta&&d>gf.hasta)return false;}
-    }
-    return true;
-  });
-
-  /* Datasets base (todos los meses) para la tendencia */
-  var AJall=AJUSTES.filter(function(a){return audMatch(a.auditor)&&gBase(a,refDate(a.fechaAjuste||a.fechaCorreo));});
-  var MRall=MERMAS.filter(function(m){return audMatch(m.auditor)&&gBase(m,refDate(m.fechaVal||m.fechaAut));});
-  /* Actividades: mismo criterio de asignado que Desempeño (asignado, o si no,
-     quien la creó), y misma comparación de fechas (Real Fin vs Est. Fin) que
-     ya se usa ahí para no divergir entre módulos. */
-  var ACTall=ACTIVIDADES.filter(function(a){return audMatch(a.asignado||a.creadoPor)&&gBase(a,refDate(a.realFin||a.estFin));});
-
-  /* Selector de mes propio: por defecto el mes en curso (o el más reciente con
-     datos). Se recalcula salvo elección manual (_evMesManual). */
-  var mesSel=document.getElementById('ev-mes');
-  if(mesSel){
-    var vEv=mesSel.value;
-    var mesHoyEv=MNFULL[new Date().getMonth()];
-    function _hayMesEv(mn){return AJall.concat(MRall).some(function(x){return (x.mes||'').toUpperCase()===mn;})||audAll.some(function(a){return (a.mes||'').toUpperCase()===mn;})||ACTall.some(function(a){return (a.mes||'').toUpperCase()===mn;});}
-    var tgtEv=mesHoyEv;
-    if(!_hayMesEv(mesHoyEv)){
-      var bi=-1;audAll.concat(AJall,MRall,ACTall).forEach(function(x){var i=MNFULL.indexOf((x.mes||'').toUpperCase());if(i>bi)bi=i;});
-      if(bi>=0)tgtEv=MNFULL[bi];
-    }
-    mesSel.innerHTML='<option value="ALL">Todos los meses</option>'+MNFULL.map(function(m){return'<option value="'+m+'">'+m.charAt(0)+m.slice(1).toLowerCase()+'</option>';}).join('');
-    if(_evMesManual&&vEv&&[...mesSel.options].some(function(o){return o.value===vEv;}))mesSel.value=vEv;
-    else mesSel.value=[...mesSel.options].some(function(o){return o.value===tgtEv;})?tgtEv:'ALL';
-  }
-  var mesEv=mesSel?mesSel.value:'ALL';
-  function mMatchEv(mn){return mesEv==='ALL'||(String(mn||'').toUpperCase()===mesEv);}
-
-  /* Datasets del mes seleccionado (para KPIs y donas) */
-  var AJ=AJall.filter(function(a){return mMatchEv(a.mes);});
-  var MR=MRall.filter(function(m){return mMatchEv(m.mes);});
-  var audArr=audAll.filter(function(a){return mMatchEv(a.mes);});
-  var ACT=ACTall.filter(function(a){return mMatchEv(a.mes);});
-
-  var ajOk=AJ.filter(function(a){return a.condicion==='A tiempo';}).length;
-  var ajTot=AJ.length;
-  var mrOk=MR.filter(function(m){return m.condicion==='A tiempo';}).length;
-  var mrTot=MR.length;
-  /* Actividades: cumplida = Completado + a tiempo (mismo criterio que
-     Desempeño vía actividadEnTiempoDesempeno). El total considera todas las
-     actividades del periodo, no solo las completadas — igual filosofía que
-     Ajustes/Mermas, donde el total incluye lo que aún no se resuelve. */
-  var actOk=ACT.filter(function(a){return norm(a.estado||'').includes('completad')&&actividadEnTiempoDesempeno(a);}).length;
-  var actTot=ACT.length;
-
-  /* % resuelto EN VIVO (coherente con el módulo de Auditorías); si no hay tareas
-     cruzables, cae al valor almacenado. */
-  function prPct(a){
-    if(typeof calcAudStats==='function'){
-      var s=calcAudStats(a,audArr);
-      if(s&&isFinite(s.pctResuelto)&&s.tareas>0)return s.pctResuelto*100;
-    }
-    var v=parseFloat(a.pctResuelto);if(!isFinite(v))v=0;return v>1.5?v:v*100;
-  }
-  var audProm=audArr.length?audArr.reduce(function(s,a){return s+prPct(a);},0)/audArr.length:0;
-
-  document.getElementById('ev-kpi-grid').innerHTML=
-    evKpiCard('Ajustes',ajTot?ajOk/ajTot*100:0,ajTot,'#4318ff','⚖️')+
-    evKpiCard('Mermas',mrTot?mrOk/mrTot*100:0,mrTot,'#0ce7fe','🗂️')+
-    evKpiCard('Auditorías',audProm,audArr.length,'#01b574','🔍',audSel!=='ALL'?'Global · sin desglose por auditor':'')+
-    evKpiCard('Actividades',actTot?actOk/actTot*100:0,actTot,'#f59e0b','📋');
-
-  /* Tendencia últimos 6 meses — usa los datasets base (TODOS los meses) para no
-     colapsar al filtrar por un mes concreto. */
-  var meses=evMesesUltimos(6);
-  var serieAj=[],serieMr=[],serieAud=[],serieAct=[],lbls=[];
-  meses.forEach(function(m){
-    lbls.push(m.key);
-    var ajM=AJall.filter(function(a){return (a.mes||'').toUpperCase()===MNFULL[m.mesIdx]&&Number(a.año)===m.año;});
-    var mrM=MRall.filter(function(x){return (x.mes||'').toUpperCase()===MNFULL[m.mesIdx]&&Number(x.año)===m.año;});
-    var audM=audAll.filter(function(a){return (a.mes||'').toUpperCase().startsWith(MNFULL[m.mesIdx].slice(0,3));});
-    var actM=ACTall.filter(function(a){return (a.mes||'').toUpperCase().startsWith(MNFULL[m.mesIdx].slice(0,3));});
-    serieAj.push(ajM.length?Math.round(ajM.filter(function(a){return a.condicion==='A tiempo';}).length/ajM.length*100):null);
-    serieMr.push(mrM.length?Math.round(mrM.filter(function(x){return x.condicion==='A tiempo';}).length/mrM.length*100):null);
-    serieAud.push(audM.length?Math.round(audM.reduce(function(s,a){return s+prPct(a);},0)/audM.length):null);
-    serieAct.push(actM.length?Math.round(actM.filter(function(a){return norm(a.estado||'').includes('completad')&&actividadEnTiempoDesempeno(a);}).length/actM.length*100):null);
-  });
-
-  evDestroy('trend');
-  _evCharts.trend=new Chart(document.getElementById('ev-trend'),{
-    type:'line',
-    data:{labels:lbls,datasets:[
-      {label:'Ajustes',data:serieAj,borderColor:'#4318ff',backgroundColor:'rgba(67,24,255,.15)',tension:.4,fill:true,spanGaps:true},
-      {label:'Mermas',data:serieMr,borderColor:'#0ce7fe',backgroundColor:'rgba(12,231,254,.15)',tension:.4,fill:true,spanGaps:true},
-      {label:'Auditorías',data:serieAud,borderColor:'#01b574',backgroundColor:'rgba(1,181,116,.15)',tension:.4,fill:true,spanGaps:true},
-      {label:'Actividades',data:serieAct,borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,.15)',tension:.4,fill:true,spanGaps:true}
-    ]},
-    options:{responsive:true,maintainAspectRatio:false,animation:{duration:600},
-      scales:{y:{min:0,max:100,ticks:{callback:function(v){return v+'%';}}}},
-      plugins:{legend:{position:'bottom',labels:{boxWidth:10}}}}
-  });
-
-  evDestroy('ajdonut');
-  _evCharts.ajdonut=new Chart(document.getElementById('ev-aj-donut'),{
-    type:'doughnut',
-    data:{labels:['A tiempo','Destiempo'],datasets:[{data:[ajOk,ajTot-ajOk],backgroundColor:['#4318ff','#fc8181'],borderWidth:0}]},
-    options:{responsive:true,maintainAspectRatio:false,cutout:'70%',animation:{duration:500},plugins:{legend:{position:'bottom',labels:{boxWidth:10}}}}
-  });
-
-  evDestroy('mrdonut');
-  _evCharts.mrdonut=new Chart(document.getElementById('ev-mr-donut'),{
-    type:'doughnut',
-    data:{labels:['A tiempo','Destiempo'],datasets:[{data:[mrOk,mrTot-mrOk],backgroundColor:['#0ce7fe','#fbb140'],borderWidth:0}]},
-    options:{responsive:true,maintainAspectRatio:false,cutout:'70%',animation:{duration:500},plugins:{legend:{position:'bottom',labels:{boxWidth:10}}}}
-  });
-
-  /* Auditorías por clase */
-  var porClase={};
-  audArr.forEach(function(a){
-    var c=a.clase||'SIN CLASE';
-    if(!porClase[c])porClase[c]={s:0,n:0};
-    porClase[c].s+=prPct(a);porClase[c].n++;
-  });
-  var clases=Object.keys(porClase);
-  var datosClase=clases.map(function(c){return Math.round(porClase[c].s/porClase[c].n);});
-  evDestroy('audbar');
-  _evCharts.audbar=new Chart(document.getElementById('ev-aud-bar'),{
-    type:'bar',
-    data:{labels:clases.map(function(c){return c.length>22?c.slice(0,22)+'…':c;}),
-      datasets:[{label:'% resuelto promedio',data:datosClase,backgroundColor:'#9f7aea',borderRadius:8,maxBarThickness:38}]},
-    options:{responsive:true,maintainAspectRatio:false,animation:{duration:600},
-      scales:{y:{min:0,max:100,ticks:{callback:function(v){return v+'%';}}}},
-      plugins:{legend:{display:false}}}
-  });
-
-  evDestroy('actdonut');
-  _evCharts.actdonut=new Chart(document.getElementById('ev-act-donut'),{
-    type:'doughnut',
-    data:{labels:['A tiempo','Fuera de tiempo / pendiente'],datasets:[{data:[actOk,actTot-actOk],backgroundColor:['#f59e0b','#94a3b8'],borderWidth:0}]},
-    options:{responsive:true,maintainAspectRatio:false,cutout:'70%',animation:{duration:500},plugins:{legend:{position:'bottom',labels:{boxWidth:10}}}}
-  });
 }
 
 function mrFormHtml(m){
