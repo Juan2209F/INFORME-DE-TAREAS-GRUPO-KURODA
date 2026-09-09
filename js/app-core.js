@@ -2003,7 +2003,7 @@ function renderTareasTable(tareas){
       const tipo=tipoNorm(t.tipoTarea)==='ol'?'O&L':tipoNorm(t.tipoTarea)==='cartera'?'Cart.':'Colab.';
       const tipoCls=tipoNorm(t.tipoTarea)==='ol'?'#16a34a':tipoNorm(t.tipoTarea)==='cartera'?'#7c3aed':'#2563eb';
       const nEst=norm(t.estado||'');
-      const estCol=nEst.includes('expirad')?'#1f2937':nEst.includes('atrasad')?'#dc2626':nEst.includes('resuelta')&&nEst.includes('atrasad')?'#d97706':nEst.includes('resuelta')?'#16a34a':'#2563eb';
+      const estCol=nEst.includes('expirad')?'var(--k-dark)':nEst.includes('atrasad')?'var(--k-red)':nEst.includes('resuelta')&&nEst.includes('atrasad')?'var(--k-orange)':nEst.includes('resuelta')?'var(--k-greenok)':'var(--k-blue)';
       const estTxt=nEst.includes('expirad')?'Expirado':nEst.includes('abierta')&&nEst.includes('atrasad')?'Ab. Atr.':nEst.includes('abierta')?'Abierta':nEst.includes('resuelta')&&nEst.includes('atrasad')?'Res. Atr.':'Resuelta';
       const ftColor=fromISO(t.fechaTerm)&&fromISO(t.fechaTerm)<new Date()&&esPendiente(t)?'#dc2626':'var(--muted)';
       return `<tr style="background:${bg};border-bottom:1px solid var(--rowline)">
@@ -2087,7 +2087,7 @@ function actualizarEstadoPreview(){
   var fc=dval('e-fcumpl')?dval('e-fcumpl')+'T12:00:00':null;
   var est=estadoAutomatico(ft?toISO(new Date(ft)):null, fc?toISO(new Date(fc)):null);
   el.textContent=est;
-  var colores={'Resuelta':'#16a34a','Resuelta Atrasada':'#d97706','Abierta':'#2563eb','Abierta atrasada':'#dc2626','Expirado':'#1f2937'};
+  var colores={'Resuelta':'var(--k-greenok)','Resuelta Atrasada':'var(--k-orange)','Abierta':'var(--k-blue)','Abierta atrasada':'var(--k-red)','Expirado':'var(--k-dark)'};
   el.style.color=colores[est]||'inherit';
   el.style.borderColor=colores[est]||'var(--border)';
 }
@@ -3219,7 +3219,7 @@ function audTablaPorClase(titulo,color,rows){
        (stats.abiertas||0)===0&&(stats.abiertasAtrasadas||0)===0?'<span style="color:var(--k-greenok)">✓</span>':'')+
       '</td>'+
       '<td style="text-align:center;font-size:10px">'+
-      ((stats.expiradas||0)>0?'<span style="color:#1f2937;font-weight:700">'+(stats.expiradas||0)+'⛔</span>':'<span style="color:var(--muted)">—</span>')+
+      ((stats.expiradas||0)>0?'<span style="color:var(--k-dark);font-weight:700">'+(stats.expiradas||0)+'⛔</span>':'<span style="color:var(--muted)">—</span>')+
       '</td>'+
       '<td style="text-align:center">'+stats.resueltas+mark+'</td>'+
       '<td style="text-align:center">'+pctFmt(stats.pctResuelto)+mark+'</td>'+
@@ -3231,7 +3231,7 @@ function audTablaPorClase(titulo,color,rows){
     '<span><span style="color:var(--k-red);font-weight:800">●</span> Atrasada</span>'+
     '<span><span style="color:var(--k-blue);font-weight:800">●</span> Vigente</span>'+
     '<span><span style="color:var(--k-orange);font-weight:800">●</span> Resuelta c/atraso</span>'+
-    '<span><span style="color:#1f2937;font-weight:800">⛔</span> Expirada</span>'+
+    '<span><span style="color:var(--k-dark);font-weight:800">⛔</span> Expirada</span>'+
     '<span><span style="color:var(--k-greenok);font-weight:800">●</span> Al corriente</span></span>';
   var tablaHTML='<div class="slbl" style="margin:4px 0 4px;color:'+color+'">'+
     '<span class="dot" style="background:'+color+'"></span>'+titulo+
@@ -3267,7 +3267,7 @@ function audTablaPorClaseCarteraRender(titulo,color,rows){
     var total=stats.tareas;
     var pend=stats.pendientes;
     var resu=stats.resueltas;
-    var pc=pend>0?'#dc2626':'#16a34a';
+    var pc=pend>0?'var(--k-red)':'var(--k-greenok)';
     /* Persistir en Supabase el número correcto si difiere de lo guardado */
     syncAuditoriaDinamico(a,stats);
     /* Auto-enviar a finalizadas si resuelto al 100% (igual que audTablaPorClase) */
@@ -3445,10 +3445,21 @@ function auditoriasVigentesDeduplicadas(lista){
 
 function renderAuditoriasView(){
   fillAudFilters();
-  var arr=auditoriasVigentesDeduplicadas(filteredAudByView());
+  var arrTodas=auditoriasVigentesDeduplicadas(filteredAudByView());
+  /* Las auditorías con al menos una tarea real Expirada se retiran de esta
+     vista: ya se listan en "No Finalizadas" (ver renderNoFinalizadas) y
+     mostrarlas también aquí duplicaba la información y confundía el estado
+     real de cada auditoría (aparecía "vigente" y "expirada" a la vez). */
+  var arr=arrTodas.filter(function(a){return calcAudStats(a,arrTodas).expiradas===0;});
   document.getElementById('aud-count').textContent='';
   var cont=document.getElementById('auditorias-tables');
-  if(!arr.length){cont.innerHTML='<div class="empty" style="padding:30px">Sin auditorías. Verifica los filtros o carga datos desde el módulo principal.</div>';return;}
+  if(!arr.length){
+    cont.innerHTML='<div class="empty" style="padding:30px">'+
+      (arrTodas.length?'Todas las auditorías vigentes tienen tareas expiradas — revisa el módulo <b>No Finalizadas</b>.':
+        'Sin auditorías. Verifica los filtros o carga datos desde el módulo principal.')+
+      '</div>';
+    return;
+  }
 
   /* Clasificar en los dos tipos conocidos + agrupar el resto por clase real */
   function claseCanonica(a){
@@ -3703,9 +3714,9 @@ function tiendasPermitidasPorRazon(razon){
 }
 function vigAtrasoTexto(abiertas,atrasadas){
   var out='';
-  if(abiertas>0)out+='<span style="color:#2563eb;font-weight:800">'+abiertas+'↑</span> ';
-  if(atrasadas>0)out+='<span style="color:#dc2626;font-weight:800">'+atrasadas+'🔴</span>';
-  if(!out)out='<span style="color:#16a34a">✓</span>';
+  if(abiertas>0)out+='<span style="color:var(--k-blue,#2563eb);font-weight:800">'+abiertas+'↑</span> ';
+  if(atrasadas>0)out+='<span style="color:var(--k-red,#dc2626);font-weight:800">'+atrasadas+'🔴</span>';
+  if(!out)out='<span style="color:var(--k-greenok,#16a34a)">✓</span>';
   return out;
 }
 function historialAuditoriasPorSucursalHTML(filtroExtra){
@@ -3785,7 +3796,7 @@ function historialAuditoriasPorSucursalHTML(filtroExtra){
         '<td class="cell-c" style="font-weight:800">'+r.total+'</td>'+
         '<td class="cell-c">'+r.pendientes+'</td>'+
         '<td class="cell-c" style="font-size:10.5px">'+vigAtrasoTexto(r.abiertas,r.abiertasAtrasadas)+'</td>'+
-        '<td class="cell-c" style="font-weight:800;color:'+(r.expiradas>0?'#dc2626':'inherit')+'">'+r.expiradas+'</td>'+
+        '<td class="cell-c" style="font-weight:800;color:'+(r.expiradas>0?'var(--k-dark,#1f2937)':'inherit')+'">'+r.expiradas+'</td>'+
         '<td class="cell-c">'+r.resueltos+'</td>'+
         '<td class="cell-c">'+r.pctResuelto+'</td>'+
         '<td class="cell-c" style="font-size:10px">'+badge+'</td>'+
