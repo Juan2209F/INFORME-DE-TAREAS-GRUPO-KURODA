@@ -1542,30 +1542,39 @@ function _buildConsumosXLSX(data){
   }).catch(function(err){ toast('⚠ Error al generar Excel: '+err.message); });
 }
 
-/* Barra de datos: En curso = mismo cálculo EXACTO que usa la vista de
-   Auditorías (auditoriasVigentesDeduplicadas + exclusión de las que tienen
-   tareas expiradas: ver renderAuditoriasView). Antes este contador usaba
-   estaFinalizada(), que solo detecta el archivo en Finalizadas y por eso
-   podía mostrar un total mayor al de la vista real de Auditorías.
-   Finalizadas = archivadas. Aud. expiradas / Tareas expiradas = mismo
-   universo que pinta el módulo "No Finalizadas": auditorías vigentes con
-   al menos una tarea real en estatus Expirado, y el total de esas tareas.
+/* Barra de datos: En curso = mismo cálculo EXACTO que usa la pestaña
+   Auditorías (filteredAudByView + auditoriasVigentesDeduplicadas + exclusión
+   de expiradas). Aud./Tareas expiradas = mismo cálculo EXACTO que usa el
+   módulo No Finalizadas (filteredAudByNoFin + auditoriasVigentesDeduplicadas).
+   IMPORTANTE: ambos respetan el filtro de Razón activo arriba — antes este
+   contador calculaba sobre STORE.auditorias completo (todas las razones
+   mezcladas), y al deduplicar por tienda+mes+%cumplimiento SIN separar por
+   razón, una auditoría de OTRA razón con el mismo nombre de tienda+mes podía
+   "ganar" el cupo de la deduplicación y esconder por completo la auditoría
+   que sí tenía tareas expiradas — el contador daba 0 aunque el módulo No
+   Finalizadas (que sí filtra por razón antes de deduplicar) mostrara datos.
    Se llama en refreshAll y también al terminar loadFinalizadas (cargan async). */
 function actualizarStrip(){
   var elV=document.getElementById('ds-aud');
   var finList=(typeof FINALIZADAS!=='undefined')?FINALIZADAS.filter(function(f){return !f._pending;}):[];
-  var vigentesTodas=(typeof auditoriasVigentesDeduplicadas==='function')
-    ? auditoriasVigentesDeduplicadas(STORE.auditorias)
+
+  var vigentesAud=(typeof auditoriasVigentesDeduplicadas==='function'&&typeof filteredAudByView==='function')
+    ? auditoriasVigentesDeduplicadas(filteredAudByView())
     : STORE.auditorias.slice();
-  var conExpiradas=vigentesTodas.filter(function(a){return calcAudStats(a,vigentesTodas).expiradas>0;});
-  var vigentesSinExpiradas=vigentesTodas.length-conExpiradas.length;
-  if(elV)elV.textContent=vigentesSinExpiradas;
+  var enCursoSinExpiradas=vigentesAud.filter(function(a){return calcAudStats(a,vigentesAud).expiradas===0;});
+  if(elV)elV.textContent=enCursoSinExpiradas.length;
+
   var elF=document.getElementById('ds-fin'); if(elF)elF.textContent=finList.length;
   var elT=document.getElementById('ds-tar'); if(elT)elT.textContent=STORE.tareas.length;
   var elP=document.getElementById('ds-pend'); if(elP)elP.textContent=STORE.tareas.filter(esPendiente).length;
-  var elAE=document.getElementById('ds-audexp'); if(elAE)elAE.textContent=conExpiradas.length;
+
+  var baseNoFin=(typeof auditoriasVigentesDeduplicadas==='function'&&typeof filteredAudByNoFin==='function')
+    ? auditoriasVigentesDeduplicadas(filteredAudByNoFin())
+    : vigentesAud;
+  var statsExpiradas=baseNoFin.map(function(a){return calcAudStats(a,baseNoFin);}).filter(function(s){return s.expiradas>0;});
+  var elAE=document.getElementById('ds-audexp'); if(elAE)elAE.textContent=statsExpiradas.length;
   var elTE=document.getElementById('ds-tarexp');
-  if(elTE)elTE.textContent=STORE.tareas.filter(function(t){return norm(t.estado).includes('expirad');}).length;
+  if(elTE)elTE.textContent=statsExpiradas.reduce(function(sum,s){return sum+s.expiradas;},0);
 }
 
 function refreshAll(){
