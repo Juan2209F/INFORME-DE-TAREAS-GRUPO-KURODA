@@ -15,6 +15,7 @@
   --shadow-colored:0 4px 20px 0 rgba(0,0,0,.14),0 7px 10px -5px rgba(94,114,228,.4);
   --rowline:#f0f2f7;--soft:#f8f9fc;--nav:#1a1f3c;
   --k-blue:#2563eb;--k-teal:#0d9488;--k-purple:#7c3aed;--k-orange:#d97706;--k-red:#dc2626;--k-greenok:#16a34a;
+  --k-dark:#1f2937;--k-dark-bg:#1f2937;
 }
 /* ===== Tema Vision UI (oscuro) ===== */
 [data-theme="dark"]{
@@ -28,6 +29,7 @@
   --amber:#fbb140;--amber2:#fb6340;--amber-soft:rgba(251,177,64,.12);
   --rowline:rgba(255,255,255,.06);--soft:rgba(255,255,255,.04);--nav:#e8e9f3;
   --k-blue:#5e8aff;--k-teal:#2dd9c4;--k-purple:#b794f6;--k-orange:#ffb84d;--k-red:#ff7a7a;--k-greenok:#3ddc97;
+  --k-dark:#cbd2e1;--k-dark-bg:#4b5563;
   --shadow:0 20px 27px 0 rgba(0,0,0,.3);
   --shadow-lg:0 8px 26px -4px rgba(0,0,0,.4),0 8px 9px -5px rgba(0,0,0,.2);
   --shadow-colored:0 4px 20px 0 rgba(67,24,255,.3),0 7px 10px -5px rgba(67,24,255,.4);
