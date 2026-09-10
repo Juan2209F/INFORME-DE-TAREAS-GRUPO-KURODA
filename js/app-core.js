@@ -1553,6 +1553,14 @@ function _buildConsumosXLSX(data){
    "ganar" el cupo de la deduplicación y esconder por completo la auditoría
    que sí tenía tareas expiradas — el contador daba 0 aunque el módulo No
    Finalizadas (que sí filtra por razón antes de deduplicar) mostrara datos.
+   "Tareas expiradas" se calcula IGUAL que la tarjeta KPI "Expiradas" del
+   dashboard (filteredTareas() + estado Expirado): es el conteo real y
+   directo de tareas, sin pasar por el emparejamiento tarea↔auditoría. Antes
+   se sumaba stats.expiradas por auditoría (mismo criterio que "Aud.
+   expiradas"), pero ese emparejamiento puede dejar fuera tareas expiradas
+   cuya auditoría no quedó vigente/deduplicada — daba 10 cuando el KPI (fuente
+   de verdad) marcaba 13. "Aud. expiradas" sigue siendo un conteo distinto:
+   cuántas auditorías (no tareas) tienen al menos una tarea expirada.
    Se llama en refreshAll y también al terminar loadFinalizadas (cargan async). */
 function actualizarStrip(){
   var elV=document.getElementById('ds-aud');
@@ -1573,8 +1581,10 @@ function actualizarStrip(){
     : vigentesAud;
   var statsExpiradas=baseNoFin.map(function(a){return calcAudStats(a,baseNoFin);}).filter(function(s){return s.expiradas>0;});
   var elAE=document.getElementById('ds-audexp'); if(elAE)elAE.textContent=statsExpiradas.length;
+
+  var tareasBase=(typeof filteredTareas==='function')?filteredTareas():STORE.tareas;
   var elTE=document.getElementById('ds-tarexp');
-  if(elTE)elTE.textContent=statsExpiradas.reduce(function(sum,s){return sum+s.expiradas;},0);
+  if(elTE)elTE.textContent=tareasBase.filter(function(t){return norm(t.estado).includes('expirad');}).length;
 }
 
 function refreshAll(){
