@@ -1800,6 +1800,7 @@ function lsMergeRows(rows, mesCol, tiendaCol, promedioCol, procCols, forceOverwr
   const pCols = PROCESSES_LOCAL.map(p => keys.find(k => k.trim().toLowerCase().startsWith(p.toLowerCase())) || p);
 
   const grouped = {};
+  const skippedKeys = [];
   rows.forEach(r => {
     const tienda = collapseWs(r[tiendaCol]);
     const mes    = canonicalMesLabel(r[mesCol]);
@@ -1811,7 +1812,7 @@ function lsMergeRows(rows, mesCol, tiendaCol, promedioCol, procCols, forceOverwr
 
   for (const [k, g] of Object.entries(grouped)) {
     const already = existIndex.has(k);
-    if (already && !forceOverwrite) { skipped++; continue; }
+    if (already && !forceOverwrite) { skipped++; skippedKeys.push(`${g.tienda} · ${g.mes}`); continue; }
     const promedioVals = g.rows.map(r=>{ const v=toNum(r[promedioCol]); return v!==null?v*100:null; }).filter(x=>x!==null);
     const promedio = promedioVals.length ? promedioVals.reduce((a,b)=>a+b,0)/promedioVals.length : null;
     const procData = {};
@@ -1836,7 +1837,7 @@ function lsMergeRows(rows, mesCol, tiendaCol, promedioCol, procCols, forceOverwr
     }
   }
   lsSave(existing);
-  return { added, skipped, updated };
+  return { added, skipped, updated, skippedKeys };
 }
 
 function lsGetStoreTrend(tienda) {
@@ -3009,7 +3010,11 @@ async function handleFile(file) {
     // salvo que el usuario haya activado "Reemplazar meses ya guardados".
     const forceOverwrite = document.getElementById('forceOverwrite').checked;
     log('💾', forceOverwrite ? 'Actualizando historial (reemplazando meses ya guardados)…' : 'Actualizando historial (sin duplicar meses ya guardados)…', 'active'); setProgress(55);
-    const { added, skipped, updated } = lsMergeRows(uploadRows, 'Mes', 'Tienda', 'Promedio Cumplimiento', null, forceOverwrite);
+    const { added, skipped, updated, skippedKeys } = lsMergeRows(uploadRows, 'Mes', 'Tienda', 'Promedio Cumplimiento', null, forceOverwrite);
+    log('📊', `Historial: ${added} nuevo(s), ${updated} actualizado(s), ${skipped} omitido(s) por ya existir`, skipped>0 ? '' : 'done');
+    if (skipped > 0) {
+      log('⚠️', `Se OMITIERON (ya existían y "Reemplazar meses ya guardados" estaba desactivado): ${skippedKeys.join(' · ')}. Si esos datos son la corrección, vuelve a cargar el archivo con esa casilla activada.`, '');
+    }
 
     // Confirmación EXPLÍCITA del guardado en la nube — ya no es "fire and forget".
     // Si Supabase falla (ej. la tabla generador_historial no existe todavía),
