@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auditoría de Cartera — S2Credit vs SAP HANA</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif}
+  table{border-collapse:collapse}
+  th,td{border:1px solid #e5e7eb}
+  .row-coincide{background:#e6f4ea}
+  .row-menor{background:#fef8e0}
+  .row-mayor{background:#fce8e8}
+  .row-solo{background:#f0f0f0}
+</style>
+</head>
+<body class="min-h-screen bg-gray-50 text-gray-800">
+<main class="max-w-7xl mx-auto p-4 md:p-8">
+
+  <section class="mb-6">
+    <h1 class="text-2xl font-bold text-slate-800">Auditoría de Cartera</h1>
+    <p class="text-sm text-gray-500 mt-1">Compara el saldo del cliente en <strong>S2Credit</strong> (reporte de distribuidores) contra lo que aparece en <strong>SAP HANA</strong>, y marca las diferencias para revisión rápida.</p>
+  </section>
+
+  <!-- Carga de archivos -->
+  <section class="grid md:grid-cols-2 gap-4 mb-6">
+    <div class="p-4 border border-gray-200 rounded-xl bg-white">
+      <label class="block text-sm font-semibold mb-1">Reporte S2Credit (distribuidores)</label>
+      <p class="text-xs text-gray-500 mb-2">Archivo con Núm. Distribuidor, ID SAP, Adeudo Total, etc.</p>
+      <input id="fileS2" type="file" accept=".xlsx,.xls" class="block w-full text-sm border border-gray-300 rounded-lg cursor-pointer bg-gray-50 p-2">
+      <p id="s2Status" class="text-xs mt-2 text-gray-400">Sin archivo cargado</p>
+    </div>
+    <div class="p-4 border border-gray-200 rounded-xl bg-white">
+      <label class="block text-sm font-semibold mb-1">Reporte SAP HANA (saldos / vales)</label>
+      <p class="text-xs text-gray-500 mb-2">Archivo con Cliente, Nombre cliente, Saldo total por factura.</p>
+      <input id="fileSap" type="file" accept=".xlsx,.xls" class="block w-full text-sm border border-gray-300 rounded-lg cursor-pointer bg-gray-50 p-2">
+      <p id="sapStatus" class="text-xs mt-2 text-gray-400">Sin archivo cargado</p>
+    </div>
+  </section>
+
+  <section class="mb-6 flex flex-wrap items-center gap-3">
+    <button id="btnComparar" class="px-5 py-2.5 rounded-lg bg-slate-800 text-white text-sm font-semibold hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed" disabled>Comparar</button>
+    <button id="btnExportar" class="px-5 py-2.5 rounded-lg border border-gray-300 text-sm font-semibold hover:bg-gray-100 hidden">Descargar Excel</button>
+    <span id="msg" class="text-sm text-red-600"></span>
+  </section>
+
+  <!-- Resumen -->
+  <section id="resumen" class="hidden grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+    <div class="p-3 rounded-xl border border-gray-200 bg-white text-center">
+      <p class="text-xs text-gray-500">Total registros</p>
+      <p id="kpiTotal" class="text-xl font-bold text-slate-800">0</p>
+    </div>
+    <div class="p-3 rounded-xl border border-green-200 bg-green-50 text-center">
+      <p class="text-xs text-green-700">Coinciden</p>
+      <p id="kpiCoincide" class="text-xl font-bold text-green-700">0</p>
+    </div>
+    <div class="p-3 rounded-xl border border-yellow-200 bg-yellow-50 text-center">
+      <p class="text-xs text-yellow-700">Diferencia menor</p>
+      <p id="kpiMenor" class="text-xl font-bold text-yellow-700">0</p>
+    </div>
+    <div class="p-3 rounded-xl border border-red-200 bg-red-50 text-center">
+      <p class="text-xs text-red-700">Diferencia significativa</p>
+      <p id="kpiMayor" class="text-xl font-bold text-red-700">0</p>
+    </div>
+    <div class="p-3 rounded-xl border border-gray-300 bg-gray-100 text-center">
+      <p class="text-xs text-gray-600">Solo en un sistema</p>
+      <p id="kpiSolo" class="text-xl font-bold text-gray-700">0</p>
+    </div>
+  </section>
+
+  <!-- Filtros -->
+  <section id="filtros" class="hidden flex flex-wrap gap-3 mb-4 items-center">
+    <input id="buscar" type="text" placeholder="Buscar por nombre o número..." class="flex-1 min-w-[220px] px-3 py-2 text-sm border border-gray-300 rounded-lg">
+    <select id="filtroEstatus" class="px-3 py-2 text-sm border border-gray-300 rounded-lg">
+      <option value="">Todos los estatus</option>
+      <option value="Coincide">Coincide</option>
+      <option value="Diferencia menor">Diferencia menor</option>
+      <option value="Diferencia significativa">Diferencia significativa</option>
+      <option value="Solo en Reporte S2Credit">Solo en S2Credit</option>
+      <option value="Solo en SAP HANA">Solo en SAP HANA</option>
+    </select>
+  </section>
+
+  <!-- Tabla -->
+  <section class="overflow-x-auto bg-white rounded-xl border border-gray-200">
+    <table id="tabla" class="w-full text-sm hidden">
+      <thead class="bg-slate-800 text-white">
+        <tr>
+          <th class="p-2">No.</th>
+          <th class="p-2">Núm. Dist.</th>
+          <th class="p-2">ID SAP</th>
+          <th class="p-2 text-left">Nombre</th>
+          <th class="p-2">Nivel</th>
+          <th class="p-2">Adeudo S2Credit</th>
+          <th class="p-2">Folio SAP HANA</th>
+          <th class="p-2">Saldo SAP HANA</th>
+          <th class="p-2">Diferencia $</th>
+          <th class="p-2">Diferencia %</th>
+          <th class="p-2">Estatus</th>
+          <th class="p-2 text-left">Observaciones</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </section>
+
+</main>
+
+<script>
+let s2Data = null, sapData = null, resultRows = [];
+
+function setStatus(el, ok, text){ el.textContent = text; el.className = 'text-xs mt-2 ' + (ok ? 'text-green-600' : 'text-red-500'); }
+function toggleCompararBtn(){ document.getElementById('btnComparar').disabled = !(s2Data && sapData); }
+
+function normName(n){
+  if(!n) return '';
+  return String(n).toUpperCase().trim().replace(/\s+/g,' ');
+}
+
+function readWorkbook(file, cb){
+  const reader = new FileReader();
+  reader.onload = e => {
+    try{
+      const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:true});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
+      cb(null, rows);
+    }catch(err){ cb(err); }
+  };
+  reader.onerror = () => cb(new Error('No se pudo leer el archivo'));
+  reader.readAsArrayBuffer(file);
+}
+
+// Busca el índice de fila de encabezado que contenga todas las palabras clave (insensible a mayúsculas)
+function findHeaderRow(rows, keywords){
+  for(let i=0;i<Math.min(rows.length,20);i++){
+    const row = rows[i] || [];
+    const joined = row.map(c => c==null?'':String(c).toLowerCase()).join('|');
+    if(keywords.every(k => joined.includes(k))) return i;
+  }
+  return -1;
+}
+function colIndex(headerRow, name){
+  return headerRow.findIndex(c => c!=null && String(c).trim().toLowerCase() === name.toLowerCase());
+}
+
+// ---- Parseo S2Credit (reporte distribuidores) ----
+function parseS2(rows){
+  const hIdx = findHeaderRow(rows, ['num. distribuidor','nombre distribuidor']);
+  if(hIdx===-1) throw new Error('No se encontró el encabezado esperado en el archivo S2Credit');
+  const header = rows[hIdx];
+  const iNum = colIndex(header,'Num. Distribuidor');
+  const iNombre = colIndex(header,'Nombre Distribuidor');
+  const iIdSap = colIndex(header,'ID SAP');
+  const iNivel = colIndex(header,'Nivel');
+  const iCategoria = colIndex(header,'Categoria');
+  const iAdeudo = colIndex(header,'Adeudo Total');
+  const out = [];
+  for(let i=hIdx+1;i<rows.length;i++){
+    const r = rows[i];
+    if(!r || r[iNum]==null || isNaN(Number(r[iNum]))) break; // fin de datos (pie de página / total)
+    out.push({
+      num_dist: Number(r[iNum]),
+      nombre: r[iNombre]!=null? String(r[iNombre]).trim() : '',
+      id_sap: r[iIdSap]!=null? Number(r[iIdSap]) : Number(r[iNum]),
+      nivel: r[iNivel]||'', categoria: r[iCategoria]||'',
+      adeudo_total: r[iAdeudo]!=null? Number(r[iAdeudo]) : 0
+    });
+  }
+  return out;
+}
+
+// ---- Parseo SAP HANA (vales / saldos, agrupado por cliente) ----
+function parseSap(rows){
+  const hIdx = findHeaderRow(rows, ['cliente','nombre cliente','saldo total']);
+  if(hIdx===-1) throw new Error('No se encontró el encabezado esperado en el archivo SAP HANA');
+  const header = rows[hIdx];
+  const iCliente = colIndex(header,'Cliente');
+  const iNombre = colIndex(header,'Nombre cliente');
+  const iSaldo = colIndex(header,'Saldo total');
+  const groups = [];
+  let bufId=null, bufName=null, lastTotal=null;
+  for(let i=hIdx+1;i<rows.length;i++){
+    const r = rows[i];
+    if(!r) continue;
+    const cliente = r[iCliente]!=null? String(r[iCliente]).trim() : '';
+    const nombre = r[iNombre]!=null? String(r[iNombre]).trim() : '';
+    const saldo = r[iSaldo]!=null? Number(r[iSaldo]) : lastTotal;
+    if(cliente !== bufId){
+      if(bufId){ groups.push({cliente_id: bufId, nombre: bufName, saldo_total: lastTotal}); }
+      bufId = cliente; bufName = nombre || null;
+    } else if(nombre){ bufName = nombre; }
+    lastTotal = saldo;
+  }
+  if(bufId){ groups.push({cliente_id: bufId, nombre: bufName, saldo_total: lastTotal}); }
+  return groups.filter(g => g.cliente_id); // descarta filas de subtotal sin folio de cliente
+}
+
+function vmKey(x){
+  x = Number(x);
+  if(isNaN(x)) return null;
+  if(x < 1000000) return '1' + String(x).padStart(6,'0');
+  return String(x);
+}
+
+function compararDatos(s2rows, sapGroups){
+  const valeById = new Map();
+  sapGroups.forEach(g => valeById.set(g.cliente_id, g));
+  const valeByName = new Map();
+  sapGroups.forEach(g => {
+    const key = normName(g.nombre);
+    if(!valeByName.has(key)) valeByName.set(key, []);
+    valeByName.get(key).push(g);
+  });
+
+  const usedIds = new Set();
+  const matched = [];
+  s2rows.forEach(r => {
+    const kNum = vmKey(r.num_dist);
+    const kSap = vmKey(r.id_sap);
+    let match=null, matchType=null;
+    if(kNum && valeById.has(kNum)){ match = valeById.get(kNum); matchType='Folio igual (Num. Distribuidor)'; }
+    else if(kSap && valeById.has(kSap)){ match = valeById.get(kSap); matchType='Folio igual (ID SAP)'; }
+    else {
+      const cands = valeByName.get(normName(r.nombre));
+      if(cands && cands.length){ match = cands[0]; matchType='Coincide solo por NOMBRE (folio distinto)'; }
+    }
+    if(match) usedIds.add(match.cliente_id);
+    matched.push({
+      num_dist:r.num_dist, id_sap:r.id_sap, nombre:r.nombre, nivel:r.nivel, categoria:r.categoria,
+      adeudo_total:r.adeudo_total,
+      vm_id: match? match.cliente_id : null,
+      vm_saldo: match? match.saldo_total : null,
+      matchType
+    });
+  });
+  const valeOnly = sapGroups.filter(g => !usedIds.has(g.cliente_id));
+
+  const rows = [];
+  let n=1;
+  matched.forEach(m => {
+    let obs='';
+    if(m.matchType==='Coincide solo por NOMBRE (folio distinto)') obs='Mismo cliente con folio distinto en SAP HANA — verificar si es cuenta duplicada';
+    else if(m.matchType==='Folio igual (ID SAP)') obs='Vinculado por ID SAP (el folio de Núm. Distribuidor no coincide)';
+    else if(!m.matchType) obs='No se encontró registro correspondiente en SAP HANA';
+    rows.push(buildRow(n++, m.num_dist, m.id_sap, m.nombre, m.nivel, m.adeudo_total, m.vm_id, m.vm_saldo, obs));
+  });
+  valeOnly.forEach(g => {
+    rows.push(buildRow(n++, null, null, g.nombre, '', null, g.cliente_id, g.saldo_total,
+      'Registro con saldo en SAP HANA sin distribuidor activo correspondiente en S2Credit'));
+  });
+  return rows;
+}
+
+function buildRow(no, num_dist, id_sap, nombre, nivel, adeudo, folioVm, saldoVm, obs){
+  let diff=null, pct=null, estatus;
+  const hasReporte = adeudo!=null, hasSap = saldoVm!=null;
+  if(hasReporte && hasSap){
+    diff = Math.round((adeudo - saldoVm)*100)/100;
+    const base = Math.max(Math.abs(adeudo), Math.abs(saldoVm)) || 1;
+    pct = diff/base;
+    estatus = Math.abs(diff)<=1 ? 'Coincide' : (Math.abs(diff)<=500 ? 'Diferencia menor' : 'Diferencia significativa');
+  } else if(!hasReporte){ estatus = 'Solo en SAP HANA'; }
+  else { estatus = 'Solo en Reporte S2Credit'; }
+  return {no, num_dist, id_sap, nombre, nivel, adeudo, folioVm, saldoVm, diff, pct, estatus, obs};
+}
+
+function fmtMoney(v){ return v==null? '—' : '$' + v.toLocaleString('es-MX',{minimumFractionDigits:2, maximumFractionDigits:2}); }
+function fmtPct(v){ return v==null? '—' : (v*100).toFixed(2)+'%'; }
+
+function rowClass(estatus){
+  if(estatus==='Coincide') return 'row-coincide';
+  if(estatus==='Diferencia menor') return 'row-menor';
+  if(estatus==='Diferencia significativa') return 'row-mayor';
+  return 'row-solo';
+}
+
+function renderTabla(rows){
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML='';
+  rows.forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.className = rowClass(r.estatus);
+    tr.dataset.estatus = r.estatus;
+    tr.dataset.search = (r.nombre+' '+(r.num_dist||'')+' '+(r.id_sap||'')+' '+(r.folioVm||'')).toLowerCase();
+    tr.innerHTML = `
+      <td class="p-2 text-center">${r.no}</td>
+      <td class="p-2 text-center">${r.num_dist ?? '—'}</td>
+      <td class="p-2 text-center">${r.id_sap ?? '—'}</td>
+      <td class="p-2">${r.nombre}</td>
+      <td class="p-2 text-center">${r.nivel||'—'}</td>
+      <td class="p-2 text-right">${fmtMoney(r.adeudo)}</td>
+      <td class="p-2 text-center">${r.folioVm ?? '—'}</td>
+      <td class="p-2 text-right">${fmtMoney(r.saldoVm)}</td>
+      <td class="p-2 text-right font-semibold">${fmtMoney(r.diff)}</td>
+      <td class="p-2 text-right">${fmtPct(r.pct)}</td>
+      <td class="p-2 text-center font-semibold">${r.estatus}</td>
+      <td class="p-2">${r.obs}</td>`;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('tabla').classList.remove('hidden');
+}
+
+function renderResumen(rows){
+  const c = {Coincide:0, 'Diferencia menor':0, 'Diferencia significativa':0, solo:0};
+  rows.forEach(r=>{
+    if(r.estatus==='Coincide') c.Coincide++;
+    else if(r.estatus==='Diferencia menor') c['Diferencia menor']++;
+    else if(r.estatus==='Diferencia significativa') c['Diferencia significativa']++;
+    else c.solo++;
+  });
+  document.getElementById('kpiTotal').textContent = rows.length;
+  document.getElementById('kpiCoincide').textContent = c.Coincide;
+  document.getElementById('kpiMenor').textContent = c['Diferencia menor'];
+  document.getElementById('kpiMayor').textContent = c['Diferencia significativa'];
+  document.getElementById('kpiSolo').textContent = c.solo;
+  document.getElementById('resumen').classList.remove('hidden');
+  document.getElementById('filtros').classList.remove('hidden');
+}
+
+function aplicarFiltros(){
+  const q = document.getElementById('buscar').value.toLowerCase();
+  const est = document.getElementById('filtroEstatus').value;
+  document.querySelectorAll('#tbody tr').forEach(tr=>{
+    const passQ = !q || tr.dataset.search.includes(q);
+    const passE = !est || tr.dataset.estatus===est ||
+      (est==='Solo en Reporte S2Credit' && tr.dataset.estatus==='Solo en Reporte S2Credit') ||
+      (est==='Solo en SAP HANA' && tr.dataset.estatus==='Solo en SAP HANA');
+    tr.style.display = (passQ && passE) ? '' : 'none';
+  });
+}
+
+document.getElementById('fileS2').addEventListener('change', e=>{
+  const f = e.target.files[0]; if(!f) return;
+  readWorkbook(f, (err, rows)=>{
+    const el = document.getElementById('s2Status');
+    if(err){ s2Data=null; setStatus(el,false,'Error: '+err.message); }
+    else{ try{ s2Data = parseS2(rows); setStatus(el,true, s2Data.length+' distribuidores detectados'); }
+          catch(ex){ s2Data=null; setStatus(el,false, ex.message); } }
+    toggleCompararBtn();
+  });
+});
+document.getElementById('fileSap').addEventListener('change', e=>{
+  const f = e.target.files[0]; if(!f) return;
+  readWorkbook(f, (err, rows)=>{
+    const el = document.getElementById('sapStatus');
+    if(err){ sapData=null; setStatus(el,false,'Error: '+err.message); }
+    else{ try{ sapData = parseSap(rows); setStatus(el,true, sapData.length+' clientes detectados'); }
+          catch(ex){ sapData=null; setStatus(el,false, ex.message); } }
+    toggleCompararBtn();
+  });
+});
+
+document.getElementById('btnComparar').addEventListener('click', ()=>{
+  document.getElementById('msg').textContent='';
+  try{
+    resultRows = compararDatos(s2Data, sapData);
+    renderTabla(resultRows);
+    renderResumen(resultRows);
+    document.getElementById('btnExportar').classList.remove('hidden');
+  }catch(ex){
+    document.getElementById('msg').textContent = 'Error al comparar: '+ex.message;
+  }
+});
+
+document.getElementById('buscar').addEventListener('input', aplicarFiltros);
+document.getElementById('filtroEstatus').addEventListener('change', aplicarFiltros);
+
+// ---- Exportar a Excel con formato ----
+function exportarExcel(){
+  const headers = ['No.','Núm. Distribuidor','ID SAP','Nombre','Nivel','Adeudo Total (S2Credit)',
+    'Folio Cliente (SAP HANA)','Saldo Total (SAP HANA)','Diferencia ($)','Diferencia (%)','Estatus','Observaciones'];
+  const aoa = [
+    ['Auditoría de Cartera — S2Credit vs SAP HANA'],
+    ['Generado el ' + new Date().toLocaleDateString('es-MX')],
+    [],
+    headers
+  ];
+  resultRows.forEach(r=>{
+    aoa.push([r.no, r.num_dist, r.id_sap, r.nombre, r.nivel, r.adeudo, r.folioVm, r.saldoVm,
+      r.diff, r.pct, r.estatus, r.obs]);
+  });
+  const totalAdeudo = resultRows.reduce((s,r)=> s + (r.adeudo||0), 0);
+  const totalSap = resultRows.reduce((s,r)=> s + (r.saldoVm||0), 0);
+  aoa.push(['','','','TOTALES','', totalAdeudo, '', totalSap, totalAdeudo-totalSap,'','','']);
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:5},{wch:14},{wch:10},{wch:32},{wch:10},{wch:18},{wch:16},{wch:16},{wch:14},{wch:12},{wch:24},{wch:46}];
+  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:11}},{s:{r:1,c:0},e:{r:1,c:11}}];
+
+  const headerRowIdx = 3;
+  const fillFor = est => est==='Coincide' ? 'C6EFCE' : est==='Diferencia menor' ? 'FFEB9C' :
+    est==='Diferencia significativa' ? 'FFC7CE' : 'D9D9D9';
+
+  for(let c=0;c<headers.length;c++){
+    const addr = XLSX.utils.encode_cell({r:headerRowIdx,c});
+    if(ws[addr]) ws[addr].s = {font:{bold:true,color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'1F3864'}}, alignment:{horizontal:'center',vertical:'center'}};
+  }
+  const titleAddr = XLSX.utils.encode_cell({r:0,c:0});
+  if(ws[titleAddr]) ws[titleAddr].s = {font:{bold:true,sz:14,color:{rgb:'1F3864'}}};
+
+  resultRows.forEach((r,i)=>{
+    const rowIdx = headerRowIdx+1+i;
+    const fill = fillFor(r.estatus);
+    for(let c=0;c<headers.length;c++){
+      const addr = XLSX.utils.encode_cell({r:rowIdx,c});
+      if(!ws[addr]) continue;
+      ws[addr].s = {fill:{fgColor:{rgb:fill}}, border:{top:{style:'thin',color:{rgb:'D9D9D9'}},bottom:{style:'thin',color:{rgb:'D9D9D9'}},left:{style:'thin',color:{rgb:'D9D9D9'}},right:{style:'thin',color:{rgb:'D9D9D9'}}}};
+      if([5,7,8].includes(c)) ws[addr].z = '$#,##0.00;[RED]-$#,##0.00';
+      if(c===9) ws[addr].z = '0.00%';
+    }
+  });
+  const totalsRowIdx = headerRowIdx+1+resultRows.length;
+  for(let c of [5,7,8]){
+    const addr = XLSX.utils.encode_cell({r:totalsRowIdx,c});
+    if(ws[addr]){ ws[addr].s = {font:{bold:true}}; ws[addr].z = '$#,##0.00;[RED]-$#,##0.00'; }
+  }
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Auditoría Cartera');
+  XLSX.writeFile(wb, 'Auditoria_Cartera_S2Credit_vs_SAP.xlsx');
+}
+document.getElementById('btnExportar').addEventListener('click', exportarExcel);
+</script>
+</body>
+</html>
