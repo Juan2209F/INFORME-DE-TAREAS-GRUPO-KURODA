@@ -2811,7 +2811,11 @@ function setView(v){
          Historial de Cargas y la Tendencia del generador) persiste igual
          que antes — ya no hace falta empaquetarlo como base64 embebido. */
       primeEmbeddedIframe(ifr);
-      ifr.src='assets/generador.html';
+      /* Cache-busting: sin esto, tras publicar una actualización de
+         generador.html el navegador podía seguir sirviendo una copia vieja
+         desde caché (el meta no-cache de index.html no cubre los sub-recursos
+         del iframe). Mismo problema y mismo arreglo que en 'documentos'. */
+      ifr.src='assets/generador.html?v='+Date.now();
     }else if(ifr){
       setTimeout(function(){fitEmbeddedIframe(ifr);},30);
     }
@@ -2820,7 +2824,12 @@ function setView(v){
     var ifd=document.getElementById('iframe-documentos');
     if(ifd&&!ifd.getAttribute('src')){
       primeEmbeddedIframe(ifd);
-      ifd.src='assets/documentos.html';
+      /* Cache-busting: el navegador puede servir una copia vieja de
+         documentos.html desde caché aunque el archivo ya se haya actualizado
+         en GitHub Pages (el meta no-cache de index.html no cubre los
+         sub-recursos del iframe). Sin esto, un módulo nuevo (p. ej. Auditoría
+         de Cartera) podía "no aparecer" hasta un hard-refresh manual. */
+      ifd.src='assets/documentos.html?v='+Date.now();
     }else if(ifd){
       setTimeout(function(){fitEmbeddedIframe(ifd);},30);
     }
