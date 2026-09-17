@@ -332,13 +332,13 @@ function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'
 /* Normaliza el Estado de una tarea al importar desde Excel. Acepta tanto los
    textos en español ("Abierta", "Abierta atrasada", "Resuelta", "Resuelta
    Atrasada") como los códigos en inglés/snake_case usados por otros sistemas
-   de exportación: open, open_and_late, resolved, resolved_and_late (también
+   de exportación: open, open_and_late, resolved, resolved_and_late, unresolved_and_late (también
    con espacios o guiones en vez de guión bajo, y sin importar mayúsculas). */
 var ESTADO_CODIGOS={
   'open':'Abierta',
   'open_and_late':'Abierta atrasada',
   'resolved':'Resuelta',
-  'resolved_and_late':'Resuelta Atrasada'
+  'resolved_and_late':'Resuelta Atrasada','unresolved_and_late':'No resuelta'
 };
 function normalizarEstadoTarea(raw){
   var s=String(raw||'').replace(/\u00a0/g,' ').trim();
@@ -641,11 +641,11 @@ async function generarImport(){
   }
 }
 
-/* Una vez que una tarea llega a estatus ⛔ Expirado, ese estatus queda
+/* Una vez que una tarea llega a estatus ⛔ No resuelta, ese estatus queda
    congelado para siempre: ni las recargas/reimportaciones de Excel ni
    ninguna otra sincronización automática deben volver a pisarlo, sin
    importar qué estatus traiga el archivo nuevo. */
-function esEstadoExpirado(v){return norm(v||'').includes('expirad');}
+function esEstadoNoResuelta(v){return norm(v||'').includes('no resuelta');}
 
 /* Compara una tarea staged con la fila de Supabase — true si son idénticas */
 function tareaIgualSupabase(t, ex){
@@ -659,9 +659,9 @@ function tareaIgualSupabase(t, ex){
          n(t.actividad)===n(ex.actividad) &&
          n(t.nombre)===n(ex.nombre) &&
          n(t.tipoTarea)===n(ex.tipo_tarea) &&
-         /* Si la tarea YA está Expirada en Supabase, se ignora cualquier
+         /* Si la tarea YA está No resuelta en Supabase, se ignora cualquier
             diferencia de estado que traiga el archivo — queda omitida. */
-         (esEstadoExpirado(ex.estado) || n(t.estado)===n(ex.estado)) &&
+         (esEstadoNoResuelta(ex.estado) || n(t.estado)===n(ex.estado)) &&
          fdate(t.fechaCreacion)===fdate(ex.fecha_creacion) &&
          /* fecha_term NO se compara: es de captura manual y no debe verse
             afectada por cargas/actualizaciones de Excel (ver toRowActualizar). */
@@ -677,9 +677,9 @@ function camposDiferentes(t, ex){
   function fdate(v){return v?String(v).split('T')[0]:'';}
   function corto(v,max){v=n(v)||'—';return v.length>max?v.slice(0,max)+'…':v;}
   var campos=[];
-  /* Tareas ya Expiradas: el estado queda congelado, no se marca como
-     "diferencia" aunque el archivo traiga otro estatus (ver esEstadoExpirado). */
-  if(!esEstadoExpirado(ex.estado) && n(t.estado)!==n(ex.estado))campos.push('Estado: "'+corto(ex.estado,30)+'" → "'+corto(t.estado,30)+'"');
+  /* Tareas ya No resueltas: el estado queda congelado, no se marca como
+     "diferencia" aunque el archivo traiga otro estatus (ver esEstadoNoResuelta). */
+  if(!esEstadoNoResuelta(ex.estado) && n(t.estado)!==n(ex.estado))campos.push('Estado: "'+corto(ex.estado,30)+'" → "'+corto(t.estado,30)+'"');
   if(fdate(t.fechaCumpl)!==fdate(ex.fecha_cumpl))campos.push('F.Cumplimiento: "'+corto(fdate(ex.fecha_cumpl),20)+'" → "'+corto(fdate(t.fechaCumpl),20)+'"');
   if(fdate(t.fechaCreacion)!==fdate(ex.fecha_creacion))campos.push('F.Creación: "'+corto(fdate(ex.fecha_creacion),20)+'" → "'+corto(fdate(t.fechaCreacion),20)+'"');
   if(n(t.nombre)!==n(ex.nombre))campos.push('Nombre: "'+corto(ex.nombre,40)+'" → "'+corto(t.nombre,40)+'"');
@@ -742,12 +742,12 @@ async function commitToSupabase(nuevas, actualizar, audStaged, omitidas, prevTar
      La fecha de término es de captura manual (modal Editar tarea); las cargas/
      recargas de Excel nunca deben pisarla, solo se sincronizan el resto de
      campos (estado, fecha_cumpl, etc.) con lo que trae el archivo.
-     EXCEPCIÓN: si la tarea YA está Expirada en Supabase (exPrev), su estado
+     EXCEPCIÓN: si la tarea YA está No resuelta en Supabase (exPrev), su estado
      queda congelado — se omite del payload para que ninguna reimportación
      de Excel pueda revertirla a otro estatus. */
   function toRowActualizar(t,exPrev){
     var row=toRow(t);delete row.fecha_term;
-    if(exPrev&&esEstadoExpirado(exPrev.estado))delete row.estado;
+    if(exPrev&&esEstadoNoResuelta(exPrev.estado))delete row.estado;
     return row;
   }
 
@@ -992,8 +992,8 @@ function filteredAuditorias(){
    importar si el texto de "estado" quedó desactualizado. Esto mantiene
    sincronizados Auditorías, Cartera, Dashboard y Tareas entre sí.
 ════════════════════════════════════════════════════════════════════ */
-function esPendiente(t){if(t.fechaCumpl)return false;return norm(t.estado).includes('abierta')||norm(t.estado).includes('expirad');}
-function esResuelta(t){if(t.fechaCumpl)return true;return norm(t.estado).includes('resuelta');}
+function esPendiente(t){if(t.fechaCumpl)return false;return norm(t.estado).includes('abierta')||esEstadoNoResuelta(t.estado);}
+function esResuelta(t){if(t.fechaCumpl)return true;return norm(t.estado).includes('resuelta')&&!esEstadoNoResuelta(t.estado);}
 /* Vencida = pendiente y su fechaTerm ya pasó — calculado por FECHA, no por
    el texto "atrasada" guardado en estado. El texto solo se corrige cuando
    corre actualizarEstadosVencidos() (se dispara al abrir el dashboard o
@@ -1031,10 +1031,10 @@ function estadoAutomatico(fechaTerm, fechaCumpl){
   var ftD2=new Date(ft);ftD2.setHours(0,0,0,0);
   if(ftD2>=hoy)return 'Abierta';
   /* Nunca se resolvió (sigue sin fecha de cumplimiento) y ya pasaron 3 meses
-     de su fecha de término: pasa de "Abierta atrasada" a "Expirado". */
+     de su fecha de término: pasa de "Abierta atrasada" a "No resuelta". */
   var limite3m=new Date(ft.getFullYear(),ft.getMonth()+3,ft.getDate());
   limite3m.setHours(0,0,0,0);
-  return limite3m<=hoy?'Expirado':'Abierta atrasada';
+  return limite3m<=hoy?'No resuelta':'Abierta atrasada';
 }
 /* Resuelta atrasada = ya está resuelta pero su fecha de cumplimiento quedó
    después de su fecha de término — calculado por FECHA, igual que
@@ -1061,9 +1061,9 @@ function diasVenc(t){ // días hasta fechaTerm (negativo = vencida)
 }
 function estadoBadge(estado){
   const n=norm(estado);
+  if(n.includes('no resuelta'))return `<span class="badge b-dark">⛔ No resuelta</span>`;
   if(n.includes('resuelta')&&n.includes('atrasad'))return `<span class="badge b-orange">Resuelta atrasada</span>`;
   if(n.includes('resuelta'))return `<span class="badge b-green">✓ Resuelta</span>`;
-  if(n.includes('expirad'))return `<span class="badge b-dark">⛔ Expirado</span>`;
   if(n.includes('abierta')&&n.includes('atrasad'))return `<span class="badge b-red">🔴 Abierta atrasada</span>`;
   if(n.includes('abierta'))return `<span class="badge b-blue">Abierta</span>`;
   return `<span class="badge b-gray">${estado||'—'}</span>`;
@@ -1544,23 +1544,23 @@ function _buildConsumosXLSX(data){
 
 /* Barra de datos: En curso = mismo cálculo EXACTO que usa la pestaña
    Auditorías (filteredAudByView + auditoriasVigentesDeduplicadas + exclusión
-   de expiradas). Aud./Tareas expiradas = mismo cálculo EXACTO que usa el
+   de no resueltas). Aud./Tareas no resueltas = mismo cálculo EXACTO que usa el
    módulo No Finalizadas (filteredAudByNoFin + auditoriasVigentesDeduplicadas).
    IMPORTANTE: ambos respetan el filtro de Razón activo arriba — antes este
    contador calculaba sobre STORE.auditorias completo (todas las razones
    mezcladas), y al deduplicar por tienda+mes+%cumplimiento SIN separar por
    razón, una auditoría de OTRA razón con el mismo nombre de tienda+mes podía
    "ganar" el cupo de la deduplicación y esconder por completo la auditoría
-   que sí tenía tareas expiradas — el contador daba 0 aunque el módulo No
+   que sí tenía tareas no resueltas — el contador daba 0 aunque el módulo No
    Finalizadas (que sí filtra por razón antes de deduplicar) mostrara datos.
-   "Tareas expiradas" se calcula IGUAL que la tarjeta KPI "Expiradas" del
-   dashboard (filteredTareas() + estado Expirado): es el conteo real y
+   "Tareas no resueltas" se calcula IGUAL que la tarjeta KPI "No resueltas" del
+   dashboard (filteredTareas() + estado No resuelta): es el conteo real y
    directo de tareas, sin pasar por el emparejamiento tarea↔auditoría. Antes
    se sumaba stats.expiradas por auditoría (mismo criterio que "Aud.
-   expiradas"), pero ese emparejamiento puede dejar fuera tareas expiradas
+   no resueltas"), pero ese emparejamiento puede dejar fuera tareas no resueltas
    cuya auditoría no quedó vigente/deduplicada — daba 10 cuando el KPI (fuente
-   de verdad) marcaba 13. "Aud. expiradas" sigue siendo un conteo distinto:
-   cuántas auditorías (no tareas) tienen al menos una tarea expirada.
+   de verdad) marcaba 13. "Aud. no resueltas" sigue siendo un conteo distinto:
+   cuántas auditorías (no tareas) tienen al menos una tarea no resuelta.
    Se llama en refreshAll y también al terminar loadFinalizadas (cargan async). */
 function actualizarStrip(){
   var elV=document.getElementById('ds-aud');
@@ -1584,7 +1584,7 @@ function actualizarStrip(){
 
   var tareasBase=(typeof filteredTareas==='function')?filteredTareas():STORE.tareas;
   var elTE=document.getElementById('ds-tarexp');
-  if(elTE)elTE.textContent=tareasBase.filter(function(t){return norm(t.estado).includes('expirad');}).length;
+  if(elTE)elTE.textContent=tareasBase.filter(function(t){return norm(t.estado).includes('no resuelta');}).length;
 }
 
 function refreshAll(){
@@ -1629,7 +1629,7 @@ function renderTareasInsight(tareas){
     byName[k].total++;
     const n=norm(t.estado);
     if(n.includes('abierta')&&n.includes('atrasad'))byName[k].bad++;
-    else if(n.includes('resuelta')&&!n.includes('atrasad'))byName[k].good++;
+    else if(n.includes('resuelta')&&!n.includes('atrasad')&&!n.includes('no resuelta'))byName[k].good++;
   });
 
   const peor=Object.entries(byName).sort((a,b)=>b[1].total-a[1].total).slice(0,6);
@@ -1702,8 +1702,8 @@ function renderKPIs(tareas,aud){
   // distribución de estados (mismos conteos que el donut)
   const resOk=tareas.filter(t=>esResuelta(t)&&!norm(t.estado).includes('atrasad')).length;
   const resAtr=tareas.filter(t=>esResuelta(t)&&norm(t.estado).includes('atrasad')).length;
-  const expiradas=tareas.filter(t=>norm(t.estado).includes('expirad')).length;
-  const abOk=tareas.filter(t=>esPendiente(t)&&!norm(t.estado).includes('atrasad')&&!norm(t.estado).includes('expirad')).length;
+  const expiradas=tareas.filter(t=>norm(t.estado).includes('no resuelta')).length;
+  const abOk=tareas.filter(t=>esPendiente(t)&&!norm(t.estado).includes('atrasad')&&!norm(t.estado).includes('no resuelta')).length;
   const abAtr=tareas.filter(t=>esPendiente(t)&&norm(t.estado).includes('atrasad')).length;
 
   const kpis=[
@@ -1719,7 +1719,7 @@ function renderKPIs(tareas,aud){
     {c:'k-orange',ico:'🟠',lbl:'Resueltas atrasadas',val:resAtr,sub:total?pctStr(resAtr/total)+' del total':'—'},
     {c:'k-blue',ico:'🔵',lbl:'Abiertas en plazo',val:abOk,sub:total?pctStr(abOk/total)+' del total':'—'},
     {c:'k-red',ico:'🔴',lbl:'Abiertas atrasadas',val:abAtr,sub:total?pctStr(abAtr/total)+' del total':'—'},
-    {c:'k-dark',ico:'⛔',lbl:'Expiradas',val:expiradas,sub:total?pctStr(expiradas/total)+' del total':'—'},
+    {c:'k-dark',ico:'⛔',lbl:'No resueltas',val:expiradas,sub:total?pctStr(expiradas/total)+' del total':'—'},
   ];
   // render only selected KPIs
   const sel=loadKpiSelection()||[];
@@ -1737,7 +1737,7 @@ function renderKPIs(tareas,aud){
 /* ══════════════════ KPI CONFIG ══════════════════ */
 const KPI_CFG_KEY='cerezo_kpi_selection';
 function loadKpiSelection(){
-  try{const v=localStorage.getItem(KPI_CFG_KEY);return v?JSON.parse(v):null;}catch{return null;}
+  try{const v=localStorage.getItem(KPI_CFG_KEY);if(!v)return null;var _kpiArr=JSON.parse(v);return Array.isArray(_kpiArr)?_kpiArr.map(function(l){return l==='Expiradas'?'No resueltas':l;}):_kpiArr;}catch{return null;}
 }
 function saveKpiCfgToStorage(labels){
   try{localStorage.setItem(KPI_CFG_KEY,JSON.stringify(labels));}catch{}
@@ -1750,7 +1750,7 @@ function openKpiCfg(){
   const groups=[
     {lbl:'Cumplimiento',keys:['Cumplimiento prom.','Cumpl. ponderado','% Resolución']},
     {lbl:'Volumen de tareas',keys:['Tareas en período','Resueltas','Pendientes','Pend. vencidas','Sucursales']},
-    {lbl:'Distribución de estado',keys:['Resueltas a tiempo','Resueltas atrasadas','Abiertas en plazo','Abiertas atrasadas','Expiradas']},
+    {lbl:'Distribución de estado',keys:['Resueltas a tiempo','Resueltas atrasadas','Abiertas en plazo','Abiertas atrasadas','No resueltas']},
   ];
   let html='';
   groups.forEach(g=>{
@@ -1898,10 +1898,10 @@ function renderDonut(tareas){
   const resOk=tareas.filter(t=>esResuelta(t)&&!norm(t.estado).includes('atrasad')).length;
   const resAtr=tareas.filter(t=>esResuelta(t)&&norm(t.estado).includes('atrasad')).length;
   const abAtr=tareas.filter(t=>esPendiente(t)&&norm(t.estado).includes('atrasad')).length;
-  const expiradas=tareas.filter(t=>norm(t.estado).includes('expirad')).length;
-  const ab=tareas.filter(t=>esPendiente(t)&&!norm(t.estado).includes('atrasad')&&!norm(t.estado).includes('expirad')).length;
+  const expiradas=tareas.filter(t=>norm(t.estado).includes('no resuelta')).length;
+  const ab=tareas.filter(t=>esPendiente(t)&&!norm(t.estado).includes('atrasad')&&!norm(t.estado).includes('no resuelta')).length;
   const segs=[['Resueltas a tiempo','#16a34a',resOk],['Resueltas atrasadas','#ea580c',resAtr],
-    ['Abiertas en plazo','#2563eb',ab],['Abiertas atrasadas','#dc2626',abAtr],['Expiradas','#1f2937',expiradas]];
+    ['Abiertas en plazo','#2563eb',ab],['Abiertas atrasadas','#dc2626',abAtr],['No resueltas','#1f2937',expiradas]];
   destroyChart('donut');
   const ctx=document.getElementById('chart-donut');
   if(!ctx){return;}
@@ -1975,7 +1975,7 @@ function renderVencTable(tareas){
 let _tareasViewBase=[];
 function tareaEstadoCat(t){
   const n=norm(t.estado||'');
-  if(n.includes('expirad'))return'expirado';
+  if(n.includes('no resuelta'))return'no_resuelta';
   if(n.includes('abierta')&&n.includes('atrasad'))return'abierta_atrasada';
   if(n.includes('abierta'))return'abierta';
   if(n.includes('resuelta')&&n.includes('atrasad'))return'resuelta_atrasada';
@@ -2028,8 +2028,8 @@ function renderTareasTable(tareas){
       const tipo=tipoNorm(t.tipoTarea)==='ol'?'O&L':tipoNorm(t.tipoTarea)==='cartera'?'Cart.':'Colab.';
       const tipoCls=tipoNorm(t.tipoTarea)==='ol'?'#16a34a':tipoNorm(t.tipoTarea)==='cartera'?'#7c3aed':'#2563eb';
       const nEst=norm(t.estado||'');
-      const estCol=nEst.includes('expirad')?'var(--k-dark)':nEst.includes('atrasad')?'var(--k-red)':nEst.includes('resuelta')&&nEst.includes('atrasad')?'var(--k-orange)':nEst.includes('resuelta')?'var(--k-greenok)':'var(--k-blue)';
-      const estTxt=nEst.includes('expirad')?'Expirado':nEst.includes('abierta')&&nEst.includes('atrasad')?'Ab. Atr.':nEst.includes('abierta')?'Abierta':nEst.includes('resuelta')&&nEst.includes('atrasad')?'Res. Atr.':'Resuelta';
+      const estCol=nEst.includes('no resuelta')?'var(--k-dark)':nEst.includes('atrasad')?'var(--k-red)':nEst.includes('resuelta')&&nEst.includes('atrasad')?'var(--k-orange)':nEst.includes('resuelta')?'var(--k-greenok)':'var(--k-blue)';
+      const estTxt=nEst.includes('no resuelta')?'No resuelta':nEst.includes('abierta')&&nEst.includes('atrasad')?'Ab. Atr.':nEst.includes('abierta')?'Abierta':nEst.includes('resuelta')&&nEst.includes('atrasad')?'Res. Atr.':'Resuelta';
       const ftColor=fromISO(t.fechaTerm)&&fromISO(t.fechaTerm)<new Date()&&esPendiente(t)?'#dc2626':'var(--muted)';
       return `<tr style="background:${bg};border-bottom:1px solid var(--rowline)">
         <td style="padding:5px 8px;color:var(--muted);font-size:11px;white-space:nowrap;font-family:monospace">${t.id}</td>
@@ -2051,7 +2051,7 @@ function renderTareasTable(tareas){
     }).join('')}</tbody></table>`;
 }
 
-const ESTADOS=['Abierta','Abierta atrasada','Expirado','Resuelta','Resuelta Atrasada'];
+const ESTADOS=['Abierta','Abierta atrasada','No resuelta','Resuelta','Resuelta Atrasada'];
 function editBtn(id){
   if(_session&&['admin','admin_auditor','auditor'].includes(_session.rol)){
     return '<button class="icon-btn" onclick="openEditIfAllowed(\''+String(id).replace(/\'/g,'')+'\')" >✎</button>';
@@ -2112,7 +2112,7 @@ function actualizarEstadoPreview(){
   var fc=dval('e-fcumpl')?dval('e-fcumpl')+'T12:00:00':null;
   var est=estadoAutomatico(ft?toISO(new Date(ft)):null, fc?toISO(new Date(fc)):null);
   el.textContent=est;
-  var colores={'Resuelta':'var(--k-greenok)','Resuelta Atrasada':'var(--k-orange)','Abierta':'var(--k-blue)','Abierta atrasada':'var(--k-red)','Expirado':'var(--k-dark)'};
+  var colores={'Resuelta':'var(--k-greenok)','Resuelta Atrasada':'var(--k-orange)','Abierta':'var(--k-blue)','Abierta atrasada':'var(--k-red)','No resuelta':'var(--k-dark)'};
   el.style.color=colores[est]||'inherit';
   el.style.borderColor=colores[est]||'var(--border)';
 }
@@ -2407,13 +2407,13 @@ function buildDashboardPngHTML(){
   const avgCumpl=aud.length?Math.round(aud.reduce((a,r)=>a+r.pctCumpl,0)/aud.length*100):0;
   const res=tareas.filter(esResuelta).length,pend=tareas.filter(esPendiente).length;
   const venc=tareas.filter(t=>esPendiente(t)&&diasVenc(t)!==null&&diasVenc(t)<0).length;
-  const expiradas=tareas.filter(t=>norm(t.estado).includes('expirad')).length;
+  const expiradas=tareas.filter(t=>norm(t.estado).includes('no resuelta')).length;
   const kpiHTML=`<div class="kpi-row">
     <div class="kpi-b" style="border-left-color:#2563eb"><div class="l">Cumplimiento prom.</div><div class="v">${avgCumpl}%</div><div class="s">${aud.length} auditorías</div></div>
     <div class="kpi-b" style="border-left-color:#0d9488"><div class="l">Tareas</div><div class="v">${tareas.length}</div><div class="s">en período</div></div>
     <div class="kpi-b" style="border-left-color:var(--k-greenok)"><div class="l">Resueltas</div><div class="v">${res}</div><div class="s">${tareas.length?Math.round(res/tareas.length*100):0}%</div></div>
     <div class="kpi-b" style="border-left-color:#dc2626"><div class="l">Pendientes</div><div class="v">${pend}</div><div class="s">${venc} vencidas</div></div>
-    <div class="kpi-b" style="border-left-color:#1f2937"><div class="l">Expiradas</div><div class="v">${expiradas}</div><div class="s">${tareas.length?Math.round(expiradas/tareas.length*100):0}% del total</div></div>
+    <div class="kpi-b" style="border-left-color:#1f2937"><div class="l">No resueltas</div><div class="v">${expiradas}</div><div class="s">${tareas.length?Math.round(expiradas/tareas.length*100):0}% del total</div></div>
   </div>`;
   // ranking de sucursales menor cumplimiento
   const byS={};aud.forEach(a=>{const k=a.tienda;if(!byS[k])byS[k]={s:0,n:0,c:a.centro};byS[k].s+=a.pctCumpl;byS[k].n++;});
@@ -3119,7 +3119,7 @@ function calcAudStats(a, rowsMismaClase){
   var pendientesTareas = tt.filter(esPendiente);
   var abiertasAtrasadas = pendientesTareas.filter(tareaVencidaPorFecha).length;
   var abiertas = pendientesTareas.length - abiertasAtrasadas;
-  var expiradas = pendientesTareas.filter(function(t){return norm(t.estado).includes('expirad');}).length;
+  var expiradas = pendientesTareas.filter(function(t){return norm(t.estado).includes('no resuelta');}).length;
   var pctResuelto = total>0 ? resueltas/total : 0;
 
   return {
@@ -3265,14 +3265,14 @@ function audTablaPorClase(titulo,color,rows){
     '<span><span style="color:var(--k-red);font-weight:800">●</span> Atrasada</span>'+
     '<span><span style="color:var(--k-blue);font-weight:800">●</span> Vigente</span>'+
     '<span><span style="color:var(--k-orange);font-weight:800">●</span> Resuelta c/atraso</span>'+
-    '<span><span style="color:var(--k-dark);font-weight:800">⛔</span> Expirada</span>'+
+    '<span><span style="color:var(--k-dark);font-weight:800">⛔</span> No resuelta</span>'+
     '<span><span style="color:var(--k-greenok);font-weight:800">●</span> Al corriente</span></span>';
   var tablaHTML='<div class="slbl" style="margin:4px 0 4px;color:'+color+'">'+
     '<span class="dot" style="background:'+color+'"></span>'+titulo+
     ' <span style="font-weight:600;font-size:10px;color:var(--muted)">('+rows.length+')</span>'+
     leyenda+'</div>'+
     '<div class="card" style="padding:8px 10px;margin-bottom:10px"><div class="tbl-scroll"><table class="dt">'+
-    '<thead><tr><th>Tienda</th><th>Mes Auditoría</th><th class="c">% Cumplimiento</th><th class="c">Total</th><th class="c">Pendientes</th><th class="c">Vigentes/Atraso</th><th class="c">Expiradas</th><th class="c">Resueltos</th><th class="c">% Resuelto</th>'+editTh+'</tr></thead>'+
+    '<thead><tr><th>Tienda</th><th>Mes Auditoría</th><th class="c">% Cumplimiento</th><th class="c">Total</th><th class="c">Pendientes</th><th class="c">Vigentes/Atraso</th><th class="c">No resueltas</th><th class="c">Resueltos</th><th class="c">% Resuelto</th>'+editTh+'</tr></thead>'+
     '<tbody>'+(filas||'<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:18px">Sin registros</td></tr>')+'</tbody></table></div></div>';
 
   return tablaHTML+'<div style="margin-bottom:22px"></div>';
@@ -3480,16 +3480,16 @@ function auditoriasVigentesDeduplicadas(lista){
 function renderAuditoriasView(){
   fillAudFilters();
   var arrTodas=auditoriasVigentesDeduplicadas(filteredAudByView());
-  /* Las auditorías con al menos una tarea real Expirada se retiran de esta
+  /* Las auditorías con al menos una tarea real No resuelta se retiran de esta
      vista: ya se listan en "No Finalizadas" (ver renderNoFinalizadas) y
      mostrarlas también aquí duplicaba la información y confundía el estado
-     real de cada auditoría (aparecía "vigente" y "expirada" a la vez). */
+     real de cada auditoría (aparecía "vigente" y "no resuelta" a la vez). */
   var arr=arrTodas.filter(function(a){return calcAudStats(a,arrTodas).expiradas===0;});
   document.getElementById('aud-count').textContent='';
   var cont=document.getElementById('auditorias-tables');
   if(!arr.length){
     cont.innerHTML='<div class="empty" style="padding:30px">'+
-      (arrTodas.length?'Todas las auditorías vigentes tienen tareas expiradas — revisa el módulo <b>No Finalizadas</b>.':
+      (arrTodas.length?'Todas las auditorías vigentes tienen tareas no resueltas — revisa el módulo <b>No Finalizadas</b>.':
         'Sin auditorías. Verifica los filtros o carga datos desde el módulo principal.')+
       '</div>';
     return;
@@ -3536,7 +3536,7 @@ function renderAuditoriasView(){
 
 /* ════════════════════════════════════════════════════════════════════
    MÓDULO AUDITORÍAS NO FINALIZADAS — auditorías vigentes con al menos
-   una tarea en estatus ⛔ Expirado. Reutiliza exactamente la misma
+   una tarea en estatus ⛔ No resuelta. Reutiliza exactamente la misma
    infraestructura que Auditorías (calcAudStats, auditoriasVigentesDeduplicadas,
    audTablaPorClase/audTablaPorClaseCartera) para heredar el mismo formato,
    colores y comportamiento de sincronización — solo cambia el filtro final.
@@ -3579,13 +3579,13 @@ function filteredAudByNoFin(){
 function renderNoFinalizadas(){
   fillNoFinFilters();
   var base=auditoriasVigentesDeduplicadas(filteredAudByNoFin());
-  /* Solo auditorías con al menos una tarea real en estatus Expirado */
+  /* Solo auditorías con al menos una tarea real en estatus No resuelta */
   var arr=base.filter(function(a){return calcAudStats(a,base).expiradas>0;});
   var cnt=document.getElementById('nf-count');
-  if(cnt)cnt.textContent=arr.length?arr.length+' auditoría(s) con tareas expiradas':'';
+  if(cnt)cnt.textContent=arr.length?arr.length+' auditoría(s) con tareas no resueltas':'';
   var cont=document.getElementById('nofin-tables');
   if(!cont)return;
-  if(!arr.length){cont.innerHTML='<div class="empty" style="padding:30px">Sin auditorías con tareas expiradas. Verifica los filtros o carga datos desde el módulo principal.</div>';return;}
+  if(!arr.length){cont.innerHTML='<div class="empty" style="padding:30px">Sin auditorías con tareas no resueltas. Verifica los filtros o carga datos desde el módulo principal.</div>';return;}
 
   function claseCanonica(a){
     var c=norm(a.clase||'');
@@ -3619,7 +3619,7 @@ function renderNoFinalizadas(){
 
 /* Captura #auditorias-tables a un <canvas>. Compartida por PNG/PDF/PPTX
    para que los 3 formatos muestren siempre exactamente lo mismo (incluye
-   la columna "Expiradas" y cualquier cambio futuro a esta sección). */
+   la columna "No resueltas" y cualquier cambio futuro a esta sección). */
 function capturarAuditoriasCanvas(){
   var el=document.getElementById('auditorias-tables');
   if(typeof html2canvas==='undefined'){toast('⚠ Librería de captura no disponible');return Promise.reject(new Error('html2canvas no disponible'));}
@@ -3781,7 +3781,7 @@ function historialAuditoriasPorSucursalHTML(filtroExtra){
     if(f.centro!=='ALL'&&norm(a.centro||'')!==norm(f.centro))return;
     var stats=calcAudStats(a);
     var esCartera=norm(a.clase||'').includes('cartera');
-    var estado = stats.expiradas>0 ? 'expirada' :
+    var estado = stats.expiradas>0 ? 'no_resuelta' :
                  stats.abiertasAtrasadas>0 ? 'atrasada' :
                  stats.abiertas>0 ? 'vigente' :
                  (stats.resueltasAtrasadas||0)>0 ? 'atrasada' : 'entiempo';
@@ -3817,9 +3817,9 @@ function historialAuditoriasPorSucursalHTML(filtroExtra){
   tiendas.forEach(function(t){
     var arr=porTienda[t].slice().sort(function(a,b){return claveOrdenMes(b.mes,b.fecha)-claveOrdenMes(a.mes,a.fecha);});
     var nAtr=arr.filter(function(r){return r.estado==='atrasada';}).length;
-    var nExp=arr.filter(function(r){return r.estado==='expirada';}).length;
+    var nExp=arr.filter(function(r){return r.estado==='no_resuelta';}).length;
     var rowsHTML=arr.map(function(r){
-      var badge = r.estado==='expirada' ? '<span class="badge b-dark">⛔ Expirada</span>' :
+      var badge = r.estado==='no_resuelta' ? '<span class="badge b-dark">⛔ No resuelta</span>' :
                   r.estado==='atrasada' ? '<span class="badge b-red">🔴 Atrasada</span>' :
                   r.estado==='vigente' ? '<span class="badge b-blue">↑ Vigente</span>' :
                   '<span class="badge b-green">✓ En tiempo</span>';
@@ -3838,9 +3838,9 @@ function historialAuditoriasPorSucursalHTML(filtroExtra){
       '</tr>';
     }).join('');
     html+='<div class="store-block"><div class="store-block-hdr"><span class="sname">'+esc(t)+'</span>'+
-      '<span class="scount">'+arr.length+' auditoría(s)'+(nAtr?' · '+nAtr+' atrasada(s)':'')+(nExp?' · '+nExp+' expirada(s)':'')+'</span></div>'+
+      '<span class="scount">'+arr.length+' auditoría(s)'+(nAtr?' · '+nAtr+' atrasada(s)':'')+(nExp?' · '+nExp+' no resuelta(s)':'')+'</span></div>'+
       '<table><thead><tr><th>Mes</th><th>Tipo</th><th class="c">% Cumpl.</th><th class="c">Total</th>'+
-      '<th class="c">Pendientes</th><th class="c">Vigentes/Atraso</th><th class="c">Expiradas</th><th class="c">Resueltos</th>'+
+      '<th class="c">Pendientes</th><th class="c">Vigentes/Atraso</th><th class="c">No resueltas</th><th class="c">Resueltos</th>'+
       '<th class="c">% Resuelto</th><th class="c">Estado</th><th class="c">Situación</th></tr></thead>'+
       '<tbody>'+rowsHTML+'</tbody></table></div>';
   });
@@ -4948,8 +4948,8 @@ function generatePpt(opts){
   var pctRes=res/total;
   var resOk=tareas.filter(function(t){return esResuelta(t)&&!norm(t.estado).includes('atrasad');}).length;
   var resAtr=tareas.filter(function(t){return esResuelta(t)&&norm(t.estado).includes('atrasad');}).length;
-  var expiradas=tareas.filter(function(t){return norm(t.estado).includes('expirad');}).length;
-  var abOk=tareas.filter(function(t){return esPendiente(t)&&!norm(t.estado).includes('atrasad')&&!norm(t.estado).includes('expirad');}).length;
+  var expiradas=tareas.filter(function(t){return norm(t.estado).includes('no resuelta');}).length;
+  var abOk=tareas.filter(function(t){return esPendiente(t)&&!norm(t.estado).includes('atrasad')&&!norm(t.estado).includes('no resuelta');}).length;
   var abAtr=tareas.filter(function(t){return esPendiente(t)&&norm(t.estado).includes('atrasad');}).length;
   var sucursales=uniq(tareas.map(function(t){return t.tienda;})).length;
   var cumplPond=Math.round((aud.reduce(function(a,r){return a+r.pctCumpl*(r.tareas||1);},0)/(aud.reduce(function(a,r){return a+(r.tareas||1);},0)||1))*100);
@@ -5086,7 +5086,7 @@ function generatePpt(opts){
       {id:'res_atr',    v:resAtr,                       l:'Resueltas atrasadas',   su:pp(resAtr)+' del total',     ac:AMB, bg:PAMB},
       {id:'ab_ok',      v:abOk,                         l:'Abiertas en plazo',     su:pp(abOk)+' del total',       ac:BLU, bg:PBLU},
       {id:'ab_atr',     v:abAtr,                        l:'Abiertas atrasadas',    su:pp(abAtr)+' del total',      ac:RED, bg:PRED},
-      {id:'expiradas',  v:expiradas,                     l:'Expiradas',             su:pp(expiradas)+' del total',  ac:SLT, bg:LIN}
+      {id:'expiradas',  v:expiradas,                     l:'No resueltas',          su:pp(expiradas)+' del total',  ac:SLT, bg:LIN}
     ];
     var sel=(opts.kpis&&opts.kpis.length)?opts.kpis:CAT.map(function(k){return k.id;});
     var kpis=CAT.filter(function(k){return sel.indexOf(k.id)>=0;});
@@ -5128,7 +5128,7 @@ function generatePpt(opts){
       byName[k].total++;
       var n=norm(t.estado);
       if(n.includes('abierta')&&n.includes('atrasad'))byName[k].bad++;
-      else if(n.includes('resuelta')&&!n.includes('atrasad'))byName[k].good++;
+      else if(n.includes('resuelta')&&!n.includes('atrasad')&&!n.includes('no resuelta'))byName[k].good++;
     });
     var peor=Object.entries(byName).sort(function(a,b){return b[1].total-a[1].total;}).slice(0,6);
     var mejor=Object.entries(byName).sort(function(a,b){return a[1].total-b[1].total;}).slice(0,6);
@@ -5164,7 +5164,7 @@ function generatePpt(opts){
       {lbl:'Resueltas atrasadas', cnt:resAtr, ac:ORG},
       {lbl:'Abiertas en plazo',   cnt:abOk,   ac:BLU},
       {lbl:'Abiertas atrasadas',  cnt:abAtr,  ac:RED},
-      {lbl:'Expiradas',           cnt:expiradas, ac:SLT}
+      {lbl:'No resueltas',       cnt:expiradas, ac:SLT}
     ];
     var tot3=tareas.length||1;
     /* Donut chart nativo de PowerPoint */
