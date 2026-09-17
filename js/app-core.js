@@ -3078,6 +3078,41 @@ function tareasRealesDeAuditoria(a){
   return tt;
 }
 
+/* Tareas reales en estatus "No resuelta" de una auditoría específica — mismo
+   emparejamiento EXACTO que usa calcAudStats (tareasRealesDeAuditoria), así
+   la lista que se despliega con el botón "+" siempre coincide con el número
+   que muestra la columna "No resueltas". */
+function tareasNoResueltasDeAuditoria(a){
+  return tareasRealesDeAuditoria(a).filter(function(t){return norm(t.estado).includes('no resuelta');});
+}
+/* HTML de la mini-tabla de detalle que se despliega bajo una fila de
+   auditoría al hacer clic en el botón "+" de la columna "No resueltas". */
+function noResueltasDetalleHTML(tareasNR){
+  if(!tareasNR||!tareasNR.length)return '<div class="empty" style="padding:8px;font-size:11px">Sin tareas no resueltas.</div>';
+  return '<table class="dt" style="margin:0"><thead><tr>'+
+    '<th style="font-size:10px">#</th><th style="font-size:10px">Tarea</th><th style="font-size:10px">Área</th>'+
+    '<th class="c" style="font-size:10px">F. Término</th><th class="c" style="font-size:10px">F. Cumpl.</th></tr></thead><tbody>'+
+    tareasNR.map(function(t){
+      return '<tr>'+
+        '<td style="font-family:monospace;font-size:10px;color:var(--muted)">'+esc(t.id)+'</td>'+
+        '<td style="font-size:11px">'+esc(t.nombre||t.actividad||'—')+'</td>'+
+        '<td style="font-size:10px;color:var(--muted)">'+esc(t.areaResp||'—')+'</td>'+
+        '<td class="c" style="font-size:10px">'+(fmtDate(fromISO(t.fechaTerm))||'—')+'</td>'+
+        '<td class="c" style="font-size:10px">'+(fmtDate(fromISO(t.fechaCumpl))||'—')+'</td>'+
+      '</tr>';
+    }).join('')+
+    '</tbody></table>';
+}
+/* Alterna la fila de detalle de tareas No resueltas bajo una auditoría. */
+function toggleNoResueltasDet(btn,domId){
+  var el=document.getElementById(domId);
+  if(!el)return;
+  var abierto=el.style.display!=='none';
+  el.style.display=abierto?'none':'table-row';
+  btn.textContent=abierto?'+':'−';
+  btn.title=abierto?'Ver tareas no resueltas':'Ocultar tareas no resueltas';
+}
+
 function calcAudStats(a, rowsMismaClase){
   var tipoClase = tipoTareaDeClase(a.clase);
   var tt = tareasRealesDeAuditoria(a);
@@ -3241,7 +3276,13 @@ function audTablaPorClase(titulo,color,rows){
     var akey=[norm(a.tienda||''),norm(a.mes||''),norm(a.clase||''),a.fecha||''].join('|');
     window._audItemCache[akey]=a;
     var editBtn=canEditAud?'<td style="text-align:center"><button class="icon-btn" onclick="openEditAuditoria(\''+akey+'\')" title="Editar auditoría">✎</button></td>':'<td></td>';
-    return '<tr style="background:'+rowBg+';border-left:'+rowBd+'">'+ 
+    /* Botón "+" y fila de detalle: solo se generan cuando esta auditoría
+       tiene al menos una tarea real en estatus No resuelta (stats.expiradas).
+       domId se deriva de akey saneando caracteres no válidos para id de DOM. */
+    var tieneNR=(stats.expiradas||0)>0;
+    var domId='nr_'+akey.replace(/[^a-zA-Z0-9]/g,'_');
+    var nrBtn=tieneNR?'<button class="icon-btn" style="margin-left:4px;padding:0 5px;font-weight:800;color:var(--k-dark)" onclick="toggleNoResueltasDet(this,\''+domId+'\')" title="Ver tareas no resueltas">+</button>':'';
+    var filaPrincipal='<tr style="background:'+rowBg+';border-left:'+rowBd+'">'+ 
       '<td><b>'+(a.tienda||'—')+'</b></td>'+
       '<td>'+(a.mes||'—')+'</td>'+
       '<td style="text-align:center">'+pctFmt(a.pctCumpl)+'</td>'+
@@ -3253,12 +3294,17 @@ function audTablaPorClase(titulo,color,rows){
        (stats.abiertas||0)===0&&(stats.abiertasAtrasadas||0)===0?'<span style="color:var(--k-greenok)">✓</span>':'')+
       '</td>'+
       '<td style="text-align:center;font-size:10px">'+
-      ((stats.expiradas||0)>0?'<span style="color:var(--k-dark);font-weight:700">'+(stats.expiradas||0)+'⛔</span>':'<span style="color:var(--muted)">—</span>')+
+      (tieneNR?'<span style="color:var(--k-dark);font-weight:700">'+stats.expiradas+'⛔</span>'+nrBtn:'<span style="color:var(--muted)">—</span>')+
       '</td>'+
       '<td style="text-align:center">'+stats.resueltas+mark+'</td>'+
       '<td style="text-align:center">'+pctFmt(stats.pctResuelto)+mark+'</td>'+
       editBtn+
     '</tr>';
+    var filaDetalle=tieneNR?('<tr id="'+domId+'" style="display:none"><td colspan="10" style="background:var(--soft);padding:10px 14px;border-left:'+rowBd+'">'+
+      '<div style="font-size:10px;font-weight:700;color:var(--k-dark);margin-bottom:6px">⛔ Tareas No resueltas — '+esc(a.tienda||'')+' · '+esc(a.mes||'')+'</div>'+
+      noResueltasDetalleHTML(tareasNoResueltasDeAuditoria(a))+
+    '</td></tr>'):'';
+    return filaPrincipal+filaDetalle;
   }).join('');
   var editTh=canEditAud?'<th class="c"></th>':'<th></th>';
   var leyenda='<span style="font-size:10px;font-weight:600;color:var(--muted);margin-left:8px;display:inline-flex;align-items:center;gap:10px">'+
@@ -3313,14 +3359,25 @@ function audTablaPorClaseCarteraRender(titulo,color,rows){
     var mark=stats.dinamico?
       '<span style="font-size:9px;color:var(--teal);margin-left:3px" title="Vinculada: sus tareas reales se cuentan en vivo">⟳</span>':
       '<span style="font-size:9px;color:var(--k-red,#dc2626);margin-left:3px;cursor:help" title="Sin vincular: ninguna tarea real coincide en centro+tipo+mes con esta auditoría. Revisa el centro capturado.">⚠</span>';
+    var tieneNR=(stats.expiradas||0)>0;
+    var domId='nr_'+akey.replace(/[^a-zA-Z0-9]/g,'_');
+    var nrBtn=tieneNR?'<button class="icon-btn" style="margin-left:4px;padding:0 5px;font-weight:800;color:var(--k-dark)" onclick="toggleNoResueltasDet(this,\''+domId+'\')" title="Ver tareas no resueltas">+</button>':'';
     var editBtn=canEditAud?'<td style="text-align:center"><button class="icon-btn" data-akey="'+akey+'" onclick="openEditAuditoriaKey(this)" title="Editar">✎</button></td>':'<td></td>';
-    return '<tr>'+
+    var filaPrincipal='<tr>'+
       '<td><b>'+(a.tienda||'—')+'</b>'+mark+'</td>'+
       '<td>'+(a.mes||'—')+'</td>'+
       '<td style="text-align:center">'+total+'</td>'+
       '<td style="text-align:center;color:'+pc+';font-weight:800">'+pend+'</td>'+
+      '<td style="text-align:center;font-size:10px">'+
+      (tieneNR?'<span style="color:var(--k-dark);font-weight:700">'+stats.expiradas+'⛔</span>'+nrBtn:'<span style="color:var(--muted)">—</span>')+
+      '</td>'+
       '<td style="text-align:center;color:var(--k-greenok);font-weight:700">'+resu+'</td>'+
       editBtn+'</tr>';
+    var filaDetalle=tieneNR?('<tr id="'+domId+'" style="display:none"><td colspan="7" style="background:var(--soft);padding:10px 14px">'+
+      '<div style="font-size:10px;font-weight:700;color:var(--k-dark);margin-bottom:6px">⛔ Tareas No resueltas — '+esc(a.tienda||'')+' · '+esc(a.mes||'')+'</div>'+
+      noResueltasDetalleHTML(tareasNoResueltasDeAuditoria(a))+
+    '</td></tr>'):'';
+    return filaPrincipal+filaDetalle;
   }).join('');
   var editTh=canEditAud?'<th class="c"></th>':'<th></th>';
   var tablaHTML='<div class="slbl" style="margin:4px 0 4px;color:'+color+'">'+
@@ -3329,8 +3386,8 @@ function audTablaPorClaseCarteraRender(titulo,color,rows){
     '<span style="font-size:10px;font-weight:600;color:var(--k-purple);margin-left:10px">Sin % cumplimiento · solo seguimiento</span></div>'+
     '<div class="card" style="padding:8px 10px;margin-bottom:10px"><div class="tbl-scroll"><table class="dt">'+
     '<thead><tr><th>Tienda</th><th>Mes</th><th class="c">Total Tareas</th>'+
-    '<th class="c">Pendientes</th><th class="c">Resueltas</th>'+editTh+'</tr></thead>'+
-    '<tbody>'+(filas||'<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:18px">Sin registros</td></tr>')+'</tbody></table></div></div>';
+    '<th class="c">Pendientes</th><th class="c">No resueltas</th><th class="c">Resueltas</th>'+editTh+'</tr></thead>'+
+    '<tbody>'+(filas||'<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:18px">Sin registros</td></tr>')+'</tbody></table></div></div>';
   return tablaHTML+'<div style="margin-bottom:22px"></div>';
 }
 
