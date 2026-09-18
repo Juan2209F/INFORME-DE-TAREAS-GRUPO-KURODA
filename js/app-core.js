@@ -3559,7 +3559,7 @@ function renderAuditoriasView(){
   var cont=document.getElementById('auditorias-tables');
   if(!arr.length){
     cont.innerHTML='<div class="empty" style="padding:30px">'+
-      (arrTodas.length?'Todas las auditorías vigentes tienen tareas no resueltas — revisa el módulo <b>No Finalizadas</b>.':
+      (arrTodas.length?'Todas las auditorías vigentes tienen tareas no resueltas — revisa el módulo <b>No resueltas</b>.':
         'Sin auditorías. Verifica los filtros o carga datos desde el módulo principal.')+
       '</div>';
     return;
