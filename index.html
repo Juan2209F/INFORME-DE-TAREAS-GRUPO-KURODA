@@ -95,7 +95,7 @@
   <div class="nav-item" id="nav-ajustes" title="Ajustes" onclick="setView('ajustes')">⚖️<span class="nav-lbl">Ajustes</span></div>
   <div class="nav-item" id="nav-mermas" title="Mermas" onclick="setView('mermas')">🗂️<span class="nav-lbl">Mermas</span></div>
   <div class="nav-item" id="nav-finalizadas" title="Auditorías Finalizadas" onclick="setView('finalizadas')">✅<span class="nav-lbl">Finalizadas</span></div>
-  <div class="nav-item" id="nav-nofinalizadas" title="Auditorías No Finalizadas (tareas no resueltas)" onclick="setView('nofinalizadas')">⏳<span class="nav-lbl">No Finalizadas</span></div>
+  <div class="nav-item" id="nav-nofinalizadas" title="Auditorías No resueltas (tareas en estatus No resuelta)" onclick="setView('nofinalizadas')">⏳<span class="nav-lbl">No resueltas</span></div>
   <div class="nav-item" id="nav-desempeno" title="Desempeño de Auditores" onclick="setView('desempeno')">📈<span class="nav-lbl">Desempeño</span></div>
   <div class="nav-item" id="nav-documentos" title="Generador de Documentos" onclick="setView('documentos')">📄<span class="nav-lbl">Documentos</span></div>
   <div class="nav-item" id="nav-generador" title="Generador de Dashboard Ejecutivo (todas las razones sociales)" onclick="setView('generador')" style="display:none">📊<span class="nav-lbl">Generador</span></div>
@@ -127,8 +127,8 @@
       <div class="stat"><b id="ds-fin">0</b><span>Finalizadas</span></div>
       <div class="stat"><b id="ds-tar">0</b><span>Tareas</span></div>
       <div class="stat"><b id="ds-pend">0</b><span>Pendientes</span></div>
-      <div class="stat" style="cursor:pointer" onclick="setView('nofinalizadas')" title="Auditorías con al menos una tarea no resuelta — ver en No Finalizadas"><b id="ds-audexp" style="color:var(--k-dark)">0</b><span>Aud. no resueltas</span></div>
-      <div class="stat" style="cursor:pointer" onclick="setView('nofinalizadas')" title="Total de tareas en estatus No resuelta — ver en No Finalizadas"><b id="ds-tarexp" style="color:var(--k-dark)">0</b><span>Tareas no resueltas</span></div>
+      <div class="stat" style="cursor:pointer" onclick="setView('nofinalizadas')" title="Auditorías con al menos una tarea no resuelta — ver en No resueltas"><b id="ds-audexp" style="color:var(--k-dark)">0</b><span>Aud. no resueltas</span></div>
+      <div class="stat" style="cursor:pointer" onclick="setView('nofinalizadas')" title="Total de tareas en estatus No resuelta — ver en No resueltas"><b id="ds-tarexp" style="color:var(--k-dark)">0</b><span>Tareas no resueltas</span></div>
       <div class="filters-spacer"></div>
       <span id="staged-box"></span>
       <button class="btn btn-ghost" id="btn-recargar" onclick="recargarDatos()" title="Traer los últimos cambios desde Supabase">🔄 Recargar</button>
@@ -524,7 +524,7 @@
 
     <!-- ════════ VISTA AUDITORÍAS NO FINALIZADAS (tareas con estatus No resuelta) ════════ -->
     <div id="view-nofinalizadas" style="display:none;flex-direction:column;gap:14px">
-      <div class="slbl"><span class="dot" style="background:#1f2937"></span>Auditorías No Finalizadas
+      <div class="slbl"><span class="dot" style="background:#1f2937"></span>Auditorías No resueltas
         <span style="font-weight:600;font-size:10px;color:var(--muted);text-transform:none;margin-left:6px">Auditorías vigentes con al menos una tarea en estatus No resuelta</span>
       </div>
       <p class="module-desc">Muestra todas las auditorías activas (aún no cerradas en Finalizadas) que tienen una o más tareas con estatus ⛔ No resuelta.</p>
@@ -821,7 +821,7 @@
             <input type="checkbox" class="eu-vista-cb" value="finalizadas" style="width:14px;height:14px;cursor:pointer"> ✅ Finalizadas
           </label>
           <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;font-weight:600">
-            <input type="checkbox" class="eu-vista-cb" value="nofinalizadas" style="width:14px;height:14px;cursor:pointer"> ⏳ No Finalizadas
+            <input type="checkbox" class="eu-vista-cb" value="nofinalizadas" style="width:14px;height:14px;cursor:pointer"> ⏳ No resueltas
           </label>
           <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;font-weight:600">
             <input type="checkbox" class="eu-vista-cb" value="desempeno" style="width:14px;height:14px;cursor:pointer"> 📈 Desempeño
