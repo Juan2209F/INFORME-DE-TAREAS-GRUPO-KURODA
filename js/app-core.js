@@ -3086,22 +3086,35 @@ function tareasNoResueltasDeAuditoria(a){
   return tareasRealesDeAuditoria(a).filter(function(t){return norm(t.estado).includes('no resuelta');});
 }
 /* HTML de la mini-tabla de detalle que se despliega bajo una fila de
-   auditoría al hacer clic en el botón "+" de la columna "No resueltas". */
+   auditoría al hacer clic en el botón "+" de la columna "No resueltas".
+   Usa layout fijo (colgroup con % explícitos) en vez de heredar .dt tal
+   cual: con .dt (auto-layout + nowrap) un nombre de tarea largo desplazaba
+   el ancho de las columnas siguientes y encabezado/datos dejaban de
+   coincidir verticalmente. Aquí el ancho de cada columna es fijo sin
+   importar el contenido, y la columna Tarea permite salto de línea. */
 function noResueltasDetalleHTML(tareasNR){
-  if(!tareasNR||!tareasNR.length)return '<div class="empty" style="padding:8px;font-size:11px">Sin tareas no resueltas.</div>';
-  return '<table class="dt" style="margin:0"><thead><tr>'+
-    '<th style="font-size:10px">#</th><th style="font-size:10px">Tarea</th><th style="font-size:10px">Área</th>'+
-    '<th class="c" style="font-size:10px">F. Término</th><th class="c" style="font-size:10px">F. Cumpl.</th></tr></thead><tbody>'+
-    tareasNR.map(function(t){
-      return '<tr>'+
-        '<td style="font-family:monospace;font-size:10px;color:var(--muted)">'+esc(t.id)+'</td>'+
-        '<td style="font-size:11px">'+esc(t.nombre||t.actividad||'—')+'</td>'+
-        '<td style="font-size:10px;color:var(--muted)">'+esc(t.areaResp||'—')+'</td>'+
-        '<td class="c" style="font-size:10px">'+(fmtDate(fromISO(t.fechaTerm))||'—')+'</td>'+
-        '<td class="c" style="font-size:10px">'+(fmtDate(fromISO(t.fechaCumpl))||'—')+'</td>'+
-      '</tr>';
-    }).join('')+
-    '</tbody></table>';
+  if(!tareasNR||!tareasNR.length)return '<div class="empty" style="padding:10px 12px;font-size:11px">Sin tareas no resueltas.</div>';
+  var filas=tareasNR.map(function(t,i){
+    var bg=i%2===0?'transparent':'var(--soft)';
+    return '<tr style="background:'+bg+'">'+
+      '<td style="padding:7px 10px;border-bottom:1px solid var(--rowline);font-family:monospace;font-size:10px;color:var(--muted);text-align:center">'+esc(t.id)+'</td>'+
+      '<td style="padding:7px 10px;border-bottom:1px solid var(--rowline);font-size:11.5px;font-weight:600;color:var(--txt);white-space:normal;word-break:break-word">'+esc(t.nombre||t.actividad||'—')+'</td>'+
+      '<td style="padding:7px 10px;border-bottom:1px solid var(--rowline);font-size:11px;color:var(--muted);white-space:normal">'+esc(t.areaResp||'—')+'</td>'+
+      '<td style="padding:7px 10px;border-bottom:1px solid var(--rowline);font-size:11px;color:var(--txt);text-align:center;white-space:nowrap">'+(fmtDate(fromISO(t.fechaTerm))||'—')+'</td>'+
+      '<td style="padding:7px 10px;border-bottom:1px solid var(--rowline);font-size:11px;color:var(--muted);text-align:center;white-space:nowrap">'+(fmtDate(fromISO(t.fechaCumpl))||'—')+'</td>'+
+    '</tr>';
+  }).join('');
+  return '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--bg)">'+
+    '<table style="width:100%;border-collapse:collapse;table-layout:fixed">'+
+    '<colgroup><col style="width:64px"><col style="width:42%"><col style="width:20%"><col style="width:17%"><col style="width:17%"></colgroup>'+
+    '<thead><tr style="background:var(--soft)">'+
+      '<th style="padding:8px 10px;text-align:center;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);border-bottom:1px solid var(--border)">#</th>'+
+      '<th style="padding:8px 10px;text-align:left;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);border-bottom:1px solid var(--border)">Tarea</th>'+
+      '<th style="padding:8px 10px;text-align:left;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);border-bottom:1px solid var(--border)">Área</th>'+
+      '<th style="padding:8px 10px;text-align:center;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);border-bottom:1px solid var(--border)">F. Término</th>'+
+      '<th style="padding:8px 10px;text-align:center;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);border-bottom:1px solid var(--border)">F. Cumpl.</th>'+
+    '</tr></thead>'+
+    '<tbody>'+filas+'</tbody></table></div>';
 }
 /* Alterna la fila de detalle de tareas No resueltas bajo una auditoría. */
 function toggleNoResueltasDet(btn,domId){
@@ -3301,7 +3314,7 @@ function audTablaPorClase(titulo,color,rows){
       editBtn+
     '</tr>';
     var filaDetalle=tieneNR?('<tr id="'+domId+'" style="display:none"><td colspan="10" style="background:var(--soft);padding:10px 14px;border-left:'+rowBd+'">'+
-      '<div style="font-size:10px;font-weight:700;color:var(--k-dark);margin-bottom:6px">⛔ Tareas No resueltas — '+esc(a.tienda||'')+' · '+esc(a.mes||'')+'</div>'+
+      '<div style="display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--k-dark);margin-bottom:8px"><span>⛔</span><span>Tareas No resueltas</span><span style="color:var(--muted);font-weight:600;text-transform:none;letter-spacing:0">— '+esc(a.tienda||'')+' · '+esc(a.mes||'')+'</span></div>'+
       noResueltasDetalleHTML(tareasNoResueltasDeAuditoria(a))+
     '</td></tr>'):'';
     return filaPrincipal+filaDetalle;
@@ -3374,7 +3387,7 @@ function audTablaPorClaseCarteraRender(titulo,color,rows){
       '<td style="text-align:center;color:var(--k-greenok);font-weight:700">'+resu+'</td>'+
       editBtn+'</tr>';
     var filaDetalle=tieneNR?('<tr id="'+domId+'" style="display:none"><td colspan="7" style="background:var(--soft);padding:10px 14px">'+
-      '<div style="font-size:10px;font-weight:700;color:var(--k-dark);margin-bottom:6px">⛔ Tareas No resueltas — '+esc(a.tienda||'')+' · '+esc(a.mes||'')+'</div>'+
+      '<div style="display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--k-dark);margin-bottom:8px"><span>⛔</span><span>Tareas No resueltas</span><span style="color:var(--muted);font-weight:600;text-transform:none;letter-spacing:0">— '+esc(a.tienda||'')+' · '+esc(a.mes||'')+'</span></div>'+
       noResueltasDetalleHTML(tareasNoResueltasDeAuditoria(a))+
     '</td></tr>'):'';
     return filaPrincipal+filaDetalle;
