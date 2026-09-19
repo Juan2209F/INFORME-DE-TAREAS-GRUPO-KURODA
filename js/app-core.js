@@ -2768,8 +2768,6 @@ new MutationObserver(function(){
      fondo pensado para el otro tema. Se vuelve a pintar la vista activa
      para que sus colores siempre coincidan con el tema actual. */
   if(VIEW==='auditorias'&&typeof renderAuditoriasView==='function')renderAuditoriasView();
-  else if(VIEW==='finalizadas'&&typeof renderFinalizadas==='function')renderFinalizadas();
-  else if(VIEW==='nofinalizadas'&&typeof renderNoFinalizadas==='function')renderNoFinalizadas();
 })
   .observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 
@@ -2811,12 +2809,8 @@ function setView(v){
   if(vaj)vaj.style.display=v==='ajustes'?'flex':'none';
   var vmr=document.getElementById('view-mermas');
   if(vmr)vmr.style.display=v==='mermas'?'flex':'none';
-  var vfin=document.getElementById('view-finalizadas');
-  if(vfin)vfin.style.display=v==='finalizadas'?'flex':'none';
   var vdesp=document.getElementById('view-desempeno');
   if(vdesp)vdesp.style.display=v==='desempeno'?'block':'none';
-  var vnf=document.getElementById('view-nofinalizadas');
-  if(vnf)vnf.style.display=v==='nofinalizadas'?'flex':'none';
   var vgen=document.getElementById('view-generador');
   if(vgen)vgen.style.display=v==='generador'?'flex':'none';
   var vdoc=document.getElementById('view-documentos');
@@ -2831,12 +2825,8 @@ function setView(v){
   if(naj)naj.classList.toggle('active',v==='ajustes');
   var nmr=document.getElementById('nav-mermas');
   if(nmr)nmr.classList.toggle('active',v==='mermas');
-  var nfin=document.getElementById('nav-finalizadas');
-  if(nfin)nfin.classList.toggle('active',v==='finalizadas');
   var ndesp=document.getElementById('nav-desempeno');
   if(ndesp)ndesp.classList.toggle('active',v==='desempeno');
-  var nnf=document.getElementById('nav-nofinalizadas');
-  if(nnf)nnf.classList.toggle('active',v==='nofinalizadas');
   var ngen=document.getElementById('nav-generador');
   if(ngen)ngen.classList.toggle('active',v==='generador');
   var ndoc=document.getElementById('nav-documentos');
@@ -2848,7 +2838,6 @@ function setView(v){
   }
   else if(v==='ajustes'){ if(!AJUSTES.length) loadAjustes(); else{ fillAjFilters(); renderAjustes(); } }
   else if(v==='mermas'){ if(!MERMAS.length) loadMermas(); else{ fillMrFilters(); renderMermas(); } }
-  else if(v==='finalizadas'){ if(!FINALIZADAS.length) loadFinalizadas(); else renderFinalizadas(); }
   else if(v==='desempeno'){
     /* Cargar todos los módulos que el desempeño necesita antes de renderizar */
     var loaders=[];
@@ -2859,10 +2848,6 @@ function setView(v){
     if(!CARGAS.length) loaders.push(loadCargas());
     if(loaders.length) Promise.all(loaders).then(renderDesempeno);
     else renderDesempeno();
-  }
-  else if(v==='nofinalizadas'){
-    if(!STORE.auditorias.length) loadDataFromSupabase().then(renderNoFinalizadas);
-    else renderNoFinalizadas();
   }
   else if(v==='generador'){
     var ifr=document.getElementById('iframe-generador');
@@ -3617,19 +3602,59 @@ function auditoriasVigentesDeduplicadas(lista){
   return resultado;
 }
 
+/* ════════════════════════════════════════════════════════════════════
+   MÓDULO AUDITORÍAS (unificado) — un solo apartado con filtro ESTADO:
+   Vigentes/En plazo (default) · No resueltas · Finalizadas · Todas.
+   Antes eran 3 vistas separadas (Auditorías / Finalizadas / No resueltas);
+   ahora comparten el mismo contenedor de tablas (#auditorias-tables) y el
+   mismo filtro de Mes — Finalizadas usa además su propio filtro de Año
+   porque es un histórico permanente que cruza varios años. */
+var _audEstadoForzado=null;
+/* Navegación directa desde otras pantallas (p. ej. los contadores KPI de
+   "Aud. no resueltas" del dashboard) — abre Auditorías ya con ese ESTADO. */
+function irAuditoriasEstado(est){
+  _audEstadoForzado=est;
+  setView('auditorias');
+}
+function audEstadoChanged(){renderAuditoriasView();}
+function audRecargar(){
+  var est=(document.getElementById('aud-f-estado')||{}).value||'vigentes';
+  if(est==='finalizadas'){loadFinalizadas().then(renderAuditoriasView);}
+  else{loadDataFromSupabase().then(renderAuditoriasView);}
+}
 function renderAuditoriasView(){
+  var selE=document.getElementById('aud-f-estado');
+  if(selE&&_audEstadoForzado){selE.value=_audEstadoForzado;_audEstadoForzado=null;}
+  var est=selE?selE.value:'vigentes';
+  var wrapActivas=document.getElementById('aud-filtros-activas');
+  var wrapFin=document.getElementById('aud-filtros-finalizadas');
+  if(wrapActivas)wrapActivas.style.display=est==='finalizadas'?'none':'grid';
+  if(wrapFin)wrapFin.style.display=est==='finalizadas'?'grid':'none';
+  var cont=document.getElementById('auditorias-tables');
+  var cntEl=document.getElementById('aud-count');
+  if(cntEl)cntEl.textContent='';
+
+  /* ESTADO = Finalizadas: usa el histórico FINALIZADAS (tabla
+     tareas_finalizadas en Supabase), completamente aparte de STORE.auditorias. */
+  if(est==='finalizadas'){
+    if(!FINALIZADAS.length){loadFinalizadas().then(renderAuditoriasView);return;}
+    fillFinFilters();
+    renderFinalizadas();
+    return;
+  }
+
   fillAudFilters();
   var arrTodas=auditoriasVigentesDeduplicadas(filteredAudByView());
-  /* Las auditorías con al menos una tarea real No resuelta se retiran de esta
-     vista: ya se listan en "No Finalizadas" (ver renderNoFinalizadas) y
-     mostrarlas también aquí duplicaba la información y confundía el estado
-     real de cada auditoría (aparecía "vigente" y "no resuelta" a la vez). */
-  var arr=arrTodas.filter(function(a){return calcAudStats(a,arrTodas).expiradas===0;});
-  document.getElementById('aud-count').textContent='';
-  var cont=document.getElementById('auditorias-tables');
+  var arr;
+  if(est==='noresueltas')arr=arrTodas.filter(function(a){return calcAudStats(a,arrTodas).expiradas>0;});
+  else if(est==='todas')arr=arrTodas;
+  else /* vigentes (default) */ arr=arrTodas.filter(function(a){return calcAudStats(a,arrTodas).expiradas===0;});
+
+  if(!cont)return;
   if(!arr.length){
     cont.innerHTML='<div class="empty" style="padding:30px">'+
-      (arrTodas.length?'Todas las auditorías vigentes tienen tareas no resueltas — revisa el módulo <b>No resueltas</b>.':
+      (est==='vigentes'&&arrTodas.length?'Todas las auditorías vigentes tienen tareas no resueltas — cambia ESTADO a "No resueltas" para verlas.':
+       est==='noresueltas'?'Sin auditorías con tareas no resueltas para el filtro actual.':
         'Sin auditorías. Verifica los filtros o carga datos desde el módulo principal.')+
       '</div>';
     return;
@@ -3665,11 +3690,13 @@ function renderAuditoriasView(){
     html+=audTablaPorClase(k.toUpperCase(),'#7c8696',grupos[k]);
   });
 
-  /* Si hay 0 auditorías en colab o en orden, mostrar sección vacía informativa */
-  if(!grupos['__colab']||!grupos['__colab'].length)
-    html+='<div class="slbl" style="color:var(--k-blue);margin-bottom:8px"><span class="dot" style="background:var(--k-blue)"></span>AUDITORIAS DE COLABORACION <span style="font-size:10px;color:var(--muted);font-weight:500">(0 con los filtros actuales)</span></div>';
-  if(!grupos['__orden']||!grupos['__orden'].length)
-    html+='<div class="slbl" style="color:var(--k-greenok);margin-bottom:8px"><span class="dot" style="background:var(--k-greenok)"></span>ORDEN Y LIMPIEZA <span style="font-size:10px;color:var(--muted);font-weight:500">(0 con los filtros actuales)</span></div>';
+  /* Si hay 0 auditorías en colab o en orden (solo en la vista Vigentes), mostrar sección vacía informativa */
+  if(est==='vigentes'){
+    if(!grupos['__colab']||!grupos['__colab'].length)
+      html+='<div class="slbl" style="color:var(--k-blue);margin-bottom:8px"><span class="dot" style="background:var(--k-blue)"></span>AUDITORIAS DE COLABORACION <span style="font-size:10px;color:var(--muted);font-weight:500">(0 con los filtros actuales)</span></div>';
+    if(!grupos['__orden']||!grupos['__orden'].length)
+      html+='<div class="slbl" style="color:var(--k-greenok);margin-bottom:8px"><span class="dot" style="background:var(--k-greenok)"></span>ORDEN Y LIMPIEZA <span style="font-size:10px;color:var(--muted);font-weight:500">(0 con los filtros actuales)</span></div>';
+  }
 
   cont.innerHTML=html;
 }
@@ -3703,15 +3730,14 @@ function fillNoFinFilters(){
 }
 
 function filteredAudByNoFin(){
-  var mes=document.getElementById('nf-f-mes').value;
-  var tienda=document.getElementById('nf-f-tienda').value;
-  var centro=document.getElementById('nf-f-centro').value;
+  /* Los filtros nf-f-mes/nf-f-tienda/nf-f-centro vivían en el módulo "No
+     Finalizadas" separado, ahora fusionado dentro de Auditorías (filtro
+     ESTADO). Esta función solo la sigue usando actualizarStrip() para el
+     contador KPI global "Aud. no resueltas" del dashboard, así que basta
+     con filtrar por Razón (igual que el resto de los contadores del strip). */
   var razon=(document.getElementById('f-razon')||{}).value||'ALL';
   return STORE.auditorias.filter(function(a){
     if(razon!=='ALL'&&razKey(a.razon)!==razKey(razon))return false;
-    if(mes!=='ALL'&&norm(a.mes)!==norm(mes))return false;
-    if(tienda!=='ALL'&&norm(a.tienda)!==norm(tienda))return false;
-    if(centro!=='ALL'&&norm(a.centro)!==norm(centro))return false;
     return true;
   });
 }
@@ -8395,8 +8421,9 @@ function finTablaPorClase(titulo,color,rows,esCartera){
    en Finalizadas. */
 function renderFinalizadas(){
   var arr=filteredFinalizadas();
-  document.getElementById('fin-count').textContent=arr.length+' finalizada(s)';
-  var cont=document.getElementById('fin-tables');
+  var cntEl=document.getElementById('aud-count');
+  if(cntEl)cntEl.textContent=arr.length+' finalizada(s)';
+  var cont=document.getElementById('auditorias-tables');
   if(!cont)return;
   if(!arr.length){cont.innerHTML='<div class="empty" style="padding:30px">Sin registros finalizados. Verifica los filtros o espera a que se archive una auditoría al 100%.</div>';return;}
 
@@ -8582,7 +8609,7 @@ async function registrarFinalizada(a){
     if((saved.pct_cumpl||0)>1)saved.pct_cumpl=saved.pct_cumpl/100;
     if(ix>=0)FINALIZADAS[ix]=saved;
     delete _finRegistrandoEnVuelo[akm];
-    if(VIEW==='finalizadas'){fillFinFilters();renderFinalizadas();}
+    if(VIEW==='auditorias'&&(document.getElementById('aud-f-estado')||{}).value==='finalizadas'){fillFinFilters();renderFinalizadas();}
   }catch(e){
     FINALIZADAS=FINALIZADAS.filter(function(f){return f.aud_key!==ak||!f._pending;});
     delete _finRegistrandoEnVuelo[akm];
