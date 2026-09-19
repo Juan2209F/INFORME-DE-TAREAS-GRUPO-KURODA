@@ -2686,15 +2686,27 @@ function syncDocsTheme(){
   var isDark=document.documentElement.getAttribute('data-theme')==='dark';
   try{ifd.contentWindow.postMessage({type:'theme',dark:isDark},'*');}catch(e){}
 }
+/* Mismo mecanismo que syncDocsTheme pero para el módulo Generador — sin
+   esto, el Generador se quedaba con el tema que tenía al cargar por primera
+   vez (normalmente claro) aunque el resto del dashboard cambiara a oscuro,
+   viéndose "distinto" del resto de la app. */
+function syncGeneradorTheme(){
+  var ifr=document.getElementById('iframe-generador');
+  if(!ifr||!ifr.contentWindow)return;
+  var isDark=document.documentElement.getAttribute('data-theme')==='dark';
+  try{ifr.contentWindow.postMessage({type:'theme',dark:isDark},'*');}catch(e){}
+}
 window.addEventListener('message',function(ev){
   var d=ev.data;if(!d||typeof d!=='object')return;
-  if(d.type==='gen-ready')sendRazonesToGenerador();
+  if(d.type==='gen-ready'){sendRazonesToGenerador();syncGeneradorTheme();}
   else if(d.type==='gen-download')descargarPptxDesdeGenerador(d.b64,d.fileName);
 });
-/* Si el tema cambia mientras Documentos ya está abierto, se le avisa en
-   vivo (independientemente de qué botón haya disparado el cambio). */
+/* Si el tema cambia mientras Documentos o Generador ya están abiertos, se
+   les avisa en vivo (independientemente de qué botón haya disparado el
+   cambio). */
 new MutationObserver(function(){
   syncDocsTheme();
+  syncGeneradorTheme();
   /* Las tablas de Auditorías/Finalizadas/No Finalizadas "hornean" los
      colores de fondo de cada fila según el tema en el momento en que se
      generan (para poder pintarlas de un tono translúcido en oscuro y de
@@ -2805,6 +2817,12 @@ function setView(v){
     /* Enviar al generador las razones que la cuenta puede usar. El generador
        ajusta su marca y su historial (localStorage) por razón social. */
     sendRazonesToGenerador();
+    /* Mismo tema que el resto del dashboard. Si el iframe está cargando por
+       primera vez, este envío inmediato llega antes de que su listener esté
+       enganchado y se pierde — por eso también se reenvía al recibir
+       'gen-ready' (ver el listener de window.addEventListener('message',...)
+       más abajo), igual que ya se hace con sendRazonesToGenerador(). */
+    syncGeneradorTheme();
     if(ifr&&!ifr.getAttribute('src')){
       /* assets/generador.html vive en el mismo origen que este dashboard
          (mismo dominio en GitHub Pages), así que localStorage (usado por el
