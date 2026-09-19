@@ -2093,31 +2093,61 @@ function openEdit(id){
           <option value="AUDITORIAS DE COLABORACION" ${(tipoNormLocal(v.actividad)||tipoNorm(v.tipoTarea))==='col'?'selected':''}>Auditoría de Colaboración</option>
           <option value="AUDITORIA CARTERA" ${(tipoNormLocal(v.actividad)||tipoNorm(v.tipoTarea))==='cartera'?'selected':''}>Cartera</option>
         </select></div>
-      <div class="form-field"><label>Estado <span style="font-weight:400;color:var(--muted)">(automático, según fechas)</span></label>
-        <div id="e-estado-preview" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600"></div></div>
+      <div class="form-field"><label>Estado <span style="font-weight:400;color:var(--muted)">(editable — se sugiere según fechas, tú puedes cambiarlo)</span></label>
+        <select id="e-estado" onchange="actualizarEstadoPreview()">
+          ${ESTADOS.map(es=>`<option value="${esc(es)}">${esc(es)}</option>`).join('')}
+        </select>
+        <div id="e-estado-preview" style="margin-top:6px;padding:5px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-weight:700;display:inline-block"></div></div>
       <div class="form-field"><label>Fecha de creación</label><input type="date" id="e-fcre" value="${fmtInput(fromISO(v.fechaCreacion))}"></div>
-      <div class="form-field"><label>Fecha de término</label><input type="date" id="e-fterm" value="${fmtInput(fromISO(v.fechaTerm))}" oninput="actualizarEstadoPreview()"></div>
-      <div class="form-field"><label>Fecha de cumplimiento</label><input type="date" id="e-fcumpl" value="${fmtInput(fromISO(v.fechaCumpl))}" oninput="actualizarEstadoPreview()"></div>
+      <div class="form-field"><label>Fecha de término</label><input type="date" id="e-fterm" value="${fmtInput(fromISO(v.fechaTerm))}" oninput="sugerirEstadoPorFecha()"></div>
+      <div class="form-field"><label>Fecha de cumplimiento</label><input type="date" id="e-fcumpl" value="${fmtInput(fromISO(v.fechaCumpl))}" oninput="sugerirEstadoPorFecha()"></div>
     </div>`;
   const foot=[{label:'Cancelar',cls:'btn-ghost',fn:closeModal}];
   if(!isNew&&_session&&['admin','admin_auditor','auditor'].includes(_session.rol))foot.push({label:'Eliminar',cls:'btn-red',fn:()=>deleteTask(v.id,v.razon)});
   foot.push({label:isNew?'Crear tarea':'Guardar cambios',cls:'btn-blue',fn:()=>saveTask(isNew)});
   openModal(isNew?'➕ Nueva tarea':`✎ Editar tarea <b>#${v.id}</b>`,html,foot);
+  const selEst=document.getElementById('e-estado');
+  if(selEst){
+    const inicial=ESTADOS.find(es=>norm(es)===norm(v.estado))||estadoAutomatico(v.fechaTerm,v.fechaCumpl);
+    selEst.value=inicial;
+  }
   actualizarEstadoPreview();
 }
-/* Recalcula y pinta el badge de Estado del modal de edición de tarea según
-   las fechas de término/cumplimiento capturadas — se llama al abrir el modal
-   y cada vez que el usuario cambia cualquiera de las dos fechas. */
+/* Traduce cualquiera de los 5 valores de ESTADOS a una etiqueta legible
+   (Vigente / Atrasada / No resuelta / Resuelta / Resuelta atrasada) + color,
+   para el badge del modal de edición. */
+function estadoBadgeInfo(est){
+  const n=norm(est||'');
+  if(n.includes('no resuelta'))return{label:'⛔ No resuelta',color:'var(--k-dark)'};
+  if(n.includes('resuelta')&&n.includes('atrasad'))return{label:'✓ Resuelta atrasada',color:'var(--k-orange)'};
+  if(n.includes('resuelta'))return{label:'✓ Resuelta',color:'var(--k-greenok)'};
+  if(n.includes('abierta')&&n.includes('atrasad'))return{label:'⚠ Atrasada',color:'var(--k-red)'};
+  if(n.includes('abierta'))return{label:'✓ Vigente',color:'var(--k-blue)'};
+  return{label:est||'—',color:'inherit'};
+}
+/* Pinta el badge de Estado según lo que esté seleccionado ahora mismo en el
+   <select> — se llama al abrir el modal y cada vez que cambia el select
+   (a mano) o las fechas (sugerencia automática). */
 function actualizarEstadoPreview(){
-  var el=document.getElementById('e-estado-preview');
-  if(!el)return;
-  var ft=dval('e-fterm')?dval('e-fterm')+'T12:00:00':null;
-  var fc=dval('e-fcumpl')?dval('e-fcumpl')+'T12:00:00':null;
-  var est=estadoAutomatico(ft?toISO(new Date(ft)):null, fc?toISO(new Date(fc)):null);
-  el.textContent=est;
-  var colores={'Resuelta':'var(--k-greenok)','Resuelta Atrasada':'var(--k-orange)','Abierta':'var(--k-blue)','Abierta atrasada':'var(--k-red)','No resuelta':'var(--k-dark)'};
-  el.style.color=colores[est]||'inherit';
-  el.style.borderColor=colores[est]||'var(--border)';
+  const el=document.getElementById('e-estado-preview');
+  const sel=document.getElementById('e-estado');
+  if(!el||!sel)return;
+  const info=estadoBadgeInfo(sel.value);
+  el.textContent=info.label;
+  el.style.color=info.color;
+  el.style.borderColor=info.color;
+  el.style.background=info.color+'14';
+}
+/* Al cambiar Fecha de término o Fecha de cumplimiento, recalcula el estado
+   que corresponde por fecha y lo pone como selección en el <select> — el
+   usuario sigue pudiendo pisarlo a mano después con el propio select. */
+function sugerirEstadoPorFecha(){
+  const sel=document.getElementById('e-estado');
+  if(!sel)return;
+  const ft=dval('e-fterm')?dval('e-fterm')+'T12:00:00':null;
+  const fc=dval('e-fcumpl')?dval('e-fcumpl')+'T12:00:00':null;
+  sel.value=estadoAutomatico(ft?toISO(new Date(ft)):null, fc?toISO(new Date(fc)):null);
+  actualizarEstadoPreview();
 }
 function dval(id){const e=document.getElementById(id);return e?e.value.trim():'';}
 function ddate(id){const v=dval(id);return v?toISO(new Date(v+'T12:00:00')):null;}
@@ -2131,7 +2161,7 @@ function saveTask(isNew){
     id:isNaN(Number(id))?id:Number(id),
     razon:dval('e-razon'),centro:canonCentro(dval('e-centro')),tienda:dval('e-tienda'),
     areaResp:dval('e-areaResp'),areaRev:dval('e-areaRev'),actividad:dval('e-act'),
-    nombre:dval('e-nombre'),estado:estadoAutomatico(fTerm,fCumpl),tipoTarea:dval('e-tipo'),
+    nombre:dval('e-nombre'),estado:dval('e-estado')||estadoAutomatico(fTerm,fCumpl),tipoTarea:dval('e-tipo'),
     fechaCreacion:fCre,fechaTerm:fTerm,fechaCumpl:fCumpl
   };
   const idx=STORE.tareas.findIndex(t=>String(t.id)===id);
