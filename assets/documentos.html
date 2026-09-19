@@ -55,20 +55,7 @@ main{max-width:1600px;margin:0 auto;padding:24px 32px 64px}
 .ill-ppt{background:linear-gradient(135deg,#1e4fa3,#4f7fd6)}
 .ill-cum{background:linear-gradient(135deg,#2e7d32,#66bb6a)}
 .ill-fuel{background:linear-gradient(135deg,#b45309,#f59e0b)}
-.ill-cart{background:#fff;border:1px solid var(--border);padding:8px}
-.ill-cart img{width:100%;height:100%;object-fit:contain}
 .ill svg{stroke:#fff!important}
-/* Auditoría de Cartera: semáforo de filas */
-.row-coincide{background:var(--green-soft)!important}
-.row-menor{background:var(--amber-soft)!important}
-.row-mayor{background:rgba(245,54,92,.1)!important}
-.row-solo{background:var(--slate-soft)!important}
-#crt_tabla{width:100%;border-collapse:collapse;font-size:12.5px}
-#crt_tabla th{background:var(--bg);border:1px solid var(--border);padding:8px 6px;font-weight:700;font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;position:sticky;top:0}
-#crt_tabla td{border:1px solid var(--border);padding:6px}
-.crt-kpi{border-radius:10px;padding:12px 10px;text-align:center}
-.crt-kpi .n{font-size:20px;font-weight:800;display:block}
-.crt-kpi .l{font-size:11px;font-weight:600}
 .home-card h3{font-size:16.5px;font-weight:700;margin-bottom:5px}
 .home-card p{font-size:13px;color:var(--muted)}
 /* FORM */
@@ -205,11 +192,6 @@ textarea{resize:vertical;min-height:46px}
       </div>
       <h3>Consumos de Combustible</h3>
       <p>Detecta fugas y errores de carga (Excel).</p>
-    </div>
-    <div class="home-card" onclick="showView('cartera')">
-      <div class="ill ill-cart"><img src="img/logo-vale-mas.png" alt="Vale Más Kuroda"></div>
-      <h3>Auditoría de Cartera</h3>
-      <p>Compara S2Credit vs. SAP HANA (Vale Más) y marca diferencias.</p>
     </div>
   </div>
 </section>
@@ -535,72 +517,6 @@ textarea{resize:vertical;min-height:46px}
     <div class="status" id="consumos_status">Sube el Excel: primero verás un resumen y luego podrás descargar el reporte con colores.</div>
   </section>
 
-  <!-- ══════════ AUDITORÍA DE CARTERA ══════════ -->
-  <section class="view" id="view-cartera">
-    <div class="badge">📊 Auditoría de Cartera · Excel</div>
-
-    <div class="card">
-      <div class="card-header"><span class="card-icon icon-blue">🗂️</span><h2>Carga los dos reportes</h2></div>
-      <div class="card-body">
-        <p style="margin:0 0 14px;font-size:13px;color:var(--muted)">Compara lo que el cliente debe en <b>S2Credit</b> (reporte de distribuidores) contra lo que aparece en <b>SAP HANA</b> (Vale Más), y marca coincidencias, diferencias y folios duplicados para revisión rápida.</p>
-        <div class="grid">
-          <div>
-            <label>Reporte S2Credit (distribuidores)</label>
-            <input type="file" id="crt_fileS2" accept=".xlsx,.xls">
-            <p id="crt_s2Status" style="font-size:12px;color:var(--muted);margin-top:6px">Sin archivo cargado</p>
-          </div>
-          <div>
-            <label>Reporte SAP HANA (Vale Más)</label>
-            <input type="file" id="crt_fileSap" accept=".xlsx,.xls">
-            <p id="crt_sapStatus" style="font-size:12px;color:var(--muted);margin-top:6px">Sin archivo cargado</p>
-          </div>
-        </div>
-        <div class="action-bar" style="margin-top:16px">
-          <button class="btn btn-docx" id="crt_btnComparar" disabled onclick="crtComparar()">🔎 Comparar</button>
-          <button class="btn btn-pdf" id="crt_btnExportar" style="display:none" onclick="crtExportar()">⬇ Descargar Excel</button>
-        </div>
-        <p class="status err" id="crt_msg"></p>
-      </div>
-    </div>
-
-    <div class="card" id="crt_resumenCard" style="display:none">
-      <div class="card-header"><span class="card-icon icon-green">✅</span><h2>Resumen</h2></div>
-      <div class="card-body">
-        <div id="crt_kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px"></div>
-      </div>
-    </div>
-
-    <div class="card" id="crt_tablaCard" style="display:none">
-      <div class="card-header"><span class="card-icon icon-amber">🔍</span><h2>Detalle por cliente</h2></div>
-      <div class="card-body">
-        <div class="grid" style="grid-template-columns:2fr 1fr;margin-bottom:12px">
-          <div><label>Buscar</label><input type="text" id="crt_buscar" placeholder="Nombre, folio o número..."></div>
-          <div><label>Estatus</label>
-            <select id="crt_filtroEstatus">
-              <option value="">Todos</option>
-              <option value="Coincide">Coincide</option>
-              <option value="Diferencia menor">Diferencia menor</option>
-              <option value="Diferencia significativa">Diferencia significativa</option>
-              <option value="Solo en Reporte S2Credit">Solo en S2Credit</option>
-              <option value="Solo en SAP HANA">Solo en SAP HANA</option>
-            </select>
-          </div>
-        </div>
-        <div style="overflow-x:auto;max-height:520px;overflow-y:auto">
-          <table id="crt_tabla">
-            <thead>
-              <tr>
-                <th>No.</th><th>Núm. Dist.</th><th>ID SAP</th><th style="text-align:left">Nombre</th>
-                <th>Nivel</th><th>Adeudo S2Credit</th><th>Folio SAP</th><th>Saldo SAP</th>
-                <th>Diferencia $</th><th>Diferencia %</th><th>Estatus</th><th style="text-align:left">Observaciones</th>
-              </tr>
-            </thead>
-            <tbody id="crt_tbody"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </section>
 
 </main>
 
@@ -624,8 +540,7 @@ function showView(id){
          ent:['Acta de Entrega – Recepción','Completa los campos y descarga'],
          ppt:['Actividades de Auditoría','Presentación mensual en PowerPoint'],
          cumpl:['Cumplimiento','Configura los KPIs y descarga el reporte'],
-         consumos:['Consumos de Combustible','Detecta fugas y errores de carga'],
-         cartera:['Auditoría de Cartera','Compara S2Credit vs. SAP HANA y marca diferencias']}[id];
+         consumos:['Consumos de Combustible','Detecta fugas y errores de carga']}[id];
   document.getElementById('hdr-title').textContent=t[0];
   document.getElementById('hdr-sub').textContent=t[1];
   if(id==='ppt')pptInit();   /* pide razones permitidas y datos al dashboard */
@@ -2313,246 +2228,6 @@ function pptGenerar(){
   if(!_PPT_DATA) pptPreview(run); else run();
 }
 
-/* ═══════════ AUDITORÍA DE CARTERA (S2Credit vs SAP HANA) ═══════════ */
-var crtS2=null, crtSap=null, crtRows=[];
-
-function crtSetStatus(id, ok, text){ var el=document.getElementById(id); el.textContent=text; el.style.color= ok? 'var(--green)':'var(--red)'; }
-function crtToggleBtn(){ document.getElementById('crt_btnComparar').disabled=!(crtS2 && crtSap); }
-function crtNormName(n){ return n? String(n).toUpperCase().trim().replace(/\s+/g,' ') : ''; }
-
-function crtReadWorkbook(file, cb){
-  var reader=new FileReader();
-  reader.onload=function(e){
-    try{
-      var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
-      var ws=wb.Sheets[wb.SheetNames[0]];
-      cb(null, XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null}));
-    }catch(err){ cb(err); }
-  };
-  reader.onerror=function(){ cb(new Error('No se pudo leer el archivo')); };
-  reader.readAsArrayBuffer(file);
-}
-function crtFindHeaderRow(rows, keywords){
-  for(var i=0;i<Math.min(rows.length,20);i++){
-    var row=rows[i]||[];
-    var joined=row.map(function(c){return c==null?'':String(c).toLowerCase();}).join('|');
-    if(keywords.every(function(k){return joined.indexOf(k)>-1;})) return i;
-  }
-  return -1;
-}
-function crtColIndex(headerRow, name){
-  return headerRow.findIndex(function(c){return c!=null && String(c).trim().toLowerCase()===name.toLowerCase();});
-}
-function crtParseS2(rows){
-  var hIdx=crtFindHeaderRow(rows,['num. distribuidor','nombre distribuidor']);
-  if(hIdx===-1) throw new Error('No se encontró el encabezado esperado en el archivo S2Credit');
-  var header=rows[hIdx];
-  var iNum=crtColIndex(header,'Num. Distribuidor'), iNombre=crtColIndex(header,'Nombre Distribuidor'),
-      iIdSap=crtColIndex(header,'ID SAP'), iNivel=crtColIndex(header,'Nivel'),
-      iCategoria=crtColIndex(header,'Categoria'), iAdeudo=crtColIndex(header,'Adeudo Total');
-  var out=[];
-  for(var i=hIdx+1;i<rows.length;i++){
-    var r=rows[i];
-    if(!r || r[iNum]==null || isNaN(Number(r[iNum]))) break;
-    out.push({num_dist:Number(r[iNum]), nombre:r[iNombre]!=null?String(r[iNombre]).trim():'',
-      id_sap:r[iIdSap]!=null?Number(r[iIdSap]):Number(r[iNum]), nivel:r[iNivel]||'', categoria:r[iCategoria]||'',
-      adeudo_total:r[iAdeudo]!=null?Number(r[iAdeudo]):0});
-  }
-  return out;
-}
-function crtParseSap(rows){
-  var hIdx=crtFindHeaderRow(rows,['cliente','nombre cliente','saldo total']);
-  if(hIdx===-1) throw new Error('No se encontró el encabezado esperado en el archivo SAP HANA');
-  var header=rows[hIdx];
-  var iCliente=crtColIndex(header,'Cliente'), iNombre=crtColIndex(header,'Nombre cliente'), iSaldo=crtColIndex(header,'Saldo total');
-  var groups=[], bufId=null, bufName=null, lastTotal=null;
-  for(var i=hIdx+1;i<rows.length;i++){
-    var r=rows[i]; if(!r) continue;
-    var cliente=r[iCliente]!=null?String(r[iCliente]).trim():'';
-    var nombre=r[iNombre]!=null?String(r[iNombre]).trim():'';
-    var saldo=r[iSaldo]!=null?Number(r[iSaldo]):lastTotal;
-    if(cliente!==bufId){
-      if(bufId){ groups.push({cliente_id:bufId, nombre:bufName, saldo_total:lastTotal}); }
-      bufId=cliente; bufName=nombre||null;
-    } else if(nombre){ bufName=nombre; }
-    lastTotal=saldo;
-  }
-  if(bufId){ groups.push({cliente_id:bufId, nombre:bufName, saldo_total:lastTotal}); }
-  return groups.filter(function(g){return g.cliente_id;});
-}
-function crtVmKey(x){
-  x=Number(x); if(isNaN(x)) return null;
-  return x<1000000 ? '1'+String(x).padStart(6,'0') : String(x);
-}
-function crtBuildRow(no,num_dist,id_sap,nombre,nivel,adeudo,folioVm,saldoVm,obs){
-  var diff=null, pct=null, estatus;
-  var hasReporte=adeudo!=null, hasSap=saldoVm!=null;
-  if(hasReporte && hasSap){
-    diff=Math.round((adeudo-saldoVm)*100)/100;
-    var base=Math.max(Math.abs(adeudo),Math.abs(saldoVm))||1;
-    pct=diff/base;
-    estatus=Math.abs(diff)<=1?'Coincide':(Math.abs(diff)<=500?'Diferencia menor':'Diferencia significativa');
-  } else if(!hasReporte){ estatus='Solo en SAP HANA'; }
-  else { estatus='Solo en Reporte S2Credit'; }
-  return {no:no,num_dist:num_dist,id_sap:id_sap,nombre:nombre,nivel:nivel,adeudo:adeudo,folioVm:folioVm,saldoVm:saldoVm,diff:diff,pct:pct,estatus:estatus,obs:obs};
-}
-function crtComparaDatos(s2rows, sapGroups){
-  var valeById=new Map(); sapGroups.forEach(function(g){valeById.set(g.cliente_id,g);});
-  var valeByName=new Map();
-  sapGroups.forEach(function(g){ var k=crtNormName(g.nombre); if(!valeByName.has(k))valeByName.set(k,[]); valeByName.get(k).push(g); });
-  var usedIds=new Set(), matched=[];
-  s2rows.forEach(function(r){
-    var kNum=crtVmKey(r.num_dist), kSap=crtVmKey(r.id_sap), match=null, matchType=null;
-    if(kNum && valeById.has(kNum)){ match=valeById.get(kNum); matchType='Folio igual (Num. Distribuidor)'; }
-    else if(kSap && valeById.has(kSap)){ match=valeById.get(kSap); matchType='Folio igual (ID SAP)'; }
-    else { var cands=valeByName.get(crtNormName(r.nombre)); if(cands && cands.length){ match=cands[0]; matchType='Coincide solo por NOMBRE (folio distinto)'; } }
-    if(match) usedIds.add(match.cliente_id);
-    matched.push({num_dist:r.num_dist,id_sap:r.id_sap,nombre:r.nombre,nivel:r.nivel,adeudo_total:r.adeudo_total,
-      vm_id: match?match.cliente_id:null, vm_saldo: match?match.saldo_total:null, matchType:matchType});
-  });
-  var valeOnly=sapGroups.filter(function(g){return !usedIds.has(g.cliente_id);});
-  var rows=[], n=1;
-  matched.forEach(function(m){
-    var obs='';
-    if(m.matchType==='Coincide solo por NOMBRE (folio distinto)') obs='Mismo cliente con folio distinto en SAP HANA — verificar si es cuenta duplicada';
-    else if(m.matchType==='Folio igual (ID SAP)') obs='Vinculado por ID SAP (el folio de Núm. Distribuidor no coincide)';
-    else if(!m.matchType) obs='No se encontró registro correspondiente en SAP HANA';
-    rows.push(crtBuildRow(n++,m.num_dist,m.id_sap,m.nombre,m.nivel,m.adeudo_total,m.vm_id,m.vm_saldo,obs));
-  });
-  valeOnly.forEach(function(g){
-    rows.push(crtBuildRow(n++,null,null,g.nombre,'',null,g.cliente_id,g.saldo_total,'Registro con saldo en SAP HANA sin distribuidor activo correspondiente en S2Credit'));
-  });
-  return rows;
-}
-function crtFmtMoney(v){ return v==null?'—':'$'+v.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); }
-function crtFmtPct(v){ return v==null?'—':(v*100).toFixed(2)+'%'; }
-function crtRowClass(estatus){
-  if(estatus==='Coincide') return 'row-coincide';
-  if(estatus==='Diferencia menor') return 'row-menor';
-  if(estatus==='Diferencia significativa') return 'row-mayor';
-  return 'row-solo';
-}
-function crtRenderResumen(rows){
-  var c={Coincide:0,'Diferencia menor':0,'Diferencia significativa':0,solo:0};
-  rows.forEach(function(r){
-    if(r.estatus==='Coincide') c.Coincide++;
-    else if(r.estatus==='Diferencia menor') c['Diferencia menor']++;
-    else if(r.estatus==='Diferencia significativa') c['Diferencia significativa']++;
-    else c.solo++;
-  });
-  var kpis=[
-    ['crt-neutral', rows.length, 'Total registros'],
-    ['cuadre ok', c.Coincide, 'Coinciden'],
-    ['cuadre warn', c['Diferencia menor'], 'Diferencia menor'],
-    ['cuadre err', c['Diferencia significativa'], 'Diferencia significativa'],
-    ['crt-neutral', c.solo, 'Solo en un sistema']
-  ];
-  var html='';
-  kpis.forEach(function(k){
-    var extraStyle = k[0]==='crt-neutral' ? 'background:var(--slate-soft);border:1px solid var(--border);color:var(--txt)' : '';
-    html+='<div class="crt-kpi '+(k[0]!=='crt-neutral'?k[0]:'')+'" style="'+extraStyle+'"><span class="n">'+k[1]+'</span><span class="l">'+k[2]+'</span></div>';
-  });
-  document.getElementById('crt_kpis').innerHTML=html;
-  document.getElementById('crt_resumenCard').style.display='';
-}
-function crtRenderTabla(rows){
-  var tbody=document.getElementById('crt_tbody'); tbody.innerHTML='';
-  rows.forEach(function(r){
-    var tr=document.createElement('tr');
-    tr.className=crtRowClass(r.estatus);
-    tr.dataset.estatus=r.estatus;
-    tr.dataset.search=(r.nombre+' '+(r.num_dist||'')+' '+(r.id_sap||'')+' '+(r.folioVm||'')).toLowerCase();
-    tr.innerHTML='<td style="text-align:center">'+r.no+'</td>'+
-      '<td style="text-align:center">'+(r.num_dist??'—')+'</td>'+
-      '<td style="text-align:center">'+(r.id_sap??'—')+'</td>'+
-      '<td>'+esc(r.nombre)+'</td>'+
-      '<td style="text-align:center">'+(r.nivel||'—')+'</td>'+
-      '<td style="text-align:right">'+crtFmtMoney(r.adeudo)+'</td>'+
-      '<td style="text-align:center">'+(r.folioVm??'—')+'</td>'+
-      '<td style="text-align:right">'+crtFmtMoney(r.saldoVm)+'</td>'+
-      '<td style="text-align:right;font-weight:700">'+crtFmtMoney(r.diff)+'</td>'+
-      '<td style="text-align:right">'+crtFmtPct(r.pct)+'</td>'+
-      '<td style="text-align:center;font-weight:700">'+r.estatus+'</td>'+
-      '<td>'+esc(r.obs)+'</td>';
-    tbody.appendChild(tr);
-  });
-  document.getElementById('crt_tablaCard').style.display='';
-}
-function crtAplicarFiltros(){
-  var q=document.getElementById('crt_buscar').value.toLowerCase();
-  var est=document.getElementById('crt_filtroEstatus').value;
-  document.querySelectorAll('#crt_tbody tr').forEach(function(tr){
-    var passQ=!q || tr.dataset.search.indexOf(q)>-1;
-    var passE=!est || tr.dataset.estatus===est;
-    tr.style.display=(passQ && passE)?'':'none';
-  });
-}
-document.getElementById('crt_fileS2').addEventListener('change', function(e){
-  var f=e.target.files[0]; if(!f) return;
-  crtReadWorkbook(f, function(err, rows){
-    if(err){ crtS2=null; crtSetStatus('crt_s2Status', false, 'Error: '+err.message); }
-    else{ try{ crtS2=crtParseS2(rows); crtSetStatus('crt_s2Status', true, crtS2.length+' distribuidores detectados'); }
-          catch(ex){ crtS2=null; crtSetStatus('crt_s2Status', false, ex.message); } }
-    crtToggleBtn();
-  });
-});
-document.getElementById('crt_fileSap').addEventListener('change', function(e){
-  var f=e.target.files[0]; if(!f) return;
-  crtReadWorkbook(f, function(err, rows){
-    if(err){ crtSap=null; crtSetStatus('crt_sapStatus', false, 'Error: '+err.message); }
-    else{ try{ crtSap=crtParseSap(rows); crtSetStatus('crt_sapStatus', true, crtSap.length+' clientes detectados'); }
-          catch(ex){ crtSap=null; crtSetStatus('crt_sapStatus', false, ex.message); } }
-    crtToggleBtn();
-  });
-});
-function crtComparar(){
-  document.getElementById('crt_msg').textContent='';
-  try{
-    crtRows=crtComparaDatos(crtS2, crtSap);
-    crtRenderResumen(crtRows);
-    crtRenderTabla(crtRows);
-    document.getElementById('crt_btnExportar').style.display='';
-  }catch(ex){ document.getElementById('crt_msg').textContent='Error al comparar: '+ex.message; }
-}
-document.getElementById('crt_buscar').addEventListener('input', crtAplicarFiltros);
-document.getElementById('crt_filtroEstatus').addEventListener('change', crtAplicarFiltros);
-function crtExportar(){
-  var headers=['No.','Núm. Distribuidor','ID SAP','Nombre','Nivel','Adeudo Total (S2Credit)','Folio Cliente (SAP HANA)','Saldo Total (SAP HANA)','Diferencia ($)','Diferencia (%)','Estatus','Observaciones'];
-  var aoa=[['Auditoría de Cartera — S2Credit vs SAP HANA (Vale Más)'],['Generado el '+new Date().toLocaleDateString('es-MX')],[],headers];
-  crtRows.forEach(function(r){ aoa.push([r.no,r.num_dist,r.id_sap,r.nombre,r.nivel,r.adeudo,r.folioVm,r.saldoVm,r.diff,r.pct,r.estatus,r.obs]); });
-  var totalAdeudo=crtRows.reduce(function(s,r){return s+(r.adeudo||0);},0);
-  var totalSap=crtRows.reduce(function(s,r){return s+(r.saldoVm||0);},0);
-  aoa.push(['','','','TOTALES','',totalAdeudo,'',totalSap,totalAdeudo-totalSap,'','','']);
-  var ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols']=[{wch:5},{wch:14},{wch:10},{wch:32},{wch:10},{wch:18},{wch:16},{wch:16},{wch:14},{wch:12},{wch:24},{wch:46}];
-  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:11}},{s:{r:1,c:0},e:{r:1,c:11}}];
-  var headerRowIdx=3;
-  var fillFor=function(est){ return est==='Coincide'?'C6EFCE':est==='Diferencia menor'?'FFEB9C':est==='Diferencia significativa'?'FFC7CE':'D9D9D9'; };
-  for(var c=0;c<headers.length;c++){
-    var addr=XLSX.utils.encode_cell({r:headerRowIdx,c:c});
-    if(ws[addr]) ws[addr].s={font:{bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'1F3864'}},alignment:{horizontal:'center',vertical:'center'}};
-  }
-  var titleAddr=XLSX.utils.encode_cell({r:0,c:0});
-  if(ws[titleAddr]) ws[titleAddr].s={font:{bold:true,sz:14,color:{rgb:'1F3864'}}};
-  crtRows.forEach(function(r,i){
-    var rowIdx=headerRowIdx+1+i, fill=fillFor(r.estatus);
-    for(var c=0;c<headers.length;c++){
-      var addr=XLSX.utils.encode_cell({r:rowIdx,c:c});
-      if(!ws[addr]) continue;
-      ws[addr].s={fill:{fgColor:{rgb:fill}},border:{top:{style:'thin',color:{rgb:'D9D9D9'}},bottom:{style:'thin',color:{rgb:'D9D9D9'}},left:{style:'thin',color:{rgb:'D9D9D9'}},right:{style:'thin',color:{rgb:'D9D9D9'}}}};
-      if([5,7,8].indexOf(c)>-1) ws[addr].z='$#,##0.00;[RED]-$#,##0.00';
-      if(c===9) ws[addr].z='0.00%';
-    }
-  });
-  var totalsRowIdx=headerRowIdx+1+crtRows.length;
-  [5,7,8].forEach(function(c){
-    var addr=XLSX.utils.encode_cell({r:totalsRowIdx,c:c});
-    if(ws[addr]){ ws[addr].s={font:{bold:true}}; ws[addr].z='$#,##0.00;[RED]-$#,##0.00'; }
-  });
-  var wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Auditoría Cartera');
-  XLSX.writeFile(wb, 'Auditoria_Cartera_S2Credit_vs_SAP.xlsx');
-}
 
 /* init */
 document.getElementById('f_fecha').value=hoyISO();
