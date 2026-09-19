@@ -1,4 +1,4 @@
- /* early declarations for temporal dead zone fix */
+/* early declarations for temporal dead zone fix */
 var _sb=null, _session=null;
 
 /* ════════════════════════════════════════════════════════════════════
@@ -1079,6 +1079,11 @@ function actualizarEstadosVencidos(){
   var actualizadas=0;
   var client=getSbClient();
   STORE.tareas.forEach(function(t){
+    /* Una vez que una tarea queda en ⛔ No resuelta —a mano desde el modal de
+       edición, o automáticamente por fecha— ese estatus queda congelado:
+       esta sincronización automática (que corre al abrir el dashboard) no
+       debe volver a calcularlo ni pisarlo con Abierta/Abierta atrasada. */
+    if(esEstadoNoResuelta(t.estado))return;
     var correcto=estadoAutomatico(t.fechaTerm,t.fechaCumpl);
     if(norm(t.estado)===norm(correcto))return; /* ya coincide, nada que hacer */
     t.estado=correcto;
@@ -1935,17 +1940,31 @@ function renderRanking(aud){
 }
 
 function renderPendRank(tareas){
+  const pend=tareas.filter(esPendiente);
   const byS={};
-  tareas.filter(esPendiente).forEach(t=>{const k=t.tienda;byS[k]=(byS[k]||0)+1;});
-  const max=Math.max(1,...Object.values(byS));
-  const arr=Object.entries(byS).map(([t,n])=>({t,n})).sort((a,b)=>b.n-a.n).slice(0,7);
+  pend.forEach(t=>{
+    const k=t.tienda;
+    if(!byS[k])byS[k]={n:0,noRes:0,venc:0,pronto:0};
+    byS[k].n++;
+    if(esEstadoNoResuelta(t.estado)){byS[k].noRes++;return;}
+    const dv=diasVenc(t);
+    if(dv!==null&&dv<0)byS[k].venc++;
+    else if(dv!==null&&dv<=7)byS[k].pronto++;
+  });
+  const max=Math.max(1,...Object.values(byS).map(d=>d.n));
+  const arr=Object.entries(byS).map(([t,d])=>({t,...d})).sort((a,b)=>b.n-a.n).slice(0,7);
   const el=document.getElementById('pend-rank');
   if(!arr.length){el.innerHTML='<div class="empty">✅ Sin tareas pendientes en el período.</div>';return;}
-  el.innerHTML=arr.map((s,i)=>`<div class="rank-item">
-    <div class="rank-num" style="background:#ea580c">${i+1}</div>
+  /* Color de cada sucursal según su estatus más urgente presente:
+     No resuelta (negro) > Vencida (rojo) > ≤7 días (naranja) > En plazo (azul) */
+  el.innerHTML=arr.map((s,i)=>{
+    const c=s.noRes>0?'#1f2937':s.venc>0?'#dc2626':s.pronto>0?'#ea580c':'#2563eb';
+    return `<div class="rank-item">
+    <div class="rank-num" style="background:${c}">${i+1}</div>
     <div class="rank-name">${s.t}</div>
-    <div class="rank-bar-wrap"><div class="rank-bg"><div class="rank-fill" style="width:${s.n/max*100}%;background:#ea580c"></div></div>
-      <span class="rank-pct" style="color:#ea580c">${s.n}</span></div></div>`).join('');
+    <div class="rank-bar-wrap"><div class="rank-bg"><div class="rank-fill" style="width:${s.n/max*100}%;background:${c}"></div></div>
+      <span class="rank-pct" style="color:${c}">${s.n}</span></div></div>`;
+  }).join('');
 }
 
 function vencInfo(t){
