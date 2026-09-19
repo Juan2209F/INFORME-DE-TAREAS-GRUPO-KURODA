@@ -911,6 +911,29 @@ function canonicalMesLabel(m) {
 
 const PROCESSES = ['Picking','Traspasos','Entrega en Obra','Envíos vs Beetrack','Rutas pendientes','Mermas'];
 
+// Palabras clave (sin acentos, minúsculas) para encontrar la columna real de
+// cada proceso en el Excel, tolerando variaciones de redacción entre
+// plantillas — ej. la plantilla real trae "Envíos SAP-Beetrack", que un
+// match por prefijo exacto contra "Envíos vs Beetrack" nunca encuentra,
+// dejando ese proceso en 0/blanco en todo el reporte. Emparejar por
+// palabra clave (aquí "beetrack") es robusto a ese tipo de cambio.
+const PROCESS_KEYWORDS = {
+  'picking': ['picking'],
+  'traspasos': ['traspaso'],
+  'entrega en obra': ['entrega en obra', 'entrega obra'],
+  'envios vs beetrack': ['beetrack'],
+  'rutas pendientes': ['ruta pendiente', 'rutas pendiente'],
+  'mermas': ['merma']
+};
+function findProcessColumn(keys, processName) {
+  const pNorm = stripAcc(processName);
+  const kws = PROCESS_KEYWORDS[pNorm] || [pNorm];
+  return keys.find(k => {
+    const kNorm = stripAcc(k);
+    return kws.some(kw => kNorm.includes(kw));
+  });
+}
+
 // ═══════════════════════════════════════════════════════════
 // DATA PROCESSING
 // FIX: raw:true evita que XLSX formatee los decimales como "80%"
@@ -983,7 +1006,7 @@ function processExcel(workbook) {
   // Promedio por proceso — cada celda es 0 o 0.2 (5 procesos × 0.2 = 1.0)
   // Para convertir a %: promedio × 500 (equivale a ÷0.2 ×100)
   const keys = Object.keys(rows[0]);
-  const procCols = PROCESSES.map(p => keys.find(k => k.trim().toLowerCase().startsWith(p.toLowerCase())) || p);
+  const procCols = PROCESSES.map(p => findProcessColumn(keys, p) || p);
 
   const procAvg = procCols.map((col, i) => {
     const vals = rows.flatMap(r => {
@@ -1797,7 +1820,7 @@ function lsMergeRows(rows, mesCol, tiendaCol, promedioCol, procCols, forceOverwr
 
   const PROCESSES_LOCAL = ['Picking','Traspasos','Entrega en Obra','Envíos vs Beetrack','Rutas pendientes','Mermas'];
   const keys = rows.length ? Object.keys(rows[0]) : [];
-  const pCols = PROCESSES_LOCAL.map(p => keys.find(k => k.trim().toLowerCase().startsWith(p.toLowerCase())) || p);
+  const pCols = PROCESSES_LOCAL.map(p => findProcessColumn(keys, p) || p);
 
   const grouped = {};
   const skippedKeys = [];
@@ -2861,7 +2884,7 @@ function processFromRows(rows, mesCol, tiendaCol, promedioCol, procesoFiltro) {
   const keys0 = rows.length ? Object.keys(rows[0]) : [];
   const usaProceso = !!procesoFiltro && procesoFiltro !== 'all';
   const valueCol = usaProceso
-    ? (keys0.find(k => k.trim().toLowerCase().startsWith(procesoFiltro.toLowerCase())) || procesoFiltro)
+    ? (findProcessColumn(keys0, procesoFiltro) || procesoFiltro)
     : promedioCol;
   const valueScale = usaProceso ? 500 : 100;
   const readVal = (row) => {
@@ -2895,7 +2918,7 @@ function processFromRows(rows, mesCol, tiendaCol, promedioCol, procesoFiltro) {
   ranking.sort((a,b) => b.val - a.val);
 
   const keys = Object.keys(rows[0]);
-  const procCols = PROCESSES.map(p => keys.find(k => k.trim().toLowerCase().startsWith(p.toLowerCase())) || p);
+  const procCols = PROCESSES.map(p => findProcessColumn(keys, p) || p);
   const procAvg = procCols.map((col, i) => {
     const vals = rows.flatMap(r => {
       const v = toNum(r[col]);
