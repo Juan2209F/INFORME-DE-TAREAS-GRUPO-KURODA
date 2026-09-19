@@ -6,12 +6,23 @@ function syncDocsTheme(){
     try{ifd.contentWindow.postMessage({type:'theme',dark:dk},'*');}catch(e){}
   }
 }
+/* Igual que syncDocsTheme pero para el iframe del Generador — faltaba esta
+   llamada, así que un cambio de tema mientras el Generador ya estaba
+   abierto nunca le llegaba y el módulo se quedaba con el tema anterior. */
+function syncGeneradorTheme(){
+  var ifr=document.getElementById('iframe-generador');
+  if(ifr&&ifr.contentWindow){
+    var dk=document.documentElement.getAttribute('data-theme')==='dark';
+    try{ifr.contentWindow.postMessage({type:'theme',dark:dk},'*');}catch(e){}
+  }
+}
 function toggleTheme(){
   var html=document.documentElement,dark=html.getAttribute('data-theme')==='dark';
   html.setAttribute('data-theme',dark?'light':'dark');
   localStorage.setItem('kg-theme',dark?'light':'dark');
   setThemeBtn();
   syncDocsTheme();
+  syncGeneradorTheme();
 }
 /* ════════════════════════════════════════════════════════════════════
    DATOS PARA LA PRESENTACIÓN (PPTX) — Generador de Documentos
