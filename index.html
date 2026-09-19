@@ -94,8 +94,6 @@
   <div class="nav-item" id="nav-auditorias" title="Auditorías por clase" onclick="setView('auditorias')">🔍<span class="nav-lbl">Auditorías</span></div>
   <div class="nav-item" id="nav-ajustes" title="Ajustes" onclick="setView('ajustes')">⚖️<span class="nav-lbl">Ajustes</span></div>
   <div class="nav-item" id="nav-mermas" title="Mermas" onclick="setView('mermas')">🗂️<span class="nav-lbl">Mermas</span></div>
-  <div class="nav-item" id="nav-finalizadas" title="Auditorías Finalizadas" onclick="setView('finalizadas')">✅<span class="nav-lbl">Finalizadas</span></div>
-  <div class="nav-item" id="nav-nofinalizadas" title="Auditorías No resueltas (tareas en estatus No resuelta)" onclick="setView('nofinalizadas')">⏳<span class="nav-lbl">No resueltas</span></div>
   <div class="nav-item" id="nav-desempeno" title="Desempeño de Auditores" onclick="setView('desempeno')">📈<span class="nav-lbl">Desempeño</span></div>
   <div class="nav-item" id="nav-documentos" title="Generador de Documentos" onclick="setView('documentos')">📄<span class="nav-lbl">Documentos</span></div>
   <div class="nav-item" id="nav-generador" title="Generador de Dashboard Ejecutivo (todas las razones sociales)" onclick="setView('generador')" style="display:none">📊<span class="nav-lbl">Generador</span></div>
@@ -127,8 +125,8 @@
       <div class="stat"><b id="ds-fin">0</b><span>Finalizadas</span></div>
       <div class="stat"><b id="ds-tar">0</b><span>Tareas</span></div>
       <div class="stat"><b id="ds-pend">0</b><span>Pendientes</span></div>
-      <div class="stat" style="cursor:pointer" onclick="setView('nofinalizadas')" title="Auditorías con al menos una tarea no resuelta — ver en No resueltas"><b id="ds-audexp" style="color:var(--k-dark)">0</b><span>Aud. no resueltas</span></div>
-      <div class="stat" style="cursor:pointer" onclick="setView('nofinalizadas')" title="Total de tareas en estatus No resuelta — ver en No resueltas"><b id="ds-tarexp" style="color:var(--k-dark)">0</b><span>Tareas no resueltas</span></div>
+      <div class="stat" style="cursor:pointer" onclick="irAuditoriasEstado('noresueltas')" title="Auditorías con al menos una tarea no resuelta — ver en Auditorías"><b id="ds-audexp" style="color:var(--k-dark)">0</b><span>Aud. no resueltas</span></div>
+      <div class="stat" style="cursor:pointer" onclick="irAuditoriasEstado('noresueltas')" title="Total de tareas en estatus No resuelta — ver en Auditorías"><b id="ds-tarexp" style="color:var(--k-dark)">0</b><span>Tareas no resueltas</span></div>
       <div class="filters-spacer"></div>
       <span id="staged-box"></span>
       <button class="btn btn-ghost" id="btn-recargar" onclick="recargarDatos()" title="Traer los últimos cambios desde Supabase">🔄 Recargar</button>
@@ -230,7 +228,7 @@
 
       <div class="grid2">
         <div class="card">
-          <div class="card-hdr"><div class="card-title"><span class="ct-dot" style="background:var(--orange)"></span>Calificacion por promedio por sucursal</div></div>
+          <div class="card-hdr"><div class="card-title"><span class="ct-dot" style="background:var(--orange)"></span>Calificacion promedio por sucursal</div></div>
           <div class="chart-wrap" data-canvas="chart-centro"><canvas id="chart-centro"></canvas></div>
         </div>
         <div class="card">
@@ -249,6 +247,12 @@
         </div>
         <div class="card">
           <div class="card-hdr"><div class="card-title"><span class="ct-dot" style="background:var(--orange)"></span>Sucursales con más pendientes</div></div>
+          <div style="padding:0 16px 8px;display:flex;gap:10px;flex-wrap:wrap;font-size:10px;color:var(--muted)">
+            <span style="display:inline-flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:50%;background:#1f2937;display:inline-block"></span>No resuelta</span>
+            <span style="display:inline-flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:50%;background:#dc2626;display:inline-block"></span>Vencida</span>
+            <span style="display:inline-flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:50%;background:#ea580c;display:inline-block"></span>≤7 días</span>
+            <span style="display:inline-flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:50%;background:#2563eb;display:inline-block"></span>En plazo</span>
+          </div>
           <div id="pend-rank"></div>
         </div>
       </div>
@@ -352,19 +356,38 @@
 
     <!-- ════════ VISTA AUDITORÍAS (por clase) ════════ -->
     <div id="view-auditorias" style="display:none;flex-direction:column;gap:14px">
-      <div class="slbl"><span class="dot" style="background:var(--blue)"></span>Auditorías por clase
+      <div class="slbl"><span class="dot" style="background:var(--blue)"></span>Auditorías
         <span style="font-weight:600;font-size:10px;color:var(--muted);text-transform:none;margin-left:6px">datos desde Supabase · agrupadas por clase</span></div>
-      <p class="module-desc">Resultados de auditorías agrupados por tipo (Colaboración, Orden y Limpieza, Cartera) para comparar su avance.</p>
+      <p class="module-desc">Resultados de auditorías agrupados por tipo (Colaboración, Orden y Limpieza, Cartera). Usa el filtro <b>ESTADO</b> para ver las vigentes (por defecto), las que tienen tareas no resueltas, las finalizadas o todas juntas — y el filtro de mes para revisar un período específico.</p>
 
       <!-- Filtros -->
       <div class="card" style="padding:16px">
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+        <div class="fg" style="max-width:280px;margin-bottom:14px"><label>ESTADO</label>
+          <select id="aud-f-estado" onchange="audEstadoChanged()">
+            <option value="vigentes">✓ Vigentes / En plazo</option>
+            <option value="noresueltas">⛔ No resueltas</option>
+            <option value="finalizadas">✅ Finalizadas</option>
+            <option value="todas">Todas</option>
+          </select></div>
+
+        <!-- Filtros para Vigentes / No resueltas / Todas -->
+        <div id="aud-filtros-activas" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
           <div class="fg"><label>MES</label>
             <select id="aud-f-mes" onchange="renderAuditoriasView()"><option value="ALL">Todos</option></select></div>
           <div class="fg"><label>TIENDA / SUCURSAL</label>
             <select id="aud-f-tienda" onchange="renderAuditoriasView()"><option value="ALL">Todas</option></select></div>
           <div class="fg"><label>CENTRO</label>
             <select id="aud-f-centro" onchange="renderAuditoriasView()"><option value="ALL">Todos</option></select></div>
+        </div>
+
+        <!-- Filtros para Finalizadas (histórico permanente, se filtra también por año) -->
+        <div id="aud-filtros-finalizadas" style="display:none;grid-template-columns:repeat(3,1fr);gap:12px">
+          <div class="fg"><label>MES AUDITORÍA</label>
+            <select id="fin-f-mes" onchange="finMesChanged()"><option value="ALL">Todos</option></select></div>
+          <div class="fg"><label>AÑO</label>
+            <select id="fin-f-año" onchange="finMesChanged()"><option value="ALL">Todos</option></select></div>
+          <div class="fg"><label>TIENDA</label>
+            <select id="fin-f-tienda" onchange="renderAuditoriasView()"><option value="ALL">Todas</option></select></div>
         </div>
       </div>
       <!-- Filtro de tipo de auditoría: no se muestra en pantalla, solo lo usan
@@ -380,7 +403,7 @@
 
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-blue" id="btn-nueva-auditoria" onclick="openNuevaAuditoriaIfAllowed()" style="display:none">➕ Nueva auditoría</button>
-        <button class="btn btn-ghost" onclick="loadDataFromSupabase().then(renderAuditoriasView)">🔄 Recargar</button>
+        <button class="btn btn-ghost" onclick="audRecargar()">🔄 Recargar</button>
         <button class="btn btn-teal" onclick="openHistorialPngMenu()" title="Elige tienda, mes y tipo de auditoría para generar el historial">🗂️ PNG Historial por sucursal</button>
         <span id="aud-count" style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600;align-self:center"></span>
       </div>
@@ -493,61 +516,11 @@
     </div><!-- /view-mermas -->
 
     <!-- ════════ VISTA TAREAS FINALIZADAS ════════ -->
-    <div id="view-finalizadas" style="display:none;flex-direction:column;gap:14px">
-      <div class="slbl"><span class="dot" style="background:var(--green)"></span>Auditorías Finalizadas
-        <span style="font-weight:600;font-size:10px;color:var(--muted);text-transform:none;margin-left:6px">Auditorías cerradas sin tareas pendientes · histórico completo</span>
-      </div>
-      <p class="module-desc">Histórico permanente de auditorías cerradas por completo. Se filtra por el mes de la auditoría; por defecto muestra el mes en curso.</p>
-
-      <!-- Filtros -->
-      <div class="card" style="padding:14px 16px">
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-items:end">
-          <div class="fg"><label>MES AUDITORÍA</label>
-            <select id="fin-f-mes" onchange="finMesChanged()"><option value="ALL">Todos</option></select></div>
-          <div class="fg"><label>AÑO</label>
-            <select id="fin-f-año" onchange="finMesChanged()"><option value="ALL">Todos</option></select></div>
-          <div class="fg"><label>TIENDA</label>
-            <select id="fin-f-tienda" onchange="renderFinalizadas()"><option value="ALL">Todas</option></select></div>
-          <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
-            <button class="btn btn-ghost" onclick="loadFinalizadas()">🔄 Recargar</button>
-            <button class="btn btn-teal" onclick="openHistorialPngMenu()" title="Elige tienda, mes y tipo de auditoría para generar el historial">🗂️ PNG Historial por sucursal</button>
-            <span id="fin-count" style="font-size:11px;color:var(--green);font-weight:700;align-self:center"></span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Tablas (una por clase, mismo formato que el módulo Auditorías) -->
-      <div id="fin-tables"></div>
-    </div><!-- /view-finalizadas -->
-
-    <!-- (Módulo Archivo eliminado: el histórico completo vive ahora en Auditorías Finalizadas) -->
-
-    <!-- ════════ VISTA AUDITORÍAS NO FINALIZADAS (tareas con estatus No resuelta) ════════ -->
-    <div id="view-nofinalizadas" style="display:none;flex-direction:column;gap:14px">
-      <div class="slbl"><span class="dot" style="background:#1f2937"></span>Auditorías No resueltas
-        <span style="font-weight:600;font-size:10px;color:var(--muted);text-transform:none;margin-left:6px">Auditorías vigentes con al menos una tarea en estatus No resuelta</span>
-      </div>
-      <p class="module-desc">Muestra todas las auditorías activas (aún no cerradas en Finalizadas) que tienen una o más tareas con estatus ⛔ No resuelta.</p>
-
-      <!-- Filtros -->
-      <div class="card" style="padding:14px 16px">
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-items:end">
-          <div class="fg"><label>MES AUDITORÍA</label>
-            <select id="nf-f-mes" onchange="renderNoFinalizadas()"><option value="ALL">Todos</option></select></div>
-          <div class="fg"><label>TIENDA</label>
-            <select id="nf-f-tienda" onchange="renderNoFinalizadas()"><option value="ALL">Todas</option></select></div>
-          <div class="fg"><label>CENTRO</label>
-            <select id="nf-f-centro" onchange="renderNoFinalizadas()"><option value="ALL">Todos</option></select></div>
-          <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
-            <button class="btn btn-ghost" onclick="loadDataFromSupabase().then(renderNoFinalizadas)">🔄 Recargar</button>
-            <span id="nf-count" style="font-size:11px;color:#1f2937;font-weight:700;align-self:center"></span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Tablas (mismo formato que el módulo Auditorías) -->
-      <div id="nofin-tables"></div>
-    </div><!-- /view-nofinalizadas -->
+    <!-- (Módulos "Auditorías Finalizadas" y "Auditorías No resueltas" fusionados
+         dentro de view-auditorias, vía el filtro ESTADO. El histórico completo
+         de Finalizadas sigue viviendo en la variable FINALIZADAS / tabla
+         tareas_finalizadas; sus <select> de filtro (fin-f-mes/año/tienda) ahora
+         viven dentro de view-auditorias.) -->
 
     <!-- ════════ VISTA DESEMPEÑO AUDITORES ════════ -->
     <div id="view-desempeno" style="display:none;flex-direction:column;gap:14px"></div>
