@@ -1975,7 +1975,10 @@ function vencInfo(t){
   return{txt:`${dv}d restantes`,cls:'b-blue',color:'#2563eb',ord:dv};
 }
 function renderVencTable(tareas){
-  const pend=tareas.filter(esPendiente).map(t=>({t,v:vencInfo(t)})).sort((a,b)=>a.v.ord-b.v.ord).slice(0,25);
+  /* Solo tareas que aún pueden cerrarse: vigentes o abiertas atrasadas.
+     Las "no resueltas" ya están fuera de juego (vencidas y nunca se van a
+     cerrar), así que no pertenecen a esta lista. */
+  const pend=tareas.filter(t=>esPendiente(t)&&!esEstadoNoResuelta(t.estado)).map(t=>({t,v:vencInfo(t)})).sort((a,b)=>a.v.ord-b.v.ord).slice(0,25);
   const el=document.getElementById('venc-table');
   if(!pend.length){el.innerHTML='<div class="empty">✅ No hay tareas pendientes para el filtro actual.</div>';return;}
   el.innerHTML=`<table class="dt">
