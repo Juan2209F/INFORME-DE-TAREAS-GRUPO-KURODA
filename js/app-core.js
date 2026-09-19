@@ -1940,13 +1940,14 @@ function renderRanking(aud){
 }
 
 function renderPendRank(tareas){
-  const pend=tareas.filter(esPendiente);
+  /* Solo pendientes REALES (abiertas): las "no resueltas" ya están vencidas
+     y nunca se realizaron, así que no cuentan como pendientes aquí. */
+  const pend=tareas.filter(t=>esPendiente(t)&&!esEstadoNoResuelta(t.estado));
   const byS={};
   pend.forEach(t=>{
     const k=t.tienda;
-    if(!byS[k])byS[k]={n:0,noRes:0,venc:0,pronto:0};
+    if(!byS[k])byS[k]={n:0,venc:0,pronto:0};
     byS[k].n++;
-    if(esEstadoNoResuelta(t.estado)){byS[k].noRes++;return;}
     const dv=diasVenc(t);
     if(dv!==null&&dv<0)byS[k].venc++;
     else if(dv!==null&&dv<=7)byS[k].pronto++;
@@ -1956,9 +1957,9 @@ function renderPendRank(tareas){
   const el=document.getElementById('pend-rank');
   if(!arr.length){el.innerHTML='<div class="empty">✅ Sin tareas pendientes en el período.</div>';return;}
   /* Color de cada sucursal según su estatus más urgente presente:
-     No resuelta (negro) > Vencida (rojo) > ≤7 días (naranja) > En plazo (azul) */
+     Vencida (rojo) > ≤7 días (naranja) > En plazo (azul) */
   el.innerHTML=arr.map((s,i)=>{
-    const c=s.noRes>0?'#1f2937':s.venc>0?'#dc2626':s.pronto>0?'#ea580c':'#2563eb';
+    const c=s.venc>0?'#dc2626':s.pronto>0?'#ea580c':'#2563eb';
     return `<div class="rank-item">
     <div class="rank-num" style="background:${c}">${i+1}</div>
     <div class="rank-name">${s.t}</div>
