@@ -1946,20 +1946,19 @@ function renderPendRank(tareas){
   const byS={};
   pend.forEach(t=>{
     const k=t.tienda;
-    if(!byS[k])byS[k]={n:0,venc:0,pronto:0};
+    if(!byS[k])byS[k]={n:0,venc:0};
     byS[k].n++;
     const dv=diasVenc(t);
     if(dv!==null&&dv<0)byS[k].venc++;
-    else if(dv!==null&&dv<=7)byS[k].pronto++;
   });
   const max=Math.max(1,...Object.values(byS).map(d=>d.n));
   const arr=Object.entries(byS).map(([t,d])=>({t,...d})).sort((a,b)=>b.n-a.n).slice(0,7);
   const el=document.getElementById('pend-rank');
   if(!arr.length){el.innerHTML='<div class="empty">✅ Sin tareas pendientes en el período.</div>';return;}
-  /* Color de cada sucursal según su estatus más urgente presente:
-     Vencida (rojo) > ≤7 días (naranja) > En plazo (azul) */
+  /* Estado binario: Atrasada (fuera de fecha de término) o Vigente (en plazo,
+     sin importar cuántos días falten). */
   el.innerHTML=arr.map((s,i)=>{
-    const c=s.venc>0?'#dc2626':s.pronto>0?'#ea580c':'#2563eb';
+    const c=s.venc>0?'#dc2626':'#2563eb';
     return `<div class="rank-item">
     <div class="rank-num" style="background:${c}">${i+1}</div>
     <div class="rank-name">${s.t}</div>
