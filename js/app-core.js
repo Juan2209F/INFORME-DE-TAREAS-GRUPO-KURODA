@@ -1859,8 +1859,10 @@ function renderResPend(tareas){
   const f=getFilterState();
   const buckets={};
   tareas.forEach(t=>{const d=fromISO(t.fechaCreacion);const b=bucketKey(d,f.gran);if(!b)return;
-    if(!buckets[b.k])buckets[b.k]={lbl:b.lbl,sort:b.sort,res:0,pen:0};
-    if(esResuelta(t))buckets[b.k].res++;else if(esPendiente(t))buckets[b.k].pen++;});
+    if(!buckets[b.k])buckets[b.k]={lbl:b.lbl,sort:b.sort,res:0,pen:0,nores:0};
+    if(esResuelta(t))buckets[b.k].res++;
+    else if(esEstadoNoResuelta(t.estado))buckets[b.k].nores++;
+    else if(esPendiente(t))buckets[b.k].pen++;});
   const ord=Object.values(buckets).sort((a,b)=>a.sort-b.sort);
   const labels=ord.map(b=>b.lbl);
   destroyChart('respend');
@@ -1870,7 +1872,8 @@ function renderResPend(tareas){
   charts.respend=new Chart(ctx,{type:'bar',
     data:{labels,datasets:[
       {label:'Resueltas',data:ord.map(b=>b.res),backgroundColor:'#16a34a',borderRadius:5,stack:'a'},
-      {label:'Pendientes',data:ord.map(b=>b.pen),backgroundColor:'#dc2626',borderRadius:5,stack:'a'}]},
+      {label:'Pendientes',data:ord.map(b=>b.pen),backgroundColor:'#dc2626',borderRadius:5,stack:'a'},
+      {label:'No resueltas',data:ord.map(b=>b.nores),backgroundColor:'#1f2937',borderRadius:5,stack:'a'}]},
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:true,position:'top',labels:{font:{size:10},boxWidth:12,padding:8}}},
       scales:{x:{stacked:true,ticks:{font:{size:10}},grid:{display:false}},
