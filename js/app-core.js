@@ -2288,7 +2288,7 @@ async function deleteTaskFromSupabase(taskId,razon){
 ════════════════════════════════════════════════════════════════════ */
 /* ov permite sobreescribir tienda/mesGran/tipo sin tocar el filtro global
    de arriba, para el filtro propio del modal de Sucursales. */
-function pendientesPorSucursalHTML(ov){
+function pendientesPorSucursalHTML(ov,forPNG){
   ov=ov||{};
   const base=getFilterState();
   const f={...base,
@@ -2296,7 +2296,7 @@ function pendientesPorSucursalHTML(ov){
     mesGran:ov.mesGran!==undefined?ov.mesGran:base.mesGran,
     tipo:ov.tipo!==undefined?ov.tipo:base.tipo};
   const anio=new Date().getFullYear();
-  const tareas=STORE.tareas.filter(t=>{
+  let tareas=STORE.tareas.filter(t=>{
     if(f.razon!=='ALL'&&t.razon!==f.razon)return false;
     if(f.centro!=='ALL'&&t.centro!==f.centro)return false;
     if(f.tienda!=='ALL'&&t.tienda!==f.tienda)return false;
@@ -2309,6 +2309,9 @@ function pendientesPorSucursalHTML(ov){
     }
     return true;
   }).filter(esPendiente);
+  /* En el PNG las "no resueltas" no aparecen: esa auditoría ya se cerró.
+     En el modal en pantalla sí se muestran (solo se excluyen del conteo). */
+  if(forPNG)tareas=tareas.filter(t=>!esEstadoNoResuelta(t.estado));
   if(!tareas.length)return '<div class="empty">✅ No hay tareas pendientes con el filtro actual.</div>';
   const byS={};
   tareas.forEach(t=>{(byS[t.tienda]=byS[t.tienda]||[]).push(t);});
@@ -2447,7 +2450,7 @@ function pngHeader(title){
 function downloadPendientesPNG(btnEl){
   const ov=pendFilterOverrides();
   return renderPNG(pngHeader('🏬 Tareas pendientes por sucursal')+
-    `<div class="sec"><div class="sec-t"><span class="sdot" style="background:#ea580c"></span>Detalle por sucursal</div>${pendientesPorSucursalHTML(ov)}</div>`+
+    `<div class="sec"><div class="sec-t"><span class="sdot" style="background:#ea580c"></span>Detalle por sucursal</div>${pendientesPorSucursalHTML(ov,true)}</div>`+
     `<div class="ft">📊 Monitor de Cumplimiento — Grupo Kuroda (Auditoría)</div>`,
     `pendientes_por_sucursal_${new Date().toISOString().slice(0,10)}.png`,
     btnEl);
@@ -2479,7 +2482,7 @@ function buildDashboardPngHTML(){
       <td class="tname">${s.t}</td><td class="tsub">${s.c||''}</td>
       <td class="cell-c"><span class="badge" style="background:${c}22;color:${c}">${s.v}%</span></td></tr>`;}).join('')}</tbody></table>`:'<div class="empty">Sin auditorías.</div>';
   // pendientes
-  const pendHTML=pendientesPorSucursalHTML();
+  const pendHTML=pendientesPorSucursalHTML(undefined,true);
   return pngHeader('📊 Resumen de cumplimiento')+
     `<div class="sec"><div class="sec-t"><span class="sdot" style="background:#2563eb"></span>Indicadores</div>${kpiHTML}</div>`+
     `<div class="sec"><div class="sec-t"><span class="sdot" style="background:#dc2626"></span>Sucursales por nivel de cumplimiento</div>${rankHTML}</div>`+
