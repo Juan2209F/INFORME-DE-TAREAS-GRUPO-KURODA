@@ -2318,7 +2318,7 @@ function pendientesPorSucursalHTML(ov){
     const centro=list[0].centro||'';
     return `<div class="store-block">
       <div class="store-block-hdr"><span class="sname">🏬 ${tienda}</span>
-        <span class="tsub">${centro}</span><span class="scount">${list.length} pendiente(s)</span></div>
+        <span class="tsub">${centro}</span><span class="scount">${list.filter(t=>!esEstadoNoResuelta(t.estado)).length} pendiente(s)</span></div>
       <div class="tbl-scroll"><table class="dt" style="min-width:0">
         <thead><tr><th>ID</th><th>Tarea</th><th>Área</th><th>Tipo</th><th>Estado</th><th>F. Término</th><th class="c">Vencimiento</th></tr></thead>
         <tbody>${list.map(t=>{const v=vencInfo(t);return `<tr>
