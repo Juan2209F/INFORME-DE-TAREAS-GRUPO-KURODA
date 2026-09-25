@@ -13,7 +13,7 @@
   'use strict';
 
   var pass = null, U = [], T = [], R = [], CP = [], tab = 'usuarios', q = '', razF = '';
-  var envio = { razon: '', tienda: '', modo: 'prueba', para: '', res: null, cargando: false };
+  var envio = { razon: '', tienda: '', modo: 'prueba', destino: 'config', para: '', res: null, cargando: false };
   var EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) {
@@ -202,9 +202,9 @@
 
   function vistaEnviar() {
     var tiendas = T.filter(function (t) { return t.activa !== false && (!envio.razon || razKey(t.razon || '') === razKey(envio.razon)); });
-    var h = '<p class="kc-note">Envía los avisos ahora mismo, sin esperar al lunes. <b>Prueba</b>: solo a los correos que escribas aquí, ' +
-      'sin copias y con "[PRUEBA]" en el asunto (no cuenta como enviado). <b>Envío real</b>: a los correos Para y CC configurados; ' +
-      'no reenvía lo que ya se mandó hoy.</p>' +
+    var h = '<p class="kc-note">Envía los avisos ahora mismo, sin esperar al lunes. <b>Prueba</b>: lleva "[PRUEBA]" en el asunto y no cuenta ' +
+      'como enviado (no bloquea el envío del lunes); puede ir a los destinatarios configurados de la tienda o solo a los correos que escribas. ' +
+      '<b>Envío real</b>: a los correos Para y CC configurados; no reenvía lo que ya se mandó hoy.</p>' +
       '<div class="kc-grid">' +
       '<label>Razón social<select class="kc-in" id="kc-e-raz">' +
       R.map(function (r) { return '<option value="' + esc(r.razon) + '"' + (r.razon === envio.razon ? ' selected' : '') + '>' + esc(r.razon) + ' — ' + esc(r.remitente) + '</option>'; }).join('') +
@@ -215,7 +215,13 @@
       '<div class="kc-modo"><label><input type="radio" name="kc-e-modo" value="prueba"' + (envio.modo === 'prueba' ? ' checked' : '') + '> Prueba</label>' +
       '<label><input type="radio" name="kc-e-modo" value="real"' + (envio.modo === 'real' ? ' checked' : '') + '> Envío real</label></div>' +
       (envio.modo === 'prueba'
-        ? '<label class="kc-full">Enviar la prueba a<input class="kc-in" id="kc-e-para" value="' + esc(envio.para) + '" placeholder="tu.correo@kuroda.com, otro@kuroda.com"></label>'
+        ? '<div class="kc-modo kc-full"><label><input type="radio" name="kc-e-dest" value="config"' + (envio.destino === 'config' ? ' checked' : '') +
+          '> A los destinatarios configurados (Para y CC de la tienda)</label>' +
+          '<label><input type="radio" name="kc-e-dest" value="manual"' + (envio.destino === 'manual' ? ' checked' : '') +
+          '> Solo a los correos que escriba</label></div>' +
+          (envio.destino === 'manual'
+            ? '<label class="kc-full">Enviar la prueba a<input class="kc-in" id="kc-e-para" value="' + esc(envio.para) + '" placeholder="correo@kuroda.com, otro@kuroda.com"></label>'
+            : '')
         : '') +
       '</div><div class="kc-row" style="margin-top:12px">' +
       '<button class="kc-btn" data-act="enviar-dry"' + (envio.cargando ? ' disabled' : '') + '>Vista previa</button>' +
@@ -243,10 +249,14 @@
 
   async function enviarManual(dry) {
     var body = { admin: _session.username, pass: pass, razon: envio.razon, tienda_id: envio.tienda || null, dry: dry };
-    if (envio.modo === 'prueba') {
+    if (envio.modo === 'prueba' && envio.destino === 'manual') {
       var lista = listaCorreos(envio.para);
       if (!lista) return;
       body.prueba = lista;
+    } else if (envio.modo === 'prueba') {
+      body.prueba_real = true;
+      if (!dry && !confirm('La prueba se enviará a los destinatarios configurados (Para y CC) de ' +
+        (envio.tienda ? 'la tienda seleccionada' : 'TODAS las tiendas ' + envio.razon) + '. ¿Continuar?')) return;
     } else if (!dry) {
       var nt = envio.tienda ? 'la tienda seleccionada' : 'TODAS las tiendas ' + envio.razon;
       if (!confirm('Se enviarán los correos reales de ' + nt + ' a sus destinatarios y copias. ¿Continuar?')) return;
@@ -439,7 +449,7 @@
   }
   function cerrar() {
     pass = null; U = []; T = []; R = []; CP = [];
-    envio = { razon: '', tienda: '', modo: 'prueba', para: '', res: null, cargando: false };
+    envio = { razon: '', tienda: '', modo: 'prueba', destino: 'config', para: '', res: null, cargando: false };
     $('kc-overlay').classList.remove('show');
   }
 
@@ -532,6 +542,7 @@
       if (e.target.id === 'kc-e-raz') { envio.razon = e.target.value; envio.tienda = ''; envio.res = null; return pintar(); }
       if (e.target.id === 'kc-e-tienda') { envio.tienda = e.target.value; envio.res = null; return pintar(); }
       if (e.target.name === 'kc-e-modo') { envio.modo = e.target.value; envio.res = null; return pintar(); }
+      if (e.target.name === 'kc-e-dest') { envio.destino = e.target.value; envio.res = null; return pintar(); }
       var el = e.target.closest('[data-act]');
       if (el && ['toggle', 'add-tienda', 'add-usuario'].indexOf(el.getAttribute('data-act')) >= 0) act(el);
     });
