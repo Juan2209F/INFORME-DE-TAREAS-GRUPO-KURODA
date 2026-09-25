@@ -1,17 +1,23 @@
 /* Correos y tiendas — Grupo Kuroda
-   Agrega en Gestión de Usuarios el botón "Correos y tiendas": captura el correo de cada
-   usuario, asigna usuarios a tiendas, captura los correos (Para y CC) de cada tienda,
-   las copias por razón social (auditores, etc.), qué razones sociales envían el aviso
-   semanal (y con qué remitente) y permite enviar a mano (prueba o envío real).
+   Vista "Correos" del menú lateral (debajo de Usuarios, solo admin y admin_auditor):
+   captura el correo de cada usuario, asigna usuarios a tiendas, captura los correos
+   (Para y CC) de cada tienda, las copias por razón social (auditores, etc.), qué razones
+   sociales envían el aviso semanal (y con qué remitente) y permite enviar a mano.
    Cada lunes 8:00 am (Pacífico) se manda un correo por tienda y por tipo de tarea
    ÚNICAMENTE a los correos capturados en "Correos por tienda" (+ copias).
    Depende de: config/supabase-config.js y js/app-core.js (_sb, _session, STORE, toast,
+   VIEW, setView, doLogin, doLogout, applyVistasRestriction, openUsuarios, closeUsuarios,
    razKey, _razonesAsignadas, filtrarUsuariosPorRazonSesion, pareceCifrado).
-   Las funciones RPC piden usuario y contraseña de un admin: la contraseña solo vive en
-   memoria mientras el panel está abierto. */
+   También convierte "Gestión de Usuarios" (#usr-overlay en index.html) en una sección del
+   área de trabajo: se oculta al elegir cualquier otra opción del menú.
+   Acceso: al iniciar sesión se pide a Supabase un token (crear_token_correos, 30 días)
+   con la contraseña recién escrita; el panel lo usa en lugar de la contraseña, así que
+   no vuelve a pedirla. Solo si no hay token (p. ej. sesión abierta antes de este cambio
+   o token vencido) se pide confirmar la contraseña una vez. */
 (function () {
   'use strict';
 
+  var TOKEN_KEY = 'kc_token';
   var pass = null, U = [], T = [], R = [], CP = [], PEND = {}, tab = 'usuarios', q = '', razF = '';
   var envio = { razon: '', tienda: '', modo: 'prueba', destino: 'config', para: '', res: null, cargando: false };
   var EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -36,15 +42,40 @@
     return p.map(razKey).indexOf(razKey(r)) >= 0;
   }
 
+  /* ---------- Token de acceso (sustituye a la contraseña) ---------- */
+  function cliente() { return _sb || (typeof initSupabase === 'function' ? initSupabase() : null); }
+  function leerToken() {
+    try {
+      var t = JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null');
+      return t && _session && t.u === _session.username ? t.t : null;
+    } catch (e) { return null; }
+  }
+  function guardarToken(tok) {
+    try { localStorage.setItem(TOKEN_KEY, JSON.stringify({ u: _session.username, t: tok })); } catch (e) {}
+  }
+  function borrarToken() {
+    try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
+  }
+  /* Pide un token nuevo con la contraseña; lo guarda y lo devuelve (o null si falla). */
+  async function obtenerToken(p) {
+    var c = cliente();
+    if (!c || !_session || !p) return null;
+    var r = await c.rpc('crear_token_correos', { p_user: _session.username, p_pass: p });
+    if (r.error || !r.data) return null;
+    guardarToken(r.data);
+    return r.data;
+  }
+
   /* ---------- Supabase ---------- */
   async function rpc(fn, args) {
-    var c = _sb || (typeof initSupabase === 'function' ? initSupabase() : null);
+    var c = cliente();
     if (!c) throw new Error('Sin conexión a Supabase');
     var r = await c.rpc(fn, Object.assign({ p_admin: _session.username, p_pass: pass }, args || {}));
     if (r.error) {
       if (r.error.code === '42501' || /No autorizado/.test(r.error.message || '')) {
         pass = null;
-        pintarAuth('Contraseña incorrecta');
+        borrarToken();
+        pintarAuth('Tu acceso a correos venció. Confirma tu contraseña para continuar.');
       }
       throw r.error;
     }
@@ -289,7 +320,10 @@
         body: JSON.stringify(body)
       });
       envio.res = await r.json().catch(function () { return { error: 'Respuesta inválida (' + r.status + ')' }; });
-      if (r.status === 401) envio.res = { error: 'No autorizado: vuelve a abrir el panel y confirma tu contraseña' };
+      if (r.status === 401) {
+        envio.cargando = false; pass = null; borrarToken();
+        return pintarAuth('Tu acceso a correos venció. Confirma tu contraseña para continuar.');
+      }
     } catch (e) {
       envio.res = { error: e.message || String(e) };
     }
@@ -301,7 +335,7 @@
   function pintar() {
     if (!pass) return pintarAuth('');
     $('kc-auth').style.display = 'none';
-    $('kc-main').style.display = 'flex';
+    $('kc-main').style.display = 'block';
     var conCorreo = U.filter(function (u) { return u.email; }).length;
     var vis = filtraTiendas().filter(function (t) { return t.activa !== false; });
     var sinDest = vis.filter(function (t) { return !nDest(t); }).length;
@@ -336,14 +370,24 @@
   }
 
   /* ---------- Acciones ---------- */
+  /* Solo se usa si no hay token guardado: canjea la contraseña por un token. */
   async function entrar() {
     var p = $('kc-pass').value;
     if (!p) { $('kc-err').textContent = 'Escribe tu contraseña'; return; }
-    pass = p;
     $('kc-go').disabled = true;
-    try { await cargar(); pintar(); }
-    catch (e) { if (pass) { pass = null; pintarAuth(e.message || 'Error'); } }
+    var tok = await obtenerToken(p).catch(function () { return null; });
     $('kc-go').disabled = false;
+    if (!tok) { pintarAuth('Contraseña incorrecta'); return; }
+    pass = tok;
+    await iniciar();
+  }
+
+  async function iniciar() {
+    $('kc-auth').style.display = 'none';
+    $('kc-main').style.display = 'block';
+    $('kc-body').innerHTML = '<p class="kc-empty">Cargando…</p>';
+    try { await cargar(); pintar(); }
+    catch (e) { if (pass) { $('kc-body').innerHTML = '<p class="kc-empty kc-warn">Error: ' + esc(e.message || e) + '</p>'; } }
   }
 
   async function correr(fn, ok) {
@@ -458,29 +502,49 @@
     }
   }
 
-  /* ---------- Modal ---------- */
+  /* ---------- Vista "Correos" (menú lateral, como Generador) ---------- */
   function abrir() {
     if (!esAdmin()) { msg('Sin permisos'); return; }
-    pass = null; tab = 'usuarios'; q = ''; razF = '';
-    $('kc-q').value = '';
-    $('kc-raz').innerHTML = '';
-    $('kc-overlay').classList.add('show');
-    pintarAuth('');
+    setView('correos');
   }
-  function cerrar() {
-    pass = null; U = []; T = []; R = []; CP = []; PEND = {};
-    envio = { razon: '', tienda: '', modo: 'prueba', destino: 'config', para: '', res: null, cargando: false };
-    $('kc-overlay').classList.remove('show');
+
+  /* Se llama cada vez que cambia la vista (setView está envuelto más abajo). */
+  function mostrarVista(visible) {
+    var v = $('view-correos'), n = $('nav-correos');
+    if (!v) return;
+    var antes = v.style.display !== 'none';
+    v.style.display = visible ? 'block' : 'none';
+    if (n) n.classList.toggle('active', visible);
+    if (visible && !antes) {
+      tab = 'usuarios'; q = ''; razF = '';
+      $('kc-q').value = '';
+      $('kc-raz').innerHTML = '';
+      pass = leerToken();
+      if (pass) iniciar(); else pintarAuth('');
+    }
+    if (!visible && antes) {
+      pass = null; U = []; T = []; R = []; CP = []; PEND = {};
+      envio = { razon: '', tienda: '', modo: 'prueba', destino: 'config', para: '', res: null, cargando: false };
+    }
+  }
+
+  /* Menú "Correos": solo admin y admin_auditor. */
+  function actualizarMenu() {
+    var n = $('nav-correos');
+    if (n) n.style.display = esAdmin() ? '' : 'none';
+    if (!esAdmin() && typeof VIEW !== 'undefined' && VIEW === 'correos') setView('dash');
   }
 
   function montar() {
-    if ($('kc-overlay')) return;
+    if ($('view-correos')) return;
     var st = document.createElement('style');
     st.id = 'kc-style';
     st.textContent =
-      '#kc-main{flex:1;min-height:0;flex-direction:column}' +
+      '.kc-panel{padding:0;overflow:hidden}' +
+      '.kc-hdr{display:flex;align-items:center;gap:10px;padding:18px 20px;border-bottom:1px solid var(--border)}' +
+      '.kc-hdr h3{margin:0;font-size:15px;font-weight:700;flex:1}' +
       '.kc-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 20px;border-bottom:1px solid var(--border)}' +
-      '.kc-tabs{display:flex;gap:4px}' +
+      '.kc-tabs{display:flex;gap:4px;flex-wrap:wrap}' +
       '.kc-tab{border:1px solid var(--border);background:transparent;color:var(--txt);padding:6px 12px;border-radius:10px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer}' +
       '.kc-tab.on{background:var(--blue);border-color:var(--blue);color:#fff}' +
       '.kc-in{border:1px solid var(--border);background:var(--white);color:var(--txt);border-radius:10px;padding:7px 10px;font-size:13px;font-family:inherit;min-width:0}' +
@@ -490,7 +554,7 @@
       '.kc-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}' +
       '.kc-top{margin-bottom:12px}' +
       '.kc-sum{font-size:12px;color:var(--muted);padding:8px 20px;font-weight:600}' +
-      '.kc-body{padding:0 20px 18px;overflow:auto;flex:1;min-height:0}' +
+      '.kc-body{padding:0 20px 18px}' +
       '.kc-wrap{overflow-x:auto}' +
       '.kc-t{width:100%;border-collapse:collapse;font-size:13px}' +
       '.kc-t th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:8px;border-bottom:1px solid var(--border)}' +
@@ -514,16 +578,16 @@
       '#kc-auth{padding:22px 20px}';
     document.head.appendChild(st);
 
+    /* La vista vive junto a las demás (#view-generador, #view-documentos…) dentro de .content */
+    var ref = $('view-generador') || $('view-dash');
     var d = document.createElement('div');
-    d.className = 'usr-overlay overlay-area';
-    d.id = 'kc-overlay';
-    d.style.zIndex = '3100';
+    d.id = 'view-correos';
+    d.style.display = 'none';
     d.innerHTML =
-      '<div class="kpi-cfg-modal kc-modal modal-full">' +
-      '<div class="kpi-cfg-hdr"><h3>Correos y tiendas</h3>' +
-      '<button class="btn btn-ghost" style="padding:5px 10px;font-size:12px" data-kc="close" aria-label="Cerrar">✕</button></div>' +
+      '<div class="card kc-panel">' +
+      '<div class="kc-hdr"><span style="font-size:18px">📧</span><h3>Correos y tiendas</h3></div>' +
       '<div id="kc-auth" style="display:none">' +
-      '<p style="font-size:13px;color:var(--muted);margin:0 0 10px">Confirma tu contraseña para administrar correos y tiendas.</p>' +
+      '<p style="font-size:13px;color:var(--muted);margin:0 0 10px">Confirma tu contraseña una sola vez para activar el acceso a correos en este navegador.</p>' +
       '<div class="kc-row"><input type="password" id="kc-pass" class="kc-in" placeholder="Contraseña" autocomplete="current-password" style="width:240px">' +
       '<button id="kc-go" class="kc-btn kc-pri">Continuar</button></div>' +
       '<div id="kc-err" style="font-size:12px;color:var(--red);min-height:18px;margin-top:8px"></div></div>' +
@@ -539,16 +603,12 @@
       '<button class="kc-btn" data-kc="refresh">Actualizar</button></div>' +
       '<div id="kc-sum" class="kc-sum"></div>' +
       '<div id="kc-body" class="kc-body"></div></div></div>';
-    document.body.appendChild(d);
+    if (ref && ref.parentNode) ref.parentNode.insertBefore(d, ref.nextSibling);
+    else document.body.appendChild(d);
 
     d.addEventListener('click', function (e) {
-      if (e.target === d) return cerrar();
       var k = e.target.closest('[data-kc]');
-      if (k) {
-        if (k.getAttribute('data-kc') === 'close') cerrar();
-        else correr(function () { return Promise.resolve(); }, 'Listo');
-        return;
-      }
+      if (k) { correr(function () { return Promise.resolve(); }, 'Listo'); return; }
       var t = e.target.closest('[data-kc-tab]');
       if (t) { tab = t.getAttribute('data-kc-tab'); pintar(); return; }
       if (e.target.id === 'kc-go') return entrar();
@@ -567,7 +627,6 @@
       if (el && ['toggle', 'add-tienda', 'add-usuario'].indexOf(el.getAttribute('data-act')) >= 0) act(el);
     });
     d.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') return cerrar();
       if (e.key !== 'Enter') return;
       if (e.target.id === 'kc-pass') return entrar();
       var da = e.target.getAttribute && e.target.getAttribute('data-act');
@@ -581,18 +640,101 @@
     $('kc-raz').addEventListener('change', function () { razF = this.value; if (pass) pintar(); });
   }
 
-  function inyectarBoton() {
-    var t = $('usr-table-body');
-    if (!t || $('kc-open')) return;
-    var w = t.closest('.table-wrap') || t;
-    var d = document.createElement('div');
-    d.style.cssText = 'margin:0 0 12px;display:flex;justify-content:flex-end';
-    d.innerHTML = '<button id="kc-open" class="btn btn-ghost" style="font-size:12px;padding:6px 12px;color:var(--blue)">Correos y tiendas</button>';
-    w.parentNode.insertBefore(d, w);
-    $('kc-open').addEventListener('click', abrir);
+  /* Sección "Gestión de Usuarios" (antes ventana emergente, ahora parte del área de trabajo). */
+  function mostrarUsuarios(visible) {
+    var s = $('usr-overlay'), n = $('nav-usuarios');
+    if (s && !visible) s.classList.remove('show');
+    if (n) n.classList.toggle('active', visible);
   }
 
-  function init() { montar(); inyectarBoton(); }
+  /* ---------- Enganches con app-core.js ---------- */
+  function enganchar() {
+    /* setView: además de las vistas propias de app-core, muestra/oculta las secciones
+       "Correos" y "Usuarios"; al elegir cualquier otra opción del menú se ocultan. */
+    if (typeof window.setView === 'function' && !window.setView._kc) {
+      var sv = window.setView;
+      window.setView = function (v) {
+        var r = sv.apply(this, arguments);
+        mostrarVista(v === 'correos');
+        mostrarUsuarios(v === 'usuarios');
+        return r;
+      };
+      window.setView._kc = true;
+    }
+    /* openUsuarios (app-core) carga los usuarios y agrega .show; aquí además se cambia a la
+       sección para ocultar la vista anterior. Si no hay permiso, openUsuarios no la muestra. */
+    if (typeof window.openUsuarios === 'function' && !window.openUsuarios._kc) {
+      var ou = window.openUsuarios;
+      window.openUsuarios = function () {
+        var r = ou.apply(this, arguments);
+        var s = $('usr-overlay');
+        if (s && s.classList.contains('show')) {
+          setView('usuarios');
+          s.classList.add('show');
+          window.scrollTo(0, 0);
+        }
+        return r;
+      };
+      window.openUsuarios._kc = true;
+    }
+    if (typeof window.closeUsuarios === 'function' && !window.closeUsuarios._kc) {
+      var cu = window.closeUsuarios;
+      window.closeUsuarios = function () {
+        var r = cu.apply(this, arguments);
+        if (typeof VIEW !== 'undefined' && VIEW === 'usuarios') setView('dash');
+        return r;
+      };
+      window.closeUsuarios._kc = true;
+    }
+    /* applyVistasRestriction manda a la primera vista permitida si la actual no está en
+       su lista; "correos" y "usuarios" no están ahí, así que se protegen y luego se ajusta el menú. */
+    if (typeof window.applyVistasRestriction === 'function' && !window.applyVistasRestriction._kc) {
+      var avr = window.applyVistasRestriction;
+      window.applyVistasRestriction = function () {
+        var propia = typeof VIEW !== 'undefined' && (VIEW === 'correos' || VIEW === 'usuarios') ? VIEW : null;
+        if (propia) VIEW = 'dash';
+        var r = avr.apply(this, arguments);
+        if (propia) VIEW = propia;
+        actualizarMenu();
+        return r;
+      };
+      window.applyVistasRestriction._kc = true;
+    }
+    /* doLogin: con la contraseña recién escrita se obtiene el token de correos, para no
+       volver a pedirla dentro del panel. La contraseña no se guarda en ningún lado. */
+    if (typeof window.doLogin === 'function' && !window.doLogin._kc) {
+      var dl = window.doLogin;
+      window.doLogin = async function () {
+        var p = ($('lp-pass') || {}).value || '';
+        var r = await dl.apply(this, arguments);
+        if (p && esAdmin()) { borrarToken(); await obtenerToken(p).catch(function () { return null; }); }
+        actualizarMenu();
+        return r;
+      };
+      window.doLogin._kc = true;
+    }
+    /* doLogout: invalida el token en el servidor y lo borra del navegador. */
+    if (typeof window.doLogout === 'function' && !window.doLogout._kc) {
+      var lo = window.doLogout;
+      window.doLogout = function () {
+        var tok = leerToken(), c = cliente();
+        if (tok && c) c.rpc('revocar_token_correos', { p_token: tok }).then(function () {}, function () {});
+        borrarToken();
+        if (typeof VIEW !== 'undefined' && (VIEW === 'correos' || VIEW === 'usuarios')) setView('dash');
+        var r = lo.apply(this, arguments);
+        actualizarMenu();
+        return r;
+      };
+      window.doLogout._kc = true;
+    }
+  }
+
+  function init() {
+    montar();
+    enganchar();
+    actualizarMenu();
+  }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
   window.abrirCorreosTiendas = abrir;
 })();
+
