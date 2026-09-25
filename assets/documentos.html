@@ -2559,5 +2559,34 @@ for(var i=0;i<3;i++){document.getElementById('e_fbody').appendChild(factRow());}
 ftot();
 entToggle();
 </script>
+<script>
+/* Rol "Sistemas": solo ve y usa las cartas de Celular y de Equipo de Cómputo.
+   El rol se lee de la sesión de la app (mismo origen, localStorage "sb_session") y se
+   vuelve a revisar en cada interacción por si cambia el usuario sin recargar el iframe. */
+(function(){
+  var PERMITIDAS={cel:1,pc:1};
+  function rol(){
+    try{return (JSON.parse(localStorage.getItem('sb_session')||'null')||{}).rol||null;}catch(e){return null;}
+  }
+  function aplicar(){
+    var sis=rol()==='sistemas';
+    document.querySelectorAll('.home-card').forEach(function(c){
+      var m=(c.getAttribute('onclick')||'').match(/showView\('(\w+)'\)/);
+      c.style.display=(sis&&(!m||!PERMITIDAS[m[1]]))?'none':'';
+    });
+    return sis;
+  }
+  var sv=window.showView;
+  window.showView=function(id){
+    if(aplicar()&&!PERMITIDAS[id]){showHome();return;}
+    return sv.apply(this,arguments);
+  };
+  var sh=window.showHome;
+  window.showHome=function(){var r=sh.apply(this,arguments);aplicar();return r;};
+  window.addEventListener('message',aplicar);
+  window.addEventListener('focus',aplicar);
+  aplicar();
+})();
+</script>
 </body>
 </html>
