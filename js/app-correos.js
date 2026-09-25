@@ -1,6 +1,9 @@
 /* Correos y tiendas — Grupo Kuroda
    Agrega en Gestión de Usuarios el botón "Correos y tiendas": captura el correo de cada
-   usuario y asigna usuarios a tiendas (quién recibe los avisos de tareas pendientes).
+   usuario, asigna usuarios a tiendas, captura varios correos directos por tienda y
+   define qué razones sociales envían el aviso semanal (y con qué remitente).
+   Cada lunes 8:00 am (Pacífico) se manda un correo por tienda y por tipo de tarea a
+   los correos de la tienda + los usuarios asignados.
    Depende de: config/supabase-config.js y js/app-core.js (_sb, _session, STORE, toast,
    razKey, _razonesAsignadas, filtrarUsuariosPorRazonSesion, pareceCifrado).
    Las funciones RPC piden usuario y contraseña de un admin: la contraseña solo vive en
@@ -8,7 +11,7 @@
 (function () {
   'use strict';
 
-  var pass = null, U = [], T = [], tab = 'usuarios', q = '';
+  var pass = null, U = [], T = [], R = [], tab = 'usuarios', q = '', razF = '';
   var EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) {
@@ -50,7 +53,9 @@
     var res = await Promise.all([
       rpc('listar_usuarios_correos'),
       rpc('listar_tiendas_correos'),
-      _sb.rpc('listar_usuarios')
+      _sb.rpc('listar_usuarios'),
+      rpc('listar_correos_tiendas'),
+      rpc('listar_correos_razones')
     ]);
     var vis = null;
     if (res[2] && !res[2].error && typeof filtrarUsuariosPorRazonSesion === 'function') {
@@ -59,8 +64,28 @@
     }
     U = (res[0] || []).filter(function (u) { return !vis || vis[u.id]; });
     T = (res[1] || []).filter(function (t) { return razOk(t.razon); });
+    var porTienda = {};
+    (res[3] || []).forEach(function (c) { (porTienda[c.tienda_id] = porTienda[c.tienda_id] || []).push(c); });
     T.forEach(function (t) {
       t.usuarios = (t.usuarios || []).filter(function (u) { return !vis || vis[u.id]; });
+      t.correos = porTienda[t.id] || [];
+    });
+    R = (res[4] || []).filter(function (r) { return razOk(r.razon); });
+  }
+
+  /* Destinatarios efectivos de una tienda: correos directos + usuarios asignados con correo */
+  function nDest(t) {
+    var s = {};
+    (t.correos || []).forEach(function (c) { if (c.activo) s[c.email.toLowerCase()] = 1; });
+    (t.usuarios || []).forEach(function (u) { if (u.recibe_correos && u.email) s[u.email.toLowerCase()] = 1; });
+    return Object.keys(s).length;
+  }
+  function filtraTiendas() {
+    var f = q.toLowerCase();
+    return T.filter(function (t) {
+      if (razF && razKey(t.razon || '') !== razKey(razF)) return false;
+      return !f || (t.nombre + ' ' + (t.razon || '') + ' ' + (t.centro || '') + ' ' +
+        (t.correos || []).map(function (c) { return c.email; }).join(' ')).toLowerCase().indexOf(f) >= 0;
     });
   }
 
@@ -95,10 +120,7 @@
   }
 
   function vistaTiendas() {
-    var f = q.toLowerCase();
-    var rows = T.filter(function (t) {
-      return !f || (t.nombre + ' ' + (t.razon || '') + ' ' + (t.centro || '')).toLowerCase().indexOf(f) >= 0;
-    });
+    var rows = filtraTiendas();
     var top = '<div class="kc-row kc-top">' +
       '<input class="kc-in" id="kc-nt" placeholder="Nueva tienda">' +
       '<select class="kc-in" id="kc-nr"><option value="">Razón</option><option>KNO</option><option>KSC</option><option>KSA</option></select>' +
@@ -121,19 +143,63 @@
       }).join('') + '</tbody></table></div>';
   }
 
+  function vistaCorreos() {
+    var rows = filtraTiendas().filter(function (t) { return t.activa !== false; });
+    var nota = '<p class="kc-note">Captura aquí los correos que reciben el aviso de cada tienda (puedes pegar varios separados por coma). ' +
+      'Se suman a los usuarios asignados en la pestaña Tiendas.</p>';
+    if (!rows.length) return nota + '<p class="kc-empty">Sin tiendas</p>';
+    return nota + '<div class="kc-wrap"><table class="kc-t"><thead><tr><th>Tienda</th><th>Correos</th><th style="text-align:right">Destinatarios</th></tr></thead><tbody>' +
+      rows.map(function (t) {
+        var n = nDest(t);
+        return '<tr data-tid="' + t.id + '">' +
+          '<td><b>' + esc(t.nombre) + '</b><div class="kc-sub">' + esc([t.razon, t.centro].filter(Boolean).join(' · ')) + '</div></td>' +
+          '<td>' + (t.correos || []).map(function (c) {
+            return '<span class="kc-chip" title="' + esc(c.nombre || '') + '">' + esc(c.email) +
+              '<button class="kc-x" data-act="del-correo" data-cid="' + c.id + '" title="Quitar">×</button></span>';
+          }).join('') +
+          '<div class="kc-row"><input type="text" class="kc-in kc-mail" data-act="correos" placeholder="correo1@kuroda.com, correo2@kuroda.com">' +
+          '<button class="kc-btn" data-act="add-correos">Agregar</button></div></td>' +
+          '<td style="text-align:right"><b class="' + (n ? '' : 'kc-warn') + '">' + n + '</b></td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+
+  function vistaEnvio() {
+    var nota = '<p class="kc-note">Cada lunes a las 8:00 am (hora del Pacífico) se envía un correo por tienda y por tipo de tarea ' +
+      '(el tipo va en el asunto). Cada razón social activa solo envía sus propias tareas.</p>';
+    if (!R.length) return nota + '<p class="kc-empty">Sin razones sociales</p>';
+    return nota + '<div class="kc-wrap"><table class="kc-t"><thead><tr><th>Razón social</th><th>Remitente</th><th>Envío automático</th><th></th></tr></thead><tbody>' +
+      R.map(function (r) {
+        return '<tr data-raz="' + esc(r.razon) + '">' +
+          '<td><b>' + esc(r.razon) + '</b></td>' +
+          '<td><input class="kc-in" data-act="remitente" value="' + esc(r.remitente) + '" style="width:220px"></td>' +
+          '<td><label style="cursor:pointer"><input type="checkbox" data-act="raz-activo"' + (r.activo ? ' checked' : '') + '> Activo</label></td>' +
+          '<td><button class="kc-btn" data-act="save-razon">Guardar</button></td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+
   function pintar() {
     if (!pass) return pintarAuth('');
     $('kc-auth').style.display = 'none';
     $('kc-main').style.display = 'block';
     var conCorreo = U.filter(function (u) { return u.email; }).length;
-    var sinDest = T.filter(function (t) {
-      return t.activa !== false && !(t.usuarios || []).some(function (u) { return u.recibe_correos && u.email; });
-    }).length;
-    $('kc-sum').textContent = T.length + ' tiendas · ' + conCorreo + ' de ' + U.length + ' usuarios con correo · ' + sinDest + ' tiendas sin destinatario';
+    var vis = filtraTiendas().filter(function (t) { return t.activa !== false; });
+    var sinDest = vis.filter(function (t) { return !nDest(t); }).length;
+    $('kc-sum').textContent = vis.length + ' tiendas' + (razF ? ' ' + razF : '') + ' · ' + conCorreo + ' de ' + U.length +
+      ' usuarios con correo · ' + sinDest + ' tiendas sin destinatario';
     document.querySelectorAll('[data-kc-tab]').forEach(function (b) {
       b.classList.toggle('on', b.getAttribute('data-kc-tab') === tab);
     });
-    $('kc-body').innerHTML = tab === 'usuarios' ? vistaUsuarios() : vistaTiendas();
+    var sel = $('kc-raz');
+    if (sel && sel.options.length <= 1) {
+      var rz = propias() || ['KNO', 'KSC', 'KSA'];
+      sel.innerHTML = '<option value="">Todas las razones</option>' +
+        rz.map(function (r) { return '<option value="' + esc(r) + '">' + esc(r) + '</option>'; }).join('');
+      sel.value = razF;
+    }
+    $('kc-body').innerHTML = tab === 'usuarios' ? vistaUsuarios()
+      : tab === 'correos' ? vistaCorreos()
+      : tab === 'envio' ? vistaEnvio()
+      : vistaTiendas();
   }
 
   function pintarAuth(err) {
@@ -224,18 +290,43 @@
       return correr(function () { return rpc('guardar_tienda', { p_nombre: n, p_razon: r, p_centro: null }); }, 'Tienda guardada');
     }
     if (a === 'importar') return importar();
+    if (a === 'add-correos') {
+      var lista = row.querySelector('[data-act="correos"]').value.split(/[\s,;]+/).filter(Boolean);
+      if (!lista.length) { msg('Escribe al menos un correo'); return; }
+      var malos = lista.filter(function (m) { return !EMAIL_RE.test(m); });
+      if (malos.length) { msg('Correo no válido: ' + malos.join(', ')); return; }
+      return correr(async function () {
+        for (var i = 0; i < lista.length; i++) {
+          await rpc('agregar_correo_tienda', { p_tienda_id: tid, p_email: lista[i], p_nombre: null });
+        }
+      }, lista.length === 1 ? 'Correo agregado' : lista.length + ' correos agregados');
+    }
+    if (a === 'del-correo') {
+      var cid = el.getAttribute('data-cid');
+      return correr(function () { return rpc('quitar_correo_tienda', { p_id: cid }); }, 'Correo quitado');
+    }
+    if (a === 'save-razon') {
+      var raz = row.getAttribute('data-raz');
+      var rem = limpia(row.querySelector('[data-act="remitente"]').value);
+      if (!rem) { msg('Escribe el nombre del remitente'); return; }
+      var on = row.querySelector('[data-act="raz-activo"]').checked;
+      return correr(function () {
+        return rpc('guardar_correo_razon', { p_razon: raz, p_remitente: rem, p_activo: on });
+      }, raz + (on ? ': envío activo' : ': envío desactivado'));
+    }
   }
 
   /* ---------- Modal ---------- */
   function abrir() {
     if (!esAdmin()) { msg('Sin permisos'); return; }
-    pass = null; tab = 'usuarios'; q = '';
+    pass = null; tab = 'usuarios'; q = ''; razF = '';
     $('kc-q').value = '';
+    $('kc-raz').innerHTML = '';
     $('kc-overlay').classList.add('show');
     pintarAuth('');
   }
   function cerrar() {
-    pass = null; U = []; T = [];
+    pass = null; U = []; T = []; R = [];
     $('kc-overlay').classList.remove('show');
   }
 
@@ -267,6 +358,9 @@
       '.kc-x{border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:0 4px}.kc-x:hover{color:var(--red)}' +
       '.kc-sel{max-width:170px;padding:4px 8px;font-size:12px}' +
       '.kc-empty{text-align:center;color:var(--muted);padding:24px 0;font-size:13px}' +
+      '.kc-note{font-size:12px;color:var(--muted);margin:0 0 12px}' +
+      '.kc-mail{flex:1;min-width:200px;margin-top:4px}' +
+      '.kc-warn{color:var(--red)}' +
       '#kc-auth{padding:22px 20px}';
     document.head.appendChild(st);
 
@@ -286,7 +380,10 @@
       '<div id="kc-main" style="display:none">' +
       '<div class="kc-bar"><div class="kc-tabs">' +
       '<button class="kc-tab" data-kc-tab="usuarios">Usuarios</button>' +
-      '<button class="kc-tab" data-kc-tab="tiendas">Tiendas</button></div>' +
+      '<button class="kc-tab" data-kc-tab="tiendas">Tiendas</button>' +
+      '<button class="kc-tab" data-kc-tab="correos">Correos por tienda</button>' +
+      '<button class="kc-tab" data-kc-tab="envio">Envío por razón</button></div>' +
+      '<select id="kc-raz" class="kc-in" title="Razón social"></select>' +
       '<input id="kc-q" class="kc-in" placeholder="Buscar" style="flex:1;min-width:140px">' +
       '<button class="kc-btn" data-kc="refresh">Actualizar</button></div>' +
       '<div id="kc-sum" class="kc-sum"></div>' +
@@ -315,12 +412,15 @@
       if (e.key === 'Escape') return cerrar();
       if (e.key !== 'Enter') return;
       if (e.target.id === 'kc-pass') return entrar();
-      if (e.target.getAttribute && e.target.getAttribute('data-act') === 'email') {
-        var btn = e.target.closest('tr').querySelector('[data-act="save-email"]');
+      var da = e.target.getAttribute && e.target.getAttribute('data-act');
+      var destino = { email: 'save-email', correos: 'add-correos', remitente: 'save-razon' }[da];
+      if (destino) {
+        var btn = e.target.closest('tr').querySelector('[data-act="' + destino + '"]');
         if (btn) act(btn);
       }
     });
     $('kc-q').addEventListener('input', function () { q = this.value.trim(); if (pass) pintar(); });
+    $('kc-raz').addEventListener('change', function () { razF = this.value; if (pass) pintar(); });
   }
 
   function inyectarBoton() {
