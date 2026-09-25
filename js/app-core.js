@@ -6949,7 +6949,7 @@ function onRolChange(){
   /* Mostrar/ocultar opciones de auditor según el rol */
   var rol=document.getElementById('nu-rol').value;
   var opts=document.getElementById('nu-auditor-opts');
-  if(opts)opts.style.display=['auditor','admin_auditor','viewer','editor'].includes(rol)?'flex':'none';
+  if(opts)opts.style.display=['auditor','admin_auditor','viewer','editor','sistemas'].includes(rol)?'flex':'none';
 }
 function onRazonAllChange(cb){
   /* Si marca "Todas", desmarcar el resto */
