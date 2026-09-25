@@ -515,7 +515,7 @@
     document.head.appendChild(st);
 
     var d = document.createElement('div');
-    d.className = 'usr-overlay';
+    d.className = 'usr-overlay overlay-area';
     d.id = 'kc-overlay';
     d.style.zIndex = '3100';
     d.innerHTML =
