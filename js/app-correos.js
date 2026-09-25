@@ -211,7 +211,8 @@
     var tiendas = T.filter(function (t) { return t.activa !== false && (!envio.razon || razKey(t.razon || '') === razKey(envio.razon)); });
     var h = '<p class="kc-note">Envía los avisos ahora mismo, sin esperar al lunes. <b>Prueba</b>: lleva "[PRUEBA]" en el asunto y no cuenta ' +
       'como enviado (no bloquea el envío del lunes); puede ir a los destinatarios configurados de la tienda o solo a los correos que escribas. ' +
-      '<b>Envío real</b>: a los correos Para y CC configurados; no reenvía lo que ya se mandó hoy.</p>' +
+      '<b>Envío real</b>: a los correos Para y CC configurados, aunque ya se haya enviado hoy. ' +
+      'Solo reciben correo las tiendas con tareas pendientes y con correo <b>Para</b>.</p>' +
       '<div class="kc-grid">' +
       '<label>Razón social<select class="kc-in" id="kc-e-raz">' +
       R.map(function (r) { return '<option value="' + esc(r.razon) + '"' + (r.razon === envio.razon ? ' selected' : '') + '>' + esc(r.razon) + ' — ' + esc(r.remitente) + '</option>'; }).join('') +
@@ -256,7 +257,7 @@
           (r.enviadas.length ? '<ul>' + r.enviadas.map(li).join('') + '</ul>' : '') +
           (r.sin_destinatario.length ? '<div class="kc-warn">No se enviaron porque la tienda no tiene correo <b>Para</b> ' +
             '(agrégalo en "Correos por tienda" o usa "Solo a los correos que escriba"): ' + esc(r.sin_destinatario.join(' | ')) + '</div>' : '') +
-          (r.omitidas.length ? '<div class="kc-sub">Ya enviados hoy: ' + esc(r.omitidas.map(function (o) { return o.grupo; }).join(' | ')) + '</div>' : '') +
+          (r.omitidas.length ? '<div class="kc-warn">No se reenviaron porque ya se enviaron hoy: ' + esc(r.omitidas.map(function (o) { return o.grupo; }).join(' | ')) + '</div>' : '') +
           (r.errores.length ? '<div class="kc-warn">Errores: ' + esc(r.errores.map(function (e) { return (e.grupo || e.razon) + ': ' + e.detalle; }).join(' | ')) + '</div>' : '') +
           '</div>';
       }
@@ -274,9 +275,11 @@
       body.prueba_real = true;
       if (!dry && !confirm('La prueba se enviará a los destinatarios configurados (Para y CC) de ' +
         (envio.tienda ? 'la tienda seleccionada' : 'TODAS las tiendas ' + envio.razon) + '. ¿Continuar?')) return;
-    } else if (!dry) {
+    } else {
+      // El envío manual siempre envía, aunque ya se haya mandado hoy (solo el automático del lunes evita duplicados)
+      body.force = true;
       var nt = envio.tienda ? 'la tienda seleccionada' : 'TODAS las tiendas ' + envio.razon;
-      if (!confirm('Se enviarán los correos reales de ' + nt + ' a sus destinatarios y copias. ¿Continuar?')) return;
+      if (!dry && !confirm('Se enviarán los correos reales de ' + nt + ' a sus destinatarios y copias. ¿Continuar?')) return;
     }
     envio.cargando = true; envio.res = null; pintar();
     try {
