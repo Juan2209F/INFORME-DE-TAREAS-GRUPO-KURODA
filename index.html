@@ -97,6 +97,7 @@
   <div class="nav-item" id="nav-desempeno" title="Desempeño de Auditores" onclick="setView('desempeno')">📈<span class="nav-lbl">Desempeño</span></div>
   <div class="nav-item" id="nav-documentos" title="Generador de Documentos" onclick="setView('documentos')">📄<span class="nav-lbl">Documentos</span></div>
   <div class="nav-item" id="nav-generador" title="Generador de Dashboard Ejecutivo (todas las razones sociales)" onclick="setView('generador')" style="display:none">📊<span class="nav-lbl">Generador</span></div>
+  <div class="nav-item" id="nav-archivero" title="Archivero de responsivas firmadas" onclick="abrirArchivero()" style="display:none">🗄️<span class="nav-lbl">Archivero</span></div>
   <div class="nav-sep"></div>
   <div class="nav-item" id="nav-usuarios" title="Gestión de usuarios" onclick="openUsuarios()" style="display:none">👥<span class="nav-lbl">Usuarios</span></div>
   <div class="nav-item" id="nav-correos" title="Correos y tiendas (avisos de tareas pendientes)" onclick="abrirCorreosTiendas()" style="display:none">📧<span class="nav-lbl">Correos</span></div>
@@ -582,6 +583,7 @@
               <option value="admin_auditor">Auditor Señior — Acceso total, restringido por su razón social</option>
               <option value="viewer">Viewer — Solo lectura (vistas configurables)</option>
               <option value="admin">Admin — Acceso total sin restricciones</option>
+              <option value="sistemas">Sistemas — Solo cartas de celular y de equipo de cómputo, y su archivero</option>
             </select>
           </div>
         </div>
@@ -843,5 +845,6 @@
 </div>
 <script src="js/app-usuarios.js"></script>
 <script src="js/app-correos.js"></script>
+<script src="js/app-archivero.js"></script>
 </body>
 </html>
