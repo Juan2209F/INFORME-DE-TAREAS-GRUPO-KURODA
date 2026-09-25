@@ -55,6 +55,8 @@ main{max-width:1600px;margin:0 auto;padding:24px 32px 64px}
 .ill-ppt{background:linear-gradient(135deg,#1e4fa3,#4f7fd6)}
 .ill-cum{background:linear-gradient(135deg,#2e7d32,#66bb6a)}
 .ill-fuel{background:linear-gradient(135deg,#b45309,#f59e0b)}
+.ill-cel{background:linear-gradient(135deg,#0ea5a4,#0891b2)}
+.ill-pc{background:linear-gradient(135deg,#7c3aed,#a855f7)}
 .ill svg{stroke:#fff!important}
 .home-card h3{font-size:16.5px;font-weight:700;margin-bottom:5px}
 .home-card p{font-size:13px;color:var(--muted)}
@@ -171,6 +173,20 @@ textarea{resize:vertical;min-height:46px}
       </div>
       <h3>Entrega – Recepción</h3>
       <p>Entrega-recepción de administración.</p>
+    </div>
+    <div class="home-card" onclick="showView('cel')">
+      <div class="ill ill-cel">
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
+      </div>
+      <h3>Carta de Celular</h3>
+      <p>Resguardo de equipo y línea celular.</p>
+    </div>
+    <div class="home-card" onclick="showView('pc')">
+      <div class="ill ill-pc">
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      </div>
+      <h3>Carta de Equipo de Cómputo</h3>
+      <p>Resguardo de laptop o computadora.</p>
     </div>
     <div class="home-card" onclick="showView('ppt')">
       <div class="ill ill-ppt">
@@ -362,6 +378,111 @@ textarea{resize:vertical;min-height:46px}
   </div>
   <p class="status" id="e_status"></p>
 </section>
+<!-- ══════════ CELULAR ══════════ -->
+<section class="view" id="view-cel">
+  <span class="badge">✦ Solo los campos resaltados son editables — el resto es texto fijo corregido</span>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon icon-blue">🏢</span><h2>Razón social</h2></div>
+    <div class="card-body"><div class="grid">
+      <div class="span2"><label>Razón social (completa, con S.A. de C.V.)</label><input id="cel_empresa" placeholder="Ej. Kuroda Norte, S.A. de C.V." value="Kuroda Norte, S.A. de C.V."></div>
+    </div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon icon-slate">📶</span><h2>Plan y Línea</h2></div>
+    <div class="card-body"><div class="grid">
+      <div><label>Línea</label><input id="cel_linea" placeholder="Ej. 638-1160275"></div>
+      <div><label>Plan</label><input id="cel_plan" placeholder="Ej. TME D 1000 VD 12 M"></div>
+      <div><label>Control de costo</label><input id="cel_cc" placeholder="Ej. Cost Control"></div>
+      <div><label>Mensajes y llamadas</label><input id="cel_msj" placeholder="Ej. Ilimitados"></div>
+      <div><label>Datos</label><input id="cel_datos" placeholder="Ej. 1.5 Gb"></div>
+      <div><label>Fecha de renovación</label><input id="cel_renov" placeholder="Ej. 30/DICIEMBRE/2027"></div>
+    </div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon icon-amber">📱</span><h2>Equipo</h2></div>
+    <div class="card-body"><div class="grid">
+      <div><label>Marca</label><input id="cel_marca" placeholder="Ej. MOTOROLA"></div>
+      <div><label>Modelo</label><input id="cel_modelo" placeholder="Ej. MOTO g24"></div>
+      <div><label>IMEI</label><input id="cel_imei" placeholder="Ej. 356485737426646"></div>
+      <div><label>Incluye cargador</label><input id="cel_cargador" placeholder="Ej. Cable tipo C"></div>
+      <div><label>Valor del equipo ($)</label><input id="cel_valor" type="number" step="0.01" placeholder="Ej. 5500.00"></div>
+      <div><label>Estado</label><select id="cel_estado"><option value="NUEVO">Nuevo</option><option value="USADO">Usado</option></select></div>
+      <div class="span2"><label>Observaciones</label><input id="cel_obs" placeholder="Ej. Se entrega equipo sin daños ni golpes y con funda" value="Se entrega equipo sin daños ni golpes y con funda"></div>
+    </div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon icon-green">✍️</span><h2>Firmas</h2></div>
+    <div class="card-body"><div class="grid">
+      <div><label>Recibió — nombre</label><input id="cel_recn" placeholder="Ej. Nombre del colaborador"></div>
+      <div><label>Recibió — puesto</label><input id="cel_recp" placeholder="Ej. Chofer"></div>
+      <div><label>Validó — nombre</label><input id="cel_valn" placeholder="Ej. Nombre de quien valida"></div>
+      <div><label>Validó — puesto</label><input id="cel_valp" placeholder="Ej. Gerente sucursal Puerto Peñasco"></div>
+    </div></div>
+  </div>
+
+  <div class="action-bar">
+    <button class="btn btn-docx" onclick="celDocx()">Descargar Word (.docx)</button>
+    <button class="btn btn-pdf" onclick="celPDF()">Imprimir / Guardar PDF</button>
+  </div>
+  <p class="status" id="cel_status"></p>
+</section>
+
+<!-- ══════════ EQUIPO DE CÓMPUTO ══════════ -->
+<section class="view" id="view-pc">
+  <span class="badge">✦ Solo los campos resaltados son editables — el resto es texto fijo corregido</span>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon icon-blue">🏢</span><h2>Razón social</h2></div>
+    <div class="card-body"><div class="grid">
+      <div class="span2"><label>Razón social</label><input id="pc_empresa" placeholder="Ej. Kuroda Norte SA de CV" value="Kuroda Norte SA de CV"></div>
+    </div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon icon-slate">💻</span><h2>Descripción del equipo</h2></div>
+    <div class="card-body"><div class="grid">
+      <div><label>Descripción</label><input id="pc_desc" placeholder="Ej. COMPUTADORA LAPTOP"></div>
+      <div><label>Marca</label><input id="pc_marca" placeholder="Ej. DELL"></div>
+      <div><label>Modelo</label><input id="pc_modelo" placeholder="Ej. LATITUDE 3520"></div>
+      <div><label>No. de serie</label><input id="pc_serie" placeholder="Ej. FZ9WBL3"></div>
+      <div class="span2"><label>Características</label><textarea id="pc_carac" placeholder="Ej. INTEL CORE i5-1135 2.4 ghz, MEMORIA RAM 16 GB, DISCO DURO SSD 256 GB, GRAFICOS INTEGRADOS, PANTALLA 15.6&quot;, CAMARA, LAN100M/1000M RED INALAMBRICA, WINDOWS 11 PRO, TECLADO NUMERICO ESPAÑOL, LECTOR SD-MS/PRO-MMC, COLOR INTERIOR Y EXTERIOR GRIS OSCURO, CARGADOR ORIGINAL."></textarea></div>
+    </div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon icon-amber">🧾</span><h2>Datos de compra</h2></div>
+    <div class="card-body"><div class="grid">
+      <div><label>Fecha de compra</label><input id="pc_fcompra" placeholder="Ej. JULIO 2022"></div>
+      <div><label>Proveedor</label><input id="pc_prov" placeholder="Ej. SIS IMPULSORA TECNOLOGICA SA DE CV"></div>
+      <div><label>No. de factura</label><input id="pc_factura" placeholder="Ej. S6250"></div>
+      <div><label>Costo ($)</label><input id="pc_costo" type="number" step="0.01" placeholder="Ej. 19250.00"></div>
+      <div><label class="fondo-chk" style="margin:0"><input type="checkbox" id="pc_iva" checked> Agregar "más IVA" tras el costo</label></div>
+    </div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon icon-green">✍️</span><h2>Firma y lugar</h2></div>
+    <div class="card-body"><div class="grid">
+      <div><label>Nombre del empleado</label><input id="pc_nombre" placeholder="Ej. Nombre del colaborador"></div>
+      <div><label>Puesto / sucursal</label><input id="pc_puesto" placeholder="Ej. Mayoreo Rosarito"></div>
+      <div><label>Ciudad</label><input id="pc_ciudad" placeholder="Ej. Tijuana Baja California"></div>
+      <div><label>Fecha</label><input id="pc_fecha" type="date"></div>
+      <div><label>Testigo 1 (opcional)</label><input id="pc_test1" placeholder="Nombre del testigo"></div>
+      <div><label>Testigo 2 (opcional)</label><input id="pc_test2" placeholder="Nombre del testigo"></div>
+    </div></div>
+  </div>
+
+  <div class="action-bar">
+    <button class="btn btn-docx" onclick="pcDocx()">Descargar Word (.docx)</button>
+    <button class="btn btn-pdf" onclick="pcPDF()">Imprimir / Guardar PDF</button>
+  </div>
+  <p class="status" id="pc_status"></p>
+</section>
+
   <!-- ══════════ VISTA: PRESENTACIÓN DE ACTIVIDADES DE AUDITORÍA ══════════ -->
   <section class="view" id="view-ppt">
     <div class="badge">📊 Presentación mensual · PowerPoint</div>
@@ -538,6 +659,8 @@ function showView(id){
   var t={veh:['Cartas de Vehículos','Carta responsiva de uso y cuidado'],
          fon:['Carta Responsiva de Fondo','Completa los campos y descarga'],
          ent:['Acta de Entrega – Recepción','Completa los campos y descarga'],
+         cel:['Carta Responsiva de Celular','Completa los campos y descarga'],
+         pc:['Carta Responsiva de Equipo de Cómputo','Completa los campos y descarga'],
          ppt:['Actividades de Auditoría','Presentación mensual en PowerPoint'],
          cumpl:['Cumplimiento','Configura los KPIs y descarga el reporte'],
          consumos:['Consumos de Combustible','Detecta fugas y errores de carga']}[id];
@@ -754,6 +877,204 @@ function celdaFirmaFondo(nombre,puesto,rol){
   ];
   return new D.TableCell({margins:{top:80,bottom:80,left:120,right:120},children:kids});
 }
+
+/* ═══════════ CELULAR ═══════════ */
+function celData(){
+  return {
+    empresa:v('cel_empresa')||'Kuroda Norte, S.A. de C.V.',
+    linea:v('cel_linea'),plan:v('cel_plan'),cc:v('cel_cc'),msj:v('cel_msj'),
+    datos:v('cel_datos'),renov:v('cel_renov'),
+    marca:v('cel_marca'),modelo:v('cel_modelo'),imei:v('cel_imei'),
+    cargador:v('cel_cargador'),valor:money(v('cel_valor')),estado:v('cel_estado')||'NUEVO',
+    obs:v('cel_obs'),
+    recn:v('cel_recn'),recp:v('cel_recp'),valn:v('cel_valn'),valp:v('cel_valp')
+  };
+}
+var CEL_CLAUSULAS=[
+  'El colaborador se compromete al cuidado del equipo para un buen funcionamiento, en caso de daño o maltrato, el empleado deberá cubrir la reparación total del mismo y/o adquirir un equipo de características iguales.',
+  'El Colaborador se compromete a NO instalar aplicaciones adicionales en el equipo celular sin contar previamente con la validación y autorización de TI, conforme a lo establecido en las Políticas de Equipos de Telefonía Celular.',
+  'La contratación y/o asignación de las líneas será por medio del dpto. de sistemas, en base a la solicitud que realice el Gerente de la sucursal o responsable del Área por escrito; justificando el beneficio que obtiene la empresa al adquirir esta línea.',
+  'La empresa en todo momento es propietaria de la línea y equipo, definiendo la libre asignación entre su personal.',
+  'El plan y equipo es asignado en base a la función y uso del usuario final.',
+  'Al concluir la vigencia del contrato y/o en caso de separación del empleado de la empresa, el equipo se deberá entregar al representante del dpto. de Sistemas de la empresa, salvo que exista una cesión previamente autorizada por la Coordinadora Administrativa.',
+  'Para el personal de ventas que no sean de calle, choferes y personal de almacén, el equipo quedará en resguardo en la sucursal al término de la jornada de trabajo, en ningún momento se podrán llevar el equipo celular. Cuando se cubran vacaciones el gerente deberá notificarlo al dpto. de sistemas para asignar una responsiva por los días que estarán cubriendo por el equipo.',
+  'Es responsabilidad del usuario contar con datos necesarios para desempeñar su trabajo, si se acaba los datos del plan por usar aplicaciones no autorizadas (YouTube, Facebook, Twitter, etc.), deberá agregar paquete de datos haciendo el depósito correspondiente por su cuenta.',
+  'El equipo tiene un año de garantía por defectos de fábrica, si el equipo empieza a fallar y aun cuenta con garantía es responsabilidad del usuario final llevarlo a revisión a cualquier centro atención Telcel presentándose y dando su número de línea corporativa.'
+];
+var CEL_ROBO_A='El empleado deberá notificar a su jefe inmediato y a la representación del dpto. de sistemas de la empresa y presentar una denuncia por robo. Este equipo deberá reponerse a la brevedad por uno de características iguales o similares, el cual Dirección Administrativa decidirá la reposición del equipo por parte de la empresa.';
+var CEL_ROBO_B='En caso de robo o extravío del equipo, el Colaborador deberá cubrir el porcentaje del valor de factura que corresponda, de acuerdo con la antigüedad del equipo, conforme a la siguiente tabla:';
+var CEL_ROBO_TABLA=[['Hasta 6 meses','100%'],['Más de 6 meses y hasta 12 meses','80%'],['Más de 12 meses y hasta 18 meses','60%'],['Más de 18 meses hasta 2 años','40%']];
+
+function firmaBloque(label,nombre,puesto){
+  var D=docx,A=D.AlignmentType;
+  function r(t,b){return new D.TextRun({text:t||'',bold:!!b,font:'Tahoma',size:20});}
+  return new D.TableCell({width:{size:45,type:D.WidthType.PERCENTAGE},margins:{top:80,bottom:80,left:120,right:120},children:[
+    new D.Paragraph({alignment:A.CENTER,children:[r(label,true)]}),
+    new D.Paragraph({alignment:A.CENTER,spacing:{before:500},border:{top:{style:D.BorderStyle.SINGLE,size:6,color:'000000',space:2}},children:[r(nombre)]}),
+    new D.Paragraph({alignment:A.CENTER,children:[r(puesto)]})
+  ]});
+}
+
+function celPDF(){
+  var d=celData();
+  var P='style="text-align:justify;font-size:10pt;margin:0 0 6pt 0;line-height:1.35"';
+  function tbl(headers,vals){
+    return '<table style="width:100%;border-collapse:collapse;margin:5pt 0 10pt">'+
+      '<tr>'+headers.map(function(h){return '<th style="border:1px solid #000;background:#eee;padding:4pt;font-size:9pt">'+esc(h)+'</th>';}).join('')+'</tr>'+
+      '<tr>'+vals.map(function(x){return '<td style="border:1px solid #000;padding:4pt;font-size:9.5pt;text-align:center">'+esc(x)+'</td>';}).join('')+'</tr>'+
+    '</table>';
+  }
+  var n=1,items='';
+  CEL_CLAUSULAS.slice(0,5).forEach(function(t){items+='<p '+P+'>'+n+'. '+esc(t)+'</p>';n++;});
+  items+='<p '+P+'>'+n+'. En caso de robo o extravío del equipo en horario de la jornada laboral:</p>';n++;
+  items+='<p style="text-align:justify;font-size:10pt;margin:0 0 4pt 20pt;line-height:1.35">a) '+esc(CEL_ROBO_A)+'</p>';
+  items+='<p style="text-align:justify;font-size:10pt;margin:0 0 2pt 20pt;line-height:1.35">b) '+esc(CEL_ROBO_B)+'</p>';
+  items+='<table style="width:90%;margin:0 0 8pt 20pt;border-collapse:collapse"><tr><th style="border:1px solid #000;background:#eee;padding:4pt;font-size:9pt">Tiempo del equipo</th><th style="border:1px solid #000;background:#eee;padding:4pt;font-size:9pt">% del valor de factura</th></tr>'+
+    CEL_ROBO_TABLA.map(function(r){return '<tr><td style="border:1px solid #000;padding:4pt;font-size:9.5pt;text-align:center">'+esc(r[0])+'</td><td style="border:1px solid #000;padding:4pt;font-size:9.5pt;text-align:center">'+esc(r[1])+'</td></tr>';}).join('')+'</table>';
+  CEL_CLAUSULAS.slice(5).forEach(function(t){items+='<p '+P+'>'+n+'. '+esc(t)+'</p>';n++;});
+  var h='<div class="pp-page" style="font-family:Tahoma,Geneva,sans-serif">'+
+    '<p style="text-align:center;font-weight:bold;font-size:13pt;margin:0 0 10pt">CARTA RESPONSIVA</p>'+
+    '<p '+P+'>Se entrega el equipo que ampara el presente documento por parte de la empresa <b>'+esc(d.empresa)+'</b> en calidad de resguardo, para uso exclusivo del empleado como una herramienta de trabajo, con las siguientes características:</p>'+
+    '<p style="font-weight:bold;font-size:10.5pt;margin:8pt 0 2pt">Plan y Línea</p>'+
+    tbl(['Línea','Plan','Control de Costo','Mensajes y Llamadas','Datos','Fecha Renovación'],[d.linea,d.plan,d.cc,d.msj,d.datos,d.renov])+
+    '<p style="font-weight:bold;font-size:10.5pt;margin:8pt 0 2pt">Equipo</p>'+
+    tbl(['Marca','Modelo','IMEI','Incluye cargador','Valor del equipo','Estado'],[d.marca,d.modelo,d.imei,d.cargador,'$'+d.valor,d.estado])+
+    '<p style="border:1px solid #000;padding:5pt;font-size:9.5pt;margin:0 0 10pt"><b>Observaciones:</b> '+esc(d.obs)+'</p>'+
+    items+
+    '<table class="pp-firma-table"><tr>'+
+      '<td class="pp-firma-td"><b>Recibió</b><br>'+esc(d.recn)+'<br>'+esc(d.recp)+'</td>'+
+      '<td class="pp-firma-td2"></td>'+
+      '<td class="pp-firma-td"><b>Validó</b><br>'+esc(d.valn)+'<br>'+esc(d.valp)+'</td>'+
+    '</tr></table>'+
+  '</div>';
+  imprimir(h);
+}
+function celDocx(){withDocx(function(){
+  var d=celData();
+  var D=docx,A=D.AlignmentType;
+  function tr(t,b,sz){return new D.TextRun({text:t,bold:!!b,font:'Tahoma',size:sz||20});}
+  function P(runs,opts){opts=opts||{};return new D.Paragraph({alignment:opts.align||A.JUSTIFIED,spacing:{after:opts.after!=null?opts.after:120,before:opts.before||0},indent:opts.indent,children:Array.isArray(runs)?runs:[runs]});}
+  function thCell(t){return new D.TableCell({shading:{fill:'F0F0F0'},margins:{top:60,bottom:60,left:80,right:80},children:[new D.Paragraph({alignment:A.CENTER,children:[tr(t,true,16)]})]});}
+  function tdCell(t){return new D.TableCell({margins:{top:60,bottom:60,left:80,right:80},children:[new D.Paragraph({alignment:A.CENTER,children:[tr(String(t),false,18)]})]});}
+  function tabla(headers,vals){
+    return new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},rows:[
+      new D.TableRow({children:headers.map(thCell)}),
+      new D.TableRow({children:vals.map(tdCell)})
+    ]});
+  }
+  var body=[];
+  body.push(new D.Paragraph({alignment:A.CENTER,spacing:{after:200},children:[tr('CARTA RESPONSIVA',true,26)]}));
+  body.push(P([tr('Se entrega el equipo que ampara el presente documento por parte de la empresa '),tr(d.empresa,true),tr(' en calidad de resguardo, para uso exclusivo del empleado como una herramienta de trabajo, con las siguientes características:')]));
+  body.push(new D.Paragraph({spacing:{before:120,after:60},children:[tr('Plan y Línea',true,20)]}));
+  body.push(tabla(['Línea','Plan','Control de Costo','Mensajes y Llamadas','Datos','Fecha Renovación'],[d.linea,d.plan,d.cc,d.msj,d.datos,d.renov]));
+  body.push(new D.Paragraph({spacing:{before:180,after:60},children:[tr('Equipo',true,20)]}));
+  body.push(tabla(['Marca','Modelo','IMEI','Incluye cargador','Valor del equipo','Estado'],[d.marca,d.modelo,d.imei,d.cargador,'$'+d.valor,d.estado]));
+  body.push(new D.Paragraph({spacing:{before:120,after:200},children:[tr('Observaciones: ',true),tr(d.obs)]}));
+  var n=1;
+  CEL_CLAUSULAS.slice(0,5).forEach(function(t){body.push(P([tr(n+'. '+t)]));n++;});
+  body.push(P([tr(n+'. En caso de robo o extravío del equipo en horario de la jornada laboral:')]));n++;
+  body.push(P([tr('a) '+CEL_ROBO_A)],{indent:{left:400}}));
+  body.push(P([tr('b) '+CEL_ROBO_B)],{indent:{left:400},after:80}));
+  body.push(new D.Table({width:{size:70,type:D.WidthType.PERCENTAGE},rows:[new D.TableRow({children:[thCell('Tiempo del equipo'),thCell('% del valor de factura')]})].concat(CEL_ROBO_TABLA.map(function(r){return new D.TableRow({children:[tdCell(r[0]),tdCell(r[1])]});}))}));
+  body.push(new D.Paragraph({spacing:{before:180}}));
+  CEL_CLAUSULAS.slice(5).forEach(function(t){body.push(P([tr(n+'. '+t)]));n++;});
+  body.push(new D.Paragraph({spacing:{before:400}}));
+  body.push(new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},borders:sinBordes(),rows:[new D.TableRow({children:[
+    firmaBloque('Recibió',d.recn,d.recp),
+    firmaBloque('Validó',d.valn,d.valp)
+  ]})]}));
+  var doc=new D.Document({sections:[{properties:{page:{margin:{top:1000,bottom:1000,left:1200,right:1200}}},children:body}]});
+  bajar(doc,'Carta_Responsiva_Celular_'+(d.recn||'Documento').replace(/\s+/g,'_')+'.docx','cel_status');
+},'cel_status');}
+
+/* ═══════════ EQUIPO DE CÓMPUTO ═══════════ */
+function pcData(){
+  var ivaChk=document.getElementById('pc_iva');
+  var costo='$'+money(v('pc_costo'))+((ivaChk&&ivaChk.checked)?' más IVA':'');
+  return {
+    empresa:v('pc_empresa')||'Kuroda Norte SA de CV',
+    desc:v('pc_desc'),marca:v('pc_marca'),modelo:v('pc_modelo'),serie:v('pc_serie'),carac:v('pc_carac'),
+    fcompra:v('pc_fcompra'),prov:v('pc_prov'),factura:v('pc_factura'),costo:costo,
+    nombre:v('pc_nombre'),puesto:v('pc_puesto'),ciudad:v('pc_ciudad'),
+    fecha:fechaLarga(v('pc_fecha')),test1:v('pc_test1'),test2:v('pc_test2')
+  };
+}
+var PC_ACUERDOS=[
+  'Por ningún motivo deberá ser usado por personas ajenas a la empresa.',
+  'Está estrictamente prohibido cambiar la configuración del equipo por parte del empleado.',
+  'Deberá contener exclusivamente las aplicaciones que la empresa instaló para el desempeño de la labor del empleado.',
+  'En caso de que el usuario instale cualquier aplicación es expresamente responsable por el mal funcionamiento del equipo, como de cualquier proceso legal que derive ésta instalación por el uso de programas sin licencias.',
+  'El mantenimiento preventivo y correctivo del equipo se realizará exclusivamente por personal de sistemas de la empresa.',
+  'En caso de robo o extravío del equipo por parte del empleado, deberá notificar al contralor y encargado se sistemas de la empresa. Este equipo se cobrará conforme a su valor en libros (en base a la política de equipo de cómputo) y en el supuesto que se encuentra totalmente depreciado, se cobrará el 20% del valor original de compra.',
+  'En caso de separación del trabajador de la empresa, éste deberá entregar en tiempo y forma el equipo en resguardo a la empresa.'
+];
+function pcPDF(){
+  var d=pcData();
+  var P='style="text-align:justify;font-size:10pt;margin:0 0 6pt 0;line-height:1.35"';
+  var tabla1='<table style="width:100%;border-collapse:collapse;margin:6pt 0 10pt;font-size:9pt">'+
+    '<tr><th style="border:1px solid #000;background:#eee;padding:4pt">Descripción</th><th style="border:1px solid #000;background:#eee;padding:4pt">Marca</th><th style="border:1px solid #000;background:#eee;padding:4pt">Modelo</th><th style="border:1px solid #000;background:#eee;padding:4pt">No. Serie</th><th style="border:1px solid #000;background:#eee;padding:4pt">Características</th></tr>'+
+    '<tr><td style="border:1px solid #000;padding:4pt;text-align:center">'+esc(d.desc)+'</td><td style="border:1px solid #000;padding:4pt;text-align:center">'+esc(d.marca)+'</td><td style="border:1px solid #000;padding:4pt;text-align:center">'+esc(d.modelo)+'</td><td style="border:1px solid #000;padding:4pt;text-align:center">'+esc(d.serie)+'</td><td style="border:1px solid #000;padding:4pt">'+esc(d.carac)+'</td></tr>'+
+  '</table>';
+  var tabla2='<table style="width:100%;border-collapse:collapse;margin:0 0 10pt;font-size:9pt">'+
+    '<tr><th style="border:1px solid #000;background:#eee;padding:4pt">Fecha de compra</th><th style="border:1px solid #000;background:#eee;padding:4pt">Proveedor</th><th style="border:1px solid #000;background:#eee;padding:4pt">No. factura</th><th style="border:1px solid #000;background:#eee;padding:4pt">Costo</th></tr>'+
+    '<tr><td style="border:1px solid #000;padding:4pt;text-align:center">'+esc(d.fcompra)+'</td><td style="border:1px solid #000;padding:4pt;text-align:center">'+esc(d.prov)+'</td><td style="border:1px solid #000;padding:4pt;text-align:center">'+esc(d.factura)+'</td><td style="border:1px solid #000;padding:4pt;text-align:center">'+esc(d.costo)+'</td></tr>'+
+  '</table>';
+  var acuerdos='<ul style="margin:4pt 0 10pt;padding-left:18pt;font-size:10pt;line-height:1.4">'+
+    PC_ACUERDOS.map(function(t){return '<li style="margin-bottom:4pt">'+esc(t)+'</li>';}).join('')+'</ul>';
+  var h='<div class="pp-page" style="font-family:Tahoma,Geneva,sans-serif">'+
+    '<p style="text-align:center;font-weight:bold;font-size:13pt;margin:0 0 10pt">CARTA RESPONSIVA</p>'+
+    '<p '+P+'>Se entrega el equipo que ampara el presente documento por parte de la empresa <b>'+esc(d.empresa)+'</b> en calidad de resguardo para uso exclusivo del empleado, como una herramienta de trabajo.</p>'+
+    '<p '+P+'>El equipo que a continuación se detalla se encuentra en óptimas condiciones de uso y con el software requerido por el empleado para realizar su función.</p>'+
+    tabla1+tabla2+
+    '<p '+P+'>El empleado se compromete al cuidado de cada uno de los componentes del equipo para un buen funcionamiento, para los que fueron confinados; evitando el mal funcionamiento y daños al equipo.</p>'+
+    '<p '+P+'>Se acuerda con el empleado que el equipo:</p>'+
+    acuerdos+
+    '<p '+P+'>Recibo el equipo descrito anteriormente en buen funcionamiento y acepto los términos de los acuerdos en '+esc(d.ciudad)+' a '+esc(d.fecha)+'.</p>'+
+    '<table class="pp-firma-table" style="margin-top:44pt"><tr><td class="pp-firma-td" style="width:100%">'+esc(d.nombre)+'<br>'+esc(d.puesto)+'</td></tr></table>'+
+    '<table class="pp-firma-table" style="margin-top:30pt"><tr>'+
+      '<td class="pp-firma-td">Testigo<br>'+esc(d.test1)+'</td>'+
+      '<td class="pp-firma-td2"></td>'+
+      '<td class="pp-firma-td">Testigo<br>'+esc(d.test2)+'</td>'+
+    '</tr></table>'+
+    '<p style="font-size:8.5pt;font-style:italic;margin-top:20pt">Fundamento: Art. 134 frac. VI Ley Federal del Trabajo. Conservar en buen estado los útiles de trabajo.</p>'+
+  '</div>';
+  imprimir(h);
+}
+function pcDocx(){withDocx(function(){
+  var d=pcData();
+  var D=docx,A=D.AlignmentType;
+  function tr(t,b,sz,i){return new D.TextRun({text:t,bold:!!b,italics:!!i,font:'Tahoma',size:sz||20});}
+  function P(runs,opts){opts=opts||{};return new D.Paragraph({alignment:opts.align||A.JUSTIFIED,spacing:{after:opts.after!=null?opts.after:120,before:opts.before||0},children:Array.isArray(runs)?runs:[runs]});}
+  function thCell(t){return new D.TableCell({shading:{fill:'F0F0F0'},margins:{top:60,bottom:60,left:80,right:80},children:[new D.Paragraph({alignment:A.CENTER,children:[tr(t,true,15)]})]});}
+  function tdCell(t){return new D.TableCell({margins:{top:60,bottom:60,left:80,right:80},children:[new D.Paragraph({alignment:A.CENTER,children:[tr(String(t||''),false,15)]})]});}
+  var body=[];
+  body.push(new D.Paragraph({alignment:A.CENTER,spacing:{after:200},children:[tr('CARTA RESPONSIVA',true,26)]}));
+  body.push(P([tr('Se entrega el equipo que ampara el presente documento por parte de la empresa '),tr(d.empresa,true),tr(' en calidad de resguardo para uso exclusivo del empleado, como una herramienta de trabajo.')]));
+  body.push(P([tr('El equipo que a continuación se detalla se encuentra en óptimas condiciones de uso y con el software requerido por el empleado para realizar su función.')],{after:160}));
+  body.push(new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},rows:[
+    new D.TableRow({children:[thCell('Descripción'),thCell('Marca'),thCell('Modelo'),thCell('No. Serie'),thCell('Características')]}),
+    new D.TableRow({children:[tdCell(d.desc),tdCell(d.marca),tdCell(d.modelo),tdCell(d.serie),tdCell(d.carac)]})
+  ]}));
+  body.push(new D.Paragraph({spacing:{before:120,after:160},children:[]}));
+  body.push(new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},rows:[
+    new D.TableRow({children:[thCell('Fecha de compra'),thCell('Proveedor'),thCell('No. factura'),thCell('Costo')]}),
+    new D.TableRow({children:[tdCell(d.fcompra),tdCell(d.prov),tdCell(d.factura),tdCell(d.costo)]})
+  ]}));
+  body.push(new D.Paragraph({spacing:{before:200}}));
+  body.push(P([tr('El empleado se compromete al cuidado de cada uno de los componentes del equipo para un buen funcionamiento, para los que fueron confinados; evitando el mal funcionamiento y daños al equipo.')]));
+  body.push(P([tr('Se acuerda con el empleado que el equipo:')],{after:60}));
+  PC_ACUERDOS.forEach(function(t){body.push(P([tr('•  '+t)],{after:70}));});
+  body.push(P([tr('Recibo el equipo descrito anteriormente en buen funcionamiento y acepto los términos de los acuerdos en '+d.ciudad+' a '+d.fecha+'.')],{before:120,after:600}));
+  body.push(new D.Table({width:{size:60,type:D.WidthType.PERCENTAGE},borders:sinBordes(),rows:[new D.TableRow({children:[celdaFirma(d.nombre,d.puesto,'')]})]}));
+  body.push(new D.Paragraph({spacing:{before:500,after:80},children:[]}));
+  body.push(new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},borders:sinBordes(),rows:[new D.TableRow({children:[
+    celdaFirma(d.test1,'','Testigo'),
+    celdaFirma(d.test2,'','Testigo')
+  ]})]}));
+  body.push(new D.Paragraph({alignment:A.RIGHT,spacing:{before:400},children:[tr('Fundamento: Art. 134 frac. VI Ley Federal del Trabajo. Conservar en buen estado los útiles de trabajo.',false,15,true)]}));
+  var doc=new D.Document({sections:[{properties:{page:{margin:{top:1000,bottom:1000,left:1200,right:1200}}},children:body}]});
+  bajar(doc,'Carta_Responsiva_Computo_'+(d.nombre||'Documento').replace(/\s+/g,'_')+'.docx','pc_status');
+},'pc_status');}
 
 /* ═══════════ ENTREGA-RECEPCIÓN ═══════════ */
 function factRow(r){
@@ -2232,6 +2553,7 @@ function pptGenerar(){
 /* init */
 document.getElementById('f_fecha').value=hoyISO();
 document.getElementById('e_fecha').value=hoyISO();
+document.getElementById('pc_fecha').value=hoyISO();
 fLetra();
 for(var i=0;i<3;i++){document.getElementById('e_fbody').appendChild(factRow());}
 ftot();
