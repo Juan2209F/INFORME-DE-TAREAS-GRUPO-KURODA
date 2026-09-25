@@ -6495,7 +6495,7 @@ function setPill(state){
 /* Etiqueta legible de cada rol (según definición de Grupo Kuroda) */
 function rolLabel(rol){
   return {admin:'Administrador',admin_auditor:'Auditor Señior',
-          auditor:'Auditor Jr',viewer:'Viewer · solo lectura'}[rol]||rol;
+          auditor:'Auditor Jr',viewer:'Viewer · solo lectura',sistemas:'Sistemas'}[rol]||rol;
 }
 /* ¿El usuario tiene otorgada explícitamente una vista? (vistas_permitidas) */
 function tieneVista(v){
@@ -6583,7 +6583,11 @@ function applyVistasRestriction(){
   var visibles=[];
   Object.entries(navMap).forEach(function(e){
     var key=e[1],permitido;
-    if(key==='usuarios'){
+    if(_session.rol==='sistemas'){
+      /* Rol Sistemas: solo Documentos (ahí únicamente ve las cartas de celular y de
+         equipo de cómputo) y el Archivero (js/app-archivero.js). */
+      permitido=(key==='documentos');
+    }else if(key==='usuarios'){
       /* Usuarios: exclusivo de admin y admin_auditor. Ningún otro rol —
          incluido 'auditor' con acceso explícito por vistas_permitidas —
          puede ver ni abrir este módulo. */
@@ -7012,7 +7016,7 @@ function openEditUsuario(uid){
   if(!_session||!['admin','admin_auditor'].includes(_session.rol)){toast('⚠ Sin permisos');return;}
   var u=(window._usrEditMap||{})[uid];
   if(!u){toast('⚠ No se encontraron datos del usuario');return;}
-  var ROLES=['auditor','admin_auditor','viewer','admin'];
+  var ROLES=['auditor','admin_auditor','viewer','admin','sistemas'];
   document.getElementById('eu-overlay').classList.add('show');
   document.getElementById('eu-titulo').textContent='Editar — '+u.username;
   document.getElementById('eu-id').value=u.id;
