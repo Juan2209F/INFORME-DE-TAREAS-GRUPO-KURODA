@@ -99,6 +99,7 @@
   <div class="nav-item" id="nav-generador" title="Generador de Dashboard Ejecutivo (todas las razones sociales)" onclick="setView('generador')" style="display:none">📊<span class="nav-lbl">Generador</span></div>
   <div class="nav-sep"></div>
   <div class="nav-item" id="nav-usuarios" title="Gestión de usuarios" onclick="openUsuarios()" style="display:none">👥<span class="nav-lbl">Usuarios</span></div>
+  <div class="nav-item" id="nav-correos" title="Correos y tiendas (avisos de tareas pendientes)" onclick="abrirCorreosTiendas()" style="display:none">📧<span class="nav-lbl">Correos</span></div>
 </nav>
 
 <div class="main-area">
@@ -536,6 +537,89 @@
       <iframe id="iframe-documentos" style="width:100%;height:600px;border:0;background:transparent;display:block" scrolling="no"></iframe>
     </div>
 
+    <!-- ═══════════ SECCIÓN GESTIÓN DE USUARIOS (se muestra con setView('usuarios')) ═══════════ -->
+    <div class="usr-view" id="usr-overlay">
+  <div class="kpi-cfg-modal usr-panel">
+    <div class="kpi-cfg-hdr">
+      <span style="font-size:18px">👥</span>
+      <h3>Gestión de Usuarios</h3>
+    </div>
+    <div class="kpi-cfg-body" style="padding:16px 20px;overflow-y:auto">
+      <!-- Migración de cifrado (solo admin) -->
+      <div id="mig-wrap" style="display:none;margin-bottom:14px;padding:12px 14px;border:1px dashed var(--k-orange,#fb6340);border-radius:12px;background:rgba(251,99,64,.06)">
+        <div style="font-size:12px;font-weight:700;color:var(--k-orange,#fb6340);margin-bottom:4px">🔐 Migración de cifrado</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px;line-height:1.5">Vuelve a cifrar los datos con la clave compartida para que los usuarios <b>Viewer</b> y las cuentas nuevas puedan verlos. Ejecútalo una sola vez.</div>
+        <button id="btn-migrar-cifrado" onclick="migrarCifrado()" style="padding:8px 14px;border-radius:10px;border:none;background:var(--k-orange,#fb6340);color:#fff;font-weight:700;font-size:12px;cursor:pointer;font-family:inherit">Migrar datos ahora</button>
+        <button onclick="diagnosticarCifrado()" style="padding:8px 14px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--txt);font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;margin-left:6px">Diagnosticar</button>
+        <button onclick="limpiarIlegibles()" title="Respalda y borra los registros que nadie puede descifrar, para poder reimportar el Excel sin duplicados" style="padding:8px 14px;border-radius:10px;border:1px solid var(--k-red,#f5365c);background:transparent;color:var(--k-red,#f5365c);font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;margin-left:6px">Respaldar y limpiar ilegibles</button>
+        <span id="mig-status" style="font-size:11.5px;color:var(--muted);margin-left:10px;font-weight:600"></span>
+      </div>
+      <!-- Diagnóstico auditorías ↔ tareas huérfanas (solo admin) -->
+      <div id="orf-wrap" style="display:none;margin-bottom:14px;padding:12px 14px;border:1px dashed var(--k-blue,#5e72e4);border-radius:12px;background:rgba(94,114,228,.06)">
+        <div style="font-size:12px;font-weight:700;color:var(--k-blue,#5e72e4);margin-bottom:4px">🔗 Auditorías ↔ Tareas</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px;line-height:1.5">Revisa auditorías sin ninguna tarea real ligada y tareas que no pertenecen a ninguna auditoría (típicamente por un centro mal capturado al importar).</div>
+        <button onclick="diagnosticarOrfanas()" style="padding:8px 14px;border-radius:10px;border:1px solid var(--k-blue,#5e72e4);background:transparent;color:var(--k-blue,#5e72e4);font-weight:700;font-size:12px;cursor:pointer;font-family:inherit">Diagnosticar auditorías/tareas huérfanas</button>
+      </div>
+      <!-- Tabla de usuarios -->
+      <div class="table-wrap" style="margin-bottom:16px">
+        <table class="usr-table" id="usr-table-body">
+          <thead><tr>
+            <th>Usuario</th><th>Nombre</th><th>Rol</th><th>Razones</th><th>Auditor</th><th title="Acceso calculado al módulo Generador, según su rol y razones">Generador</th><th>Estado</th><th>Acciones</th>
+          </tr></thead>
+          <tbody id="usr-tbody"><tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">Cargando...</td></tr></tbody>
+        </table>
+      </div>
+      <!-- Formulario nuevo usuario -->
+      <div style="border-top:1.5px solid var(--border);padding-top:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">➕ Nuevo usuario</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div class="fg"><label>Usuario</label><input type="text" id="nu-user" placeholder="NOMBRE_USUARIO" style="text-transform:uppercase"></div>
+          <div class="fg"><label>Contraseña</label><input type="password" id="nu-pass" placeholder="••••••••"></div>
+          <div class="fg"><label>Nombre completo</label><input type="text" id="nu-nombre" placeholder="Nombre visible"></div>
+          <div class="fg"><label>Rol / Permisos</label>
+            <select id="nu-rol" onchange="onRolChange()">
+              <option value="auditor">Auditor Jr — Carga Excel, tareas, ajustes, mermas y actividades (módulos restringidos solo con acceso)</option>
+              <option value="admin_auditor">Auditor Señior — Acceso total, restringido por su razón social</option>
+              <option value="viewer">Viewer — Solo lectura (vistas configurables)</option>
+              <option value="admin">Admin — Acceso total sin restricciones</option>
+            </select>
+          </div>
+        </div>
+        <!-- Opciones adicionales para auditores -->
+        <div id="nu-auditor-opts" style="background:var(--soft);border-radius:var(--radius-sm);border:1px solid var(--border);padding:12px 14px;margin-bottom:10px;display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600">
+              <input type="checkbox" id="nu-es-auditor" style="width:16px;height:16px;cursor:pointer">
+              Incluir en medición de desempeño
+            </label>
+            <span style="font-size:11px;color:var(--muted)">(aparece en módulo Desempeño)</span>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Razones sociales visibles</div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:700;color:var(--blue)">
+                <input type="checkbox" class="nu-razon-cb" value="KNO" style="width:15px;height:15px;cursor:pointer"> KNO
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:700;color:var(--teal)">
+                <input type="checkbox" class="nu-razon-cb" value="KSC" style="width:15px;height:15px;cursor:pointer"> KSC
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:700;color:var(--green)">
+                <input type="checkbox" class="nu-razon-cb" value="KSA" style="width:15px;height:15px;cursor:pointer"> KSA
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--muted)">
+                <input type="checkbox" id="nu-razon-all" style="width:15px;height:15px;cursor:pointer" onchange="onRazonAllChange(this)"> Todas
+              </label>
+            </div>
+            <div style="font-size:10px;color:var(--muted);margin-top:6px">Sin selección = acceso a todas las razones</div>
+          </div>
+        </div>
+        <button class="btn btn-blue" style="width:100%" onclick="crearUsuario()">✓ Crear usuario</button>
+        <div id="usr-err" style="font-size:12px;color:var(--red);text-align:center;min-height:18px;margin-top:6px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
   </div>
 </div>
 
@@ -632,92 +716,6 @@
   </div>
 </div>
 
-<!-- ═══════════ MODAL GESTIÓN USUARIOS ═══════════ -->
-<div class="usr-overlay overlay-area" id="usr-overlay" onclick="if(event.target===this)closeUsuarios()">
-  <div class="kpi-cfg-modal modal-full">
-    <div class="kpi-cfg-hdr">
-      <span style="font-size:18px">👥</span>
-      <h3>Gestión de Usuarios</h3>
-      <button class="btn btn-ghost" style="padding:5px 10px;font-size:12px" onclick="closeUsuarios()">✕</button>
-    </div>
-    <div class="kpi-cfg-body" style="padding:16px 20px;overflow-y:auto">
-      <!-- Migración de cifrado (solo admin) -->
-      <div id="mig-wrap" style="display:none;margin-bottom:14px;padding:12px 14px;border:1px dashed var(--k-orange,#fb6340);border-radius:12px;background:rgba(251,99,64,.06)">
-        <div style="font-size:12px;font-weight:700;color:var(--k-orange,#fb6340);margin-bottom:4px">🔐 Migración de cifrado</div>
-        <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px;line-height:1.5">Vuelve a cifrar los datos con la clave compartida para que los usuarios <b>Viewer</b> y las cuentas nuevas puedan verlos. Ejecútalo una sola vez.</div>
-        <button id="btn-migrar-cifrado" onclick="migrarCifrado()" style="padding:8px 14px;border-radius:10px;border:none;background:var(--k-orange,#fb6340);color:#fff;font-weight:700;font-size:12px;cursor:pointer;font-family:inherit">Migrar datos ahora</button>
-        <button onclick="diagnosticarCifrado()" style="padding:8px 14px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--txt);font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;margin-left:6px">Diagnosticar</button>
-        <button onclick="limpiarIlegibles()" title="Respalda y borra los registros que nadie puede descifrar, para poder reimportar el Excel sin duplicados" style="padding:8px 14px;border-radius:10px;border:1px solid var(--k-red,#f5365c);background:transparent;color:var(--k-red,#f5365c);font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;margin-left:6px">Respaldar y limpiar ilegibles</button>
-        <span id="mig-status" style="font-size:11.5px;color:var(--muted);margin-left:10px;font-weight:600"></span>
-      </div>
-      <!-- Diagnóstico auditorías ↔ tareas huérfanas (solo admin) -->
-      <div id="orf-wrap" style="display:none;margin-bottom:14px;padding:12px 14px;border:1px dashed var(--k-blue,#5e72e4);border-radius:12px;background:rgba(94,114,228,.06)">
-        <div style="font-size:12px;font-weight:700;color:var(--k-blue,#5e72e4);margin-bottom:4px">🔗 Auditorías ↔ Tareas</div>
-        <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px;line-height:1.5">Revisa auditorías sin ninguna tarea real ligada y tareas que no pertenecen a ninguna auditoría (típicamente por un centro mal capturado al importar).</div>
-        <button onclick="diagnosticarOrfanas()" style="padding:8px 14px;border-radius:10px;border:1px solid var(--k-blue,#5e72e4);background:transparent;color:var(--k-blue,#5e72e4);font-weight:700;font-size:12px;cursor:pointer;font-family:inherit">Diagnosticar auditorías/tareas huérfanas</button>
-      </div>
-      <!-- Tabla de usuarios -->
-      <div class="table-wrap" style="margin-bottom:16px">
-        <table class="usr-table" id="usr-table-body">
-          <thead><tr>
-            <th>Usuario</th><th>Nombre</th><th>Rol</th><th>Razones</th><th>Auditor</th><th title="Acceso calculado al módulo Generador, según su rol y razones">Generador</th><th>Estado</th><th>Acciones</th>
-          </tr></thead>
-          <tbody id="usr-tbody"><tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">Cargando...</td></tr></tbody>
-        </table>
-      </div>
-      <!-- Formulario nuevo usuario -->
-      <div style="border-top:1.5px solid var(--border);padding-top:14px">
-        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">➕ Nuevo usuario</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-          <div class="fg"><label>Usuario</label><input type="text" id="nu-user" placeholder="NOMBRE_USUARIO" style="text-transform:uppercase"></div>
-          <div class="fg"><label>Contraseña</label><input type="password" id="nu-pass" placeholder="••••••••"></div>
-          <div class="fg"><label>Nombre completo</label><input type="text" id="nu-nombre" placeholder="Nombre visible"></div>
-          <div class="fg"><label>Rol / Permisos</label>
-            <select id="nu-rol" onchange="onRolChange()">
-              <option value="auditor">Auditor Jr — Carga Excel, tareas, ajustes, mermas y actividades (módulos restringidos solo con acceso)</option>
-              <option value="admin_auditor">Auditor Señior — Acceso total, restringido por su razón social</option>
-              <option value="viewer">Viewer — Solo lectura (vistas configurables)</option>
-              <option value="admin">Admin — Acceso total sin restricciones</option>
-            </select>
-          </div>
-        </div>
-        <!-- Opciones adicionales para auditores -->
-        <div id="nu-auditor-opts" style="background:var(--soft);border-radius:var(--radius-sm);border:1px solid var(--border);padding:12px 14px;margin-bottom:10px;display:flex;flex-direction:column;gap:10px">
-          <div style="display:flex;align-items:center;gap:10px">
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600">
-              <input type="checkbox" id="nu-es-auditor" style="width:16px;height:16px;cursor:pointer">
-              Incluir en medición de desempeño
-            </label>
-            <span style="font-size:11px;color:var(--muted)">(aparece en módulo Desempeño)</span>
-          </div>
-          <div>
-            <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Razones sociales visibles</div>
-            <div style="display:flex;gap:12px;flex-wrap:wrap">
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:700;color:var(--blue)">
-                <input type="checkbox" class="nu-razon-cb" value="KNO" style="width:15px;height:15px;cursor:pointer"> KNO
-              </label>
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:700;color:var(--teal)">
-                <input type="checkbox" class="nu-razon-cb" value="KSC" style="width:15px;height:15px;cursor:pointer"> KSC
-              </label>
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:700;color:var(--green)">
-                <input type="checkbox" class="nu-razon-cb" value="KSA" style="width:15px;height:15px;cursor:pointer"> KSA
-              </label>
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--muted)">
-                <input type="checkbox" id="nu-razon-all" style="width:15px;height:15px;cursor:pointer" onchange="onRazonAllChange(this)"> Todas
-              </label>
-            </div>
-            <div style="font-size:10px;color:var(--muted);margin-top:6px">Sin selección = acceso a todas las razones</div>
-          </div>
-        </div>
-        <button class="btn btn-blue" style="width:100%" onclick="crearUsuario()">✓ Crear usuario</button>
-        <div id="usr-err" style="font-size:12px;color:var(--red);text-align:center;min-height:18px;margin-top:6px"></div>
-      </div>
-    </div>
-    <div class="kpi-cfg-ftr">
-      <button class="btn btn-ghost" onclick="closeUsuarios()">Cerrar</button>
-    </div>
-  </div>
-</div>
 <!-- ═══════════ MODAL EDITAR USUARIO ═══════════ -->
 <div class="usr-overlay" id="eu-overlay" onclick="if(event.target===this)closeEditUsuario()">
   <div class="kpi-cfg-modal" style="max-width:480px;width:95vw">
