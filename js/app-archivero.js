@@ -336,9 +336,22 @@
     if (!visible && antes) { st.docs = []; st.visor = null; }
   }
 
+  /* Encabezado de la app: el rol Sistemas ve "Monitor de Documentos"; los demás, el original. */
+  var ENCABEZADO = null;
+  function actualizarEncabezado() {
+    var h = document.querySelector('.topbar-title h1'), p = $('topbar-sub');
+    if (!h || !p) return;
+    if (!ENCABEZADO) ENCABEZADO = { h: h.innerHTML, p: p.textContent, t: document.title };
+    var sis = typeof _session !== 'undefined' && _session && _session.rol === 'sistemas';
+    h.innerHTML = sis ? 'Monitor de <b>Documentos</b>' : ENCABEZADO.h;
+    p.textContent = sis ? 'Grupo Kuroda · Sistema de documentos e inventarios de activos' : ENCABEZADO.p;
+    document.title = sis ? 'Monitor de Documentos — Grupo Kuroda' : ENCABEZADO.t;
+  }
+
   function actualizarMenu() {
     var n = $('nav-archivero');
     if (n) n.style.display = puedeVer() ? '' : 'none';
+    actualizarEncabezado();
     if (!puedeVer() && typeof VIEW !== 'undefined' && VIEW === 'archivero') setView('dash');
   }
 
