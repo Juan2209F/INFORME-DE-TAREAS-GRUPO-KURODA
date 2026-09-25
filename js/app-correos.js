@@ -1,9 +1,10 @@
 /* Correos y tiendas — Grupo Kuroda
    Agrega en Gestión de Usuarios el botón "Correos y tiendas": captura el correo de cada
-   usuario, asigna usuarios a tiendas, captura varios correos directos por tienda y
-   define qué razones sociales envían el aviso semanal (y con qué remitente).
-   Cada lunes 8:00 am (Pacífico) se manda un correo por tienda y por tipo de tarea a
-   los correos de la tienda + los usuarios asignados.
+   usuario, asigna usuarios a tiendas, captura los correos (Para y CC) de cada tienda,
+   las copias por razón social (auditores, etc.), qué razones sociales envían el aviso
+   semanal (y con qué remitente) y permite enviar a mano (prueba o envío real).
+   Cada lunes 8:00 am (Pacífico) se manda un correo por tienda y por tipo de tarea
+   ÚNICAMENTE a los correos capturados en "Correos por tienda" (+ copias).
    Depende de: config/supabase-config.js y js/app-core.js (_sb, _session, STORE, toast,
    razKey, _razonesAsignadas, filtrarUsuariosPorRazonSesion, pareceCifrado).
    Las funciones RPC piden usuario y contraseña de un admin: la contraseña solo vive en
@@ -11,7 +12,8 @@
 (function () {
   'use strict';
 
-  var pass = null, U = [], T = [], R = [], tab = 'usuarios', q = '', razF = '';
+  var pass = null, U = [], T = [], R = [], CP = [], tab = 'usuarios', q = '', razF = '';
+  var envio = { razon: '', tienda: '', modo: 'prueba', para: '', res: null, cargando: false };
   var EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) {
@@ -55,7 +57,8 @@
       rpc('listar_tiendas_correos'),
       _sb.rpc('listar_usuarios'),
       rpc('listar_correos_tiendas'),
-      rpc('listar_correos_razones')
+      rpc('listar_correos_razones'),
+      rpc('listar_correos_copias')
     ]);
     var vis = null;
     if (res[2] && !res[2].error && typeof filtrarUsuariosPorRazonSesion === 'function') {
@@ -71,14 +74,23 @@
       t.correos = porTienda[t.id] || [];
     });
     R = (res[4] || []).filter(function (r) { return razOk(r.razon); });
+    CP = (res[5] || []).filter(function (c) { return razOk(c.razon); });
   }
 
-  /* Destinatarios efectivos de una tienda: correos directos + usuarios asignados con correo */
+  /* Destinatarios (Para) de una tienda: solo los correos capturados como "para" */
   function nDest(t) {
-    var s = {};
-    (t.correos || []).forEach(function (c) { if (c.activo) s[c.email.toLowerCase()] = 1; });
-    (t.usuarios || []).forEach(function (u) { if (u.recibe_correos && u.email) s[u.email.toLowerCase()] = 1; });
-    return Object.keys(s).length;
+    return (t.correos || []).filter(function (c) { return c.activo && c.tipo !== 'cc'; }).length;
+  }
+  function correoChip(c, act, id) {
+    return '<span class="kc-chip" title="' + esc(c.nombre || '') + '">' + esc(c.email) +
+      '<button class="kc-x" data-act="' + act + '" data-cid="' + id + '" title="Quitar">×</button></span>';
+  }
+  function listaCorreos(txt) {
+    var lista = String(txt || '').split(/[\s,;]+/).filter(Boolean);
+    var malos = lista.filter(function (m) { return !EMAIL_RE.test(m); });
+    if (malos.length) { msg('Correo no válido: ' + malos.join(', ')); return null; }
+    if (!lista.length) { msg('Escribe al menos un correo'); return null; }
+    return lista;
   }
   function filtraTiendas() {
     var f = q.toLowerCase();
@@ -126,6 +138,8 @@
       '<select class="kc-in" id="kc-nr"><option value="">Razón</option><option>KNO</option><option>KSC</option><option>KSA</option></select>' +
       '<button class="kc-btn kc-pri" data-act="crear-tienda">Crear</button>' +
       '<button class="kc-btn" data-act="importar" title="Registra las tiendas que ya existen en tus tareas y auditorías">Importar de la app</button></div>';
+    top += '<p class="kc-note">La asignación de usuarios a tiendas NO se usa para los correos: los avisos solo se envían ' +
+      'a los correos capturados en "Correos por tienda".</p>';
     if (!rows.length) return top + '<p class="kc-empty">Sin tiendas. Usa "Importar de la app" para cargarlas.</p>';
     return top + '<div class="kc-wrap"><table class="kc-t"><thead><tr><th>Tienda</th><th>Usuarios</th></tr></thead><tbody>' +
       rows.map(function (t) {
@@ -145,20 +159,23 @@
 
   function vistaCorreos() {
     var rows = filtraTiendas().filter(function (t) { return t.activa !== false; });
-    var nota = '<p class="kc-note">Captura aquí los correos que reciben el aviso de cada tienda (puedes pegar varios separados por coma). ' +
-      'Se suman a los usuarios asignados en la pestaña Tiendas.</p>';
+    var nota = '<p class="kc-note">Los avisos se envían ÚNICAMENTE a estos correos. <b>Para</b>: quien debe atender las tareas. ' +
+      '<b>CC</b>: quien recibe copia solo de esta tienda. Puedes pegar varios separados por coma. ' +
+      'Las copias para todas las tiendas (auditores) se capturan en "Envío por razón".</p>';
     if (!rows.length) return nota + '<p class="kc-empty">Sin tiendas</p>';
-    return nota + '<div class="kc-wrap"><table class="kc-t"><thead><tr><th>Tienda</th><th>Correos</th><th style="text-align:right">Destinatarios</th></tr></thead><tbody>' +
+    return nota + '<div class="kc-wrap"><table class="kc-t"><thead><tr><th>Tienda</th><th>Para</th><th>CC (copia)</th><th style="text-align:right">Para</th></tr></thead><tbody>' +
       rows.map(function (t) {
         var n = nDest(t);
+        var celda = function (tipo) {
+          return '<td>' + (t.correos || []).filter(function (c) { return (c.tipo || 'para') === tipo; })
+            .map(function (c) { return correoChip(c, 'del-correo', c.id); }).join('') +
+            '<div class="kc-row"><input type="text" class="kc-in kc-mail" data-act="correos-' + tipo + '" placeholder="' +
+            (tipo === 'para' ? 'gerente@kuroda.com, almacen@kuroda.com' : 'copia@kuroda.com') + '">' +
+            '<button class="kc-btn" data-act="add-' + tipo + '">Agregar</button></div></td>';
+        };
         return '<tr data-tid="' + t.id + '">' +
           '<td><b>' + esc(t.nombre) + '</b><div class="kc-sub">' + esc([t.razon, t.centro].filter(Boolean).join(' · ')) + '</div></td>' +
-          '<td>' + (t.correos || []).map(function (c) {
-            return '<span class="kc-chip" title="' + esc(c.nombre || '') + '">' + esc(c.email) +
-              '<button class="kc-x" data-act="del-correo" data-cid="' + c.id + '" title="Quitar">×</button></span>';
-          }).join('') +
-          '<div class="kc-row"><input type="text" class="kc-in kc-mail" data-act="correos" placeholder="correo1@kuroda.com, correo2@kuroda.com">' +
-          '<button class="kc-btn" data-act="add-correos">Agregar</button></div></td>' +
+          celda('para') + celda('cc') +
           '<td style="text-align:right"><b class="' + (n ? '' : 'kc-warn') + '">' + n + '</b></td></tr>';
       }).join('') + '</tbody></table></div>';
   }
@@ -167,14 +184,88 @@
     var nota = '<p class="kc-note">Cada lunes a las 8:00 am (hora del Pacífico) se envía un correo por tienda y por tipo de tarea ' +
       '(el tipo va en el asunto). Cada razón social activa solo envía sus propias tareas.</p>';
     if (!R.length) return nota + '<p class="kc-empty">Sin razones sociales</p>';
-    return nota + '<div class="kc-wrap"><table class="kc-t"><thead><tr><th>Razón social</th><th>Remitente</th><th>Envío automático</th><th></th></tr></thead><tbody>' +
+    return nota + '<div class="kc-wrap"><table class="kc-t"><thead><tr><th>Razón social</th><th>Remitente</th><th>Envío automático</th>' +
+      '<th>Copia en todos los correos (auditores y otros)</th></tr></thead><tbody>' +
       R.map(function (r) {
+        var copias = CP.filter(function (c) { return razKey(c.razon) === razKey(r.razon); });
         return '<tr data-raz="' + esc(r.razon) + '">' +
           '<td><b>' + esc(r.razon) + '</b></td>' +
-          '<td><input class="kc-in" data-act="remitente" value="' + esc(r.remitente) + '" style="width:220px"></td>' +
+          '<td><div class="kc-row"><input class="kc-in" data-act="remitente" value="' + esc(r.remitente) + '" style="width:180px">' +
+          '<button class="kc-btn" data-act="save-razon">Guardar</button></div></td>' +
           '<td><label style="cursor:pointer"><input type="checkbox" data-act="raz-activo"' + (r.activo ? ' checked' : '') + '> Activo</label></td>' +
-          '<td><button class="kc-btn" data-act="save-razon">Guardar</button></td></tr>';
+          '<td>' + copias.map(function (c) { return correoChip(c, 'del-copia', c.id); }).join('') +
+          '<div class="kc-row"><input type="text" class="kc-in kc-mail" data-act="copias" placeholder="auditor@kuroda.com, jefe@kuroda.com">' +
+          '<button class="kc-btn" data-act="add-copias">Agregar</button>' +
+          '<button class="kc-btn" data-act="add-auditores" title="Agrega a los usuarios con rol auditor que tienen correo">+ Auditores</button></div></td></tr>';
       }).join('') + '</tbody></table></div>';
+  }
+
+  function vistaEnviar() {
+    var tiendas = T.filter(function (t) { return t.activa !== false && (!envio.razon || razKey(t.razon || '') === razKey(envio.razon)); });
+    var h = '<p class="kc-note">Envía los avisos ahora mismo, sin esperar al lunes. <b>Prueba</b>: solo a los correos que escribas aquí, ' +
+      'sin copias y con "[PRUEBA]" en el asunto (no cuenta como enviado). <b>Envío real</b>: a los correos Para y CC configurados; ' +
+      'no reenvía lo que ya se mandó hoy.</p>' +
+      '<div class="kc-grid">' +
+      '<label>Razón social<select class="kc-in" id="kc-e-raz">' +
+      R.map(function (r) { return '<option value="' + esc(r.razon) + '"' + (r.razon === envio.razon ? ' selected' : '') + '>' + esc(r.razon) + ' — ' + esc(r.remitente) + '</option>'; }).join('') +
+      '</select></label>' +
+      '<label>Tienda<select class="kc-in" id="kc-e-tienda"><option value="">Todas las tiendas</option>' +
+      tiendas.map(function (t) { return '<option value="' + t.id + '"' + (t.id === envio.tienda ? ' selected' : '') + '>' + esc(t.nombre) + '</option>'; }).join('') +
+      '</select></label>' +
+      '<div class="kc-modo"><label><input type="radio" name="kc-e-modo" value="prueba"' + (envio.modo === 'prueba' ? ' checked' : '') + '> Prueba</label>' +
+      '<label><input type="radio" name="kc-e-modo" value="real"' + (envio.modo === 'real' ? ' checked' : '') + '> Envío real</label></div>' +
+      (envio.modo === 'prueba'
+        ? '<label class="kc-full">Enviar la prueba a<input class="kc-in" id="kc-e-para" value="' + esc(envio.para) + '" placeholder="tu.correo@kuroda.com, otro@kuroda.com"></label>'
+        : '') +
+      '</div><div class="kc-row" style="margin-top:12px">' +
+      '<button class="kc-btn" data-act="enviar-dry"' + (envio.cargando ? ' disabled' : '') + '>Vista previa</button>' +
+      '<button class="kc-btn kc-pri" data-act="enviar"' + (envio.cargando ? ' disabled' : '') + '>' +
+      (envio.cargando ? 'Enviando…' : envio.modo === 'prueba' ? 'Enviar prueba' : 'Enviar ahora') + '</button></div>';
+    var r = envio.res;
+    if (r) {
+      if (r.error) {
+        h += '<div class="kc-res kc-warn">Error: ' + esc(r.error) + '</div>';
+      } else {
+        var li = function (x) {
+          return '<li><b>' + esc(x.grupo) + '</b> — ' + esc(x.subject || '') + '<div class="kc-sub">Para: ' + esc((x.to || []).join(', ')) +
+            ((x.cc || []).length ? ' · CC: ' + esc(x.cc.join(', ')) : '') + '</div></li>';
+        };
+        h += '<div class="kc-res"><b>' + (r.dry ? 'Vista previa: se enviarían ' : 'Enviados: ') + r.enviadas.length + ' correo(s)</b>' +
+          (r.enviadas.length ? '<ul>' + r.enviadas.map(li).join('') + '</ul>' : '') +
+          (r.sin_destinatario.length ? '<div class="kc-warn">Sin correos Para (no se envían): ' + esc(r.sin_destinatario.join(' | ')) + '</div>' : '') +
+          (r.omitidas.length ? '<div class="kc-sub">Ya enviados hoy: ' + esc(r.omitidas.map(function (o) { return o.grupo; }).join(' | ')) + '</div>' : '') +
+          (r.errores.length ? '<div class="kc-warn">Errores: ' + esc(r.errores.map(function (e) { return (e.grupo || e.razon) + ': ' + e.detalle; }).join(' | ')) + '</div>' : '') +
+          '</div>';
+      }
+    }
+    return h;
+  }
+
+  async function enviarManual(dry) {
+    var body = { admin: _session.username, pass: pass, razon: envio.razon, tienda_id: envio.tienda || null, dry: dry };
+    if (envio.modo === 'prueba') {
+      var lista = listaCorreos(envio.para);
+      if (!lista) return;
+      body.prueba = lista;
+    } else if (!dry) {
+      var nt = envio.tienda ? 'la tienda seleccionada' : 'TODAS las tiendas ' + envio.razon;
+      if (!confirm('Se enviarán los correos reales de ' + nt + ' a sus destinatarios y copias. ¿Continuar?')) return;
+    }
+    envio.cargando = true; envio.res = null; pintar();
+    try {
+      var r = await fetch(SB_URL + '/functions/v1/enviar-tareas-pendientes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SB_KEY },
+        body: JSON.stringify(body)
+      });
+      envio.res = await r.json().catch(function () { return { error: 'Respuesta inválida (' + r.status + ')' }; });
+      if (r.status === 401) envio.res = { error: 'No autorizado: vuelve a abrir el panel y confirma tu contraseña' };
+    } catch (e) {
+      envio.res = { error: e.message || String(e) };
+    }
+    envio.cargando = false;
+    pintar();
+    if (!dry && envio.res && !envio.res.error) msg(envio.res.enviadas.length + ' correo(s) enviados');
   }
 
   function pintar() {
@@ -196,9 +287,13 @@
         rz.map(function (r) { return '<option value="' + esc(r) + '">' + esc(r) + '</option>'; }).join('');
       sel.value = razF;
     }
+    if (!envio.razon || !R.some(function (r) { return r.razon === envio.razon; })) {
+      envio.razon = (R.filter(function (r) { return r.activo; })[0] || R[0] || {}).razon || '';
+    }
     $('kc-body').innerHTML = tab === 'usuarios' ? vistaUsuarios()
       : tab === 'correos' ? vistaCorreos()
       : tab === 'envio' ? vistaEnvio()
+      : tab === 'enviar' ? vistaEnviar()
       : vistaTiendas();
   }
 
@@ -290,21 +385,38 @@
       return correr(function () { return rpc('guardar_tienda', { p_nombre: n, p_razon: r, p_centro: null }); }, 'Tienda guardada');
     }
     if (a === 'importar') return importar();
-    if (a === 'add-correos') {
-      var lista = row.querySelector('[data-act="correos"]').value.split(/[\s,;]+/).filter(Boolean);
-      if (!lista.length) { msg('Escribe al menos un correo'); return; }
-      var malos = lista.filter(function (m) { return !EMAIL_RE.test(m); });
-      if (malos.length) { msg('Correo no válido: ' + malos.join(', ')); return; }
+    if (a === 'add-para' || a === 'add-cc') {
+      var tipo = a.slice(4);
+      var lista = listaCorreos(row.querySelector('[data-act="correos-' + tipo + '"]').value);
+      if (!lista) return;
       return correr(async function () {
         for (var i = 0; i < lista.length; i++) {
-          await rpc('agregar_correo_tienda', { p_tienda_id: tid, p_email: lista[i], p_nombre: null });
+          await rpc('agregar_correo_tienda', { p_tienda_id: tid, p_email: lista[i], p_nombre: null, p_tipo: tipo });
         }
-      }, lista.length === 1 ? 'Correo agregado' : lista.length + ' correos agregados');
+      }, lista.length + (tipo === 'cc' ? ' copia(s) agregada(s)' : ' correo(s) agregado(s)'));
     }
     if (a === 'del-correo') {
       var cid = el.getAttribute('data-cid');
       return correr(function () { return rpc('quitar_correo_tienda', { p_id: cid }); }, 'Correo quitado');
     }
+    if (a === 'add-copias' || a === 'add-auditores') {
+      var rzc = row.getAttribute('data-raz');
+      var copias = a === 'add-copias'
+        ? listaCorreos(row.querySelector('[data-act="copias"]').value)
+        : U.filter(function (u) { return u.activo && u.email && /auditor/.test(u.rol || ''); }).map(function (u) { return u.email; });
+      if (!copias) return;
+      if (!copias.length) { msg('No hay usuarios auditores con correo'); return; }
+      return correr(async function () {
+        for (var j = 0; j < copias.length; j++) {
+          await rpc('agregar_correo_copia', { p_razon: rzc, p_email: copias[j], p_nombre: null });
+        }
+      }, copias.length + ' copia(s) agregada(s) a ' + rzc);
+    }
+    if (a === 'del-copia') {
+      var cpid = el.getAttribute('data-cid');
+      return correr(function () { return rpc('quitar_correo_copia', { p_id: cpid }); }, 'Copia quitada');
+    }
+    if (a === 'enviar' || a === 'enviar-dry') return enviarManual(a === 'enviar-dry');
     if (a === 'save-razon') {
       var raz = row.getAttribute('data-raz');
       var rem = limpia(row.querySelector('[data-act="remitente"]').value);
@@ -326,7 +438,8 @@
     pintarAuth('');
   }
   function cerrar() {
-    pass = null; U = []; T = []; R = [];
+    pass = null; U = []; T = []; R = []; CP = [];
+    envio = { razon: '', tienda: '', modo: 'prueba', para: '', res: null, cargando: false };
     $('kc-overlay').classList.remove('show');
   }
 
@@ -361,6 +474,13 @@
       '.kc-note{font-size:12px;color:var(--muted);margin:0 0 12px}' +
       '.kc-mail{flex:1;min-width:200px;margin-top:4px}' +
       '.kc-warn{color:var(--red)}' +
+      '.kc-grid{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}' +
+      '.kc-grid label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted)}' +
+      '.kc-grid .kc-full{flex-basis:100%}' +
+      '.kc-modo{display:flex;gap:14px;font-size:13px;padding-bottom:8px}' +
+      '.kc-modo label{flex-direction:row;align-items:center;color:var(--txt);cursor:pointer}' +
+      '.kc-res{margin-top:14px;padding:12px;border:1px solid var(--border);border-radius:10px;font-size:13px;background:var(--soft)}' +
+      '.kc-res ul{margin:8px 0;padding-left:18px}.kc-res li{margin-bottom:6px}' +
       '#kc-auth{padding:22px 20px}';
     document.head.appendChild(st);
 
@@ -382,7 +502,8 @@
       '<button class="kc-tab" data-kc-tab="usuarios">Usuarios</button>' +
       '<button class="kc-tab" data-kc-tab="tiendas">Tiendas</button>' +
       '<button class="kc-tab" data-kc-tab="correos">Correos por tienda</button>' +
-      '<button class="kc-tab" data-kc-tab="envio">Envío por razón</button></div>' +
+      '<button class="kc-tab" data-kc-tab="envio">Envío por razón</button>' +
+      '<button class="kc-tab" data-kc-tab="enviar">Enviar</button></div>' +
       '<select id="kc-raz" class="kc-in" title="Razón social"></select>' +
       '<input id="kc-q" class="kc-in" placeholder="Buscar" style="flex:1;min-width:140px">' +
       '<button class="kc-btn" data-kc="refresh">Actualizar</button></div>' +
@@ -404,7 +525,13 @@
       var b = e.target.closest('button[data-act]');
       if (b) act(b);
     });
+    d.addEventListener('input', function (e) {
+      if (e.target.id === 'kc-e-para') envio.para = e.target.value;
+    });
     d.addEventListener('change', function (e) {
+      if (e.target.id === 'kc-e-raz') { envio.razon = e.target.value; envio.tienda = ''; envio.res = null; return pintar(); }
+      if (e.target.id === 'kc-e-tienda') { envio.tienda = e.target.value; envio.res = null; return pintar(); }
+      if (e.target.name === 'kc-e-modo') { envio.modo = e.target.value; envio.res = null; return pintar(); }
       var el = e.target.closest('[data-act]');
       if (el && ['toggle', 'add-tienda', 'add-usuario'].indexOf(el.getAttribute('data-act')) >= 0) act(el);
     });
@@ -413,7 +540,7 @@
       if (e.key !== 'Enter') return;
       if (e.target.id === 'kc-pass') return entrar();
       var da = e.target.getAttribute && e.target.getAttribute('data-act');
-      var destino = { email: 'save-email', correos: 'add-correos', remitente: 'save-razon' }[da];
+      var destino = { email: 'save-email', 'correos-para': 'add-para', 'correos-cc': 'add-cc', copias: 'add-copias', remitente: 'save-razon' }[da];
       if (destino) {
         var btn = e.target.closest('tr').querySelector('[data-act="' + destino + '"]');
         if (btn) act(btn);
