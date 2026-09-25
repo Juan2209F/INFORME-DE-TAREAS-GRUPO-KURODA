@@ -301,7 +301,7 @@
   function pintar() {
     if (!pass) return pintarAuth('');
     $('kc-auth').style.display = 'none';
-    $('kc-main').style.display = 'block';
+    $('kc-main').style.display = 'flex';
     var conCorreo = U.filter(function (u) { return u.email; }).length;
     var vis = filtraTiendas().filter(function (t) { return t.activa !== false; });
     var sinDest = vis.filter(function (t) { return !nDest(t); }).length;
@@ -478,7 +478,7 @@
     var st = document.createElement('style');
     st.id = 'kc-style';
     st.textContent =
-      '.kc-modal{max-width:980px;width:96vw;max-height:90vh}' +
+      '#kc-main{flex:1;min-height:0;flex-direction:column}' +
       '.kc-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 20px;border-bottom:1px solid var(--border)}' +
       '.kc-tabs{display:flex;gap:4px}' +
       '.kc-tab{border:1px solid var(--border);background:transparent;color:var(--txt);padding:6px 12px;border-radius:10px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer}' +
@@ -490,7 +490,7 @@
       '.kc-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}' +
       '.kc-top{margin-bottom:12px}' +
       '.kc-sum{font-size:12px;color:var(--muted);padding:8px 20px;font-weight:600}' +
-      '.kc-body{padding:0 20px 18px;overflow:auto;max-height:58vh}' +
+      '.kc-body{padding:0 20px 18px;overflow:auto;flex:1;min-height:0}' +
       '.kc-wrap{overflow-x:auto}' +
       '.kc-t{width:100%;border-collapse:collapse;font-size:13px}' +
       '.kc-t th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:8px;border-bottom:1px solid var(--border)}' +
@@ -519,7 +519,7 @@
     d.id = 'kc-overlay';
     d.style.zIndex = '3100';
     d.innerHTML =
-      '<div class="kpi-cfg-modal kc-modal">' +
+      '<div class="kpi-cfg-modal kc-modal modal-full">' +
       '<div class="kpi-cfg-hdr"><h3>Correos y tiendas</h3>' +
       '<button class="btn btn-ghost" style="padding:5px 10px;font-size:12px" data-kc="close" aria-label="Cerrar">✕</button></div>' +
       '<div id="kc-auth" style="display:none">' +
