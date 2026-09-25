@@ -1,8 +1,12 @@
 /* Archivero de responsivas — Grupo Kuroda
-   Sección "Archivero" del menú lateral (admin, admin_auditor y sistemas).
+   Sección "Archivero" del menú lateral (admin, admin_auditor, auditor y sistemas).
    Pestañas por categoría:
-     - Celular y Equipo de cómputo: admin, admin_auditor y sistemas (sistemas no borra).
+     - Celular y Equipo de cómputo: admin, admin_auditor, auditor y sistemas.
      - Vehículos: solo admin y admin_auditor, siempre con sucursal.
+   Eliminar: solo admin, admin_auditor y auditor.
+   Dividido por razón social: cada documento guarda su razón (KNO/KSC/KSA; en vehículos se
+   toma de la sucursal) y cada usuario solo ve, sube y borra las de sus razones permitidas
+   (lo valida la Edge Function; aquí solo se arma la pantalla con lo que ella devuelve).
    Se sube el PDF firmado; el navegador convierte cada página a WebP (calidad 70%) con
    pdf.js y la Edge Function "archivero" guarda las imágenes en el bucket privado.
    Para consultar se muestran las páginas y se puede descargar de nuevo como PDF (jsPDF).
@@ -22,9 +26,9 @@
     computo: { nombre: 'Equipo de cómputo', icono: '💻' },
     vehiculo: { nombre: 'Vehículos', icono: '🚗' }
   };
-  var ROLES = ['admin', 'admin_auditor', 'sistemas'];
+  var ROLES = ['admin', 'admin_auditor', 'auditor', 'sistemas'];
 
-  var st = { token: null, categorias: [], puedeBorrar: false, cat: null, docs: [], tiendas: [], q: '', tiendaF: '', cargando: false, subiendo: '', visor: null };
+  var st = { token: null, categorias: [], razones: [], puedeBorrar: false, cat: null, docs: [], tiendas: [], q: '', tiendaF: '', razonF: '', cargando: false, subiendo: '', visor: null };
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -152,6 +156,7 @@
   function filtrados() {
     var f = st.q.toLowerCase();
     return st.docs.filter(function (d) {
+      if (st.razonF && d.razon !== st.razonF) return false;
       if (st.tiendaF && d.tienda_id !== st.tiendaF) return false;
       return !f || (d.empleado + ' ' + (d.tiendas ? d.tiendas.nombre : '') + ' ' + (d.nombre_original || '') + ' ' + (d.subido_por || ''))
         .toLowerCase().indexOf(f) >= 0;
@@ -160,13 +165,17 @@
 
   function htmlSubir() {
     var veh = st.cat === 'vehiculo';
-    return '<div class="ar-subir"><div class="ar-sub-t">Subir responsiva firmada (PDF) — ' + esc(CAT[st.cat].nombre) + '</div>' +
-      '<div class="ar-row">' +
-      '<label class="ar-lbl">Nombre del empleado<input class="kc-in" id="ar-emp" placeholder="Nombre completo" style="min-width:240px"></label>' +
-      (veh ? '<label class="ar-lbl">Sucursal<select class="kc-in" id="ar-tienda"><option value="">Selecciona…</option>' +
+    return '<div class="arch-subir"><div class="arch-sub-t">Subir responsiva firmada (PDF) — ' + esc(CAT[st.cat].nombre) + '</div>' +
+      '<div class="arch-row">' +
+      '<label class="arch-lbl">Nombre del empleado<input class="kc-in" id="arch-emp" placeholder="Nombre completo" style="min-width:240px"></label>' +
+      (veh ? '<label class="arch-lbl">Sucursal<select class="kc-in" id="arch-tienda"><option value="">Selecciona…</option>' +
         st.tiendas.map(function (t) { return '<option value="' + t.id + '">' + esc(t.nombre) + (t.razon ? ' (' + esc(t.razon) + ')' : '') + '</option>'; }).join('') +
-        '</select></label>' : '') +
-      '<label class="ar-lbl">Archivo PDF<input type="file" class="kc-in" id="ar-file" accept="application/pdf,.pdf"></label>' +
+        '</select></label>'
+        : '<label class="arch-lbl">Razón social<select class="kc-in" id="arch-razon">' +
+          (st.razones.length > 1 ? '<option value="">Selecciona…</option>' : '') +
+          st.razones.map(function (r) { return '<option value="' + r + '">' + r + '</option>'; }).join('') +
+          '</select></label>') +
+      '<label class="arch-lbl">Archivo PDF<input type="file" class="kc-in" id="arch-file" accept="application/pdf,.pdf"></label>' +
       '<button class="kc-btn kc-pri" data-ar="subir"' + (st.subiendo ? ' disabled' : '') + '>' + (st.subiendo ? 'Subiendo…' : 'Subir') + '</button>' +
       '</div>' + (st.subiendo ? '<div class="kc-sub" style="margin-top:6px">' + esc(st.subiendo) + '</div>' : '') +
       '<div class="kc-note" style="margin:8px 0 0">Cada página se guarda como imagen WebP comprimida al 70%. Después puedes verla o descargarla de nuevo como PDF.</div></div>';
@@ -175,67 +184,72 @@
   function htmlLista() {
     var veh = st.cat === 'vehiculo';
     var rows = filtrados();
-    var filtros = '<div class="ar-row" style="margin:14px 0 10px">' +
-      '<input class="kc-in" id="ar-q" placeholder="Buscar por empleado…" value="' + esc(st.q) + '" style="flex:1;min-width:200px">' +
-      (veh ? '<select class="kc-in" id="ar-tf"><option value="">Todas las sucursales</option>' +
+    var filtros = '<div class="arch-row" style="margin:14px 0 10px">' +
+      '<input class="kc-in" id="arch-q" placeholder="Buscar por empleado…" value="' + esc(st.q) + '" style="flex:1;min-width:200px">' +
+      (st.razones.length > 1 ? '<select class="kc-in" id="arch-rf"><option value="">Todas las razones</option>' +
+        st.razones.map(function (r) { return '<option value="' + r + '"' + (r === st.razonF ? ' selected' : '') + '>' + r + '</option>'; }).join('') +
+        '</select>' : '') +
+      (veh ? '<select class="kc-in" id="arch-tf"><option value="">Todas las sucursales</option>' +
         st.tiendas.map(function (t) { return '<option value="' + t.id + '"' + (t.id === st.tiendaF ? ' selected' : '') + '>' + esc(t.nombre) + '</option>'; }).join('') +
         '</select>' : '') +
       '<span class="kc-sub">' + rows.length + ' documento(s)</span></div>';
     if (st.cargando) return filtros + '<p class="kc-empty">Cargando…</p>';
     if (!rows.length) return filtros + '<p class="kc-empty">' + (st.docs.length ? 'Sin resultados' : 'Aún no hay documentos en este archivero') + '</p>';
-    return filtros + '<div class="kc-wrap"><table class="kc-t"><thead><tr><th>Empleado</th>' + (veh ? '<th>Sucursal</th>' : '') +
+    return filtros + '<div class="kc-wrap"><table class="kc-t"><thead><tr><th>Empleado</th><th>Razón social</th>' + (veh ? '<th>Sucursal</th>' : '') +
       '<th>Páginas</th><th>Tamaño</th><th>Subido por</th><th>Fecha</th><th></th></tr></thead><tbody>' +
       rows.map(function (d) {
         return '<tr data-id="' + d.id + '"><td><b>' + esc(d.empleado) + '</b><div class="kc-sub">' + esc(d.nombre_original || '') + '</div></td>' +
+          '<td>' + esc(d.razon || '') + '</td>' +
           (veh ? '<td>' + esc(d.tiendas ? d.tiendas.nombre : '—') + '</td>' : '') +
           '<td>' + d.paginas + '</td><td>' + kb(d.tamano_bytes) + '</td><td>' + esc(d.subido_por || '') + '</td><td>' + fecha(d.created_at) + '</td>' +
           '<td style="white-space:nowrap"><button class="kc-btn" data-ar="ver">Ver</button> <button class="kc-btn" data-ar="pdf">PDF</button>' +
-          (st.puedeBorrar ? ' <button class="kc-btn ar-del" data-ar="borrar">Eliminar</button>' : '') + '</td></tr>';
+          (st.puedeBorrar ? ' <button class="kc-btn arch-del" data-ar="borrar">Eliminar</button>' : '') + '</td></tr>';
       }).join('') + '</tbody></table></div>';
   }
 
   function htmlVisor() {
     var v = st.visor;
-    return '<div class="ar-visor"><div class="ar-row" style="justify-content:space-between;margin-bottom:10px">' +
-      '<div><b>' + esc(v.doc.empleado) + '</b> <span class="kc-sub">' + esc(CAT[v.doc.categoria].nombre) +
+    return '<div class="arch-visor"><div class="arch-row" style="justify-content:space-between;margin-bottom:10px">' +
+      '<div><b>' + esc(v.doc.empleado) + '</b> <span class="kc-sub">' + esc(CAT[v.doc.categoria].nombre) + ' · ' + esc(v.doc.razon || '') +
       (v.doc.tiendas ? ' · ' + esc(v.doc.tiendas.nombre) : '') + ' · ' + v.doc.paginas + ' página(s)</span></div>' +
-      '<div class="ar-row"><button class="kc-btn" data-ar="pdf-visor">Descargar PDF</button><button class="kc-btn" data-ar="cerrar-visor">Volver a la lista</button></div></div>' +
-      (v.urls ? v.urls.map(function (u, i) { return '<img class="ar-pag" src="' + esc(u) + '" alt="Página ' + (i + 1) + '">'; }).join('') : '<p class="kc-empty">Cargando páginas…</p>') +
+      '<div class="arch-row"><button class="kc-btn" data-ar="pdf-visor">Descargar PDF</button><button class="kc-btn" data-ar="cerrar-visor">Volver a la lista</button></div></div>' +
+      (v.urls ? v.urls.map(function (u, i) { return '<img class="arch-pag" src="' + esc(u) + '" alt="Página ' + (i + 1) + '">'; }).join('') : '<p class="kc-empty">Cargando páginas…</p>') +
       '</div>';
   }
 
   function pintar() {
-    var body = $('ar-body');
+    var body = $('arch-body');
     if (!body) return;
-    $('ar-auth').style.display = 'none';
-    $('ar-main').style.display = 'block';
-    $('ar-tabs').innerHTML = st.categorias.map(function (c) {
-      return '<button class="kc-tab' + (c === st.cat ? ' on' : '') + '" data-ar-cat="' + c + '">' + CAT[c].icono + ' ' + esc(CAT[c].nombre) + '</button>';
+    $('arch-auth').style.display = 'none';
+    $('arch-main').style.display = 'block';
+    $('arch-tabs').innerHTML = st.categorias.map(function (c) {
+      return '<button class="kc-tab' + (c === st.cat ? ' on' : '') + '" data-arch-cat="' + c + '">' + CAT[c].icono + ' ' + esc(CAT[c].nombre) + '</button>';
     }).join('');
     body.innerHTML = st.visor ? htmlVisor() : htmlSubir() + htmlLista();
   }
 
   function pintarAuth(err) {
-    if (!$('ar-auth')) return;
-    $('ar-main').style.display = 'none';
-    $('ar-auth').style.display = 'block';
-    $('ar-err').textContent = err || '';
-    $('ar-pass').value = '';
+    if (!$('arch-auth')) return;
+    $('arch-main').style.display = 'none';
+    $('arch-auth').style.display = 'block';
+    $('arch-err').textContent = err || '';
+    $('arch-pass').value = '';
   }
 
   /* ---------- Carga y acciones ---------- */
   async function iniciar() {
-    $('ar-auth').style.display = 'none';
-    $('ar-main').style.display = 'block';
-    $('ar-body').innerHTML = '<p class="kc-empty">Cargando…</p>';
+    $('arch-auth').style.display = 'none';
+    $('arch-main').style.display = 'block';
+    $('arch-body').innerHTML = '<p class="kc-empty">Cargando…</p>';
     try {
       var s = await api('sesion');
       st.categorias = s.categorias || [];
+      st.razones = s.razones || [];
       st.puedeBorrar = !!s.puede_borrar;
       if (st.categorias.indexOf(st.cat) < 0) st.cat = st.categorias[0] || null;
       if (st.categorias.indexOf('vehiculo') >= 0 && !st.tiendas.length) st.tiendas = (await api('tiendas')).tiendas || [];
       await cargarLista();
-    } catch (e) { if (st.token) $('ar-body').innerHTML = '<p class="kc-empty kc-warn">Error: ' + esc(e.message) + '</p>'; }
+    } catch (e) { if (st.token) $('arch-body').innerHTML = '<p class="kc-empty kc-warn">Error: ' + esc(e.message) + '</p>'; }
   }
 
   async function cargarLista() {
@@ -248,32 +262,34 @@
   }
 
   async function entrar() {
-    var p = $('ar-pass').value;
-    if (!p) { $('ar-err').textContent = 'Escribe tu contraseña'; return; }
-    $('ar-go').disabled = true;
+    var p = $('arch-pass').value;
+    if (!p) { $('arch-err').textContent = 'Escribe tu contraseña'; return; }
+    $('arch-go').disabled = true;
     var tok = await pedirToken(p).catch(function () { return null; });
-    $('ar-go').disabled = false;
+    $('arch-go').disabled = false;
     if (!tok) { pintarAuth('Contraseña incorrecta'); return; }
     st.token = tok;
     await iniciar();
   }
 
   async function subir() {
-    var emp = ($('ar-emp').value || '').trim();
-    var file = $('ar-file').files[0];
-    var tienda = st.cat === 'vehiculo' ? $('ar-tienda').value : null;
+    var emp = ($('arch-emp').value || '').trim();
+    var file = $('arch-file').files[0];
+    var tienda = st.cat === 'vehiculo' ? $('arch-tienda').value : null;
+    var razon = st.cat === 'vehiculo' ? null : $('arch-razon').value;
     if (!emp) { msg('Escribe el nombre del empleado'); return; }
     if (st.cat === 'vehiculo' && !tienda) { msg('Selecciona la sucursal'); return; }
+    if (st.cat !== 'vehiculo' && !razon) { msg('Selecciona la razón social'); return; }
     if (!file) { msg('Selecciona el PDF'); return; }
     if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') { msg('El archivo debe ser PDF'); return; }
     var cat = st.cat;
     st.subiendo = 'Leyendo PDF…'; pintar();
     try {
-      var pags = await pdfAPaginas(file, function (t) { st.subiendo = t; var s = document.querySelector('.ar-subir .kc-sub'); if (s) s.textContent = t; });
+      var pags = await pdfAPaginas(file, function (t) { st.subiendo = t; var s = document.querySelector('.arch-subir .kc-sub'); if (s) s.textContent = t; });
       var total = pags.reduce(function (a, p) { return a + p.bytes; }, 0);
       st.subiendo = 'Guardando ' + pags.length + ' página(s) (' + kb(total) + ')…'; pintar();
       await api('subir', {
-        categoria: cat, empleado: emp, tienda_id: tienda, nombre_original: file.name,
+        categoria: cat, empleado: emp, razon: razon, tienda_id: tienda, nombre_original: file.name,
         paginas: pags.map(function (p) { return { b64: p.b64, mime: p.mime }; })
       });
       msg('✓ Guardado: ' + pags.length + ' página(s), ' + kb(total) + (pags[0] && pags[0].mime !== 'image/webp' ? ' (JPEG: este navegador no genera WebP)' : ''));
@@ -313,7 +329,7 @@
     v.style.display = visible ? 'block' : 'none';
     if (n) n.classList.toggle('active', visible);
     if (visible && !antes) {
-      st.visor = null; st.q = ''; st.tiendaF = ''; st.subiendo = '';
+      st.visor = null; st.q = ''; st.tiendaF = ''; st.razonF = ''; st.subiendo = '';
       st.token = leerToken();
       if (st.token) iniciar(); else pintarAuth('');
     }
@@ -329,15 +345,15 @@
   function montar() {
     if ($('view-archivero')) return;
     var css = document.createElement('style');
-    css.id = 'ar-style';
+    css.id = 'arch-style';
     css.textContent =
-      '.ar-subir{border:1px dashed var(--border);border-radius:12px;padding:14px;background:var(--soft)}' +
-      '.ar-sub-t{font-size:13px;font-weight:700;margin-bottom:10px}' +
-      '.ar-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}' +
-      '.ar-lbl{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted)}' +
-      '.ar-del{color:var(--red)}.ar-del:hover{border-color:var(--red);color:var(--red)}' +
-      '.ar-visor{padding-bottom:10px}' +
-      '.ar-pag{display:block;max-width:100%;margin:0 auto 14px;border:1px solid var(--border);border-radius:6px;background:#fff;box-shadow:var(--shadow)}';
+      '.arch-subir{border:1px dashed var(--border);border-radius:12px;padding:14px;background:var(--soft)}' +
+      '.arch-sub-t{font-size:13px;font-weight:700;margin-bottom:10px}' +
+      '.arch-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}' +
+      '.arch-lbl{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted)}' +
+      '.arch-del{color:var(--red)}.arch-del:hover{border-color:var(--red);color:var(--red)}' +
+      '.arch-visor{padding-bottom:10px}' +
+      '.arch-pag{display:block;max-width:100%;margin:0 auto 14px;border:1px solid var(--border);border-radius:6px;background:#fff;box-shadow:var(--shadow)}';
     document.head.appendChild(css);
 
     var ref = $('view-correos') || $('view-generador') || $('view-dash');
@@ -347,21 +363,21 @@
     d.innerHTML =
       '<div class="card kc-panel">' +
       '<div class="kc-hdr"><span style="font-size:18px">🗄️</span><h3>Archivero de responsivas</h3></div>' +
-      '<div id="ar-auth" style="display:none;padding:22px 20px">' +
+      '<div id="arch-auth" style="display:none;padding:22px 20px">' +
       '<p style="font-size:13px;color:var(--muted);margin:0 0 10px">Confirma tu contraseña una sola vez para activar el acceso al archivero en este navegador.</p>' +
-      '<div class="kc-row"><input type="password" id="ar-pass" class="kc-in" placeholder="Contraseña" autocomplete="current-password" style="width:240px">' +
-      '<button id="ar-go" class="kc-btn kc-pri">Continuar</button></div>' +
-      '<div id="ar-err" style="font-size:12px;color:var(--red);min-height:18px;margin-top:8px"></div></div>' +
-      '<div id="ar-main" style="display:none">' +
-      '<div class="kc-bar"><div class="kc-tabs" id="ar-tabs"></div></div>' +
-      '<div id="ar-body" class="kc-body" style="padding-top:14px"></div></div></div>';
+      '<div class="kc-row"><input type="password" id="arch-pass" class="kc-in" placeholder="Contraseña" autocomplete="current-password" style="width:240px">' +
+      '<button id="arch-go" class="kc-btn kc-pri">Continuar</button></div>' +
+      '<div id="arch-err" style="font-size:12px;color:var(--red);min-height:18px;margin-top:8px"></div></div>' +
+      '<div id="arch-main" style="display:none">' +
+      '<div class="kc-bar"><div class="kc-tabs" id="arch-tabs"></div></div>' +
+      '<div id="arch-body" class="kc-body" style="padding-top:14px"></div></div></div>';
     if (ref && ref.parentNode) ref.parentNode.insertBefore(d, ref.nextSibling);
     else document.body.appendChild(d);
 
     d.addEventListener('click', function (e) {
-      if (e.target.id === 'ar-go') return entrar();
-      var t = e.target.closest('[data-ar-cat]');
-      if (t) { st.cat = t.getAttribute('data-ar-cat'); st.visor = null; st.q = ''; st.tiendaF = ''; cargarLista(); return; }
+      if (e.target.id === 'arch-go') return entrar();
+      var t = e.target.closest('[data-arch-cat]');
+      if (t) { st.cat = t.getAttribute('data-arch-cat'); st.visor = null; st.q = ''; st.tiendaF = ''; st.razonF = ''; cargarLista(); return; }
       var b = e.target.closest('[data-ar]');
       if (!b) return;
       var a = b.getAttribute('data-ar');
@@ -376,18 +392,19 @@
       if (a === 'borrar') return borrar(doc);
     });
     d.addEventListener('input', function (e) {
-      if (e.target.id === 'ar-q') {
+      if (e.target.id === 'arch-q') {
         st.q = e.target.value;
         var pos = e.target.selectionStart;
         pintar();
-        var q = $('ar-q'); if (q) { q.focus(); q.setSelectionRange(pos, pos); }
+        var q = $('arch-q'); if (q) { q.focus(); q.setSelectionRange(pos, pos); }
       }
     });
     d.addEventListener('change', function (e) {
-      if (e.target.id === 'ar-tf') { st.tiendaF = e.target.value; pintar(); }
+      if (e.target.id === 'arch-tf') { st.tiendaF = e.target.value; pintar(); }
+      if (e.target.id === 'arch-rf') { st.razonF = e.target.value; pintar(); }
     });
     d.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && e.target.id === 'ar-pass') entrar();
+      if (e.key === 'Enter' && e.target.id === 'arch-pass') entrar();
     });
   }
 
