@@ -707,7 +707,10 @@
       window.doLogin = async function () {
         var p = ($('lp-pass') || {}).value || '';
         var r = await dl.apply(this, arguments);
-        if (p && esAdmin()) { borrarToken(); await obtenerToken(p).catch(function () { return null; }); }
+        /* El token también lo usa el Archivero (js/app-archivero.js), por eso se pide para sistemas. */
+        if (p && _session && ['admin', 'admin_auditor', 'sistemas'].indexOf(_session.rol) >= 0) {
+          borrarToken(); await obtenerToken(p).catch(function () { return null; });
+        }
         actualizarMenu();
         return r;
       };
