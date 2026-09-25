@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  var pass = null, U = [], T = [], R = [], CP = [], tab = 'usuarios', q = '', razF = '';
+  var pass = null, U = [], T = [], R = [], CP = [], PEND = {}, tab = 'usuarios', q = '', razF = '';
   var envio = { razon: '', tienda: '', modo: 'prueba', destino: 'config', para: '', res: null, cargando: false };
   var EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
   var $ = function (id) { return document.getElementById(id); };
@@ -58,7 +58,8 @@
       _sb.rpc('listar_usuarios'),
       rpc('listar_correos_tiendas'),
       rpc('listar_correos_razones'),
-      rpc('listar_correos_copias')
+      rpc('listar_correos_copias'),
+      rpc('resumen_pendientes_correos')
     ]);
     var vis = null;
     if (res[2] && !res[2].error && typeof filtrarUsuariosPorRazonSesion === 'function') {
@@ -75,7 +76,12 @@
     });
     R = (res[4] || []).filter(function (r) { return razOk(r.razon); });
     CP = (res[5] || []).filter(function (c) { return razOk(c.razon); });
+    PEND = {};
+    (res[6] || []).forEach(function (p) { PEND[p.tienda_id + '|' + razKey(p.razon)] = p.pendientes; });
   }
+
+  /* Tareas pendientes de una tienda para una razón social (0 si no tiene) */
+  function nPend(t, razon) { return PEND[t.id + '|' + razKey(razon || t.razon || '')] || 0; }
 
   /* Destinatarios (Para) de una tienda: solo los correos capturados como "para" */
   function nDest(t) {
@@ -174,7 +180,8 @@
             '<button class="kc-btn" data-act="add-' + tipo + '">Agregar</button></div></td>';
         };
         return '<tr data-tid="' + t.id + '">' +
-          '<td><b>' + esc(t.nombre) + '</b><div class="kc-sub">' + esc([t.razon, t.centro].filter(Boolean).join(' · ')) + '</div></td>' +
+          '<td><b>' + esc(t.nombre) + '</b><div class="kc-sub">' + esc([t.razon, t.centro].filter(Boolean).join(' · ')) + '</div>' +
+          '<div class="kc-sub">' + (nPend(t) ? nPend(t) + ' pendiente(s)' : 'Sin pendientes') + '</div></td>' +
           celda('para') + celda('cc') +
           '<td style="text-align:right"><b class="' + (n ? '' : 'kc-warn') + '">' + n + '</b></td></tr>';
       }).join('') + '</tbody></table></div>';
@@ -209,8 +216,14 @@
       '<label>Razón social<select class="kc-in" id="kc-e-raz">' +
       R.map(function (r) { return '<option value="' + esc(r.razon) + '"' + (r.razon === envio.razon ? ' selected' : '') + '>' + esc(r.razon) + ' — ' + esc(r.remitente) + '</option>'; }).join('') +
       '</select></label>' +
-      '<label>Tienda<select class="kc-in" id="kc-e-tienda"><option value="">Todas las tiendas</option>' +
-      tiendas.map(function (t) { return '<option value="' + t.id + '"' + (t.id === envio.tienda ? ' selected' : '') + '>' + esc(t.nombre) + '</option>'; }).join('') +
+      '<label>Tienda<select class="kc-in" id="kc-e-tienda"><option value="">Todas las tiendas con pendientes</option>' +
+      tiendas.map(function (t) { return { t: t, n: nPend(t, envio.razon) }; })
+        .sort(function (a, b) { return (b.n > 0) - (a.n > 0) || a.t.nombre.localeCompare(b.t.nombre); })
+        .map(function (x) {
+          var info = x.n ? x.n + ' pendiente' + (x.n === 1 ? '' : 's') + (nDest(x.t) ? '' : ' · sin Para') : 'sin pendientes';
+          return '<option value="' + x.t.id + '"' + (x.t.id === envio.tienda ? ' selected' : '') + (x.n ? '' : ' disabled') + '>' +
+            esc(x.t.nombre) + ' (' + info + ')</option>';
+        }).join('') +
       '</select></label>' +
       '<div class="kc-modo"><label><input type="radio" name="kc-e-modo" value="prueba"' + (envio.modo === 'prueba' ? ' checked' : '') + '> Prueba</label>' +
       '<label><input type="radio" name="kc-e-modo" value="real"' + (envio.modo === 'real' ? ' checked' : '') + '> Envío real</label></div>' +
@@ -236,9 +249,13 @@
           return '<li><b>' + esc(x.grupo) + '</b> — ' + esc(x.subject || '') + '<div class="kc-sub">Para: ' + esc((x.to || []).join(', ')) +
             ((x.cc || []).length ? ' · CC: ' + esc(x.cc.join(', ')) : '') + '</div></li>';
         };
+        var vacio = !r.enviadas.length && !r.sin_destinatario.length && !r.omitidas.length && !r.errores.length;
         h += '<div class="kc-res"><b>' + (r.dry ? 'Vista previa: se enviarían ' : 'Enviados: ') + r.enviadas.length + ' correo(s)</b>' +
+          (vacio ? '<div class="kc-warn">No hay tareas pendientes de ' + esc(envio.razon) + (envio.tienda ? ' en esta tienda' : '') +
+            ', así que no hay nada que enviar.</div>' : '') +
           (r.enviadas.length ? '<ul>' + r.enviadas.map(li).join('') + '</ul>' : '') +
-          (r.sin_destinatario.length ? '<div class="kc-warn">Sin correos Para (no se envían): ' + esc(r.sin_destinatario.join(' | ')) + '</div>' : '') +
+          (r.sin_destinatario.length ? '<div class="kc-warn">No se enviaron porque la tienda no tiene correo <b>Para</b> ' +
+            '(agrégalo en "Correos por tienda" o usa "Solo a los correos que escriba"): ' + esc(r.sin_destinatario.join(' | ')) + '</div>' : '') +
           (r.omitidas.length ? '<div class="kc-sub">Ya enviados hoy: ' + esc(r.omitidas.map(function (o) { return o.grupo; }).join(' | ')) + '</div>' : '') +
           (r.errores.length ? '<div class="kc-warn">Errores: ' + esc(r.errores.map(function (e) { return (e.grupo || e.razon) + ': ' + e.detalle; }).join(' | ')) + '</div>' : '') +
           '</div>';
@@ -448,7 +465,7 @@
     pintarAuth('');
   }
   function cerrar() {
-    pass = null; U = []; T = []; R = []; CP = [];
+    pass = null; U = []; T = []; R = []; CP = []; PEND = {};
     envio = { razon: '', tienda: '', modo: 'prueba', destino: 'config', para: '', res: null, cargando: false };
     $('kc-overlay').classList.remove('show');
   }
