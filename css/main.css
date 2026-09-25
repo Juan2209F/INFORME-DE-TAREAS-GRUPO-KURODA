@@ -186,9 +186,16 @@ nav.sidebar .logo{width:40px;height:40px;border-radius:12px;
 .kpi-cfg-overlay{position:fixed;inset:0;background:rgba(52,71,103,.55);display:none;align-items:center;justify-content:center;z-index:300;padding:20px}
 .kpi-cfg-overlay.show{display:flex}
 .kpi-cfg-modal{background:var(--white);border-radius:20px;width:100%;max-width:520px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-lg)}
-/* Ventanas a pantalla completa (Gestión de Usuarios y Correos y tiendas).
+/* Ventanas que ocupan toda el área de trabajo (Gestión de Usuarios y Correos y tiendas):
+   empiezan después del menú lateral y respetan los mismos márgenes y esquinas de la app.
    Se usa 100% del overlay (no vw/vh) porque la página tiene zoom y los vw se encogen. */
-.kpi-cfg-modal.modal-full{width:100%;max-width:none;height:100%;max-height:none;border-radius:0}
+.usr-overlay.overlay-area{left:calc(var(--sidebar-w) + 16px)}
+.kpi-cfg-modal.modal-full{position:absolute;top:16px;right:16px;bottom:16px;left:16px;width:auto;height:auto;
+  max-width:none;max-height:none;border-radius:var(--radius)}
+@media(max-width:768px){
+  .usr-overlay.overlay-area{left:0;bottom:62px}
+  .kpi-cfg-modal.modal-full{top:10px;right:10px;bottom:10px;left:10px}
+}
 .kpi-cfg-modal.modal-full .kpi-cfg-body{flex:1;min-height:0;max-height:none}
 .kpi-cfg-hdr{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
 .kpi-cfg-hdr h3{font-size:15px;font-weight:700;flex:1}
