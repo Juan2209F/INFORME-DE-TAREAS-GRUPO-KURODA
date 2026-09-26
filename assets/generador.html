@@ -1699,6 +1699,12 @@ function setSbStatus(status, detail){
   else { el.textContent = '☁️ Verificando…'; el.className = 'sb-status checking'; el.title = ''; }
 }
 
+// El campo "gerente" (nombre de persona) se guarda CIFRADO con la clave del Monitor (Vault):
+// se usan las funciones enc/dec de la página principal. Si no se puede cifrar, no se guarda.
+function _gPadre(){ try { const p = window.parent; return p && p !== window && typeof p.enc === 'function' ? p : null; } catch(e) { return null; } }
+async function _gEnc(v){ const p = _gPadre(); return v && p ? await p.enc(v) : (v || null); }
+async function _gDec(v){ const p = _gPadre(); try { return v && p ? await p.dec(v) : v; } catch(e) { return v; } }
+
 // Carga el historial de Supabase para la razón activa hacia HIST_CACHE.
 async function sbFetchHistorial(){
   const razon = (RAZON_ACTIVA || 'GENERAL').toUpperCase();
@@ -1712,12 +1718,12 @@ async function sbFetchHistorial(){
   try {
     const { data, error } = await cli.from('generador_historial').select('*').eq('razon', razon);
     if (error) throw error;
-    HIST_CACHE = (data||[]).map(r => ({
+    HIST_CACHE = await Promise.all((data||[]).map(async r => ({
       tienda: r.tienda, mes: r.mes, anio: r.anio,
       promedio: r.promedio, procesos: r.procesos || {},
       cargadoEn: r.cargado_en, auditoria: !!r.auditoria,
-      gerente: r.gerente, cumplio: r.cumplio, detalle: r.detalle || [],
-    }));
+      gerente: await _gDec(r.gerente), cumplio: r.cumplio, detalle: r.detalle || [],
+    })));
     setSbStatus('ok');
   } catch(e) {
     console.warn('No se pudo leer el historial de Supabase, usando respaldo local', e);
@@ -1736,14 +1742,14 @@ async function sbPersistHistorial(data){
   const cli = sbGenClient();
   if (!cli) { setSbStatus('error', 'Cliente de Supabase no disponible.'); return { ok:false, error:'Cliente de Supabase no disponible' }; }
   const razon = (RAZON_ACTIVA || 'GENERAL').toUpperCase();
-  const rows = data.map(r => ({
-    razon, tienda: r.tienda, tienda_norm: normStore(r.tienda), mes: r.mes, anio: r.anio,
-    promedio: r.promedio, procesos: r.procesos || {}, auditoria: !!r.auditoria,
-    gerente: r.gerente || null, cumplio: r.cumplio || null, detalle: r.detalle || [],
-    cargado_en: r.cargadoEn || null,
-  }));
-  if (!rows.length) return { ok:true, error:null };
+  if (!data.length) return { ok:true, error:null };
   try {
+    const rows = await Promise.all(data.map(async r => ({
+      razon, tienda: r.tienda, tienda_norm: normStore(r.tienda), mes: r.mes, anio: r.anio,
+      promedio: r.promedio, procesos: r.procesos || {}, auditoria: !!r.auditoria,
+      gerente: await _gEnc(r.gerente), cumplio: r.cumplio || null, detalle: r.detalle || [],
+      cargado_en: r.cargadoEn || null,
+    })));
     const { error } = await cli.from('generador_historial').upsert(rows, { onConflict:'razon,tienda_norm,mes' });
     if (error) throw error;
     setSbStatus('ok');
