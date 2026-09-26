@@ -4330,36 +4330,6 @@ function actividadEnTiempoDesempeno(a){
   return norm(a.estado||'').includes('completad');
 }
 
-/* ¿Debe pasar sola a "En curso"? Solo si sigue en "Sin comenzar" (o sin
-   estado) Y ya tiene una fecha de Est.Inicio Y esa fecha ya llegó. Si el
-   usuario ya la movió a Completado/Reprogramado/En curso manualmente, no se
-   toca — el auto-cambio nunca pisa una decisión manual. */
-function actDebeAutoIniciar(a){
-  if(!a)return false;
-  var e=norm(a.estado||'');
-  if(e&&!(e.includes('comenzar')||e.includes('sin')))return false;
-  var ei=fromISO(a.estInicio); if(!ei)return false;
-  var hoy=new Date(); hoy.setHours(0,0,0,0);
-  var eiD=new Date(ei); eiD.setHours(0,0,0,0);
-  return eiD<=hoy;
-}
-/* Corre en cada carga de Actividades: detecta las que ya deben pasar solas a
-   "En curso" y lo refleja en pantalla de inmediato, guardándolo en Supabase
-   en segundo plano para que quede igual en Historial/Desempeño/PPT. */
-async function autoActualizarEnCurso(){
-  var pendientes=ACTIVIDADES.filter(actDebeAutoIniciar);
-  if(!pendientes.length)return;
-  pendientes.forEach(function(a){a.estado='En curso';});
-  var client=getSbClient();
-  if(!client)return;
-  await Promise.all(pendientes.map(async function(a){
-    try{
-      var payload={estado:'En curso'};
-      var row=(FIELDS.actividades.indexOf('estado')>=0)?await encObj(payload,FIELDS.actividades):payload;
-      await client.from('actividades').update(row).eq('id',a.id);
-    }catch(e){/* si falla, se reintenta solo en la próxima carga */}
-  }));
-}
 async function loadActividades(){
   var client=getSbClient();
   if(!client){toast('⚠ Sin conexión a Supabase');return;}
@@ -4383,7 +4353,6 @@ async function loadActividades(){
        actividades de su(s) razón(es). Las antiguas sin razón quedan visibles
        solo para cuentas con acceso total (para poder asignarles razón). */
     ACTIVIDADES=ACTIVIDADES.filter(function(a){return razonVisible(a.razon);});
-    await autoActualizarEnCurso();
     fillActFilters();
     renderActividades();
     toast('✓ '+ACTIVIDADES.length+' actividades cargadas');
