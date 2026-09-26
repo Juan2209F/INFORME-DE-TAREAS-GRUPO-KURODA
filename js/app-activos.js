@@ -3,19 +3,18 @@
    postMessage({type:'abrir-activos'}) y aquí se abre la vista "activos": la app del proyecto
    ACTIVOS-GRUPOKURODA (assets/activos.html?embed=1) en un iframe a toda la altura disponible.
 
-   Sesión única: el iframe pide el acceso ('activos-ready') y se le entrega el token de sesión del
-   Monitor (localStorage "kc_token", el mismo del archivero). Con él, la Edge Function
-   "activos-sesion" abre su sesión de Supabase Auth sin volver a pedir contraseña.
-   Si no hay token, se pide la contraseña una sola vez (igual que en el archivero).
+   Sesión única: ACTIVOS usa la misma sesión de Supabase Auth del Monitor; no tiene cuentas
+   propias. Su perfil lo genera el Monitor según el rol.
 
-   Acceso: admin, admin_auditor, auditor y sistemas.
+   Acceso: admin, admin_auditor, auditor, sistemas y viewer (viewer en SOLO CONSULTA).
+   También hay un botón "Activos" en el menú lateral (los viewer no tienen Documentos).
    Depende de: js/app-core.js (_sb, _session, VIEW, setView, applyVistasRestriction, doLogout). */
 (function () {
   'use strict';
 
   var TOKEN_KEY = 'kc_token';
   var AUTH_KEY = 'kuroda-activos-auth'; /* sesión de Supabase Auth de la app de activos */
-  var ROLES = ['admin', 'admin_auditor', 'auditor', 'sistemas'];
+  var ROLES = ['admin', 'admin_auditor', 'auditor', 'sistemas', 'viewer'];
   var $ = function (id) { return document.getElementById(id); };
   var puedeVer = function () { return typeof _session !== 'undefined' && _session && ROLES.indexOf(_session.rol) >= 0; };
   var oscuro = function () { return document.documentElement.getAttribute('data-theme') === 'dark'; };
@@ -62,6 +61,7 @@
   }
 
   function pintarAuth(err) {
+    var fila = $('act-pass') && $('act-pass').parentNode; if (fila) fila.style.display = '';
     $('act-auth').style.display = 'block';
     $('act-frame').style.display = 'none';
     $('act-err').textContent = err || '';
@@ -101,9 +101,10 @@
     if (!v) return;
     var antes = v.style.display !== 'none';
     v.style.display = visible ? 'block' : 'none';
+    var na = $('nav-activos'); if (na) na.classList.toggle('active', visible);
     if (visible) {
-      /* Es parte de Documentos: se queda marcado ese botón del menú. */
-      var nd = $('nav-documentos'); if (nd) nd.classList.add('active');
+      /* Quien no tiene Documentos (viewer) no ve el botón de regreso. */
+      var vol = $('act-volver'); if (vol) vol.style.display = _session && _session.rol === 'viewer' ? 'none' : '';
       if (!antes) {
         $('act-auth').style.display = 'none';
         esperarToken(8000).then(function (t) {
@@ -141,6 +142,22 @@
     });
     d.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target.id === 'act-pass') entrar(); });
     window.addEventListener('resize', function () { if (d.style.display !== 'none') ajustarAlto(); });
+
+    /* Botón "Activos" en el menú lateral (junto a Documentos / Archivero). */
+    var refNav = $('nav-archivero') || $('nav-documentos');
+    if (refNav && !$('nav-activos')) {
+      var n = document.createElement('div');
+      n.className = 'nav-item';
+      n.id = 'nav-activos';
+      n.title = 'Inventarios de activos';
+      n.innerHTML = '📦<span class="nav-lbl">Activos</span>';
+      n.style.display = 'none';
+      n.addEventListener('click', function () { setView('activos'); });
+      refNav.parentNode.insertBefore(n, refNav.nextSibling);
+    }
+  }
+  function actualizarMenu() {
+    var n = $('nav-activos'); if (n) n.style.display = puedeVer() ? '' : 'none';
   }
 
   window.addEventListener('message', function (ev) {
@@ -154,8 +171,14 @@
         else pintarAuth('');
       });
     } else if (m.type === 'activos-no-auth') {
-      try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
       descargar();
+      if (m.relogin) {
+        /* Sin sesión de Supabase Auth: la contraseña sola no la recupera, hay que volver a entrar. */
+        pintarAuth(m.error);
+        var fila = $('act-pass') && $('act-pass').parentNode; if (fila) fila.style.display = 'none';
+        return;
+      }
+      try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
       pintarAuth(m.error || 'Tu acceso venció. Confirma tu contraseña para continuar.');
     }
   });
@@ -177,15 +200,16 @@
       };
       window.setView._act = true;
     }
-    /* "activos" no está en la lista de vistas de app-core: durante la restricción se usa
-       "documentos" (de donde se abre) para que no redirija. */
+    /* "activos" no está en la lista de vistas de app-core: durante la restricción se usa una
+       vista que ese rol sí tiene (sistemas: documentos; los demás: inicio) para que no redirija. */
     if (typeof window.applyVistasRestriction === 'function' && !window.applyVistasRestriction._act) {
       var avr = window.applyVistasRestriction;
       window.applyVistasRestriction = function () {
         var enAct = typeof VIEW !== 'undefined' && VIEW === 'activos';
-        if (enAct) VIEW = 'documentos';
+        if (enAct) VIEW = _session && _session.rol === 'sistemas' ? 'documentos' : 'dash';
         var r = avr.apply(this, arguments);
         if (enAct) { VIEW = 'activos'; if (!puedeVer()) setView('dash'); }
+        actualizarMenu();
         return r;
       };
       window.applyVistasRestriction._act = true;
@@ -195,12 +219,14 @@
       window.doLogout = function () {
         if (typeof VIEW !== 'undefined' && VIEW === 'activos') setView('dash');
         descargar();
-        return lo.apply(this, arguments);
+        var r = lo.apply(this, arguments);
+        actualizarMenu();
+        return r;
       };
       window.doLogout._act = true;
     }
   }
 
-  function init() { montar(); enganchar(); }
+  function init() { montar(); enganchar(); actualizarMenu(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
