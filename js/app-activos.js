@@ -11,38 +11,11 @@
 (function () {
   'use strict';
 
-  var TOKEN_KEY = 'kc_token';
   var AUTH_KEY = 'kuroda-activos-auth'; /* sesión de Supabase Auth de la app de activos */
   var ROLES = ['admin', 'admin_auditor', 'auditor', 'sistemas', 'viewer'];
   var $ = function (id) { return document.getElementById(id); };
   var puedeVer = function () { return typeof _session !== 'undefined' && _session && ROLES.indexOf(_session.rol) >= 0; };
   var oscuro = function () { return document.documentElement.getAttribute('data-theme') === 'dark'; };
-
-  function leerToken() {
-    try {
-      var t = JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null');
-      return t && _session && t.u === _session.username ? t.t : null;
-    } catch (e) { return null; }
-  }
-  /* El token se pide al iniciar sesión (app-correos.js, envoltura de doLogin) justo después
-     de entrar; si Activos se abre en ese instante se espera a que llegue en vez de pedir
-     la contraseña otra vez. */
-  async function esperarToken(ms) {
-    for (var t = 0; t < ms; t += 250) {
-      var tok = leerToken();
-      if (tok) return tok;
-      await new Promise(function (ok) { setTimeout(ok, 250); });
-    }
-    return leerToken();
-  }
-  async function pedirToken(pass) {
-    var c = _sb || (typeof initSupabase === 'function' ? initSupabase() : null);
-    if (!c) return null;
-    var r = await c.rpc('crear_token_correos', { p_user: _session.username, p_pass: pass });
-    if (r.error || !r.data) return null;
-    try { localStorage.setItem(TOKEN_KEY, JSON.stringify({ u: _session.username, t: r.data })); } catch (e) {}
-    return r.data;
-  }
 
   function iframe() { return $('iframe-activos'); }
   function enviar(msg) {
@@ -59,12 +32,11 @@
     f.style.height = Math.max(420, Math.floor((window.innerHeight - r.top - 14) / z)) + 'px';
   }
 
+  /* Sin sesión de Supabase Auth válida: solo se muestra el aviso (volver a entrar al Monitor). */
   function pintarAuth(err) {
-    var fila = $('act-pass') && $('act-pass').parentNode; if (fila) fila.style.display = '';
     $('act-auth').style.display = 'block';
     $('act-frame').style.display = 'none';
     $('act-err').textContent = err || '';
-    var p = $('act-pass'); if (p) { p.value = ''; p.focus(); }
   }
   function cargar() {
     $('act-auth').style.display = 'none';
@@ -72,14 +44,6 @@
     var f = iframe();
     if (!f.getAttribute('src')) f.src = 'assets/activos.html?embed=1&v=' + Date.now();
     setTimeout(ajustarAlto, 30);
-  }
-  async function entrar() {
-    var p = $('act-pass'), pass = p ? p.value : '';
-    if (!pass) return;
-    $('act-err').textContent = 'Verificando…';
-    var t = await pedirToken(pass);
-    if (!t) { $('act-err').textContent = 'Contraseña incorrecta o sin permiso.'; return; }
-    cargar();
   }
   /* Descarga la app de activos y su sesión (al salir o cambiar de usuario). */
   function descargar() {
@@ -91,7 +55,7 @@
      dar clic en "Activos" ya esté lista. */
   function precargar() {
     var f = iframe();
-    if (!f || f.getAttribute('src') || !puedeVer() || !leerToken()) return;
+    if (!f || f.getAttribute('src') || !puedeVer()) return;
     cargar();
   }
 
@@ -102,13 +66,7 @@
     v.style.display = visible ? 'block' : 'none';
     var na = $('nav-activos'); if (na) na.classList.toggle('active', visible);
     if (visible) {
-      if (!antes) {
-        $('act-auth').style.display = 'none';
-        esperarToken(8000).then(function (t) {
-          if ($('view-activos').style.display === 'none') return;
-          if (t) cargar(); else pintarAuth('');
-        });
-      }
+      if (!antes) cargar();
       else setTimeout(ajustarAlto, 30);
     }
   }
@@ -123,19 +81,12 @@
       '<div class="card kc-panel">' +
       '<div class="kc-hdr"><span style="font-size:18px">📦</span><h3>Inventarios de activos</h3></div>' +
       '<div id="act-auth" style="display:none;padding:22px 20px">' +
-      '<p style="font-size:13px;color:var(--muted);margin:0 0 10px">Confirma tu contraseña una sola vez para activar el acceso a Inventarios de activos en este navegador.</p>' +
-      '<div class="kc-row"><input type="password" id="act-pass" class="kc-in" placeholder="Contraseña" autocomplete="current-password" style="width:240px">' +
-      '<button id="act-go" class="kc-btn kc-pri">Continuar</button></div>' +
-      '<div id="act-err" style="font-size:12px;color:var(--red);min-height:18px;margin-top:8px"></div></div>' +
+      '<div id="act-err" style="font-size:13px;color:var(--red);min-height:18px"></div></div>' +
       '<div id="act-frame" style="display:none"><iframe id="iframe-activos" title="Inventarios de activos" ' +
       'style="width:100%;height:640px;border:0;display:block;background:transparent"></iframe></div></div>';
     if (ref && ref.parentNode) ref.parentNode.insertBefore(d, ref.nextSibling);
     else document.body.appendChild(d);
 
-    d.addEventListener('click', function (e) {
-      if (e.target.id === 'act-go') return entrar();
-    });
-    d.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target.id === 'act-pass') entrar(); });
     window.addEventListener('resize', function () { if (d.style.display !== 'none') ajustarAlto(); });
 
     /* Botón "Activos" en el menú lateral (junto a Documentos / Archivero). */
@@ -161,20 +112,13 @@
     if (m.type === 'abrir-activos') {
       if (puedeVer()) setView('activos');
     } else if (m.type === 'activos-ready' && ev.source === (iframe() || {}).contentWindow) {
-      esperarToken(8000).then(function (t) {
-        if (t && puedeVer()) enviar({ type: 'activos-auth', user: _session.username, token: t, dark: oscuro() });
-        else pintarAuth('');
-      });
+      /* La app de activos usa la sesión de Supabase Auth del Monitor; no necesita token aparte. */
+      if (puedeVer()) enviar({ type: 'activos-auth', user: _session.username, dark: oscuro() });
     } else if (m.type === 'activos-no-auth') {
+      /* Sin sesión de Supabase Auth: hay que volver a entrar al Monitor. No se borra el token
+         "kc_token", que lo siguen usando Correos y Archivero. */
       descargar();
-      if (m.relogin) {
-        /* Sin sesión de Supabase Auth: la contraseña sola no la recupera, hay que volver a entrar. */
-        pintarAuth(m.error);
-        var fila = $('act-pass') && $('act-pass').parentNode; if (fila) fila.style.display = 'none';
-        return;
-      }
-      try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
-      pintarAuth(m.error || 'Tu acceso venció. Confirma tu contraseña para continuar.');
+      pintarAuth(m.error || 'Tu sesión venció. Cierra sesión en el Monitor y vuelve a entrar.');
     }
   });
 
