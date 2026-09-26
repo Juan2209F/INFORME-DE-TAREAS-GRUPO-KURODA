@@ -4684,7 +4684,7 @@ function openActividad(id){
       '<div id="a-asig-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:7px"></div></div>'+
     '<div class="fg"><label>Fecha de Inicio</label><input type="date" id="a-estinicio" value="'+di(a.estInicio)+'" oninput="calcDurEst()"></div>'+
     '<div class="fg"><label>Fecha de Finalización</label><input type="date" id="a-estfin" value="'+di(a.estFin)+'" oninput="calcDurEst()"></div>'+
-    '<div class="fg"><label>Duración (días)</label><input type="number" id="a-durest" value="'+calcDias(a.estInicio,a.estFin)+'" readonly style="background:#f1f5f9"></div>'+
+    '<div class="fg"><label>Duración (días)</label><input type="number" id="a-durest" value="'+calcDias(a.estInicio,a.estFin)+'" readonly style="background:var(--soft);color:var(--muted)"></div>'+
     '<div class="fg" style="grid-column:1/3"><label>Comentario</label><input id="a-comentario" value="'+esc(a.comentario)+'"></div>'+
     '<div class="fg" style="grid-column:1/3"><label>Apoyos requeridos</label><input id="a-apoyos" value="'+esc(a.apoyos)+'"></div>'+
     '<label style="grid-column:1/3;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--txt)"><input type="checkbox" id="a-programada"'+(a.programada?' checked':'')+'> Actividad programada (desmarcar si es NO PROGRAMADA)</label>'+
@@ -6401,7 +6401,7 @@ function renderDesempeno(){
     '<div class="card" style="padding:14px 18px">'+
       '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'+
         '<span style="font-size:13px;font-weight:700;color:var(--nav)">📊 Desempeño de Auditores</span>'+
-        '<select id="desp-mes" onchange="renderDesempeno()" style="padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft)">'+
+        '<select id="desp-mes" onchange="renderDesempeno()" style="padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft);color:var(--txt)">'+
           '<option value="ALL">Todos los meses</option>'+
           MORD.map(function(m){return'<option'+(m===mesFilter?' selected':'')+'>'+m+'</option>';}).join('')+
         '</select>'+
@@ -6414,7 +6414,7 @@ function renderDesempeno(){
         '<div style="position:relative;flex:1;min-width:160px;max-width:280px">'+
           '<span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--muted);pointer-events:none">🔍</span>'+
           '<input id="desp-buscar" type="search" placeholder="Buscar auditor…" value="'+esc(buscar)+'" oninput="renderDesempeno()" '+
-            'style="width:100%;padding:7px 10px 7px 30px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft)">'+
+            'style="width:100%;padding:7px 10px 7px 30px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--soft);color:var(--txt)">'+
         '</div>'+
         '<span style="font-size:11px;color:var(--muted);font-weight:600">'+
           (buscar?auditores.length+' de '+totalAuditores+' auditor(es)':totalAuditores+' auditor(es)')+
