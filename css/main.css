@@ -45,6 +45,17 @@
 }
 [data-theme="dark"] .fg select,[data-theme="dark"] .fg input{background:rgba(255,255,255,.05);color:var(--txt)}
 [data-theme="dark"] .btn-ghost{background:rgba(255,255,255,.05)}
+/* Campos legibles en modo oscuro: controles nativos oscuros, texto claro,
+   cursor visible, placeholders tenues y autocompletado del navegador sin fondo claro. */
+[data-theme="dark"]{color-scheme:dark}
+[data-theme="dark"] input,[data-theme="dark"] select,[data-theme="dark"] textarea{color:var(--txt);caret-color:var(--txt)}
+[data-theme="dark"] input::placeholder,[data-theme="dark"] textarea::placeholder{color:var(--muted);opacity:.75}
+[data-theme="dark"] option,[data-theme="dark"] optgroup{background:#1a1f3c;color:var(--txt)}
+[data-theme="dark"] input:-webkit-autofill,[data-theme="dark"] input:-webkit-autofill:hover,[data-theme="dark"] input:-webkit-autofill:focus{
+  -webkit-text-fill-color:var(--txt);caret-color:var(--txt);
+  -webkit-box-shadow:0 0 0 1000px #1a1f3c inset;box-shadow:0 0 0 1000px #1a1f3c inset;
+  transition:background-color 9999s ease-out 0s}
+[data-theme="dark"] input[type=date]::-webkit-calendar-picker-indicator{filter:invert(1) opacity(.7)}
 [data-theme="dark"] ::-webkit-scrollbar{width:8px;height:8px}
 [data-theme="dark"] ::-webkit-scrollbar-track{background:transparent}
 [data-theme="dark"] ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:8px}
@@ -434,7 +445,7 @@ table.seg tbody tr:hover{background:var(--soft)}
 .lp-field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
 .lp-field label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
 .lp-field input{padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;color:var(--txt);outline:none;background:var(--soft)}
-.lp-field input:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-soft);background:#fff}
+.lp-field input:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-soft);background:var(--white)}
 .lp-pass-wrap{position:relative}
 .lp-pass-wrap input{width:100%;padding-right:40px}
 .lp-eye{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:15px;padding:2px;line-height:1}
