@@ -86,7 +86,7 @@
     var res = await Promise.all([
       rpc('listar_usuarios_correos'),
       rpc('listar_tiendas_correos'),
-      _sb.rpc('listar_usuarios'),
+      _sb.rpc('usuarios_listar', { p_user: _session.username, p_token: leerToken() || '' }),
       rpc('listar_correos_tiendas'),
       rpc('listar_correos_razones'),
       rpc('listar_correos_copias'),
@@ -700,16 +700,15 @@
       };
       window.applyVistasRestriction._kc = true;
     }
-    /* doLogin: con la contraseña recién escrita se obtiene el token de correos, para no
-       volver a pedirla dentro del panel. La contraseña no se guarda en ningún lado. */
+    /* doLogin: el token de sesión ya lo entrega iniciar_sesion (app-core.js). Solo si por
+       algo no llegó se pide aquí con la contraseña recién escrita (no se guarda en ningún lado). */
     if (typeof window.doLogin === 'function' && !window.doLogin._kc) {
       var dl = window.doLogin;
       window.doLogin = async function () {
         var p = ($('lp-pass') || {}).value || '';
         var r = await dl.apply(this, arguments);
-        /* El token también lo usa el Archivero (js/app-archivero.js), por eso se pide para auditor y sistemas. */
-        if (p && _session && ['admin', 'admin_auditor', 'auditor', 'sistemas'].indexOf(_session.rol) >= 0) {
-          borrarToken(); await obtenerToken(p).catch(function () { return null; });
+        if (p && _session && !leerToken()) {
+          await obtenerToken(p).catch(function () { return null; });
         }
         actualizarMenu();
         return r;
