@@ -913,46 +913,56 @@ var CEL_ROBO_A='El empleado deberá notificar a su jefe inmediato y a la represe
 var CEL_ROBO_B='En caso de robo o extravío del equipo, el Colaborador deberá cubrir el porcentaje del valor de factura que corresponda, de acuerdo con la antigüedad del equipo, conforme a la siguiente tabla:';
 var CEL_ROBO_TABLA=[['Hasta 6 meses','100%'],['Más de 6 meses y hasta 12 meses','80%'],['Más de 12 meses y hasta 18 meses','60%'],['Más de 18 meses hasta 2 años','40%']];
 
-function firmaBloque(label,nombre,puesto){
+/* sz (opcional): tamaño de letra en medios puntos; la carta de celular usa uno menor para
+   caber en una hoja. Sin sz queda igual que antes (10 pt). */
+function firmaBloque(label,nombre,puesto,sz){
   var D=docx,A=D.AlignmentType;
-  function r(t,b){return new D.TextRun({text:t||'',bold:!!b,font:'Tahoma',size:20});}
+  function r(t,b){return new D.TextRun({text:t||'',bold:!!b,font:'Tahoma',size:sz||20});}
   return new D.TableCell({width:{size:45,type:D.WidthType.PERCENTAGE},margins:{top:80,bottom:80,left:120,right:120},children:[
     new D.Paragraph({alignment:A.CENTER,children:[r(label,true)]}),
-    new D.Paragraph({alignment:A.CENTER,spacing:{before:500},border:{top:{style:D.BorderStyle.SINGLE,size:6,color:'000000',space:2}},children:[r(nombre)]}),
+    new D.Paragraph({alignment:A.CENTER,spacing:{before:sz?420:500},border:{top:{style:D.BorderStyle.SINGLE,size:6,color:'000000',space:2}},children:[r(nombre)]}),
     new D.Paragraph({alignment:A.CENTER,children:[r(puesto)]})
   ]});
 }
 
+/* La carta de celular va en UNA sola hoja tamaño carta (PDF y Word): márgenes de ~1.1 cm,
+   letra de 8.5–9 pt, poco espacio entre párrafos y la tabla de robo/extravío en horizontal. */
 function celPDF(){
   var d=celData();
-  var P='style="text-align:justify;font-size:10pt;margin:0 0 6pt 0;line-height:1.35"';
+  var P='style="text-align:justify;font-size:9.3pt;margin:0 0 3pt 0;line-height:1.28"';
+  var PI='style="text-align:justify;font-size:9.3pt;margin:0 0 3pt 14pt;line-height:1.28"';
+  var TH='style="border:1px solid #000;background:#eee;padding:2pt 3pt;font-size:8.2pt"';
+  var TD='style="border:1px solid #000;padding:2pt 3pt;font-size:8.8pt;text-align:center"';
   function tbl(headers,vals){
-    return '<table style="width:100%;border-collapse:collapse;margin:5pt 0 10pt">'+
-      '<tr>'+headers.map(function(h){return '<th style="border:1px solid #000;background:#eee;padding:4pt;font-size:9pt">'+esc(h)+'</th>';}).join('')+'</tr>'+
-      '<tr>'+vals.map(function(x){return '<td style="border:1px solid #000;padding:4pt;font-size:9.5pt;text-align:center">'+esc(x)+'</td>';}).join('')+'</tr>'+
+    return '<table style="width:100%;border-collapse:collapse;margin:2pt 0 5pt">'+
+      '<tr>'+headers.map(function(h){return '<th '+TH+'>'+esc(h)+'</th>';}).join('')+'</tr>'+
+      '<tr>'+vals.map(function(x){return '<td '+TD+'>'+esc(x)+'</td>';}).join('')+'</tr>'+
     '</table>';
   }
   var n=1,items='';
   CEL_CLAUSULAS.slice(0,5).forEach(function(t){items+='<p '+P+'>'+n+'. '+esc(t)+'</p>';n++;});
   items+='<p '+P+'>'+n+'. En caso de robo o extravío del equipo en horario de la jornada laboral:</p>';n++;
-  items+='<p style="text-align:justify;font-size:10pt;margin:0 0 4pt 20pt;line-height:1.35">a) '+esc(CEL_ROBO_A)+'</p>';
-  items+='<p style="text-align:justify;font-size:10pt;margin:0 0 2pt 20pt;line-height:1.35">b) '+esc(CEL_ROBO_B)+'</p>';
-  items+='<table style="width:90%;margin:0 0 8pt 20pt;border-collapse:collapse"><tr><th style="border:1px solid #000;background:#eee;padding:4pt;font-size:9pt">Tiempo del equipo</th><th style="border:1px solid #000;background:#eee;padding:4pt;font-size:9pt">% del valor de factura</th></tr>'+
-    CEL_ROBO_TABLA.map(function(r){return '<tr><td style="border:1px solid #000;padding:4pt;font-size:9.5pt;text-align:center">'+esc(r[0])+'</td><td style="border:1px solid #000;padding:4pt;font-size:9.5pt;text-align:center">'+esc(r[1])+'</td></tr>';}).join('')+'</table>';
+  items+='<p '+PI+'>a) '+esc(CEL_ROBO_A)+'</p>';
+  items+='<p '+PI+'>b) '+esc(CEL_ROBO_B)+'</p>';
+  /* Tabla de robo/extravío con su forma original (2 columnas), solo con letra y celdas más chicas. */
+  var TR='style="border:1px solid #000;padding:1pt 3pt;font-size:8pt;text-align:center"';
+  items+='<table style="width:90%;margin:1pt 0 4pt 14pt;border-collapse:collapse"><tr><th '+TH.replace('padding:2pt 3pt','padding:1pt 3pt')+'>Tiempo del equipo</th><th '+TH.replace('padding:2pt 3pt','padding:1pt 3pt')+'>% del valor de factura</th></tr>'+
+    CEL_ROBO_TABLA.map(function(r){return '<tr><td '+TR+'>'+esc(r[0])+'</td><td '+TR+'>'+esc(r[1])+'</td></tr>';}).join('')+'</table>';
   CEL_CLAUSULAS.slice(5).forEach(function(t){items+='<p '+P+'>'+n+'. '+esc(t)+'</p>';n++;});
-  var h='<div class="pp-page" style="font-family:Tahoma,Geneva,sans-serif">'+
-    '<p style="text-align:center;font-weight:bold;font-size:13pt;margin:0 0 10pt">CARTA RESPONSIVA</p>'+
+  var FT='style="width:45%;text-align:center;border-top:1pt solid #000;padding-top:3pt;font-size:9.3pt"';
+  var h='<div class="pp-page" style="font-family:Tahoma,Geneva,sans-serif;padding:1.1cm 1.3cm">'+
+    '<p style="text-align:center;font-weight:bold;font-size:12pt;margin:0 0 6pt">CARTA RESPONSIVA</p>'+
     '<p '+P+'>Se entrega el equipo que ampara el presente documento por parte de la empresa <b>'+esc(d.empresa)+'</b> en calidad de resguardo, para uso exclusivo del empleado como una herramienta de trabajo, con las siguientes características:</p>'+
-    '<p style="font-weight:bold;font-size:10.5pt;margin:8pt 0 2pt">Plan y Línea</p>'+
+    '<p style="font-weight:bold;font-size:9.3pt;margin:4pt 0 1pt">Plan y Línea</p>'+
     tbl(['Línea','Plan','Control de Costo','Mensajes y Llamadas','Datos','Fecha Renovación'],[d.linea,d.plan,d.cc,d.msj,d.datos,d.renov])+
-    '<p style="font-weight:bold;font-size:10.5pt;margin:8pt 0 2pt">Equipo</p>'+
+    '<p style="font-weight:bold;font-size:9.3pt;margin:4pt 0 1pt">Equipo</p>'+
     tbl(['Marca','Modelo','IMEI','Incluye cargador','Valor del equipo','Estado'],[d.marca,d.modelo,d.imei,d.cargador,'$'+d.valor,d.estado])+
-    '<p style="border:1px solid #000;padding:5pt;font-size:9.5pt;margin:0 0 10pt"><b>Observaciones:</b> '+esc(d.obs)+'</p>'+
+    '<p style="border:1px solid #000;padding:3pt 4pt;font-size:8.5pt;margin:0 0 6pt"><b>Observaciones:</b> '+esc(d.obs)+'</p>'+
     items+
-    '<table class="pp-firma-table"><tr>'+
-      '<td class="pp-firma-td"><b>Recibió</b><br>'+esc(d.recn)+'<br>'+esc(d.recp)+'</td>'+
-      '<td class="pp-firma-td2"></td>'+
-      '<td class="pp-firma-td"><b>Validó</b><br>'+esc(d.valn)+'<br>'+esc(d.valp)+'</td>'+
+    '<table style="width:100%;border-collapse:collapse;margin-top:40pt;page-break-inside:avoid"><tr>'+
+      '<td '+FT+'><b>Recibió</b><br>'+esc(d.recn)+'<br>'+esc(d.recp)+'</td>'+
+      '<td style="width:10%"></td>'+
+      '<td '+FT+'><b>Validó</b><br>'+esc(d.valn)+'<br>'+esc(d.valp)+'</td>'+
     '</tr></table>'+
   '</div>';
   imprimir(h);
@@ -960,10 +970,12 @@ function celPDF(){
 function celDocx(){withDocx(function(){
   var d=celData();
   var D=docx,A=D.AlignmentType;
-  function tr(t,b,sz){return new D.TextRun({text:t,bold:!!b,font:'Tahoma',size:sz||20});}
-  function P(runs,opts){opts=opts||{};return new D.Paragraph({alignment:opts.align||A.JUSTIFIED,spacing:{after:opts.after!=null?opts.after:120,before:opts.before||0},indent:opts.indent,children:Array.isArray(runs)?runs:[runs]});}
-  function thCell(t){return new D.TableCell({shading:{fill:'F0F0F0'},margins:{top:60,bottom:60,left:80,right:80},children:[new D.Paragraph({alignment:A.CENTER,children:[tr(t,true,16)]})]});}
-  function tdCell(t){return new D.TableCell({margins:{top:60,bottom:60,left:80,right:80},children:[new D.Paragraph({alignment:A.CENTER,children:[tr(String(t),false,18)]})]});}
+  /* Una sola hoja carta: letra 9.5 pt (19 medios puntos), interlineado sencillo, poco espacio. */
+  function tr(t,b,sz){return new D.TextRun({text:t,bold:!!b,font:'Tahoma',size:sz||19});}
+  function P(runs,opts){opts=opts||{};return new D.Paragraph({alignment:opts.align||A.JUSTIFIED,spacing:{after:opts.after!=null?opts.after:50,before:opts.before||0,line:240},indent:opts.indent,children:Array.isArray(runs)?runs:[runs]});}
+  var M={top:30,bottom:30,left:60,right:60};
+  function thCell(t){return new D.TableCell({shading:{fill:'F0F0F0'},margins:M,children:[new D.Paragraph({alignment:A.CENTER,children:[tr(t,true,16)]})]});}
+  function tdCell(t){return new D.TableCell({margins:M,children:[new D.Paragraph({alignment:A.CENTER,children:[tr(String(t),false,17)]})]});}
   function tabla(headers,vals){
     return new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},rows:[
       new D.TableRow({children:headers.map(thCell)}),
@@ -971,27 +983,31 @@ function celDocx(){withDocx(function(){
     ]});
   }
   var body=[];
-  body.push(new D.Paragraph({alignment:A.CENTER,spacing:{after:200},children:[tr('CARTA RESPONSIVA',true,26)]}));
+  body.push(new D.Paragraph({alignment:A.CENTER,spacing:{after:100},children:[tr('CARTA RESPONSIVA',true,24)]}));
   body.push(P([tr('Se entrega el equipo que ampara el presente documento por parte de la empresa '),tr(d.empresa,true),tr(' en calidad de resguardo, para uso exclusivo del empleado como una herramienta de trabajo, con las siguientes características:')]));
-  body.push(new D.Paragraph({spacing:{before:120,after:60},children:[tr('Plan y Línea',true,20)]}));
+  body.push(new D.Paragraph({spacing:{before:60,after:20},children:[tr('Plan y Línea',true,18)]}));
   body.push(tabla(['Línea','Plan','Control de Costo','Mensajes y Llamadas','Datos','Fecha Renovación'],[d.linea,d.plan,d.cc,d.msj,d.datos,d.renov]));
-  body.push(new D.Paragraph({spacing:{before:180,after:60},children:[tr('Equipo',true,20)]}));
+  body.push(new D.Paragraph({spacing:{before:80,after:20},children:[tr('Equipo',true,18)]}));
   body.push(tabla(['Marca','Modelo','IMEI','Incluye cargador','Valor del equipo','Estado'],[d.marca,d.modelo,d.imei,d.cargador,'$'+d.valor,d.estado]));
-  body.push(new D.Paragraph({spacing:{before:120,after:200},children:[tr('Observaciones: ',true),tr(d.obs)]}));
+  body.push(new D.Paragraph({spacing:{before:60,after:100},children:[tr('Observaciones: ',true),tr(d.obs)]}));
   var n=1;
   CEL_CLAUSULAS.slice(0,5).forEach(function(t){body.push(P([tr(n+'. '+t)]));n++;});
   body.push(P([tr(n+'. En caso de robo o extravío del equipo en horario de la jornada laboral:')]));n++;
-  body.push(P([tr('a) '+CEL_ROBO_A)],{indent:{left:400}}));
-  body.push(P([tr('b) '+CEL_ROBO_B)],{indent:{left:400},after:80}));
-  body.push(new D.Table({width:{size:70,type:D.WidthType.PERCENTAGE},rows:[new D.TableRow({children:[thCell('Tiempo del equipo'),thCell('% del valor de factura')]})].concat(CEL_ROBO_TABLA.map(function(r){return new D.TableRow({children:[tdCell(r[0]),tdCell(r[1])]});}))}));
-  body.push(new D.Paragraph({spacing:{before:180}}));
+  body.push(P([tr('a) '+CEL_ROBO_A)],{indent:{left:280}}));
+  body.push(P([tr('b) '+CEL_ROBO_B)],{indent:{left:280},after:30}));
+  /* Tabla de robo/extravío con su forma original (2 columnas), solo con letra y celdas más chicas. */
+  var MR={top:10,bottom:10,left:60,right:60};
+  function thR(t){return new D.TableCell({shading:{fill:'F0F0F0'},margins:MR,children:[new D.Paragraph({alignment:A.CENTER,children:[tr(t,true,16)]})]});}
+  function tdR(t){return new D.TableCell({margins:MR,children:[new D.Paragraph({alignment:A.CENTER,children:[tr(String(t),false,16)]})]});}
+  body.push(new D.Table({width:{size:70,type:D.WidthType.PERCENTAGE},rows:[new D.TableRow({children:[thR('Tiempo del equipo'),thR('% del valor de factura')]})].concat(CEL_ROBO_TABLA.map(function(r){return new D.TableRow({children:[tdR(r[0]),tdR(r[1])]});}))}));
+  body.push(new D.Paragraph({spacing:{before:60}}));
   CEL_CLAUSULAS.slice(5).forEach(function(t){body.push(P([tr(n+'. '+t)]));n++;});
-  body.push(new D.Paragraph({spacing:{before:400}}));
-  body.push(new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},borders:sinBordes(),rows:[new D.TableRow({children:[
-    firmaBloque('Recibió',d.recn,d.recp),
-    firmaBloque('Validó',d.valn,d.valp)
+  body.push(new D.Paragraph({spacing:{before:120}}));
+  body.push(new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},borders:sinBordes(),rows:[new D.TableRow({cantSplit:true,children:[
+    firmaBloque('Recibió',d.recn,d.recp,19),
+    firmaBloque('Validó',d.valn,d.valp,19)
   ]})]}));
-  var doc=new D.Document({sections:[{properties:{page:{margin:{top:1000,bottom:1000,left:1200,right:1200}}},children:body}]});
+  var doc=new D.Document({sections:[{properties:{page:{size:{width:12240,height:15840},margin:{top:620,bottom:620,left:740,right:740}}},children:body}]});
   bajar(doc,'Carta_Responsiva_Celular_'+(d.recn||'Documento').replace(/\s+/g,'_')+'.docx','cel_status');
 },'cel_status');}
 
