@@ -681,13 +681,48 @@
         }
         .asset-info h3 { font-size: 0.9rem; margin-bottom: 3px; color: var(--text-main); }
         .asset-info p { font-size: 0.75rem; color: #888; margin: 2px 0; }
-        .asset-actions {
-            display: flex;
-            gap: 0.4rem;
-            margin-top: 6px;
-            flex-wrap: wrap;
+        /* Acciones de la tarjeta: botón de tres puntos (⋮) que despliega un menú. */
+        .asset-card { position: relative; }
+        .asset-card.menu-abierto { z-index: 20; }
+        .asset-info { flex: 1; }
+        .asset-menu { position: absolute; top: 1.5rem; right: 1.5rem; }
+        .assets-container.list-view .asset-menu { position: relative; top: auto; right: auto; flex-shrink: 0; }
+        .asset-menu-btn {
+            width: 32px; height: 32px; border-radius: 50%;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg); color: var(--text-main);
+            display: inline-flex; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 1.15rem; font-weight: 700; line-height: 1;
+            box-shadow: 0 2px 8px rgba(0,0,0,.18);
+            transition: background .15s, border-color .15s;
         }
-        .assets-container.list-view .asset-actions { margin-top: 0; }
+        .asset-menu-btn:hover, .asset-menu.abierto .asset-menu-btn { border-color: var(--active-bg); color: var(--active-bg); }
+        .asset-menu-list {
+            display: none;
+            position: absolute; right: 0; top: calc(100% + 6px);
+            min-width: 170px; padding: 6px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 10px 28px rgba(0,0,0,.28);
+        }
+        .asset-menu.arriba .asset-menu-list { top: auto; bottom: calc(100% + 6px); }
+        .asset-menu.abierto .asset-menu-list { display: block; }
+        .asset-menu-item {
+            display: flex; align-items: center; gap: 10px;
+            width: 100%; padding: 8px 10px;
+            border: none; border-radius: 8px;
+            background: transparent; color: var(--text-main);
+            font: inherit; font-size: 0.8rem; font-weight: 500;
+            text-align: left; cursor: pointer; white-space: nowrap;
+        }
+        .asset-menu-item i { width: 16px; text-align: center; opacity: .85; }
+        .asset-menu-item:hover, .asset-menu-item:focus-visible { background: var(--input-bg); outline: none; }
+        .asset-menu-item.peligro { color: var(--danger-color); }
+        .asset-menu-item.peligro:hover { background: rgba(220,53,69,.12); }
+        .asset-menu-sep { height: 1px; background: var(--border-color); margin: 4px 2px; }
+        .asset-menu .file-upload-wrapper { display: flex; flex: none; overflow: visible; }
+        .asset-menu .file-upload-wrapper input[type="file"] { display: none; }
         .btn-action {
             padding: 5px 10px;
             border: none;
@@ -1183,20 +1218,21 @@
                     </div>
                     <div class="kpi-card">
                         <div class="kpi-icon icon-found"><i class="fas fa-check-circle"></i></div>
-                        <div class="kpi-info"><h3>Encontrados</h3><p id="kpi-found">0</p></div>
+                        <div class="kpi-info" title="Según el último inventario finalizado de cada centro"><h3>Encontrados</h3><p id="kpi-found">0</p></div>
                     </div>
                     <div class="kpi-card">
                         <div class="kpi-icon icon-missing"><i class="fas fa-exclamation-triangle"></i></div>
-                        <div class="kpi-info"><h3>Faltantes</h3><p id="kpi-missing">0</p></div>
+                        <div class="kpi-info" title="Según el último inventario finalizado de cada centro"><h3>Faltantes</h3><p id="kpi-missing">0</p></div>
                     </div>
                     <div class="kpi-card">
                         <div class="kpi-icon icon-audits"><i class="fas fa-clipboard-check"></i></div>
-                        <div class="kpi-info"><h3>Auditorías</h3><p id="kpi-audits">0</p></div>
+                        <div class="kpi-info" title="Inventarios finalizados"><h3>Auditorías</h3><p id="kpi-audits">0</p></div>
                     </div>
                 </div>
                 <div class="dashboard-widgets">
                     <div class="widget-card">
                         <h3>Estado del Inventario</h3>
+                        <p style="font-size:12px;opacity:.7;margin:-4px 0 10px">Último inventario finalizado de cada centro</p>
                         <div class="progress-container">
                             <div class="progress-labels">
                                 <span style="color:var(--success-color);" id="pct-found-label">0% Localizados</span>
@@ -1649,7 +1685,7 @@
     </div>
 
     <!-- ======================== SUPABASE SDK ======================== -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 
     <!-- ======================== SCRIPTS ======================== -->
     <script>
@@ -1671,7 +1707,17 @@
 
         // Escapa texto antes de meterlo en innerHTML (nombres, series, códigos escaneados, etc.)
         const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-        const fotoSegura = f => /^(data:image\/|https:\/\/)/.test(f || '') ? esc(f) : '';
+        // Fotos: se guardan en Supabase Storage (bucket privado "activos-fotos") y en la tabla
+        // queda "sb:<ruta>". Se muestran con URLs firmadas (_fotoUrls). Las fotos antiguas en
+        // base64 (data:image/...) se siguen mostrando y se migran a Storage al entrar un editor.
+        const FOTOS_BUCKET = 'activos-fotos', FOTO_PREFIJO = 'sb:', FOTO_CALIDAD = 0.6, FOTO_MAX = 1024;
+        const _fotoUrls = new Map();
+        const rutaFoto = f => typeof f === 'string' && f.startsWith(FOTO_PREFIJO) ? f.slice(FOTO_PREFIJO.length) : null;
+        const fotoSegura = f => {
+            const ruta = rutaFoto(f);
+            if (ruta) return esc(_fotoUrls.get(ruta) || '');
+            return /^(data:image\/|https:\/\/)/.test(f || '') ? esc(f) : '';
+        };
 
         // Código interno único (el escáner identifica el activo por este código)
         function nuevoCodigoActivo(usados = new Set(assets.map(a => a.codigo))) {
@@ -1691,8 +1737,9 @@
             });
             if (n) { saveAllData(); showNotification(`${n} código(s) interno(s) repetidos o vacíos se regeneraron`, 'info', 5000); }
         }
-        // Reduce la foto a máx. 800 px (JPEG) antes de guardarla
-        function comprimirImagen(file, max = 800) {
+        // Reduce la foto a máx. 1024 px y la convierte a WebP al 60 %
+        // (JPEG al 60 % si el navegador no genera WebP, p. ej. Safari antiguo).
+        function comprimirImagen(file, max = FOTO_MAX) {
             return new Promise((ok, fail) => {
                 const img = new Image(), url = URL.createObjectURL(file);
                 img.onload = () => {
@@ -1701,11 +1748,63 @@
                     c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
                     c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
                     URL.revokeObjectURL(url);
-                    ok(c.toDataURL('image/jpeg', 0.75));
+                    const listo = b => b ? ok(b) : fail(new Error('no se pudo comprimir la imagen'));
+                    c.toBlob(b => {
+                        if (b && b.type === 'image/webp') return ok(b);
+                        c.toBlob(listo, 'image/jpeg', FOTO_CALIDAD);
+                    }, 'image/webp', FOTO_CALIDAD);
                 };
                 img.onerror = () => { URL.revokeObjectURL(url); fail(new Error('imagen no válida')); };
                 img.src = url;
             });
+        }
+
+        // Comprime y sube la foto del activo a Storage; devuelve el valor para foto_url ("sb:<ruta>").
+        async function subirFotoActivo(asset, file) {
+            const blob = await comprimirImagen(file);
+            const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
+            const ruta = `${asset.id}/${crypto.randomUUID()}.${ext}`;
+            const { error } = await supabaseClient.storage.from(FOTOS_BUCKET)
+                .upload(ruta, blob, { contentType: blob.type, cacheControl: '31536000', upsert: false });
+            if (error) throw error;
+            const { data } = await supabaseClient.storage.from(FOTOS_BUCKET).createSignedUrl(ruta, 43200);
+            if (data && data.signedUrl) _fotoUrls.set(ruta, data.signedUrl);
+            return FOTO_PREFIJO + ruta;
+        }
+
+        // Borra de Storage una foto que ya no se usa (si falla, solo queda el archivo huérfano).
+        async function borrarFotoActivo(foto) {
+            const ruta = rutaFoto(foto);
+            if (!ruta) return;
+            _fotoUrls.delete(ruta);
+            try { await supabaseClient.storage.from(FOTOS_BUCKET).remove([ruta]); } catch (e) { console.warn(e); }
+        }
+
+        // URLs firmadas (12 h) de todas las fotos en Storage, en una sola petición.
+        async function firmarFotos() {
+            _fotoUrls.clear();
+            const rutas = [...new Set(assets.map(a => rutaFoto(a.foto)).filter(Boolean))];
+            for (const lote of enLotes(rutas, 500)) {
+                const { data, error } = await supabaseClient.storage.from(FOTOS_BUCKET).createSignedUrls(lote, 43200);
+                if (error) { console.warn('No se pudieron firmar las fotos:', error.message); return; }
+                (data || []).forEach(d => { if (d.signedUrl && d.path) _fotoUrls.set(d.path, d.signedUrl); });
+            }
+        }
+
+        // Pasa a Storage (WebP 60 %) las fotos antiguas guardadas en base64 dentro de la tabla.
+        async function migrarFotosBase64() {
+            if (!currentUser || currentUser.role === 'viewer') return;
+            const pendientes = assets.filter(a => /^data:image\//.test(a.foto || ''));
+            if (!pendientes.length) return;
+            let n = 0;
+            for (const a of pendientes) {
+                try {
+                    const blob = await (await fetch(a.foto)).blob();
+                    a.foto = await subirFotoActivo(a, blob);
+                    n++;
+                } catch (err) { console.warn('No se pudo migrar la foto de', a.id, err); }
+            }
+            if (n) { renderAssets(); saveAllData(); showNotification(`${n} foto(s) se pasaron a Supabase Storage (WebP 60 %)`, 'info', 5000); }
         }
 
         // ============================================================
@@ -2113,6 +2212,7 @@
             await loadAllData();
             renderAll();
             if (currentUser && currentUser.role === 'admin') repararCodigosDuplicados();
+            migrarFotosBase64();
             if (currentUser && currentUser.role !== 'admin') {
                 document.getElementById('nav-usuarios').style.display = 'none';
             } else {
@@ -2128,6 +2228,7 @@
         async function loadAllData() {
             try {
                 await initData();
+                await firmarFotos();
                 marcarConexionOk();
             } catch (err) {
                 console.error(err);
@@ -2193,16 +2294,36 @@
             renderNotificaciones();
         }
 
+        // Movimientos del más reciente al más antiguo (Supabase los entrega en orden
+        // descendente y los nuevos se agregan al final del arreglo).
+        const movimientosRecientes = () => movimientos.slice().sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+
+        // Encontrados / faltantes reales: resumen del último inventario finalizado de cada
+        // centro y categoría (el resumen se congela al finalizar el inventario).
+        function resumenInventarios() {
+            const ultimos = new Map();
+            inventarios.forEach(i => {
+                if (i.estado !== 'finalizado' || !i.resumen) return;
+                const k = (i.tienda || '') + '|' + (i.categoria || '');
+                const f = i.fechaFin || i.fecha || '';
+                const prev = ultimos.get(k);
+                if (!prev || String(f) > String(prev.fechaFin || prev.fecha || '')) ultimos.set(k, i);
+            });
+            let found = 0, missing = 0;
+            ultimos.forEach(i => { found += i.resumen.encontradosTotal || 0; missing += i.resumen.faltantesTotal || 0; });
+            return { found, missing, finalizados: inventarios.filter(i => i.estado === 'finalizado').length };
+        }
+
         function updateKPIs() {
             const total = assets.length;
-            const found = Math.max(0, Math.floor(total * 0.8));
-            const missing = total - found;
+            const { found, missing, finalizados } = resumenInventarios();
+            const revisados = found + missing;
             document.getElementById('kpi-total').textContent = total;
             document.getElementById('kpi-found').textContent = found;
             document.getElementById('kpi-missing').textContent = missing;
-            document.getElementById('kpi-audits').textContent = audits.length;
-            const pctFound = total ? Math.round((found/total)*100) : 0;
-            const pctMissing = total ? Math.round((missing/total)*100) : 0;
+            document.getElementById('kpi-audits').textContent = finalizados;
+            const pctFound = revisados ? Math.round((found/revisados)*100) : 0;
+            const pctMissing = revisados ? 100 - pctFound : 0;
             document.getElementById('pct-found-label').textContent = `${pctFound}% Localizados`;
             document.getElementById('pct-missing-label').textContent = `${pctMissing}% Faltantes`;
             document.getElementById('progress-found').style.width = `${pctFound}%`;
@@ -2212,7 +2333,7 @@
             if (movimientos.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="4" style="color:#888; text-align:center;">Sin movimientos recientes</td></tr>`;
             } else {
-                const last = movimientos.slice(-5).reverse();
+                const last = movimientosRecientes().slice(0, 5);
                 tbody.innerHTML = last.map(m => `
                     <tr>
                         <td>${esc(m.activoNombre || m.serie)}</td>
@@ -2253,13 +2374,14 @@
                         ${asset.activoFijo ? `<p><strong>Activo fijo:</strong> ${esc(asset.activoFijo)}</p>` : ''}
                         <p><span class="status-badge ${estadoCls}" style="font-size:0.6rem;">${esc(asset.estado)}</span> · ${asset.centroCodigo ? esc(asset.centroCodigo) + ' · ' : ''}${esc(asset.centro)}</p>
                     </div>
-                    <div class="asset-actions">
-                        <button class="btn-action" onclick="editAsset(${index})"><i class="fas fa-edit"></i> Editar</button>
-                        ${asset.estado !== 'Dado de baja' ? `<button class="btn-action" style="color:var(--danger-color);" onclick="solicitarBajaActivo(${index})" title="Solicitar baja a auditoría"><i class="fas fa-ban"></i> Dar de baja</button>` : ''}
-                        <button class="btn-action" style="color:var(--danger-color);" onclick="deleteAsset(${index})" title="Eliminar registro"><i class="fas fa-trash"></i></button>
-                        <div class="file-upload-wrapper">
-                            <button class="btn-action" style="width:100%;"><i class="fas fa-upload"></i> Foto</button>
-                            <input type="file" accept="image/*" onchange="uploadPhoto(${index}, event)">
+                    <div class="asset-menu">
+                        <button type="button" class="asset-menu-btn" onclick="toggleMenuActivo(this, event)" title="Acciones" aria-label="Acciones" aria-haspopup="menu" aria-expanded="false"><span aria-hidden="true">⋮</span></button>
+                        <div class="asset-menu-list" role="menu">
+                            <button type="button" class="asset-menu-item" role="menuitem" onclick="editAsset(${index})"><i class="fas fa-edit"></i> Editar</button>
+                            <label class="asset-menu-item file-upload-wrapper" role="menuitem" title="Subir o cambiar foto"><i class="fas fa-camera"></i> ${asset.foto ? 'Cambiar foto' : 'Subir foto'}<input type="file" accept="image/*" onchange="uploadPhoto(${index}, event)"></label>
+                            <div class="asset-menu-sep"></div>
+                            ${asset.estado !== 'Dado de baja' ? `<button type="button" class="asset-menu-item peligro" role="menuitem" onclick="solicitarBajaActivo(${index})" title="Solicitar baja a auditoría"><i class="fas fa-ban"></i> Dar de baja</button>` : ''}
+                            <button type="button" class="asset-menu-item peligro" role="menuitem" onclick="deleteAsset(${index})" title="Eliminar registro"><i class="fas fa-trash"></i> Eliminar</button>
                         </div>
                     </div>
                 `;
@@ -2268,15 +2390,50 @@
             filtrarActivos();
         }
 
+        // Menú ⋮ de la tarjeta de activo: uno abierto a la vez; se cierra al elegir una opción,
+        // al dar clic fuera o con Esc. Si no cabe hacia abajo, se abre hacia arriba.
+        function cerrarMenusActivo() {
+            document.querySelectorAll('.asset-menu.abierto').forEach(m => {
+                m.classList.remove('abierto', 'arriba');
+                m.closest('.asset-card')?.classList.remove('menu-abierto');
+                m.querySelector('.asset-menu-btn')?.setAttribute('aria-expanded', 'false');
+            });
+        }
+        function toggleMenuActivo(btn, ev) {
+            ev.stopPropagation();
+            const menu = btn.closest('.asset-menu');
+            const abrir = !menu.classList.contains('abierto');
+            cerrarMenusActivo();
+            if (!abrir) return;
+            menu.classList.add('abierto');
+            menu.closest('.asset-card')?.classList.add('menu-abierto');
+            btn.setAttribute('aria-expanded', 'true');
+            const lista = menu.querySelector('.asset-menu-list');
+            const r = lista.getBoundingClientRect();
+            if (r.bottom > window.innerHeight - 8 && btn.getBoundingClientRect().top > r.height + 16) menu.classList.add('arriba');
+        }
+        document.addEventListener('click', ev => {
+            if (!ev.target.closest('.asset-menu')) return cerrarMenusActivo();
+            // Elegir una opción cierra el menú (la de foto se cierra al abrir el selector de archivo).
+            if (ev.target.closest('.asset-menu-item')) setTimeout(cerrarMenusActivo, 0);
+        });
+        document.addEventListener('keydown', ev => { if (ev.key === 'Escape') cerrarMenusActivo(); });
+
         async function uploadPhoto(index, event) {
             const file = event.target.files[0];
-            if (!file || !assets[index]) return;
+            const asset = assets[index];
+            if (!file || !asset) return;
+            showNotification('Subiendo foto…', 'info', 2500);
             try {
-                assets[index].foto = await comprimirImagen(file);
+                const anterior = asset.foto;
+                asset.foto = await subirFotoActivo(asset, file);
                 renderAssets();
-                saveAllData();
+                await saveAllData();
+                if (anterior !== asset.foto) borrarFotoActivo(anterior);
             } catch (err) {
-                showNotification('No se pudo cargar la foto: ' + err.message, 'danger');
+                showNotification('No se pudo subir la foto: ' + (err.message || err), 'danger');
+            } finally {
+                event.target.value = '';
             }
         }
 
@@ -2302,6 +2459,8 @@
 
         function deleteAsset(index) {
             if (confirm(`¿Eliminar "${assets[index].nombre}"?`)) {
+                // Solo admin puede borrar activos (RLS); solo entonces se borra también su foto.
+                if (currentUser && currentUser.role === 'admin') borrarFotoActivo(assets[index].foto);
                 assets.splice(index, 1);
                 renderAssets();
                 saveAllData();
@@ -2726,7 +2885,7 @@
                 tbody.innerHTML = `<tr><td colspan="6" style="color:#888; text-align:center;">No hay movimientos registrados.</td></tr>`;
                 return;
             }
-            movimientos.slice().reverse().forEach(m => {
+            movimientosRecientes().forEach(m => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${esc(m.activoNombre || m.serie)}</td>
@@ -2792,6 +2951,7 @@
             if (cDest) { asset.centroCodigo = cDest.codigo; asset.razonSocial = cDest.razonSocial; }
             closeModal('modalMovimiento');
             renderMovimientos();
+            updateKPIs();
             renderAssets();
             updateKPIs();
             saveAllData();
@@ -3169,6 +3329,7 @@
             scanResults = [];
             renderScanResults();
             renderInventariosList();
+            updateKPIs();
             saveAllData();
             showNotification('✅ Inventario finalizado', 'success');
             mostrarModalInformeFinal(inv.id);
