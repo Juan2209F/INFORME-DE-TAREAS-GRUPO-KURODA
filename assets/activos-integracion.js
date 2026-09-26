@@ -13,6 +13,7 @@
   if (!EMBED) return;
 
   var FN = 'https://xlygkolfmetytowixtnb.supabase.co/functions/v1/activos-sesion';
+  var USER_KEY = 'kuroda-activos-user'; /* usuario del Monitor dueño de la sesión guardada */
   var oscuro = false, entrando = false;
   document.documentElement.classList.add('act-embed');
 
@@ -74,23 +75,36 @@
     aplicarTema(m.dark);
     estado('Conectando con Inventarios de activos…');
     try {
-      var r = await fetch(FN, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY },
-        body: JSON.stringify({ user: m.user, token: m.token })
-      });
-      var d = await r.json().catch(function () { return {}; });
-      if (r.status === 401) { aPadre({ type: 'activos-no-auth' }); return; }
-      if (!r.ok || d.error) throw new Error(d.error || ('Error ' + r.status));
-
+      /* Si ya hay sesión de activos de este mismo usuario (se abrió antes y no ha cerrado
+         sesión en el Monitor) se reutiliza: sin llamar a la Edge Function ni a verify. */
       var s = (await supabaseClient.auth.getSession()).data.session;
-      if (!s || s.user.id !== d.user_id) {
-        if (s) await supabaseClient.auth.signOut({ scope: 'local' });
-        var v = await supabaseClient.auth.verifyOtp({ token_hash: d.token_hash, type: 'magiclink' });
-        if (v.error) v = await supabaseClient.auth.verifyOtp({ token_hash: d.token_hash, type: 'email' });
-        if (v.error) throw v.error;
+      var dueno = null;
+      try { dueno = localStorage.getItem(USER_KEY); } catch (e) {}
+      if (!s || dueno !== m.user) {
+        var r = await fetch(FN, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY },
+          body: JSON.stringify({ user: m.user, token: m.token })
+        });
+        var d = await r.json().catch(function () { return {}; });
+        if (r.status === 401) { aPadre({ type: 'activos-no-auth' }); return; }
+        if (!r.ok || d.error) throw new Error(d.error || ('Error ' + r.status));
+        if (!s || s.user.id !== d.user_id) {
+          if (s) await supabaseClient.auth.signOut({ scope: 'local' });
+          var v = await supabaseClient.auth.verifyOtp({ token_hash: d.token_hash, type: 'magiclink' });
+          if (v.error) v = await supabaseClient.auth.verifyOtp({ token_hash: d.token_hash, type: 'email' });
+          if (v.error) throw v.error;
+        }
+        try { localStorage.setItem(USER_KEY, m.user); } catch (e) {}
       }
       var perfil = await cargarPerfilActual();
+      if (!perfil && !d) {
+        /* La sesión reutilizada ya no sirve (venció): se descarta y se pide una nueva. */
+        try { localStorage.removeItem(USER_KEY); } catch (e) {}
+        await supabaseClient.auth.signOut({ scope: 'local' });
+        entrando = false;
+        return entrar(m);
+      }
       if (!perfil) throw new Error('No se encontró tu perfil de activos');
       currentUser = perfilAAppUser(perfil);
       await showDashboard();
