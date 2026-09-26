@@ -26,6 +26,17 @@
       return t && _session && t.u === _session.username ? t.t : null;
     } catch (e) { return null; }
   }
+  /* El token se pide al iniciar sesión (app-correos.js, envoltura de doLogin) justo después
+     de entrar; si Activos se abre en ese instante se espera a que llegue en vez de pedir
+     la contraseña otra vez. */
+  async function esperarToken(ms) {
+    for (var t = 0; t < ms; t += 250) {
+      var tok = leerToken();
+      if (tok) return tok;
+      await new Promise(function (ok) { setTimeout(ok, 250); });
+    }
+    return leerToken();
+  }
   async function pedirToken(pass) {
     var c = _sb || (typeof initSupabase === 'function' ? initSupabase() : null);
     if (!c) return null;
@@ -75,7 +86,14 @@
   function descargar() {
     var f = iframe();
     if (f && f.getAttribute('src')) { f.src = 'about:blank'; f.removeAttribute('src'); }
-    try { localStorage.removeItem(AUTH_KEY); } catch (e) {}
+    try { localStorage.removeItem(AUTH_KEY); localStorage.removeItem('kuroda-activos-user'); } catch (e) {}
+  }
+  /* Precarga: al abrir Documentos (de donde se entra a Activos) la app de activos se va
+     cargando oculta, para que al dar clic en la tarjeta ya esté lista. */
+  function precargar() {
+    var f = iframe();
+    if (!f || f.getAttribute('src') || !puedeVer() || !leerToken()) return;
+    cargar();
   }
 
   function mostrarVista(visible) {
@@ -86,7 +104,13 @@
     if (visible) {
       /* Es parte de Documentos: se queda marcado ese botón del menú. */
       var nd = $('nav-documentos'); if (nd) nd.classList.add('active');
-      if (!antes) { if (leerToken()) cargar(); else pintarAuth(''); }
+      if (!antes) {
+        $('act-auth').style.display = 'none';
+        esperarToken(8000).then(function (t) {
+          if ($('view-activos').style.display === 'none') return;
+          if (t) cargar(); else pintarAuth('');
+        });
+      }
       else setTimeout(ajustarAlto, 30);
     }
   }
@@ -125,9 +149,10 @@
     if (m.type === 'abrir-activos') {
       if (puedeVer()) setView('activos');
     } else if (m.type === 'activos-ready' && ev.source === (iframe() || {}).contentWindow) {
-      var t = leerToken();
-      if (t && puedeVer()) enviar({ type: 'activos-auth', user: _session.username, token: t, dark: oscuro() });
-      else pintarAuth('');
+      esperarToken(8000).then(function (t) {
+        if (t && puedeVer()) enviar({ type: 'activos-auth', user: _session.username, token: t, dark: oscuro() });
+        else pintarAuth('');
+      });
     } else if (m.type === 'activos-no-auth') {
       try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
       descargar();
@@ -147,6 +172,7 @@
         if (v === 'activos' && !puedeVer()) v = 'documentos';
         var r = sv.apply(this, [v].concat([].slice.call(arguments, 1)));
         mostrarVista(v === 'activos');
+        if (v === 'documentos') setTimeout(precargar, 400);
         return r;
       };
       window.setView._act = true;
