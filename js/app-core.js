@@ -6428,8 +6428,10 @@ function renderDesempeno(){
 /* _sb and _session declared at top */
 
 function initSupabase(){
+  /* La sesión de Supabase Auth se guarda en "kuroda-monitor-auth" para que el Generador
+     (assets/generador.html) use la misma sesión; este cliente es el único que la renueva. */
   try{_sb=supabase.createClient(SB_URL,SB_KEY,{
-    auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
+    auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,storageKey:'kuroda-monitor-auth'},
     realtime:{enabled:false},
     global:{headers:{'x-client-info':'monitor-cumplimiento'}}
   });return _sb;}catch(e){console.warn('Supabase init error:',e);return null;}
@@ -6458,17 +6460,28 @@ async function doLogin(){
   if(!_sb) _sb=initSupabase();
   if(_sb){
     try{
-      /* iniciar_sesion: valida la contraseña (con bloqueo de 15 min tras 5 intentos fallidos)
-         y entrega el token de sesión (12 h) con el que el servidor sabe quién hace cada
-         operación (administrar usuarios, correos, archivero, activos). */
-      const {data,error}=await _sb.rpc('iniciar_sesion',{p_username:user,p_password:pass});
-      if(error){
-        if(/bloqueada/i.test(error.message||'')){
-          showLoginErr('Cuenta bloqueada 15 minutos por varios intentos fallidos.');
-          btn.disabled=false;btn.textContent='Ingresar';return;
-        }
-        throw error;
+      /* Inicio de sesión con Supabase Auth (correo y contraseña). Se puede escribir el correo o
+         el nombre de usuario: login_correo() traduce el usuario al correo de su cuenta.
+         Supabase Auth limita los intentos fallidos. Con la sesión iniciada, sesion_monitor()
+         devuelve los datos del usuario y el token (12 h) que usan correos, archivero y activos. */
+      var correo=user.indexOf('@')>=0?user.toLowerCase():null;
+      if(!correo){
+        var rc=await _sb.rpc('login_correo',{p_usuario:user});
+        correo=rc&&!rc.error?rc.data:null;
       }
+      if(!correo){
+        showLoginErr('Usuario o contraseña incorrectos');
+        btn.disabled=false;btn.textContent='Ingresar';return;
+      }
+      await _sb.auth.signOut({scope:'local'}).catch(function(){});
+      var ra=await _sb.auth.signInWithPassword({email:correo,password:pass});
+      if(ra.error){
+        showLoginErr(/rate|too many|limit/i.test(ra.error.message||'')?
+          'Demasiados intentos. Espera unos minutos e inténtalo de nuevo.':'Usuario o contraseña incorrectos');
+        btn.disabled=false;btn.textContent='Ingresar';return;
+      }
+      const {data,error}=await _sb.rpc('sesion_monitor');
+      if(error){ await _sb.auth.signOut({scope:'local'}).catch(function(){}); throw error; }
       if(data&&data.length>0){
         var tokSesion=data[0].token;
         _session=Object.assign({},data[0]);
@@ -6671,6 +6684,9 @@ function doLogout(){
   localStorage.removeItem(SB_SESSION_KEY);
   _session=null;
   _cryptoKey=null; /* Destruir clave de cifrado de memoria */
+  /* Cerrar también la sesión de Supabase Auth (invalida su renovación en el servidor). */
+  if(_sb&&_sb.auth)_sb.auth.signOut().catch(function(){});
+  try{localStorage.removeItem('kuroda-monitor-auth');}catch(e){}
   document.getElementById('login-page').classList.remove('hidden');
   document.getElementById('lp-pass').value='';
   showLoginErr('');
