@@ -1273,10 +1273,14 @@
                             <option value="inmueble">Inmueble / terreno</option>
                             <option value="otros">Otros</option>
                         </select>
+                        <select id="filtro-tienda-activo" onchange="filtrarActivos()" title="Filtrar por tienda / centro">
+                            <option value="">Todas las tiendas</option>
+                        </select>
+                        <span id="activos-conteo" style="font-size:0.8rem; opacity:.7;"></span>
                     </div>
                     <div class="controls-group">
                         <button class="btn-primary" onclick="resetAssetForm(); openModal('modalActivo')"><i class="fas fa-plus"></i> Nuevo</button>
-                        <button class="btn-action" onclick="exportarCentroId('${c.id}')"><i class="fas fa-file-excel"></i> Exportar</button>
+                        <button class="btn-action" onclick="exportarTiendaFiltrada()" title="Exportar a Excel los activos de la tienda seleccionada"><i class="fas fa-file-excel"></i> Exportar</button>
                         <button class="btn-action" onclick="toggleView('grid')" id="view-grid-btn" style="background:var(--active-bg); color:white;"><i class="fas fa-th"></i></button>
                         <button class="btn-action" onclick="toggleView('list')" id="view-list-btn"><i class="fas fa-list"></i></button>
                     </div>
@@ -2363,6 +2367,7 @@
                 const card = document.createElement('div');
                 card.className = 'asset-card';
                 card.dataset.categoria = asset.categoria || '';
+                card.dataset.centro = asset.centro || '';
                 const fotoOk = fotoSegura(asset.foto);
                 const fotoHtml = fotoOk ? `<img src="${fotoOk}" alt="Foto">` : `<i class="fas fa-camera fa-2x"></i>`;
                 const estadoCls = asset.estado === 'Asignado' ? 'badge-done' : 'badge-process';
@@ -2387,6 +2392,7 @@
                 `;
                 container.appendChild(card);
             });
+            actualizarFiltroTienda();
             filtrarActivos();
         }
 
@@ -2678,15 +2684,46 @@
         }
 
         // Filtro de búsqueda incluyendo Activo fijo
+        // Opciones del filtro de tienda: centros del catálogo más cualquier centro que
+        // tengan los activos y no esté en el catálogo. Conserva la tienda elegida.
+        function actualizarFiltroTienda() {
+            const sel = document.getElementById('filtro-tienda-activo');
+            if (!sel) return;
+            const actual = sel.value;
+            const cuenta = new Map();
+            assets.forEach(a => { const k = a.centro || ''; cuenta.set(k, (cuenta.get(k) || 0) + 1); });
+            const lista = centros.map(c => ({ nombre: c.nombre, codigo: c.codigo || '' }));
+            cuenta.forEach((_, nombre) => { if (nombre && !lista.some(c => c.nombre === nombre)) lista.push({ nombre, codigo: '' }); });
+            lista.sort((a, b) => (a.codigo || 'ZZZ').localeCompare(b.codigo || 'ZZZ') || a.nombre.localeCompare(b.nombre));
+            sel.innerHTML = `<option value="">Todas las tiendas (${assets.length})</option>` +
+                lista.map(c => `<option value="${esc(c.nombre)}">${c.codigo ? esc(c.codigo) + ' · ' : ''}${esc(c.nombre)} (${cuenta.get(c.nombre) || 0})</option>`).join('') +
+                (cuenta.get('') ? `<option value="__sin__">Sin tienda (${cuenta.get('')})</option>` : '');
+            if (actual && [...sel.options].some(o => o.value === actual)) sel.value = actual;
+        }
+
         function filtrarActivos() {
             const q = (document.getElementById('search-activo')?.value || '').toLowerCase().trim();
             const cat = document.getElementById('filtro-categoria-activo')?.value || '';
+            const tienda = document.getElementById('filtro-tienda-activo')?.value || '';
+            let visibles = 0, total = 0;
             document.querySelectorAll('.asset-card').forEach(card => {
+                total++;
                 const text = card.textContent.toLowerCase();
                 const coincideTexto = !q || text.includes(q);
                 const coincideCategoria = !cat || card.dataset.categoria === cat;
-                card.style.display = (coincideTexto && coincideCategoria) ? '' : 'none';
+                const coincideTienda = !tienda || (tienda === '__sin__' ? !card.dataset.centro : card.dataset.centro === tienda);
+                const ver = coincideTexto && coincideCategoria && coincideTienda;
+                card.style.display = ver ? '' : 'none';
+                if (ver) visibles++;
             });
+            const conteo = document.getElementById('activos-conteo');
+            if (conteo) conteo.textContent = total ? `${visibles} de ${total} activos` : '';
+        }
+
+        function exportarTiendaFiltrada() {
+            const tienda = document.getElementById('filtro-tienda-activo')?.value || '';
+            if (!tienda || tienda === '__sin__') { showNotification('Elige una tienda en el filtro para exportar sus activos', 'warning', 4000); return; }
+            exportarActivosCentro(tienda);
         }
         document.getElementById('search-activo')?.addEventListener('input', filtrarActivos);
 
@@ -2791,11 +2828,12 @@
         function verActivosCentro(nombreCentro) {
             const tabActivos = document.querySelector('.nav-item[onclick*="activos"]');
             if (tabActivos) tabActivos.click();
+            // Abre el directorio filtrado por esa tienda (antes escribía el nombre en la búsqueda).
             const searchInput = document.getElementById('search-activo');
-            if (searchInput) {
-                searchInput.value = nombreCentro;
-                searchInput.dispatchEvent(new Event('input'));
-            }
+            if (searchInput) searchInput.value = '';
+            const tiendaSel = document.getElementById('filtro-tienda-activo');
+            if (tiendaSel) { actualizarFiltroTienda(); tiendaSel.value = nombreCentro; }
+            filtrarActivos();
         }
 
         document.getElementById('search-centro')?.addEventListener('input', function() {
