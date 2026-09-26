@@ -5454,33 +5454,22 @@ function generatePpt(opts){
    Campos de ID, fechas, números y condición NO se cifran (needed por Supabase).
    Todo el texto sensible (tiendas, nombres, actividades, etc.) SÍ se cifra.
 ════════════════════════════════════════════════════════════════════ */
-/* ── CLAVE COMPARTIDA DE ORGANIZACIÓN ──────────────────────────────────
-   ANTES: la clave se derivaba de la contraseña de CADA usuario y de un salt
-   aleatorio guardado en localStorage. Consecuencia: cada usuario derivaba una
-   clave distinta y NO podía leer lo que cifró otro (el viewer veía el texto
-   cifrado en pantalla), y si se limpiaba el localStorage se perdía el acceso
-   a los datos para siempre.
-
-   AHORA: la clave se deriva de un secreto FIJO de la organización y un salt
-   FIJO. Todos los usuarios —incluidos los nuevos y los de solo lectura—
-   derivan la MISMA clave y leen los mismos datos, desde cualquier navegador.
-
-   Nota de seguridad: al ser una clave común de la app, el cifrado protege los
-   datos EN REPOSO en Supabase (quien vea la tabla no lee texto plano), pero no
-   es un secreto frente a alguien que inspeccione el código del sitio. Es el
-   compromiso necesario para que varios usuarios compartan los mismos datos.
-
-   Se conserva una clave "legacy" derivada de la contraseña para poder LEER los
-   datos antiguos cifrados con el esquema anterior (retrocompatibilidad). */
-var _cryptoKey=null;  /* Clave compartida — cifra y descifra todo lo nuevo */
-var _legacyKey=null;  /* Clave antigua (contraseña del usuario) — solo lectura */
+/* ── CLAVE DE LOS DATOS (en el Vault de Supabase, NO en el código) ──────
+   La clave AES-256 compartida de la organización vive en el Vault de Supabase.
+   Después de iniciar sesión, monitor_claves() la entrega SOLO a usuarios con
+   sesión del Monitor que pueden leer datos; nadie que abra el código de la
+   página la puede obtener.
+   - _cryptoKey: clave nueva → cifra todo lo nuevo y descifra lo ya migrado.
+   - _claveAnterior: la que antes se derivaba de un texto fijo del código;
+     solo para LEER lo que aún no se re-cifra (se retira al terminar).
+   - _legacyKey: esquema muy antiguo (contraseña de cada usuario), solo lectura. */
+var _cryptoKey=null;
+var _claveAnterior=null;
+var _legacyKey=null;
 var _cryptoSalt=null;
 
 const CRYPTO_SALT_KEY='ksa_crypto_salt';
 const PBKDF2_ITER=200000;
-/* Secreto y salt compartidos de la organización (fijos, iguales para todos) */
-const ORG_SECRET='KurodaGrupo::clave-compartida::v1';
-const ORG_SALT='KurodaGrupo::salt::v1';
 
 function getCryptoSalt(){
   var s=localStorage.getItem(CRYPTO_SALT_KEY);
@@ -5497,10 +5486,16 @@ async function _derivar(password,salt){
   );
 }
 
-/* Clave compartida: NO depende de la contraseña ni del navegador. */
+/* Claves desde el Vault (requiere sesión iniciada). Si el usuario no tiene acceso a los
+   datos (p. ej. sistemas) no recibe clave: no la necesita. */
 async function initSharedKey(){
   if(_cryptoKey)return _cryptoKey;
-  _cryptoKey=await _derivar(ORG_SECRET,new TextEncoder().encode(ORG_SALT));
+  var c=getSbClient(); if(!c)return null;
+  var r=await c.rpc('monitor_claves');
+  if(r.error||!r.data||!r.data.nueva)return null;
+  function imp(b64){return crypto.subtle.importKey('raw',Uint8Array.from(atob(b64),function(ch){return ch.charCodeAt(0);}),{name:'AES-GCM'},false,['encrypt','decrypt']);}
+  _cryptoKey=await imp(r.data.nueva);
+  _claveAnterior=r.data.anterior?await imp(r.data.anterior):null;
   return _cryptoKey;
 }
 
@@ -5515,7 +5510,9 @@ async function initCryptoKey(password){
 }
 
 async function enc(text){
-  if(!_cryptoKey||text===null||text===undefined||text==='')return text;
+  if(text===null||text===undefined||text==='')return text;
+  /* Nunca guardar en claro un campo que debe ir cifrado: sin clave, se detiene la operación. */
+  if(!_cryptoKey&&!(await initSharedKey()))throw new Error('No se pudo obtener la clave de cifrado. Vuelve a iniciar sesión.');
   var iv=crypto.getRandomValues(new Uint8Array(12));
   var enc2=new TextEncoder();
   var ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},_cryptoKey,enc2.encode(String(text)));
@@ -5525,7 +5522,7 @@ async function enc(text){
 
 async function dec(cipher){
   if(!cipher||typeof cipher!=='string'||!cipher.includes(':'))return cipher;
-  if(!_cryptoKey&&!_legacyKey)return cipher;
+  if(!_cryptoKey&&!_claveAnterior&&!_legacyKey)return cipher;
   var parts=cipher.split(':');
   if(parts.length!==2)return cipher;
   var iv,ct;
@@ -5540,7 +5537,14 @@ async function dec(cipher){
       return new TextDecoder().decode(pt);
     }catch(e){}
   }
-  /* 2) Clave legacy (datos cifrados con el esquema anterior, aún sin migrar) */
+  /* 2) Clave anterior del Vault (datos aún no re-cifrados con la clave nueva) */
+  if(_claveAnterior){
+    try{
+      var ptA=await crypto.subtle.decrypt({name:'AES-GCM',iv},_claveAnterior,ct);
+      return new TextDecoder().decode(ptA);
+    }catch(e){}
+  }
+  /* 3) Clave legacy (datos cifrados con el esquema anterior, aún sin migrar) */
   if(_legacyKey){
     try{
       var pt2=await crypto.subtle.decrypt({name:'AES-GCM',iv},_legacyKey,ct);
@@ -5682,7 +5686,7 @@ async function diagnosticarCifrado(){
       for(var i=0;i<filas.length;i++){
         var v=String(filas[i][campos[0]]||'');
         if(!v||!v.includes(':')){plano++;continue;}
-        if(await abre(_cryptoKey,v))sh++;
+        if(await abre(_cryptoKey,v)||await abre(_claveAnterior,v))sh++;
         else if(await abre(_legacyKey,v))lg++;
         else no++;
       }
@@ -5722,6 +5726,7 @@ async function limpiarIlegibles(){
       var v=String(filas[i][campos[0]]||'');
       if(!v||!v.includes(':'))continue;                       /* texto plano: se respeta */
       if(await _abreCon(_cryptoKey,v))continue;               /* ya migrado */
+      if(await _abreCon(_claveAnterior,v))continue;           /* clave anterior del Vault: se re-cifra en el servidor */
       if(await _abreCon(_legacyKey,v))continue;               /* migrable: no se toca */
       ileg.push(filas[i]);                                    /* nadie puede leerlo */
     }
@@ -5790,7 +5795,7 @@ async function migrarCifrado(){
             var plano=await dec(val);        /* abre con legacy */
             upd[campo]=await enc(plano);     /* re-cifra con la compartida */
             hay=true;
-          }else if(val&&typeof val==='string'&&val.includes(':')&&!(await _abreCon(_cryptoKey,val))&&!(await _abreCon(_legacyKey,val))){
+          }else if(val&&typeof val==='string'&&val.includes(':')&&!(await _abreCon(_cryptoKey,val))&&!(await _abreCon(_claveAnterior,val))&&!(await _abreCon(_legacyKey,val))){
             ilegibles++;
           }
         }
@@ -6683,7 +6688,7 @@ function patchedFillFilters(){
 function doLogout(){
   localStorage.removeItem(SB_SESSION_KEY);
   _session=null;
-  _cryptoKey=null; /* Destruir clave de cifrado de memoria */
+  _cryptoKey=null; _claveAnterior=null; /* Destruir claves de cifrado de memoria */
   /* Cerrar también la sesión de Supabase Auth (invalida su renovación en el servidor). */
   if(_sb&&_sb.auth)_sb.auth.signOut().catch(function(){});
   try{localStorage.removeItem('kuroda-monitor-auth');}catch(e){}
