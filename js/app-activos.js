@@ -1,13 +1,12 @@
 /* Inventarios de activos dentro del Monitor — Grupo Kuroda
-   La tarjeta "Inventarios de Activos" de Documentos (assets/documentos.html) avisa con
-   postMessage({type:'abrir-activos'}) y aquí se abre la vista "activos": la app del proyecto
+   El botón "📦 Activos" del menú lateral abre la vista "activos": la app del proyecto
    ACTIVOS-GRUPOKURODA (assets/activos.html?embed=1) en un iframe a toda la altura disponible.
+   Se precarga oculta poco después de iniciar sesión para que abra al instante.
 
    Sesión única: ACTIVOS usa la misma sesión de Supabase Auth del Monitor; no tiene cuentas
    propias. Su perfil lo genera el Monitor según el rol.
 
    Acceso: admin, admin_auditor, auditor, sistemas y viewer (viewer en SOLO CONSULTA).
-   También hay un botón "Activos" en el menú lateral (los viewer no tienen Documentos).
    Depende de: js/app-core.js (_sb, _session, VIEW, setView, applyVistasRestriction, doLogout). */
 (function () {
   'use strict';
@@ -88,8 +87,8 @@
     if (f && f.getAttribute('src')) { f.src = 'about:blank'; f.removeAttribute('src'); }
     try { localStorage.removeItem(AUTH_KEY); localStorage.removeItem('kuroda-activos-user'); } catch (e) {}
   }
-  /* Precarga: al abrir Documentos (de donde se entra a Activos) la app de activos se va
-     cargando oculta, para que al dar clic en la tarjeta ya esté lista. */
+  /* Precarga: después de iniciar sesión la app de activos se va cargando oculta, para que al
+     dar clic en "Activos" ya esté lista. */
   function precargar() {
     var f = iframe();
     if (!f || f.getAttribute('src') || !puedeVer() || !leerToken()) return;
@@ -103,8 +102,6 @@
     v.style.display = visible ? 'block' : 'none';
     var na = $('nav-activos'); if (na) na.classList.toggle('active', visible);
     if (visible) {
-      /* Quien no tiene Documentos (viewer) no ve el botón de regreso. */
-      var vol = $('act-volver'); if (vol) vol.style.display = _session && _session.rol === 'viewer' ? 'none' : '';
       if (!antes) {
         $('act-auth').style.display = 'none';
         esperarToken(8000).then(function (t) {
@@ -124,8 +121,7 @@
     d.style.display = 'none';
     d.innerHTML =
       '<div class="card kc-panel">' +
-      '<div class="kc-hdr"><button type="button" class="kc-btn" id="act-volver">← Documentos</button>' +
-      '<span style="font-size:18px">📦</span><h3>Inventarios de activos</h3></div>' +
+      '<div class="kc-hdr"><span style="font-size:18px">📦</span><h3>Inventarios de activos</h3></div>' +
       '<div id="act-auth" style="display:none;padding:22px 20px">' +
       '<p style="font-size:13px;color:var(--muted);margin:0 0 10px">Confirma tu contraseña una sola vez para activar el acceso a Inventarios de activos en este navegador.</p>' +
       '<div class="kc-row"><input type="password" id="act-pass" class="kc-in" placeholder="Contraseña" autocomplete="current-password" style="width:240px">' +
@@ -138,7 +134,6 @@
 
     d.addEventListener('click', function (e) {
       if (e.target.id === 'act-go') return entrar();
-      if (e.target.id === 'act-volver') return setView('documentos');
     });
     d.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target.id === 'act-pass') entrar(); });
     window.addEventListener('resize', function () { if (d.style.display !== 'none') ajustarAlto(); });
@@ -195,7 +190,6 @@
         if (v === 'activos' && !puedeVer()) v = 'documentos';
         var r = sv.apply(this, [v].concat([].slice.call(arguments, 1)));
         mostrarVista(v === 'activos');
-        if (v === 'documentos') setTimeout(precargar, 400);
         return r;
       };
       window.setView._act = true;
@@ -210,6 +204,8 @@
         var r = avr.apply(this, arguments);
         if (enAct) { VIEW = 'activos'; if (!puedeVer()) setView('dash'); }
         actualizarMenu();
+        /* Tras entrar, Activos se va cargando oculto para que al dar clic ya esté listo. */
+        setTimeout(precargar, 2500);
         return r;
       };
       window.applyVistasRestriction._act = true;
