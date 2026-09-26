@@ -7,8 +7,7 @@
    Dividido por razón social: cada documento guarda su razón (KNO/KSC/KSA; en vehículos se
    toma de la sucursal) y cada usuario solo ve, sube y borra las de sus razones permitidas
    (lo valida la Edge Function; aquí solo se arma la pantalla con lo que ella devuelve).
-   Se sube el PDF firmado: el original se guarda tal cual en Supabase Storage (URL firmada de
-   subida) y además el navegador convierte cada página a WebP (calidad 90%) con
+   El PDF firmado NUNCA se sube: el navegador convierte cada página a WebP (calidad 85%) con
    pdf.js y la Edge Function "archivero" guarda las imágenes en el bucket privado.
    Para consultar se muestran las páginas y se puede descargar de nuevo como PDF (jsPDF).
    Acceso: mismo token de sesión que obtiene app-correos.js al iniciar sesión
@@ -20,8 +19,8 @@
 
   var TOKEN_KEY = 'kc_token';
   var PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
-  var CALIDAD = 0.9; /* WebP al 90% */
-  var MAX_PDF = 20 * 1024 * 1024; /* límite del bucket para el PDF original */
+  var CALIDAD = 0.85; /* WebP al 85% */
+  var MAX_PDF = 50 * 1024 * 1024; /* tamaño máximo del PDF a convertir (no se sube, solo se lee en el navegador) */
   var ANCHO_PX = 1240; /* ≈150 ppp en tamaño carta/A4 */
   var CAT = {
     celular: { nombre: 'Celular', icono: '📱' },
@@ -76,7 +75,7 @@
     return j;
   }
 
-  /* ---------- PDF → WebP (90%) ---------- */
+  /* ---------- PDF → WebP (85%) ---------- */
   function cargarScript(src) {
     return new Promise(function (ok, mal) {
       var s = document.createElement('script');
@@ -180,7 +179,7 @@
       '<label class="arch-lbl">Archivo PDF<input type="file" class="kc-in" id="arch-file" accept="application/pdf,.pdf"></label>' +
       '<button class="kc-btn kc-pri" data-ar="subir"' + (st.subiendo ? ' disabled' : '') + '>' + (st.subiendo ? 'Subiendo…' : 'Subir') + '</button>' +
       '</div>' + (st.subiendo ? '<div class="kc-sub" style="margin-top:6px">' + esc(st.subiendo) + '</div>' : '') +
-      '<div class="kc-note" style="margin:8px 0 0">Se guarda en Supabase Storage el PDF original (máx. 20 MB) y cada página como imagen WebP al 90% para verla rápido en pantalla.</div></div>';
+      '<div class="kc-note" style="margin:8px 0 0">Cada página se guarda en Supabase Storage como imagen WebP al 85% (el PDF original no se sube). Al descargar, se vuelve a armar el PDF.</div></div>';
   }
 
   function htmlLista() {
@@ -203,8 +202,7 @@
         return '<tr data-id="' + d.id + '"><td><b>' + esc(d.empleado) + '</b><div class="kc-sub">' + esc(d.nombre_original || '') + '</div></td>' +
           '<td>' + esc(d.razon || '') + '</td>' +
           (veh ? '<td>' + esc(d.tiendas ? d.tiendas.nombre : '—') + '</td>' : '') +
-          '<td>' + d.paginas + '</td><td>' + kb(d.tamano_bytes + (d.pdf_bytes || 0)) +
-          '<div class="kc-sub">' + (d.pdf_bytes ? 'con PDF original' : 'solo WebP') + '</div></td><td>' + esc(d.subido_por || '') + '</td><td>' + fecha(d.created_at) + '</td>' +
+          '<td>' + d.paginas + '</td><td>' + kb(d.tamano_bytes) + '</td><td>' + esc(d.subido_por || '') + '</td><td>' + fecha(d.created_at) + '</td>' +
           '<td style="white-space:nowrap"><button class="kc-btn" data-ar="ver">Ver</button> <button class="kc-btn" data-ar="pdf">PDF</button>' +
           (st.puedeBorrar ? ' <button class="kc-btn arch-del" data-ar="borrar">Eliminar</button>' : '') + '</td></tr>';
       }).join('') + '</tbody></table></div>';
@@ -285,7 +283,7 @@
     if (st.cat !== 'vehiculo' && !razon) { msg('Selecciona la razón social'); return; }
     if (!file) { msg('Selecciona el PDF'); return; }
     if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') { msg('El archivo debe ser PDF'); return; }
-    if (file.size > MAX_PDF) { msg('El PDF pesa ' + kb(file.size) + '; el máximo es 20 MB'); return; }
+    if (file.size > MAX_PDF) { msg('El PDF pesa ' + kb(file.size) + '; el máximo es 50 MB'); return; }
     var cat = st.cat;
     var aviso = function (t) { st.subiendo = t; var s = document.querySelector('.arch-subir .kc-sub'); if (s) s.textContent = t; };
     st.subiendo = 'Leyendo PDF…'; pintar();
@@ -293,20 +291,12 @@
       var pags = await pdfAPaginas(file, aviso);
       var total = pags.reduce(function (a, p) { return a + p.bytes; }, 0);
       st.subiendo = 'Guardando ' + pags.length + ' página(s) (' + kb(total) + ')…'; pintar();
-      var r = await api('subir', {
-        categoria: cat, empleado: emp, razon: razon, tienda_id: tienda, nombre_original: file.name, con_pdf: true,
+      /* Solo se suben las páginas WebP; el PDF original se queda en la computadora. */
+      await api('subir', {
+        categoria: cat, empleado: emp, razon: razon, tienda_id: tienda, nombre_original: file.name,
         paginas: pags.map(function (p) { return { b64: p.b64, mime: p.mime }; })
       });
-      /* PDF original: se sube directo a Supabase Storage con la URL firmada y luego se confirma. */
-      var pdfOk = false;
-      if (r.pdf_subida) {
-        aviso('Guardando el PDF original (' + kb(file.size) + ')…');
-        var c = _sb || (typeof initSupabase === 'function' ? initSupabase() : null);
-        var up = await c.storage.from('archivero').uploadToSignedUrl(r.pdf_subida.path, r.pdf_subida.token, file, { contentType: 'application/pdf' });
-        if (!up.error) { await api('confirmar_pdf', { id: r.id }); pdfOk = true; }
-      }
-      msg('✓ Guardado: ' + pags.length + ' página(s) WebP (' + kb(total) + ')' +
-        (pdfOk ? ' + PDF original (' + kb(file.size) + ')' : ' — no se pudo guardar el PDF original') +
+      msg('✓ Guardado: ' + pags.length + ' página(s) WebP al 85% (' + kb(total) + '; el PDF pesaba ' + kb(file.size) + ')' +
         (pags[0] && pags[0].mime !== 'image/webp' ? ' (JPEG: este navegador no genera WebP)' : ''));
       st.subiendo = '';
       await cargarLista();
@@ -321,11 +311,8 @@
       if (!soloPDF) { st.visor = { doc: doc, urls: null }; pintar(); window.scrollTo(0, 0); }
       var v = await api('ver', { id: doc.id });
       var urls = v.paginas || [];
-      if (soloPDF) {
-        /* Si existe el PDF original en Storage se descarga tal cual; si no (documentos anteriores), se rearma con las páginas. */
-        if (v.pdf_url) { var a = document.createElement('a'); a.href = v.pdf_url; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove(); return; }
-        msg('Generando PDF…'); await descargarPDF(doc, urls); return;
-      }
+      /* Al descargar, el PDF se arma con las páginas WebP guardadas. */
+      if (soloPDF) { msg('Generando PDF…'); await descargarPDF(doc, urls); return; }
       if (st.visor && st.visor.doc.id === doc.id) { st.visor.urls = urls; pintar(); }
     } catch (e) { if (st.token) msg('Error: ' + e.message); }
   }
