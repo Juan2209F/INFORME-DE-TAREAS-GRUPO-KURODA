@@ -104,6 +104,19 @@ select * from net._http_response order by id desc limit 1;                  -- r
 select * from public.correos_envios order by id desc;                       -- bitácora
 ```
 
+## Inventarios de activos (proyecto ACTIVOS-GRUPOKURODA)
+
+- Tarjeta **"Inventarios de Activos"** en Documentos → abre la vista `activos` del Monitor
+  (`js/app-activos.js`) con la app `assets/activos.html?embed=1` (copia del proyecto
+  ACTIVOS-GRUPOKURODA + `assets/activos-integracion.js`).
+- **Sesión única**: la Edge Function `activos-sesion` recibe el token del Monitor (`kc_token`),
+  crea o enlaza la cuenta de activos (`<usuario>@bastionactivos.local`) y devuelve un acceso de
+  un solo uso (`verifyOtp`). Rol en activos: admin / admin_auditor → admin · auditor / sistemas → user.
+- Lo ven admin, admin_auditor, auditor y sistemas. Dentro del Monitor se ocultan el login, "Salir",
+  "Usuarios" y el selector de tema (sigue el tema del Monitor); el menú lateral pasa a pestañas.
+- Para actualizar la app de activos: copiar el `index.html` nuevo como `assets/activos.html` y volver
+  a aplicar los 3 enganches marcados con `ACTIVOS_EMBED` / `activos-integracion.js`.
+
 ## Archivero de responsivas y rol Sistemas
 
 - **Menú "🗄️ Archivero"** (`js/app-archivero.js`): se suben los PDF firmados; el navegador
