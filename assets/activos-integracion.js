@@ -1,8 +1,8 @@
 /* Integración de "Inventarios de activos" (ACTIVOS-GRUPOKURODA) dentro del Monitor — Grupo Kuroda
    Solo actúa cuando activos.html se abre dentro del Monitor (activos.html?embed=1 en un iframe):
-   - Sin pantalla de login: pide al Monitor su token ('activos-ready' → 'activos-auth') y la
-     Edge Function "activos-sesion" devuelve un acceso de un solo uso que se canjea con
-     supabase.auth.verifyOtp(). La sesión se guarda aparte (storageKey "kuroda-activos-auth").
+   - Sin pantalla de login: usa la MISMA sesión de Supabase Auth del Monitor (storageKey
+     "kuroda-monitor-auth"; solo el Monitor la renueva). ACTIVOS ya no tiene cuentas propias:
+     el perfil de ACTIVOS de cada usuario lo genera el Monitor según su rol.
    - Mismo aspecto que el Monitor: el menú lateral pasa a pestañas arriba, sin tarjeta de usuario
      (ya la muestra el Monitor), sin "Salir", "Usuarios" ni selector de tema (sigue el del Monitor).
    Abierto directo (sin embed) la app funciona igual que el proyecto original. */
@@ -12,8 +12,6 @@
   window.ACTIVOS_EMBED = EMBED;
   if (!EMBED) return;
 
-  var FN = 'https://xlygkolfmetytowixtnb.supabase.co/functions/v1/activos-sesion';
-  var USER_KEY = 'kuroda-activos-user'; /* usuario del Monitor dueño de la sesión guardada */
   var oscuro = false, entrando = false;
   document.documentElement.classList.add('act-embed');
 
@@ -46,7 +44,16 @@
     E + '#act-estado{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:10000;font-family:Poppins,sans-serif}' +
     E + '#act-estado div{background:var(--card-bg);color:var(--text-main);border:1px solid var(--border-color);border-radius:18px;padding:22px 26px;font-size:13px;max-width:420px;text-align:center;box-shadow:var(--shadow)}' +
     E + '#act-estado.err div{color:var(--danger-color)}' +
-    '@media(max-width:768px){' + E + '.nav-item span:not(.badge){display:none!important}}';
+    '@media(max-width:768px){' + E + '.nav-item span:not(.badge){display:none!important}}' +
+    /* Solo consulta (viewer del Monitor): sin controles que crean, modifican o borran. La base de
+       datos también lo impide (RLS es_editor_activos), esto solo evita botones que fallarían. */
+    [ '[onclick^="resetAssetForm"]', '#btnNuevoLevantamiento', '[onclick^="finalizarInventario"]', '[onclick^="cancelarInventario"]',
+      '[onclick^="registrarScanManual"]', '[onclick^="abrirCamaraScan"]', '[onclick^="abrirModalCentro"]', '[onclick^="abrirModalMovimiento"]',
+      '[onclick^="guardarRazonSocial"]', '[onclick^="editAsset"]', '[onclick^="solicitarBajaActivo"]', '[onclick^="deleteAsset"]',
+      '.file-upload-wrapper', '.file-input-wrapper', '[onclick^="aprobarBaja"]', '[onclick^="rechazarBaja"]', '[onclick^="editarCentro"]',
+      '[onclick^="eliminarCentro"]', '[onclick^="eliminarInventario"]', '[onclick^="abrirInventario"]',
+      '#ajustes .settings-group:has(#razon-social)' ]
+      .map(function (s) { return 'html.act-solo-lectura ' + s; }).join(',') + '{display:none!important}';
   document.head.appendChild(css);
 
   function estado(txt, error) {
@@ -75,39 +82,24 @@
     aplicarTema(m.dark);
     estado('Conectando con Inventarios de activos…');
     try {
-      /* Si ya hay sesión de activos de este mismo usuario (se abrió antes y no ha cerrado
-         sesión en el Monitor) se reutiliza: sin llamar a la Edge Function ni a verify. */
+      /* Misma sesión de Supabase Auth del Monitor (storageKey "kuroda-monitor-auth"): no hay
+         cuentas propias de ACTIVOS. El perfil de ACTIVOS (usuarios2) lo genera el Monitor según
+         el rol del usuario. */
       var s = (await supabaseClient.auth.getSession()).data.session;
-      var dueno = null;
-      try { dueno = localStorage.getItem(USER_KEY); } catch (e) {}
-      if (!s || dueno !== m.user) {
-        var r = await fetch(FN, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY },
-          body: JSON.stringify({ user: m.user, token: m.token })
-        });
-        var d = await r.json().catch(function () { return {}; });
-        if (r.status === 401) { aPadre({ type: 'activos-no-auth' }); return; }
-        if (!r.ok || d.error) throw new Error(d.error || ('Error ' + r.status));
-        if (!s || s.user.id !== d.user_id) {
-          if (s) await supabaseClient.auth.signOut({ scope: 'local' });
-          var v = await supabaseClient.auth.verifyOtp({ token_hash: d.token_hash, type: 'magiclink' });
-          if (v.error) v = await supabaseClient.auth.verifyOtp({ token_hash: d.token_hash, type: 'email' });
-          if (v.error) throw v.error;
-        }
-        try { localStorage.setItem(USER_KEY, m.user); } catch (e) {}
+      if (!s) {
+        aPadre({ type: 'activos-no-auth', relogin: true,
+                 error: 'Tu sesión venció. Cierra sesión en el Monitor y vuelve a entrar.' });
+        estado(null);
+        return;
       }
       var perfil = await cargarPerfilActual();
-      if (!perfil && !d) {
-        /* La sesión reutilizada ya no sirve (venció): se descarta y se pide una nueva. */
-        try { localStorage.removeItem(USER_KEY); } catch (e) {}
-        await supabaseClient.auth.signOut({ scope: 'local' });
-        entrando = false;
-        return entrar(m);
-      }
-      if (!perfil) throw new Error('No se encontró tu perfil de activos');
+      if (!perfil || !perfil.activo) throw new Error('Tu usuario no tiene acceso a Inventarios de activos');
+      document.documentElement.classList.toggle('act-solo-lectura', perfil.role === 'viewer');
       currentUser = perfilAAppUser(perfil);
       await showDashboard();
+      if (perfil.role === 'viewer') {
+        var sr = document.getElementById('session-rol'); if (sr) sr.textContent = 'Consulta';
+      }
       moverCampana();
       aplicarTema(oscuro);
       estado(null);
