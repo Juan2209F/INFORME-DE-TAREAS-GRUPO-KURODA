@@ -1982,9 +1982,14 @@
             audits = [];
             vehiculos = [];
 
-            const [{ data: centrosData, error: e1 }, { data: cfgData }] = await Promise.all([
+            // Todas las consultas salen al mismo tiempo (antes iban en 3 tandas seguidas).
+            const [{ data: centrosData, error: e1 }, { data: cfgData }, { data: assetsData, error: e3 }, { data: movData, error: e4 }, { data: invData, error: e5 }, bajaRes] = await Promise.all([
                 supabaseClient.from('centros').select('*').order('codigo'),
-                supabaseClient.from('app_config').select('*')
+                supabaseClient.from('app_config').select('*'),
+                supabaseClient.from('activos').select('*'),
+                supabaseClient.from('movimientos').select('*').order('fecha', { ascending: false }),
+                supabaseClient.from('inventarios').select('*').order('fecha_inicio', { ascending: false }),
+                supabaseClient.from('solicitudes_baja').select('*').order('fecha', { ascending: false }).then(r => r, err => ({ error: err }))
             ]);
             if (e1) throw e1;
             centros = (centrosData || []).map(rowACentro);
@@ -1999,11 +2004,6 @@
             razonSocial = cfg.razon_social || 'Grupo Kuroda';
             document.getElementById('razon-social').value = razonSocial;
 
-            const [{ data: assetsData, error: e3 }, { data: movData, error: e4 }, { data: invData, error: e5 }] = await Promise.all([
-                supabaseClient.from('activos').select('*'),
-                supabaseClient.from('movimientos').select('*').order('fecha', { ascending: false }),
-                supabaseClient.from('inventarios').select('*').order('fecha_inicio', { ascending: false })
-            ]);
             if (e3) throw e3;
             if (e4) throw e4;
             if (e5) throw e5;
@@ -2013,9 +2013,8 @@
 
             // Tabla opcional: si aún no se creó en Supabase, seguimos sin romper la app.
             try {
-                const { data: bajaData, error: e6 } = await supabaseClient.from('solicitudes_baja').select('*').order('fecha', { ascending: false });
-                if (e6) throw e6;
-                solicitudesBaja = (bajaData || []).map(rowABaja);
+                if (bajaRes.error) throw bajaRes.error;
+                solicitudesBaja = (bajaRes.data || []).map(rowABaja);
             } catch (err) {
                 solicitudesBaja = [];
             }
