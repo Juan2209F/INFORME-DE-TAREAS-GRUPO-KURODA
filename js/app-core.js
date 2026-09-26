@@ -221,6 +221,15 @@ function razonDeCentro(c){return PREFIJO_RAZON[canonCentro(c).slice(0,2)]||'';}
    SQL (minúsculas, espacios colapsados). */
 function razKey(s){return String(s||'').replace(/\s+/g,' ').trim().toLowerCase();}
 function tareaKey(id,razon){return String(id)+'|'+razKey(razon);}
+/* Token de sesión (lo entrega iniciar_sesion al entrar). Las funciones de Supabase que
+   administran usuarios lo exigen junto con el usuario: sin él responden "Sesión no válida". */
+function _tokSesion(){
+  try{
+    var t=JSON.parse(localStorage.getItem('kc_token')||'null');
+    return t&&_session&&t.u===_session.username?t.t:null;
+  }catch(e){return null;}
+}
+function _credSesion(){return {p_user:_session?_session.username:'',p_token:_tokSesion()||''};}
 function _razonesAsignadas(){
   /* Los viewers son de solo observación: siempre ven las 3 razones sociales
      (KNO/KSC/KSA) completas, sin importar qué traiga razones_permitidas en su
@@ -5965,8 +5974,8 @@ async function cargarAuditoresDesempeno(){
   _audLoading=true;
   try{
     if(!_sb)_sb=initSupabase();
-    if(!_sb){_audLoading=false;return;}
-    var r=await _sb.rpc('listar_usuarios');
+    if(!_sb||!_tokSesion()){_audLoading=false;return;}
+    var r=await _sb.rpc('usuarios_listar',_credSesion());
     if(r.error)throw r.error;
     var data=r.data||[];
     /* Es auditor si está marcado como tal o si su rol lo es */
@@ -6449,10 +6458,21 @@ async function doLogin(){
   if(!_sb) _sb=initSupabase();
   if(_sb){
     try{
-      const {data,error}=await _sb.rpc('login_usuario',{p_username:user,p_password:pass});
-      if(error) throw error;
+      /* iniciar_sesion: valida la contraseña (con bloqueo de 15 min tras 5 intentos fallidos)
+         y entrega el token de sesión (12 h) con el que el servidor sabe quién hace cada
+         operación (administrar usuarios, correos, archivero, activos). */
+      const {data,error}=await _sb.rpc('iniciar_sesion',{p_username:user,p_password:pass});
+      if(error){
+        if(/bloqueada/i.test(error.message||'')){
+          showLoginErr('Cuenta bloqueada 15 minutos por varios intentos fallidos.');
+          btn.disabled=false;btn.textContent='Ingresar';return;
+        }
+        throw error;
+      }
       if(data&&data.length>0){
-        _session=data[0];
+        var tokSesion=data[0].token;
+        _session=Object.assign({},data[0]);
+        delete _session.token; /* el token no se guarda dentro de la sesión */
         localStorage.setItem(SB_SESSION_KEY,JSON.stringify(_session));
         /* Derivar clave AES-GCM de la contraseña ANTES de cargar datos */
         await initCryptoKey(pass);
@@ -6461,6 +6481,7 @@ async function doLogin(){
         if(_session.username)_session.username=await dec(_session.username);
         /* Re-guardar sesión con datos descifrados */
         localStorage.setItem(SB_SESSION_KEY,JSON.stringify(_session));
+        try{localStorage.setItem('kc_token',JSON.stringify({u:_session.username,t:tokSesion}));}catch(e){}
         onLoginSuccess();return;
       } else {
         showLoginErr('Usuario o contraseña incorrectos');
@@ -6900,7 +6921,7 @@ async function loadUsuarios(){
   tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">Cargando...</td></tr>';
   if(!_sb){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--muted)">Sin conexión a Supabase</td></tr>';return;}
   try{
-    const {data,error}=await _sb.rpc('listar_usuarios');
+    const {data,error}=await _sb.rpc('usuarios_listar',_credSesion());
     if(error)throw error;
     var visibles=filtrarUsuariosPorRazonSesion(data||[]);
     if(!visibles.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--muted)">Sin usuarios</td></tr>';return;}
@@ -6970,7 +6991,7 @@ async function crearUsuario(){
   var errEl=document.getElementById('usr-err');
   errEl.textContent='';
   if(!user||!pass){errEl.textContent='Usuario y contraseña requeridos';return;}
-  if(pass.length<3){errEl.textContent='Contraseña mínimo 3 caracteres';return;}
+  if(pass.length<8){errEl.textContent='Contraseña mínimo 8 caracteres';return;}
   if(!_sb){errEl.textContent='Sin conexión a Supabase';return;}
   /* Un admin_auditor con razón(es) asignada(s) solo puede crear usuarios
      dentro de su propio alcance: ni 'Todas' ni una razón ajena. */
@@ -6983,12 +7004,12 @@ async function crearUsuario(){
     }
   }
   try{
-    const {data,error}=await _sb.rpc('crear_usuario',{
+    const {data,error}=await _sb.rpc('usuario_crear',Object.assign(_credSesion(),{
       p_username:user, p_password:pass, p_rol:rol,
       p_nombre:nombre||null,
       p_es_auditor:esAuditor,
       p_razones_permitidas:razonesPermitidas?JSON.stringify(razonesPermitidas):null
-    });
+    }));
     if(error)throw error;
     document.getElementById('nu-user').value='';
     document.getElementById('nu-pass').value='';
@@ -7006,7 +7027,8 @@ async function crearUsuario(){
 async function toggleActivo(id, nuevoEstado){
   if(!_sb)return;
   try{
-    await _sb.rpc('actualizar_usuario',{p_id:id, p_activo:nuevoEstado});
+    var {error}=await _sb.rpc('usuario_actualizar',Object.assign(_credSesion(),{p_id:id, p_activo:nuevoEstado}));
+    if(error)throw error;
     loadUsuarios();
     toast('✓ Usuario '+(nuevoEstado?'activado':'desactivado'));
   }catch(e){toast('Error: '+e.message);}
@@ -7072,7 +7094,8 @@ async function guardarEditUsuario(){
     }
   }
   try{
-    var {error}=await _sb.rpc('actualizar_usuario',{
+    if(newPass&&newPass.length<8){errEl.textContent='La contraseña nueva debe tener mínimo 8 caracteres';return;}
+    var {error}=await _sb.rpc('usuario_actualizar',Object.assign(_credSesion(),{
       p_id:id,
       p_nombre:nombre||null,
       p_rol:rol,
@@ -7080,7 +7103,7 @@ async function guardarEditUsuario(){
       p_razones_permitidas:razonesPermitidas?JSON.stringify(razonesPermitidas):null,
       p_vistas_permitidas:vistasPermitidas?JSON.stringify(vistasPermitidas):null,
       p_password:newPass||null
-    });
+    }));
     if(error)throw error;
     closeEditUsuario();
     toast('✓ Usuario actualizado');
@@ -7092,7 +7115,8 @@ async function eliminarUsuario(id, username){
   if(!confirm('¿Eliminar usuario '+username+'?'))return;
   if(!_sb)return;
   try{
-    await _sb.rpc('eliminar_usuario',{p_id:id});
+    var {error}=await _sb.rpc('usuario_eliminar',Object.assign(_credSesion(),{p_id:id}));
+    if(error)throw error;
     loadUsuarios();
     toast('✓ Usuario '+username+' eliminado');
   }catch(e){toast('Error: '+e.message);}
