@@ -336,6 +336,21 @@ function tiendaVisible(tienda){
   if(!raz)return false; /* tienda no identificable: se oculta por seguridad */
   return rs.some(function(x){return razKey(x)===razKey(raz);});
 }
+/* Supabase entrega como máximo 1000 filas por consulta (aunque se pida .limit(5000)).
+   sbTodo trae la tabla completa en bloques de 1000, ordenando además por id para que
+   ningún registro se repita ni se salte entre bloques. armar() debe devolver una
+   consulta nueva cada vez: function(){return client.from('x').select('*').order(...);} */
+var SB_BLOQUE=1000;
+async function sbTodo(armar){
+  var todas=[];
+  for(var desde=0;;desde+=SB_BLOQUE){
+    var r=await armar().order('id',{ascending:true}).range(desde,desde+SB_BLOQUE-1);
+    if(r.error)return {data:null,error:r.error};
+    var d=r.data||[];
+    todas=todas.concat(d);
+    if(d.length<SB_BLOQUE)return {data:todas,error:null};
+  }
+}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 /* Normaliza el Estado de una tarea al importar desde Excel. Acepta tanto los
@@ -811,7 +826,7 @@ async function commitToSupabase(nuevas, actualizar, audStaged, omitidas, prevTar
       arows=arows2;
       /* traer existentes para emparejar por centro (no por nombre) */
       var exAud=[];
-      try{var re=await client.from('auditorias').select('id,razon,centro,fecha,clase').limit(20000);if(!re.error)exAud=re.data||[];}catch(_e){}
+      try{var re=await sbTodo(function(){return client.from('auditorias').select('id,razon,centro,fecha,clase');});if(!re.error)exAud=re.data||[];}catch(_e){}
       var exMap={};
       exAud.forEach(function(x){exMap[_kAud(x.razon,x.centro,x.fecha,x.clase)]=x.id;});
       for(var ai=0;ai<arows.length&&!err;ai++){
@@ -4334,7 +4349,7 @@ async function loadActividades(){
   var client=getSbClient();
   if(!client){toast('⚠ Sin conexión a Supabase');return;}
   try{
-    var r=await client.from('actividades').select('*').order('est_inicio',{ascending:true}).limit(5000);
+    var r=await sbTodo(function(){return client.from('actividades').select('*').order('est_inicio',{ascending:true});});
     if(r.error){toast('⚠ '+r.error.message);return;}
     var _actRaw=r.data||[];
     var _actDec=await decArr(_actRaw,FIELDS.actividades);
@@ -5688,7 +5703,7 @@ async function limpiarIlegibles(){
   var porTabla={}, respaldo={}, totalIleg=0;
   for(var t in TABLAS_CIFRADAS){
     var campos=FIELDS[t]; if(!campos||!campos.length)continue;
-    var r=await client.from(TABLAS_CIFRADAS[t]).select('*').limit(20000);
+    var r=await sbTodo(function(){return client.from(TABLAS_CIFRADAS[t]).select('*');});
     if(r.error){console.warn(t,r.error.message);continue;}
     var ileg=[];
     var filas=r.data||[];
@@ -5754,7 +5769,7 @@ async function migrarCifrado(){
   for(var t in TABLAS_CIFRADAS){
     var campos=FIELDS[t]; if(!campos)continue;
     try{
-      var r=await client.from(TABLAS_CIFRADAS[t]).select('*').limit(5000);
+      var r=await sbTodo(function(){return client.from(TABLAS_CIFRADAS[t]).select('*');});
       if(r.error){console.warn('Migración '+t+':',r.error.message);errores++;continue;}
       var filas=r.data||[];
       for(var i=0;i<filas.length;i++){
@@ -5841,7 +5856,7 @@ async function loadCargas(){
   var client=getSbClient();
   if(!client)return;
   try{
-    var r=await client.from('cargas_excel').select('*').order('fecha',{ascending:false}).limit(5000);
+    var r=await sbTodo(function(){return client.from('cargas_excel').select('*').order('fecha',{ascending:false});});
     if(r.error){console.warn('cargas_excel no disponible:',r.error.message);return;}
     CARGAS=r.data||[];
   }catch(e){console.warn('loadCargas:',e);}
@@ -6690,8 +6705,8 @@ async function loadDataFromSupabase(){
   try{
     toast('⏳ Cargando datos…');
     const [{data:aud},{data:tar}]=await Promise.all([
-      _sb.from('auditorias').select('*').order('fecha',{ascending:false}).limit(5000),
-      _sb.from('tareas').select('*').order('fecha_term',{ascending:true}).limit(10000)
+      sbTodo(function(){return _sb.from('auditorias').select('*').order('fecha',{ascending:false});}),
+      sbTodo(function(){return _sb.from('tareas').select('*').order('fecha_term',{ascending:true});})
     ]);
     /* Descifrar auditorias */
     var audDec=aud?await decArr(aud,FIELDS.auditorias):[];
@@ -7202,7 +7217,7 @@ async function loadAjustes(){
   var client=getSbClient();
   if(!client){toast('⚠ Sin Supabase');return;}
   try{
-    var r=await client.from('ajustes').select('*').order('fecha_correo',{ascending:true}).order('fecha_ajuste',{ascending:true}).limit(5000);
+    var r=await sbTodo(function(){return client.from('ajustes').select('*').order('fecha_correo',{ascending:true}).order('fecha_ajuste',{ascending:true});});
     if(r.error){toast('⚠ '+r.error.message);return;}
     var MN=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
       'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
@@ -7622,7 +7637,7 @@ async function commitAjustesExcel(rows){
     /* Traer existentes para actualizar en vez de duplicar. Clave: tienda +
        fecha_correo + fecha_ajuste (las fechas no están cifradas). */
     var ex=[];
-    try{var re=await client.from('ajustes').select('id,fecha_correo,fecha_ajuste,tienda').limit(20000);if(!re.error)ex=re.data||[];}catch(_e){}
+    try{var re=await sbTodo(function(){return client.from('ajustes').select('id,fecha_correo,fecha_ajuste,tienda');});if(!re.error)ex=re.data||[];}catch(_e){}
     var exDec=await decArr(ex,FIELDS.ajustes);
     var _k=function(t,fc,fa){return norm(t)+'|'+String(fc||'')+'|'+String(fa||'');};
     var exMap={};
@@ -7665,7 +7680,7 @@ async function loadMermas(){
   var client=getSbClient();
   if(!client){toast('⚠ Sin Supabase');return;}
   try{
-    var r=await client.from('mermas').select('*').order('fecha_autorizacion',{ascending:true}).order('fecha_validacion',{ascending:true}).limit(5000);
+    var r=await sbTodo(function(){return client.from('mermas').select('*').order('fecha_autorizacion',{ascending:true}).order('fecha_validacion',{ascending:true});});
     if(r.error){toast('⚠ '+r.error.message);return;}
     var _mrDataRaw=r.data||[];
     var _mrDataDec=await decArr(_mrDataRaw,FIELDS.mermas);
@@ -8064,7 +8079,7 @@ async function commitMermasExcel(rows){
     /* Traer existentes para actualizar en vez de duplicar. Clave: tienda +
        fecha_autorizacion + fecha_validacion (las fechas no están cifradas). */
     var ex=[];
-    try{var re=await client.from('mermas').select('id,fecha_autorizacion,fecha_validacion,tienda').limit(20000);if(!re.error)ex=re.data||[];}catch(_e){}
+    try{var re=await sbTodo(function(){return client.from('mermas').select('id,fecha_autorizacion,fecha_validacion,tienda');});if(!re.error)ex=re.data||[];}catch(_e){}
     var exDec=await decArr(ex,FIELDS.mermas);
     var _k=function(t,fa,fv){return norm(t)+'|'+String(fa||'')+'|'+String(fv||'');};
     var exMap={};
@@ -8123,8 +8138,8 @@ async function loadFinalizadas(){
   var client=getSbClient();
   if(!client){toast('⚠ Sin Supabase');return;}
   try{
-    var r=await client.from('tareas_finalizadas').select('*')
-      .order('fecha_finalizacion',{ascending:false}).limit(5000);
+    var r=await sbTodo(function(){return client.from('tareas_finalizadas').select('*')
+      .order('fecha_finalizacion',{ascending:false});});
     if(r.error){toast('⚠ '+r.error.message);return;}
     var _finRaw=r.data||[];
     var _finDec=await decArr(_finRaw,FIELDS.tareas_finalizadas);
