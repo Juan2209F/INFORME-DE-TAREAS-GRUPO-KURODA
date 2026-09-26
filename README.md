@@ -62,8 +62,10 @@ monitor-cumplimiento-v2/
 
 Cada **lunes a las 8:00 am hora del Pacífico** se envía **un correo por tienda y por tipo
 de tarea** (el tipo va en el asunto, p. ej. `TAREAS ORDEN Y LIMPIEZA — KN TECATE: 14 tareas
-pendientes`) con sus tareas pendientes (Abierta, Abierta atrasada y No resuelta, sin fecha
-de cumplimiento).
+pendientes`) con sus tareas pendientes (**Abierta** y **Abierta atrasada**, sin fecha de
+cumplimiento; las "No resuelta" no se envían). El correo tiene diseño formal compatible con
+Outlook y cierra con "Favor de atender y realizar las tareas a la brevedad posible. Saludos.
+GRUPO DE AUDITORES KURODA".
 
 No hay destinatarios por defecto: los avisos se envían **únicamente** a los correos
 capturados. Todo se administra en **Gestión de Usuarios → Correos y tiendas**:
@@ -101,6 +103,26 @@ select public.disparar_correos_pendientes(p_forzar := true, p_dry := true, p_raz
 select * from net._http_response order by id desc limit 1;                  -- resultado
 select * from public.correos_envios order by id desc;                       -- bitácora
 ```
+
+## Archivero de responsivas y rol Sistemas
+
+- **Menú "🗄️ Archivero"** (`js/app-archivero.js`): se suben los PDF firmados; el navegador
+  convierte cada página a **WebP al 85%** (pdf.js) y la Edge Function `archivero` las guarda
+  en el bucket privado `archivero` (registro en `archivo_documentos`). **El PDF original nunca
+  se sube** (el bucket solo acepta imágenes); al descargar, la app vuelve a armar el PDF con
+  las páginas WebP.
+  - **Celular** y **Equipo de cómputo**: admin, admin_auditor, auditor y sistemas.
+  - **Vehículos**: solo admin y admin_auditor, siempre con **sucursal**.
+  - **Eliminar**: solo auditor, admin y admin_auditor.
+  - **Dividido por razón social**: cada documento guarda su razón (KNO/KSC/KSA; en vehículos
+    sale de la sucursal) y cada usuario solo ve, sube y borra las de sus razones permitidas
+    (un usuario de Sistemas puede tener una o varias razones).
+- **Rol `sistemas`**: en el menú solo ve **Documentos** (únicamente las cartas de Celular y
+  de Equipo de Cómputo) y el **Archivero** de esas cartas.
+- Acceso sin volver a pedir contraseña: al iniciar sesión se obtiene un token de 30 días
+  (`crear_token_correos`), el mismo que usa la sección Correos.
+
+Migraciones: `20260930_correos_token_sesion.sql` y `20261001_archivero_rol_sistemas.sql`.
 
 ## Nota de seguridad
 
