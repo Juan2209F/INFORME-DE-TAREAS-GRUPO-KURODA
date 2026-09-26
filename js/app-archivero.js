@@ -29,7 +29,10 @@
   };
   var ROLES = ['admin', 'admin_auditor', 'auditor', 'sistemas'];
 
-  var st = { token: null, categorias: [], razones: [], puedeBorrar: false, cat: null, docs: [], tiendas: [], q: '', tiendaF: '', razonF: '', cargando: false, subiendo: '', visor: null };
+  var st = { token: null, categorias: [], razones: [], puedeBorrar: false, cat: null, docs: [], tiendas: [], q: '', tiendaF: '', razonF: '', cargando: false, subiendo: '', visor: null,
+    /* Caché de esta página: con qué token se armó la sesión y la última lista de cada categoría.
+       Al volver al archivero se muestra al instante y se actualiza en segundo plano. */
+    sesTok: null, cache: {} };
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -241,25 +244,40 @@
   async function iniciar() {
     $('arch-auth').style.display = 'none';
     $('arch-main').style.display = 'block';
+    /* Ya se abrió antes en esta página con el mismo token: se pinta lo guardado y se refresca. */
+    if (st.sesTok && st.sesTok === st.token) return cargarLista();
+    st.cache = {};
     $('arch-body').innerHTML = '<p class="kc-empty">Cargando…</p>';
     try {
-      var s = await api('sesion');
+      /* Una sola llamada trae permisos, razones, tiendas y la lista de la categoría. */
+      var s = await api('sesion', { categoria: st.cat });
       st.categorias = s.categorias || [];
       st.razones = s.razones || [];
       st.puedeBorrar = !!s.puede_borrar;
-      if (st.categorias.indexOf(st.cat) < 0) st.cat = st.categorias[0] || null;
-      if (st.categorias.indexOf('vehiculo') >= 0 && !st.tiendas.length) st.tiendas = (await api('tiendas')).tiendas || [];
-      await cargarLista();
+      st.tiendas = s.tiendas || [];
+      st.cat = s.categoria || null;
+      st.docs = s.documentos || [];
+      if (st.cat) st.cache[st.cat] = st.docs;
+      st.sesTok = st.token;
+      pintar();
     } catch (e) { if (st.token) $('arch-body').innerHTML = '<p class="kc-empty kc-warn">Error: ' + esc(e.message) + '</p>'; }
   }
 
+  /* Si ya hay lista guardada de la categoría se muestra de inmediato y se actualiza sin
+     el aviso de "Cargando…". */
   async function cargarLista() {
     if (!st.cat) { pintar(); return; }
-    st.cargando = true; pintar();
-    try { st.docs = (await api('listar', { categoria: st.cat })).documentos || []; }
-    catch (e) { st.docs = []; if (st.token) msg('Error: ' + e.message); }
+    var cat = st.cat, guardada = st.cache[cat];
+    if (guardada) { st.docs = guardada; st.cargando = false; }
+    else st.cargando = true;
+    pintar();
+    try {
+      var docs = (await api('listar', { categoria: cat })).documentos || [];
+      st.cache[cat] = docs;
+      if (st.cat === cat) st.docs = docs;
+    } catch (e) { if (!guardada) st.docs = []; if (st.token) msg('Error: ' + e.message); }
     st.cargando = false;
-    if (st.token) pintar();
+    if (st.token && st.cat === cat && !st.visor) pintar();
   }
 
   async function entrar() {
