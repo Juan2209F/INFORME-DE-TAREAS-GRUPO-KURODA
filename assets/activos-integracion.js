@@ -52,7 +52,7 @@
       '[onclick^="guardarRazonSocial"]', '[onclick^="editAsset"]', '[onclick^="solicitarBajaActivo"]', '[onclick^="deleteAsset"]',
       '.file-upload-wrapper', '.file-input-wrapper', '[onclick^="aprobarBaja"]', '[onclick^="rechazarBaja"]', '[onclick^="editarCentro"]',
       '[onclick^="eliminarCentro"]', '[onclick^="eliminarInventario"]', '[onclick^="abrirInventario"]',
-      '#ajustes .settings-group:has(#razon-social)' ]
+      '#ajustes .settings-group:has(#razon-social)', '.asset-menu' ]
       .map(function (s) { return 'html.act-solo-lectura ' + s; }).join(',') + '{display:none!important}';
   document.head.appendChild(css);
 
