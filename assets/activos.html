@@ -1881,6 +1881,18 @@
         const snapTabla = (tabla, filas) => { _snap[tabla] = new Map(filas.map(r => [r.id, JSON.stringify(r)])); };
         const enLotes = (arr, n) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n));
 
+        // Supabase entrega como máximo 1000 filas por consulta: traerTodo pide la tabla en
+        // bloques de 1000 (ordenados además por id) hasta traerla completa.
+        async function traerTodo(armar, bloque = 1000) {
+            let todas = [];
+            for (let desde = 0; ; desde += bloque) {
+                const { data, error } = await armar().order('id', { ascending: true }).range(desde, desde + bloque - 1);
+                if (error) return { data: null, error };
+                todas = todas.concat(data || []);
+                if (!data || data.length < bloque) return { data: todas, error: null };
+            }
+        }
+
         async function sincronizarTabla(tabla, filas, soloInsertar = false) {
             const previo = _snap[tabla] || new Map();
             const nuevo = new Map(filas.map(r => [r.id, JSON.stringify(r)]));
@@ -2087,12 +2099,12 @@
 
             // Todas las consultas salen al mismo tiempo (antes iban en 3 tandas seguidas).
             const [{ data: centrosData, error: e1 }, { data: cfgData }, { data: assetsData, error: e3 }, { data: movData, error: e4 }, { data: invData, error: e5 }, bajaRes] = await Promise.all([
-                supabaseClient.from('centros').select('*').order('codigo'),
+                traerTodo(() => supabaseClient.from('centros').select('*').order('codigo')),
                 supabaseClient.from('app_config').select('*'),
-                supabaseClient.from('activos').select('*'),
-                supabaseClient.from('movimientos').select('*').order('fecha', { ascending: false }),
-                supabaseClient.from('inventarios').select('*').order('fecha_inicio', { ascending: false }),
-                supabaseClient.from('solicitudes_baja').select('*').order('fecha', { ascending: false }).then(r => r, err => ({ error: err }))
+                traerTodo(() => supabaseClient.from('activos').select('*')),
+                traerTodo(() => supabaseClient.from('movimientos').select('*').order('fecha', { ascending: false })),
+                traerTodo(() => supabaseClient.from('inventarios').select('*').order('fecha_inicio', { ascending: false })),
+                traerTodo(() => supabaseClient.from('solicitudes_baja').select('*').order('fecha', { ascending: false })).then(r => r, err => ({ error: err }))
             ]);
             if (e1) throw e1;
             centros = (centrosData || []).map(rowACentro);
