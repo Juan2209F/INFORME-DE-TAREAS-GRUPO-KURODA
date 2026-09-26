@@ -766,6 +766,7 @@ async function commitToSupabase(nuevas, actualizar, audStaged, omitidas, prevTar
        chocar con la restricción única tareas_tarea_id_unique. */
     if(nuevas.length){
       var rows=nuevas.map(toRow);
+      for(var _ci=0;_ci<rows.length;_ci++)rows[_ci]=await encObj(rows[_ci],CIFRAR.tareas); /* cifrar lo descriptivo */
       /* dedup por tarea_id dentro del mismo lote (conserva la última) */
       var _seenIds={},_rows2=[];
       for(var z=rows.length-1;z>=0;z--){
@@ -782,7 +783,7 @@ async function commitToSupabase(nuevas, actualizar, audStaged, omitidas, prevTar
     /* UPDATE las que cambiaron (con permiso) */
     if(!err&&actualizar.length){
       for(var j=0;j<actualizar.length;j++){
-        var row=toRowActualizar(actualizar[j],(prevTareas||[])[j]);
+        var row=await encObj(toRowActualizar(actualizar[j],(prevTareas||[])[j]),CIFRAR.tareas);
         var ru=await client.from('tareas').update(row).eq('tarea_key',row.tarea_key);
         if(ru.error){err='Update: '+ru.error.message;break;}
         updOk++;
@@ -2234,7 +2235,7 @@ async function syncTaskToSupabase(rec, isNew){
     fecha_term:rec.fechaTerm?String(rec.fechaTerm).split('T')[0]:null,
     fecha_cumpl:rec.fechaCumpl?String(rec.fechaCumpl).split('T')[0]:null
   };
-  var row=await encObj(_rowRaw,FIELDS.tareas);
+  var row=await encObj(_rowRaw,CIFRAR.tareas);
   try{
     var ru, ri;
     if(!isNew){
@@ -5850,6 +5851,15 @@ var FIELDS={
   tareas_finalizadas:['tienda','clase','mes','completado_por'],
   seguimiento_semanas:['tienda','clase','actividad']
 };
+/* Campos que se CIFRAN al guardar tareas y auditorías. FIELDS (arriba) se sigue usando para
+   LEER: descifra cualquiera de esos campos si viene cifrado. Razón, centro, tienda, estado,
+   tipo, clase, mes y fechas quedan en claro porque la base los usa para buscar, evitar
+   duplicados (tarea_key, razón+centro+tienda+fecha) y armar los correos de los lunes; están
+   protegidos por RLS. Lo descriptivo y los nombres de personas sí se cifran. */
+var CIFRAR={
+  tareas:['actividad','nombre','area_resp','area_rev'],
+  auditorias:[]
+};
 
 /* ════════════════════════════════════════════════════════════════════
    SEGUIMIENTO DE CARGAS EXCEL — atribuye cada importación al auditor
@@ -6791,7 +6801,7 @@ async function syncToSupabase(parsed){
         pct_resuelto:parseFloat(a.pctResuelto)||0,
         clase:a.clase||null,upload_id:upload_id
       };});
-      var arows=[];for(var _ai=0;_ai<arowsRaw.length;_ai++)arows.push(await encObj(arowsRaw[_ai],FIELDS.auditorias));
+      var arows=[];for(var _ai=0;_ai<arowsRaw.length;_ai++)arows.push(await encObj(arowsRaw[_ai],CIFRAR.auditorias));
       if(arows.length){
         var ar=await client.from('auditorias').upsert(arows,{onConflict:'razon,centro,tienda,fecha',ignoreDuplicates:false});
         if(ar.error)errMsg='Aud: '+ar.error.message;
@@ -6811,7 +6821,7 @@ async function syncToSupabase(parsed){
         fecha_cumpl:t.fechaCumpl?String(t.fechaCumpl).split('T')[0]:null,
         upload_id:upload_id
       };});
-      var trows=[];for(var _ti=0;_ti<trowsRaw.length;_ti++)trows.push(await encObj(trowsRaw[_ti],FIELDS.tareas));
+      var trows=[];for(var _ti=0;_ti<trowsRaw.length;_ti++)trows.push(await encObj(trowsRaw[_ti],CIFRAR.tareas));
       for(var ci=0;ci<trows.length;ci+=500){
         var tr=await client.from('tareas').upsert(trows.slice(ci,ci+500),{onConflict:'tarea_key',ignoreDuplicates:false});
         if(tr.error){errMsg=(errMsg?errMsg+' | ':'')+'Tar: '+tr.error.message;break;}
