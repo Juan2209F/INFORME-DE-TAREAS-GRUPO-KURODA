@@ -1663,7 +1663,7 @@
         const SUPABASE_URL = 'https://xlygkolfmetytowixtnb.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhseWdrb2xmbWV0eXRvd2l4dG5iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjA1NjEsImV4cCI6MjA5NzI5NjU2MX0.fitb_YAg9kLUrolTFivduDJk3ozIh_f4HX6frlcZLFI';
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY,
-            window.ACTIVOS_EMBED ? { auth: { storageKey: 'kuroda-activos-auth' } } : undefined);
+            window.ACTIVOS_EMBED ? { auth: { storageKey: 'kuroda-monitor-auth', autoRefreshToken: false, detectSessionInUrl: false } } : undefined);
 
         function usernameToEmail(username) {
             return `${String(username).trim().toLowerCase()}@bastionactivos.local`;
