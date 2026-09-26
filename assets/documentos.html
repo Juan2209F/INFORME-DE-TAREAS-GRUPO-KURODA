@@ -57,7 +57,6 @@ main{max-width:1600px;margin:0 auto;padding:24px 32px 64px}
 .ill-fuel{background:linear-gradient(135deg,#b45309,#f59e0b)}
 .ill-cel{background:linear-gradient(135deg,#0ea5a4,#0891b2)}
 .ill-pc{background:linear-gradient(135deg,#7c3aed,#a855f7)}
-.ill-act{background:linear-gradient(135deg,#1a1f3c,#5e72e4)}
 .ill svg{stroke:#fff!important}
 .home-card h3{font-size:16.5px;font-weight:700;margin-bottom:5px}
 .home-card p{font-size:13px;color:var(--muted)}
@@ -209,13 +208,6 @@ textarea{resize:vertical;min-height:46px}
       </div>
       <h3>Consumos de Combustible</h3>
       <p>Detecta fugas y errores de carga (Excel).</p>
-    </div>
-    <div class="home-card" onclick="showView('activos')">
-      <div class="ill ill-act">
-        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8M12 13v8"/></svg>
-      </div>
-      <h3>Inventarios de Activos</h3>
-      <p>Activos, levantamientos y movimientos por centro.</p>
     </div>
   </div>
 </section>
@@ -2584,12 +2576,11 @@ ftot();
 entToggle();
 </script>
 <script>
-/* Rol "Sistemas": solo ve y usa las cartas de Celular y de Equipo de Cómputo, y los
-   Inventarios de Activos. El rol se lee de la sesión de la app (mismo origen, localStorage
-   "sb_session") y se vuelve a revisar en cada interacción por si cambia el usuario sin
-   recargar el iframe.
-   "Inventarios de Activos" no es un módulo de esta página: se abre en la vista "activos"
-   del Monitor (js/app-activos.js), solo para admin, admin_auditor, auditor y sistemas. */
+/* Rol "Sistemas": solo ve y usa las cartas de Celular y de Equipo de Cómputo. El rol se lee
+   de la sesión de la app (mismo origen, localStorage "sb_session") y se vuelve a revisar en
+   cada interacción por si cambia el usuario sin recargar el iframe.
+   Inventarios de Activos ya no está aquí: se abre con el botón "Activos" del menú lateral del
+   Monitor (js/app-activos.js). Si algo llama showView('activos'), se abre esa vista. */
 (function(){
   var PERMITIDAS={cel:1,pc:1,activos:1};
   var ROLES_ACTIVOS={admin:1,admin_auditor:1,auditor:1,sistemas:1};
