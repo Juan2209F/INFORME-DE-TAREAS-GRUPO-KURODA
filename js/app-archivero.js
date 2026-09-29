@@ -1,517 +1,4777 @@
-/* Archivero de responsivas — Grupo Kuroda
-   Sección "Archivero" del menú lateral (admin, admin_auditor, auditor y sistemas).
-   Pestañas por apartado: vienen de la tabla archivo_categorias (nombre, ícono, quién ve/sube,
-   quién borra y si requiere sucursal). Hoy: Celular y Equipo de cómputo (admin, admin_auditor,
-   auditor y sistemas; borran admin, admin_auditor y auditor) y Vehículos (solo admin y
-   admin_auditor, siempre con sucursal). Agregar un apartado = insertar una fila en esa tabla.
-   Dividido por razón social: cada documento guarda su razón (KNO/KSC/KSA; en vehículos se
-   toma de la sucursal) y cada usuario solo ve, sube y borra las de sus razones permitidas
-   (lo valida la Edge Function; aquí solo se arma la pantalla con lo que ella devuelve).
-   El PDF firmado NUNCA se sube: el navegador convierte cada página a WebP (calidad 65%) con
-   pdf.js y sube cada imagen DIRECTO al bucket privado con una URL firmada que entrega la Edge
-   Function "archivero" (preparar → subir páginas → confirmar).
-   Para consultar se muestran las páginas y se puede descargar de nuevo como PDF (jsPDF).
-   Acceso: mismo token de sesión que obtiene app-correos.js al iniciar sesión
-   (localStorage "kc_token"); si no hay, se pide la contraseña una sola vez.
-   Depende de: config/supabase-config.js (SB_URL, SB_KEY), js/app-core.js (_sb, _session,
-   VIEW, setView, applyVistasRestriction, toast) y jsPDF (cargado en index.html). */
-(function () {
-  'use strict';
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KURODA· ACTIVOS</title>
+    <!-- Dentro del Monitor (activos.html?embed=1): sesión única y mismo aspecto. Ver activos-integracion.js -->
+    <script src="activos-integracion.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html-docx-js@0.3.1/dist/html-docx.js"></script>
+    <style>
+        /* ========== VARIABLES ==========
+           Paleta alineada con "Monitor de Cumplimiento" (Grupo Kuroda):
+           azul/morado degradado, radios grandes tipo Argon y sombras suaves. */
+        :root {
+            --sidebar-bg: #1a1f3c;
+            --sidebar-hover: #262c52;
+            --active-bg: #5e72e4;
+            --active-bg2: #825ee4;
+            --bg-color: #f8f9fc;
+            --text-main: #1e1e2f;
+            --text-light: #fff;
+            --card-bg: #ffffff;
+            --border-radius: 18px;
+            --border-radius-sm: 12px;
+            --success-color: #2dce89;
+            --danger-color: #f5365c;
+            --warning-color: #fb6340;
+            --info-color: #11cdef;
+            --font-size-base: 0.85rem;
+            --input-bg: #f8f9fa;
+            --border-color: #eef1f7;
+            --shadow: 0 20px 27px 0 rgba(0,0,0,.05);
+            --shadow-colored: 0 4px 20px 0 rgba(0,0,0,.14), 0 7px 10px -5px rgba(94,114,228,.4);
+        }
+        body.dark-mode {
+            --sidebar-bg: #0f1535;
+            --sidebar-hover: #1a2050;
+            --active-bg: #5e72e4;
+            --active-bg2: #825ee4;
+            --bg-color: #0a0e23;
+            --text-main: #e8e8f0;
+            --card-bg: #1a1f3c;
+            --input-bg: #232a52;
+            --border-color: rgba(255,255,255,.12);
+            --text-light: #ddd;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', 'Segoe UI', Roboto, sans-serif; }
+        html { overflow-x: hidden; width: 100%; }
+        body { background: var(--bg-color); font-size: var(--font-size-base); overflow-x: hidden; width: 100%; word-wrap: break-word; overflow-wrap: break-word; }
+        img, svg, select, input, textarea, table { max-width: 100%; }
 
-  var TOKEN_KEY = 'kc_token';
-  var PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
-  var CALIDAD = 0.65; /* WebP al 65% (antes 85%): sigue legible para responsivas y pesa menos */
-  var PCT = Math.round(CALIDAD * 100) + '%';
-  var SUBIDAS_A_LA_VEZ = 3;
-  var MAX_PDF = 50 * 1024 * 1024; /* tamaño máximo del PDF a convertir (no se sube, solo se lee en el navegador) */
-  var ANCHO_PX = 1240; /* ≈150 ppp en tamaño carta/A4 */
-  /* Apartados: se reemplazan con los de la tabla archivo_categorias al abrir el archivero
-     (categorias_info de la acción "sesion"). Estos valores solo son el respaldo. */
-  var CAT = {
-    celular: { nombre: 'Celular', icono: '📱', requiere_tienda: false, puede_borrar: false },
-    computo: { nombre: 'Equipo de cómputo', icono: '💻', requiere_tienda: false, puede_borrar: false },
-    vehiculo: { nombre: 'Vehículos', icono: '🚗', requiere_tienda: true, puede_borrar: false }
-  };
-  var catDe = function (id) { return CAT[id] || { nombre: id || 'Documento', icono: '📄', requiere_tienda: false, puede_borrar: false }; };
-  var conTienda = function () { return !!catDe(st.cat).requiere_tienda; };
-  /* Borrar se decide por apartado (p. ej. Sistemas ve Celular pero no puede borrar). */
-  var puedeBorrar = function () { return st.infoApartados ? !!catDe(st.cat).puede_borrar : st.puedeBorrarTodo; };
-  var ROLES = ['admin', 'admin_auditor', 'auditor', 'sistemas'];
+        /* ========== LOGIN ========== */
+        /* ========== LOGIN (mismo tema/estructura que Monitor de Cumplimiento) ========== */
+        #login-screen {
+            position: fixed; inset: 0;
+            display: flex; align-items: stretch; justify-content: center;
+            background: var(--bg-color);
+            z-index: 9999;
+        }
+        .lp-panel {
+            width: 320px; min-width: 320px;
+            background: linear-gradient(160deg, var(--active-bg), var(--active-bg2));
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 40px 32px; flex-shrink: 0;
+        }
+        .lp-panel-logo {
+            width: 96px; height: 96px; background: #fff; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; margin-bottom: 18px;
+            box-shadow: 0 8px 24px rgba(0,0,0,.18);
+        }
+        .lp-panel-logo img { width: 86px; height: 86px; object-fit: contain; }
+        .lp-panel-name { font-size: 22px; font-weight: 700; color: #fff; letter-spacing: .02em; margin-bottom: 4px; }
+        .lp-panel-div { width: 56px; height: 2px; background: rgba(255,255,255,.5); margin-bottom: 8px; }
+        .lp-panel-tag { font-size: 11px; color: rgba(255,255,255,.85); text-align: center; line-height: 1.5; }
+        .lp-panel-foot { margin-top: auto; font-size: 10px; color: rgba(255,255,255,.7); letter-spacing: .08em; text-transform: uppercase; }
+        .login-right { flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px; }
+        .login-container {
+            background: var(--card-bg);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            width: 100%; max-width: 420px;
+            padding: 38px 38px 30px;
+            position: relative;
+        }
+        .login-header { text-align: center; margin-bottom: 0.4rem; }
+        .login-header .logo-kuroda { display: none; }
+        .login-header .sub-logo { display: none; }
+        .login-welcome { margin-bottom: 0.4rem; }
+        .login-welcome h2 { font-size: 25px; font-weight: 700; color: var(--text-main); letter-spacing: -.01em; }
+        .login-welcome p { color: #8392ab; font-size: 12.5px; margin-top: 2px; }
+        .login-badge {
+            font-size: 11px; font-weight: 800; letter-spacing: .18em; color: var(--active-bg);
+            margin-top: 10px; padding: 5px 0; border-top: 1px dashed var(--border-color); text-transform: uppercase;
+        }
+        .login-form label {
+            display: block;
+            font-size: 10px;
+            font-weight: 700;
+            color: #8392ab;
+            margin-top: 1rem;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+        }
+        .login-form .input-group {
+            position: relative;
+            margin-top: 0.3rem;
+        }
+        .login-form .input-group input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-sm);
+            font-size: 0.85rem;
+            background: var(--input-bg);
+            color: var(--text-main);
+            transition: border-color 0.2s;
+        }
+        .login-form .input-group input:focus {
+            border-color: var(--active-bg);
+            box-shadow: 0 0 0 3px rgba(94,114,228,.15);
+            outline: none;
+        }
+        .login-form .input-group .toggle-pwd {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: #aaa;
+        }
+        .login-options {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            margin: 1rem 0 1.5rem;
+            font-size: 0.75rem;
+        }
+        .login-options label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            color: #8392ab;
+            cursor: pointer;
+            font-weight: 400;
+            margin-top: 0;
+            text-transform: none;
+            letter-spacing: 0;
+        }
+        .login-options label input[type="checkbox"] {
+            accent-color: var(--active-bg);
+            width: 14px; height: 14px;
+            cursor: pointer;
+        }
+        .btn-login {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, var(--active-bg), var(--active-bg2));
+            border: none;
+            border-radius: var(--border-radius-sm);
+            color: white;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            transition: box-shadow 0.2s;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 14px -2px rgba(94,114,228,.5);
+        }
+        .btn-login:hover { box-shadow: 0 6px 18px -2px rgba(94,114,228,.6); }
+        .login-error {
+            color: var(--danger-color);
+            font-size: 0.8rem;
+            margin-top: 0.6rem;
+            text-align: center;
+            display: none;
+        }
+        .login-footer {
+            text-align: center;
+            margin-top: 1.2rem;
+            font-size: 10.5px;
+            color: #c0c8d4;
+            border-top: 1px solid var(--border-color);
+            padding-top: 1rem;
+        }
+        @media(max-width:768px){
+            #login-screen { flex-direction: column; overflow-y: auto; }
+            .lp-panel { width: 100%; min-width: 0; flex-direction: row; padding: 16px 20px; gap: 14px; justify-content: flex-start; }
+            .lp-panel-logo { width: 48px; height: 48px; min-width: 48px; margin-bottom: 0; }
+            .lp-panel-logo img { width: 42px; height: 42px; }
+            .lp-panel-name { font-size: 16px; margin-bottom: 0; }
+            .lp-panel-div, .lp-panel-tag, .lp-panel-foot { display: none; }
+            .login-right { padding: 18px 14px; align-items: flex-start; }
+            .login-container { padding: 24px 20px 20px; max-width: 100%; }
+            .login-form .input-group input { font-size: 16px; padding: 12px 14px; }
+            .btn-login { padding: 14px; font-size: 15px; }
+        }
 
-  var st = { token: null, categorias: [], razones: [], puedeBorrarTodo: false, infoApartados: false, cat: null, docs: [], tiendas: [], q: '', tiendaF: '', razonF: '', cargando: false, subiendo: '', visor: null,
-    /* Caché de esta página: con qué token se armó la sesión y la última lista de cada categoría.
-       Al volver al archivero se muestra al instante y se actualiza en segundo plano. */
-    sesTok: null, cache: {} };
-  var $ = function (id) { return document.getElementById(id); };
-  var esc = function (s) {
-    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-    });
-  };
-  var msg = function (t) { if (typeof toast === 'function') toast(t); else alert(t); };
-  var puedeVer = function () { return typeof _session !== 'undefined' && _session && ROLES.indexOf(_session.rol) >= 0; };
-  var kb = function (n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; };
-  var fecha = function (s) { var d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }); };
+        /* ========== DASHBOARD ========== */
+        #dashboard {
+            display: none;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #dashboard.active { display: block; }
 
-  /* ---------- Token ---------- */
-  function leerToken() {
-    try {
-      var t = JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null');
-      return t && _session && t.u === _session.username ? t.t : null;
-    } catch (e) { return null; }
-  }
-  async function pedirToken(pass) {
-    var c = _sb || (typeof initSupabase === 'function' ? initSupabase() : null);
-    if (!c) return null;
-    var r = await c.rpc('crear_token_correos', { p_user: _session.username, p_pass: pass });
-    if (r.error || !r.data) return null;
-    try { localStorage.setItem(TOKEN_KEY, JSON.stringify({ u: _session.username, t: r.data })); } catch (e) {}
-    return r.data;
-  }
+        /* ========== SIDEBAR (fija, siempre expandida con etiquetas visibles) ========== */
+        .sidebar {
+            width: 220px;
+            position: fixed;
+            top: 16px; left: 16px; bottom: 16px;
+            z-index: 50;
+            background: var(--sidebar-bg);
+            color: var(--text-light);
+            display: flex;
+            flex-direction: column;
+            padding: 1.2rem 0.8rem;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            overflow-x: hidden;
+            overflow-y: auto;
+            font-size: 0.8rem;
+        }
+        .sidebar .brand,
+        .sidebar .nav-item,
+        .sidebar .dark-toggle,
+        .sidebar .supabase-status {
+            justify-content: flex-start;
+        }
+        .sidebar .brand span,
+        .nav-item span,
+        .dark-toggle span,
+        #supabase-status-text,
+        .nav-item .badge {
+            opacity: 1;
+            white-space: nowrap;
+        }
+        .sidebar .brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 12px 1.2rem;
+            border-bottom: 1px solid #333;
+            margin-bottom: 1rem;
+            font-weight: 700;
+            font-size: 1.1rem;
+            letter-spacing: 1px;
+        }
+        .sidebar .brand i { color: var(--active-bg); font-size: 1.3rem; }
+        .sidebar .brand span { color: var(--text-light); }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 14px;
+            margin-bottom: 4px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-weight: 500;
+            gap: 10px;
+        }
+        .nav-item:hover { background: var(--sidebar-hover); }
+        .nav-item.active { background: linear-gradient(135deg, var(--active-bg), var(--active-bg2)); box-shadow: var(--shadow-colored); }
+        .nav-item i { font-size: 1rem; width: 20px; text-align: center; }
+        .nav-item .badge {
+            margin-left: auto;
+            background: var(--active-bg);
+            color: white;
+            font-size: 0.6rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+        .sidebar-separator { flex: 1; }
+        .nav-item.logout {
+            margin-top: 0.5rem;
+            border-top: 1px solid #333;
+            padding-top: 0.8rem;
+            color: #ef476f;
+        }
+        .nav-item.logout i { color: #ef476f; }
+        .dark-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-weight: 500;
+        }
+        .dark-toggle:hover { background: var(--sidebar-hover); }
+        .dark-toggle i { font-size: 1rem; width: 20px; text-align: center; }
+        .dark-toggle .toggle-track {
+            width: 32px;
+            height: 18px;
+            background: #444;
+            border-radius: 20px;
+            position: relative;
+            transition: background 0.3s;
+            margin-left: auto;
+        }
+        .dark-toggle .toggle-track::after {
+            content: '';
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.3s;
+        }
+        body.dark-mode .dark-toggle .toggle-track {
+            background: var(--active-bg);
+        }
+        body.dark-mode .dark-toggle .toggle-track::after {
+            transform: translateX(14px);
+        }
+        .supabase-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.72rem;
+            font-weight: 500;
+            color: #bbb;
+            background: transparent;
+            border: none;
+            width: 100%;
+            text-align: left;
+            transition: background 0.2s;
+        }
+        .supabase-status:hover { background: var(--sidebar-hover); }
+        .supabase-status .dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #888; flex-shrink: 0;
+            transition: background 0.2s;
+        }
+        .supabase-status.online .dot { background: var(--success-color); }
+        .supabase-status.offline .dot { background: var(--danger-color); }
+        .supabase-status.checking .dot { background: var(--warning-color); }
 
-  /* ---------- Edge Function ---------- */
-  async function api(accion, datos) {
-    var r = await fetch(SB_URL + '/functions/v1/archivero', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: SB_KEY },
-      body: JSON.stringify(Object.assign({ user: _session.username, token: st.token, accion: accion }, datos || {}))
-    });
-    var j = await r.json().catch(function () { return { error: 'Respuesta inválida (' + r.status + ')' }; });
-    if (r.status === 401) {
-      st.token = null;
-      try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
-      pintarAuth('Tu acceso venció. Confirma tu contraseña para continuar.');
-      throw new Error('No autorizado');
-    }
-    if (!r.ok || j.error) throw new Error(j.error || ('Error ' + r.status));
-    return j;
-  }
+        /* ========== BARRA SUPERIOR: USUARIO EN SESIÓN ========== */
+        .topbar-user {
+            position: sticky; top: 16px; z-index: 20;
+            display: flex; justify-content: flex-end; align-items: center; gap: 10px;
+            margin-bottom: 1.5rem; padding: 12px 20px;
+            background: var(--card-bg); border-radius: var(--border-radius); box-shadow: var(--shadow);
+        }
+        .topbar-actions { display: flex; align-items: center; gap: 10px; }
+        .notif-bell {
+            position: relative; width: 38px; height: 38px; border-radius: 50%;
+            border: 1px solid var(--border-color); background: var(--input-bg);
+            color: var(--text-main); cursor: pointer; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center; font-size: 0.95rem;
+        }
+        .notif-bell:hover { background: var(--sidebar-hover); color: white; }
+        .notif-badge {
+            position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 3px;
+            background: var(--danger-color); color: white; font-size: 0.62rem; font-weight: 700;
+            border-radius: 999px; display: none; align-items: center; justify-content: center; line-height: 1;
+        }
+        .notif-badge.show { display: flex; }
+        .notif-panel {
+            position: absolute; top: 54px; right: 0; width: min(340px, 92vw); max-height: 70vh; overflow-y: auto;
+            background: var(--card-bg); border: 1px solid var(--border-color); border-radius: var(--border-radius);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.18); z-index: 30; display: none;
+        }
+        .notif-panel.show { display: block; }
+        .notif-panel-header { padding: 0.8rem 1rem; font-weight: 700; font-size: 0.85rem; border-bottom: 1px solid var(--border-color); color: var(--text-main); }
+        .notif-item { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border-color); font-size: 0.78rem; color: var(--text-main); }
+        .notif-item:last-child { border-bottom: none; }
+        .notif-item .notif-title { font-weight: 600; margin-bottom: 2px; }
+        .notif-item .notif-sub { color: #888; font-size: 0.72rem; margin-bottom: 6px; }
+        .notif-item .notif-actions { display: flex; gap: 6px; }
+        .notif-empty { padding: 1.2rem; text-align: center; color: #888; font-size: 0.8rem; }
+        .topbar-user-info { text-align: right; line-height: 1.25; min-width: 0; overflow: hidden; }
+        .topbar-user-name { display: block; font-weight: 700; font-size: 0.85rem; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .topbar-user-puesto { display: block; font-size: 0.68rem; color: var(--active-bg); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .topbar-user-avatar {
+            width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg, var(--active-bg), var(--active-bg2)); color: #fff;
+            display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; flex-shrink: 0;
+        }
 
-  /* ---------- PDF → WebP (65%) ---------- */
-  function cargarScript(src) {
-    return new Promise(function (ok, mal) {
-      var s = document.createElement('script');
-      s.src = src; s.onload = ok; s.onerror = function () { mal(new Error('No se pudo cargar ' + src)); };
-      document.head.appendChild(s);
-    });
-  }
-  async function pdfjs() {
-    if (!window.pdfjsLib) await cargarScript(PDFJS + 'pdf.min.js');
-    window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js';
-    return window.pdfjsLib;
-  }
-  function canvasABlob(canvas) {
-    return new Promise(function (ok) {
-      canvas.toBlob(function (b) {
-        if (b && b.type === 'image/webp') return ok(b);
-        /* Navegadores sin WebP (p. ej. Safari antiguo): JPEG con la misma calidad */
-        canvas.toBlob(ok, 'image/jpeg', CALIDAD);
-      }, 'image/webp', CALIDAD);
-    });
-  }
-  async function pdfAPaginas(file, avance) {
-    var lib = await pdfjs();
-    var pdf = await lib.getDocument({ data: await file.arrayBuffer() }).promise;
-    var out = [];
-    for (var i = 1; i <= pdf.numPages; i++) {
-      avance('Convirtiendo página ' + i + ' de ' + pdf.numPages + '…');
-      var page = await pdf.getPage(i);
-      var base = page.getViewport({ scale: 1 });
-      var vp = page.getViewport({ scale: Math.min(3, Math.max(1, ANCHO_PX / base.width)) });
-      var canvas = document.createElement('canvas');
-      canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
-      var ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-      /* intent 'print': no usa requestAnimationFrame, así la conversión no se detiene si la
-         pestaña pasa a segundo plano mientras se sube el archivo. */
-      await page.render({ canvasContext: ctx, viewport: vp, intent: 'print' }).promise;
-      var blob = await canvasABlob(canvas);
-      out.push({ blob: blob, mime: blob.type, bytes: blob.size });
-      canvas.width = canvas.height = 0; /* libera la memoria del lienzo */
-    }
-    return out;
-  }
+        /* ========== MAIN CONTENT ========== */
+        #dashboard { width: 100%; min-height: 100vh; }
+        .main-content {
+            margin-left: 256px;
+            width: calc(100% - 256px);
+            box-sizing: border-box;
+            padding: 1.5rem;
+            overflow-x: hidden;
+            overflow-y: auto;
+            height: 100vh;
+            font-size: var(--font-size-base);
+            background: var(--bg-color);
+            color: var(--text-main);
+        }
+        .section-view {
+            display: none;
+            animation: fadeIn 0.3s;
+        }
+        .section-view.active { display: block; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        h2 { font-size: 1.2rem; margin-bottom: 0.3rem; color: var(--text-main); }
+        .subtitle { color: #888; font-size: 0.8rem; margin-bottom: 1.5rem; }
 
-  /* ---------- Descargar como PDF ---------- */
-  function cargarImagen(url) {
-    return new Promise(function (ok, mal) {
-      var img = new Image(); img.crossOrigin = 'anonymous';
-      img.onload = function () { ok(img); }; img.onerror = function () { mal(new Error('No se pudo leer una página')); };
-      img.src = url;
-    });
-  }
-  async function descargarPDF(doc, urls) {
-    if (!window.jspdf || !window.jspdf.jsPDF) { msg('No está disponible el generador de PDF'); return; }
-    var pdf = null;
-    for (var i = 0; i < urls.length; i++) {
-      var img = await cargarImagen(urls[i]);
-      var c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
-      c.getContext('2d').drawImage(img, 0, 0);
-      var orient = c.width > c.height ? 'l' : 'p';
-      if (!pdf) pdf = new window.jspdf.jsPDF({ orientation: orient, unit: 'pt', format: 'letter' });
-      else pdf.addPage('letter', orient);
-      var W = pdf.internal.pageSize.getWidth(), H = pdf.internal.pageSize.getHeight();
-      var k = Math.min(W / c.width, H / c.height), w = c.width * k, h = c.height * k;
-      pdf.addImage(c.toDataURL('image/jpeg', 0.85), 'JPEG', (W - w) / 2, (H - h) / 2, w, h);
-    }
-    var nombre = (catDe(doc.categoria).nombre + '_' + doc.empleado).replace(/[^\wÁÉÍÓÚÑáéíóúñ-]+/g, '_') + '.pdf';
-    pdf.save(nombre);
-  }
+        /* ========== WIDGETS ========== */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .kpi-card {
+            background: var(--card-bg);
+            padding: 1rem 1.2rem;
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            transition: transform 0.2s;
+            border: 1px solid var(--border-color);
+        }
+        .kpi-card:hover { transform: translateY(-3px); }
+        .kpi-icon {
+            width: 44px; height: 44px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            color: white;
+            flex-shrink: 0;
+        }
+        .icon-total { background: var(--info-color); }
+        .icon-found { background: var(--success-color); }
+        .icon-missing { background: var(--danger-color); }
+        .icon-audits { background: var(--active-bg); }
+        .kpi-info h3 { font-size: 0.7rem; color: #888; margin-bottom: 3px; }
+        .kpi-info p { font-size: 1.4rem; font-weight: bold; color: var(--text-main); }
 
-  /* ---------- Vista ---------- */
-  function filtrados() {
-    var f = st.q.toLowerCase();
-    return st.docs.filter(function (d) {
-      if (st.razonF && d.razon !== st.razonF) return false;
-      if (st.tiendaF && d.tienda_id !== st.tiendaF) return false;
-      return !f || (d.empleado + ' ' + (d.tiendas ? d.tiendas.nombre : '') + ' ' + (d.nombre_original || '') + ' ' + (d.subido_por || ''))
-        .toLowerCase().indexOf(f) >= 0;
-    });
-  }
+        .dashboard-widgets {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.2rem;
+        }
+        .widget-card {
+            background: var(--card-bg);
+            padding: 1.2rem;
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-color);
+            overflow-x: auto;
+        }
+        .widget-card h3 {
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+            color: var(--text-main);
+        }
+        .progress-container { margin-bottom: 0.8rem; }
+        .progress-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background: var(--input-bg);
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+        }
+        .progress-fill-success { background: var(--success-color); }
+        .progress-fill-danger { background: var(--danger-color); }
 
-  function htmlSubir() {
-    var veh = conTienda();
-    return '<div class="arch-subir"><div class="arch-sub-t">Subir responsiva firmada (PDF) — ' + esc(catDe(st.cat).nombre) + '</div>' +
-      '<div class="arch-row">' +
-      '<label class="arch-lbl">Nombre del empleado<input class="kc-in" id="arch-emp" placeholder="Nombre completo" style="min-width:240px"></label>' +
-      (veh ? '<label class="arch-lbl">Sucursal<select class="kc-in" id="arch-tienda"><option value="">Selecciona…</option>' +
-        st.tiendas.map(function (t) { return '<option value="' + t.id + '">' + esc(t.nombre) + (t.razon ? ' (' + esc(t.razon) + ')' : '') + '</option>'; }).join('') +
-        '</select></label>'
-        : '<label class="arch-lbl">Razón social<select class="kc-in" id="arch-razon">' +
-          (st.razones.length > 1 ? '<option value="">Selecciona…</option>' : '') +
-          st.razones.map(function (r) { return '<option value="' + r + '">' + r + '</option>'; }).join('') +
-          '</select></label>') +
-      '<label class="arch-lbl">Archivo PDF<input type="file" class="kc-in" id="arch-file" accept="application/pdf,.pdf"></label>' +
-      '<button class="kc-btn kc-pri" data-ar="subir"' + (st.subiendo ? ' disabled' : '') + '>' + (st.subiendo ? 'Subiendo…' : 'Subir') + '</button>' +
-      '</div>' + (st.subiendo ? '<div class="kc-sub" style="margin-top:6px">' + esc(st.subiendo) + '</div>' : '') +
-      '<div class="kc-note" style="margin:8px 0 0">Cada página se guarda en Supabase Storage como imagen WebP al ' + PCT + ' (el PDF original no se sube). Al descargar, se vuelve a armar el PDF.</div></div>';
-  }
+        table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border-color); }
+        th { color: #888; font-weight: 600; }
+        .status-badge {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.65rem;
+            font-weight: bold;
+            color: white;
+        }
+        .badge-done { background: var(--success-color); }
+        .badge-process { background: var(--warning-color); color: #333; }
+        .badge-admin { background: var(--active-bg); }
+        .badge-user { background: var(--info-color); }
 
-  function htmlLista() {
-    var veh = conTienda();
-    var rows = filtrados();
-    var filtros = '<div class="arch-row" style="margin:14px 0 10px">' +
-      '<input class="kc-in" id="arch-q" placeholder="Buscar por empleado…" value="' + esc(st.q) + '" style="flex:1;min-width:200px">' +
-      (st.razones.length > 1 ? '<select class="kc-in" id="arch-rf"><option value="">Todas las razones</option>' +
-        st.razones.map(function (r) { return '<option value="' + r + '"' + (r === st.razonF ? ' selected' : '') + '>' + r + '</option>'; }).join('') +
-        '</select>' : '') +
-      (veh ? '<select class="kc-in" id="arch-tf"><option value="">Todas las sucursales</option>' +
-        st.tiendas.map(function (t) { return '<option value="' + t.id + '"' + (t.id === st.tiendaF ? ' selected' : '') + '>' + esc(t.nombre) + '</option>'; }).join('') +
-        '</select>' : '') +
-      '<span class="kc-sub">' + rows.length + ' documento(s)</span></div>';
-    if (st.cargando) return filtros + '<p class="kc-empty">Cargando…</p>';
-    if (!rows.length) return filtros + '<p class="kc-empty">' + (st.docs.length ? 'Sin resultados' : 'Aún no hay documentos en este archivero') + '</p>';
-    return filtros + '<div class="kc-wrap"><table class="kc-t"><thead><tr><th>Empleado</th><th>Razón social</th>' + (veh ? '<th>Sucursal</th>' : '') +
-      '<th>Páginas</th><th>Tamaño</th><th>Subido por</th><th>Fecha</th><th></th></tr></thead><tbody>' +
-      rows.map(function (d) {
-        return '<tr data-id="' + d.id + '"><td><b>' + esc(d.empleado) + '</b><div class="kc-sub">' + esc(d.nombre_original || '') + '</div></td>' +
-          '<td>' + esc(d.razon || '') + '</td>' +
-          (veh ? '<td>' + esc(d.tiendas ? d.tiendas.nombre : '—') + '</td>' : '') +
-          '<td>' + d.paginas + '</td><td>' + kb(d.tamano_bytes) + '</td><td>' + esc(d.subido_por || '') + '</td><td>' + fecha(d.created_at) + '</td>' +
-          '<td style="white-space:nowrap"><button class="kc-btn" data-ar="ver">Ver</button> <button class="kc-btn" data-ar="pdf">PDF</button>' +
-          (puedeBorrar() ? ' <button class="kc-btn arch-del" data-ar="borrar">Eliminar</button>' : '') + '</td></tr>';
-      }).join('') + '</tbody></table></div>';
-  }
+        /* ========== CONTROLES ========== */
+        .toolbar {
+            display: flex;
+            gap: 0.8rem;
+            margin-bottom: 1.2rem;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            position: relative; z-index: 1;
+        }
+        .controls-group { display: flex; gap: 0.8rem; flex-wrap: wrap; align-items: center; }
+        .controls-group select, .controls-group input { min-height: 38px; }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--active-bg), var(--active-bg2));
+            color: white;
+            border: none;
+            padding: 7px 16px;
+            border-radius: var(--border-radius-sm);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.8rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: box-shadow 0.2s;
+            box-shadow: 0 4px 14px -2px rgba(94,114,228,.45);
+        }
+        .btn-primary:hover { box-shadow: 0 6px 18px -2px rgba(94,114,228,.55); }
+        .btn-primary:hover { background: #6a4bd6; }
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 7px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+            border: none;
+            padding: 7px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.8rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+            border: none;
+            padding: 7px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.8rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        input[type="text"], input[type="number"], input[type="date"], input[type="file"], select, textarea {
+            padding: 7px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            outline: none;
+            min-width: 160px;
+            font-size: 0.8rem;
+            background: var(--input-bg);
+            color: var(--text-main);
+            width: 100%;
+        }
+        textarea { resize: vertical; min-height: 60px; }
+        input[type="text"]:focus, select:focus, textarea:focus { border-color: var(--active-bg); }
 
-  function htmlVisor() {
-    var v = st.visor;
-    return '<div class="arch-visor"><div class="arch-row" style="justify-content:space-between;margin-bottom:10px">' +
-      '<div><b>' + esc(v.doc.empleado) + '</b> <span class="kc-sub">' + esc(catDe(v.doc.categoria).nombre) + ' · ' + esc(v.doc.razon || '') +
-      (v.doc.tiendas ? ' · ' + esc(v.doc.tiendas.nombre) : '') + ' · ' + v.doc.paginas + ' página(s)</span></div>' +
-      '<div class="arch-row"><button class="kc-btn" data-ar="pdf-visor">Descargar PDF</button><button class="kc-btn" data-ar="cerrar-visor">Volver a la lista</button></div></div>' +
-      (v.urls ? v.urls.map(function (u, i) { return '<img class="arch-pag" src="' + esc(u) + '" alt="Página ' + (i + 1) + '">'; }).join('') : '<p class="kc-empty">Cargando páginas…</p>') +
-      '</div>';
-  }
+        /* ========== MODALES ========== */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-box {
+            background: var(--card-bg);
+            padding: 1.5rem;
+            border-radius: 14px;
+            width: 520px;
+            max-width: 95%;
+            max-height: 90vh;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+        }
+        .modal-box h3 { font-size: 1rem; margin-bottom: 1.2rem; color: var(--text-main); }
+        .modal-box p.sub { font-size: 0.75rem; color: #888; margin-bottom: 1rem; }
+        .modal-box label { display: block; margin: 8px 0 4px; font-weight: 600; font-size: 0.8rem; color: var(--text-main); }
+        .modal-box input, .modal-box select, .modal-box textarea {
+            width: 100%; padding: 8px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--input-bg);
+            color: var(--text-main);
+            font-size: 0.8rem;
+        }
+        .modal-box .field-display {
+            padding: 8px 10px;
+            background: var(--input-bg);
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            font-size: 0.8rem;
+            width: 100%;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 1.2rem;
+            justify-content: flex-end;
+        }
 
-  function pintar() {
-    var body = $('arch-body');
-    if (!body) return;
-    $('arch-auth').style.display = 'none';
-    $('arch-main').style.display = 'block';
-    $('arch-tabs').innerHTML = st.categorias.map(function (c) {
-      return '<button class="kc-tab' + (c === st.cat ? ' on' : '') + '" data-arch-cat="' + esc(c) + '">' + esc(catDe(c).icono) + ' ' + esc(catDe(c).nombre) + '</button>';
-    }).join('');
-    body.innerHTML = st.visor ? htmlVisor() : htmlSubir() + htmlLista();
-  }
+        /* ========== ACTIVOS ========== */
+        .assets-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 1rem;
+        }
+        .assets-container.list-view {
+            display: flex;
+            flex-direction: column;
+        }
+        .asset-card {
+            background: var(--card-bg);
+            padding: 1rem;
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            transition: transform 0.2s;
+            border: 1px solid var(--border-color);
+        }
+        .asset-card:hover { transform: translateY(-3px); }
+        .assets-container.list-view .asset-card {
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .asset-image-placeholder {
+            width: 100%;
+            height: 120px;
+            background: var(--input-bg);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #adb5bd;
+            overflow: hidden;
+        }
+        .assets-container.list-view .asset-image-placeholder {
+            width: 60px; height: 60px;
+            flex-shrink: 0;
+        }
+        .asset-image-placeholder img {
+            width: 100%; height: 100%;
+            object-fit: cover;
+        }
+        .asset-info h3 { font-size: 0.9rem; margin-bottom: 3px; color: var(--text-main); }
+        .asset-info p { font-size: 0.75rem; color: #888; margin: 2px 0; }
+        /* Acciones de la tarjeta: botón de tres puntos (⋮) que despliega un menú. */
+        .asset-card { position: relative; }
+        .asset-card.menu-abierto { z-index: 20; }
+        .asset-info { flex: 1; }
+        .asset-menu { position: absolute; top: 1.5rem; right: 1.5rem; }
+        .assets-container.list-view .asset-menu { position: relative; top: auto; right: auto; flex-shrink: 0; }
+        .asset-menu-btn {
+            width: 32px; height: 32px; border-radius: 50%;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg); color: var(--text-main);
+            display: inline-flex; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 1.15rem; font-weight: 700; line-height: 1;
+            box-shadow: 0 2px 8px rgba(0,0,0,.18);
+            transition: background .15s, border-color .15s;
+        }
+        .asset-menu-btn:hover, .asset-menu.abierto .asset-menu-btn { border-color: var(--active-bg); color: var(--active-bg); }
+        .asset-menu-list {
+            display: none;
+            position: absolute; right: 0; top: calc(100% + 6px);
+            min-width: 170px; padding: 6px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 10px 28px rgba(0,0,0,.28);
+        }
+        .asset-menu.arriba .asset-menu-list { top: auto; bottom: calc(100% + 6px); }
+        .asset-menu.abierto .asset-menu-list { display: block; }
+        .asset-menu-item {
+            display: flex; align-items: center; gap: 10px;
+            width: 100%; padding: 8px 10px;
+            border: none; border-radius: 8px;
+            background: transparent; color: var(--text-main);
+            font: inherit; font-size: 0.8rem; font-weight: 500;
+            text-align: left; cursor: pointer; white-space: nowrap;
+        }
+        .asset-menu-item i { width: 16px; text-align: center; opacity: .85; }
+        .asset-menu-item:hover, .asset-menu-item:focus-visible { background: var(--input-bg); outline: none; }
+        .asset-menu-item.peligro { color: var(--danger-color); }
+        .asset-menu-item.peligro:hover { background: rgba(220,53,69,.12); }
+        .asset-menu-sep { height: 1px; background: var(--border-color); margin: 4px 2px; }
+        .asset-menu .file-upload-wrapper { display: flex; flex: none; overflow: visible; }
+        .asset-menu .file-upload-wrapper input[type="file"] { display: none; }
+        .btn-action {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: var(--input-bg);
+            color: var(--text-main);
+            flex: 1;
+            font-size: 0.7rem;
+            transition: background 0.2s;
+        }
+        .btn-action:hover { background: var(--border-color); }
+        .file-upload-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            flex: 1;
+        }
+        .file-upload-wrapper input[type="file"] {
+            font-size: 100px;
+            position: absolute;
+            left: 0; top: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
 
-  function pintarAuth(err) {
-    if (!$('arch-auth')) return;
-    $('arch-main').style.display = 'none';
-    $('arch-auth').style.display = 'block';
-    $('arch-err').textContent = err || '';
-    $('arch-pass').value = '';
-  }
+        /* ========== MÓDULO VEHÍCULOS ========== */
+        .vehiculo-docs {
+            margin-top: 1.2rem;
+            background: var(--card-bg);
+            padding: 1rem;
+            border-radius: var(--border-radius);
+            border-left: 4px solid var(--active-bg);
+            border: 1px solid var(--border-color);
+        }
+        .vehiculo-docs h4 {
+            font-size: 0.9rem;
+            margin-bottom: 0.8rem;
+            color: var(--text-main);
+        }
+        .doc-checkboxes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .doc-checkboxes label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8rem;
+            color: var(--text-main);
+            cursor: pointer;
+        }
+        .doc-checkboxes input[type="checkbox"] {
+            accent-color: var(--active-bg);
+            width: 16px; height: 16px;
+            cursor: pointer;
+        }
+        .vehiculo-table-wrap {
+            overflow-x: auto;
+            margin-top: 1rem;
+        }
+        .vehiculo-table-wrap table {
+            width: 100%;
+            font-size: 0.75rem;
+        }
+        .vehiculo-table-wrap th {
+            background: var(--sidebar-bg);
+            color: var(--text-light);
+            padding: 6px 8px;
+            text-align: center;
+        }
+        .vehiculo-table-wrap td {
+            padding: 6px 8px;
+            text-align: center;
+        }
 
-  /* ---------- Carga y acciones ---------- */
-  async function iniciar() {
-    $('arch-auth').style.display = 'none';
-    $('arch-main').style.display = 'block';
-    /* Ya se abrió antes en esta página con el mismo token: se pinta lo guardado y se refresca. */
-    if (st.sesTok && st.sesTok === st.token) return cargarLista();
-    st.cache = {};
-    $('arch-body').innerHTML = '<p class="kc-empty">Cargando…</p>';
-    try {
-      /* Una sola llamada trae permisos, razones, tiendas y la lista de la categoría. */
-      var s = await api('sesion', { categoria: st.cat });
-      st.categorias = s.categorias || [];
-      /* Sin categorias_info (Edge Function anterior) se usa el permiso general de borrar. */
-      st.infoApartados = Array.isArray(s.categorias_info);
-      (s.categorias_info || []).forEach(function (c) { CAT[c.id] = c; });
-      st.razones = s.razones || [];
-      st.puedeBorrarTodo = !!s.puede_borrar;
-      st.tiendas = s.tiendas || [];
-      st.cat = s.categoria || null;
-      st.docs = s.documentos || [];
-      if (st.cat) st.cache[st.cat] = st.docs;
-      st.sesTok = st.token;
-      pintar();
-    } catch (e) { if (st.token) $('arch-body').innerHTML = '<p class="kc-empty kc-warn">Error: ' + esc(e.message) + '</p>'; }
-  }
+        /* ========== NOTIFICACIONES ========== */
+        #notificationContainer {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-width: 320px;
+        }
+        .notification {
+            background: var(--card-bg);
+            padding: 12px 16px;
+            border-radius: 10px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideIn 0.3s ease;
+            border-left: 4px solid var(--active-bg);
+            font-size: 0.8rem;
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+        }
+        .notification.success { border-left-color: var(--success-color); }
+        .notification.error { border-left-color: var(--danger-color); }
+        .notification .notif-close { cursor: pointer; color: #999; }
+        @keyframes slideIn {
+            from { transform: translateX(80px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
 
-  /* Si ya hay lista guardada de la categoría se muestra de inmediato y se actualiza sin
-     el aviso de "Cargando…". */
-  async function cargarLista() {
-    if (!st.cat) { pintar(); return; }
-    var cat = st.cat, guardada = st.cache[cat];
-    if (guardada) { st.docs = guardada; st.cargando = false; }
-    else st.cargando = true;
-    pintar();
-    try {
-      var docs = (await api('listar', { categoria: cat })).documentos || [];
-      st.cache[cat] = docs;
-      if (st.cat === cat) st.docs = docs;
-    } catch (e) { if (!guardada) st.docs = []; if (st.token) msg('Error: ' + e.message); }
-    st.cargando = false;
-    if (st.token && st.cat === cat && !st.visor) pintar();
-  }
+        /* ========== CENTROS (vista jerárquica) ========== */
+        .centros-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .centro-grupo {
+            background: var(--card-bg);
+            border-radius: var(--border-radius);
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+        .centro-grupo-header {
+            background: var(--sidebar-bg);
+            color: var(--text-light);
+            padding: 0.8rem 1.2rem;
+            font-weight: 700;
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        body.dark-mode .centro-grupo-header {
+            background: var(--sidebar-hover);
+        }
+        .centro-grupo-header .badge-ciudad {
+            background: var(--active-bg);
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+        .centro-item {
+            padding: 1rem 1.2rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.8rem;
+        }
+        .centro-item:last-child {
+            border-bottom: none;
+        }
+        .centro-item .info {
+            flex: 1;
+            min-width: 200px;
+        }
+        .centro-item .info .nombre-sucursal {
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--text-main);
+        }
+        .centro-item .info .direccion {
+            font-size: 0.8rem;
+            color: #888;
+            margin-top: 2px;
+        }
+        .centro-item .info .responsable {
+            font-size: 0.75rem;
+            color: #999;
+            margin-top: 2px;
+        }
+        .centro-item .acciones {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .centro-item .contador {
+            background: var(--input-bg);
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-main);
+            white-space: nowrap;
+        }
+        .centro-item .btn-accion {
+            padding: 4px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.7rem;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        .centro-item .btn-ver {
+            background: var(--active-bg);
+            color: white;
+        }
+        .centro-item .btn-ver:hover {
+            background: #6a4bd6;
+        }
+        .centro-item .btn-editar {
+            background: var(--input-bg);
+            color: var(--text-main);
+        }
+        .centro-item .btn-editar:hover {
+            background: var(--border-color);
+        }
+        .centro-item .btn-eliminar {
+            background: transparent;
+            color: var(--danger-color);
+        }
+        .centro-item .btn-eliminar:hover {
+            background: var(--danger-color);
+            color: white;
+        }
+        @media (max-width: 768px) {
+            .centro-item {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .centro-item .acciones {
+                justify-content: flex-start;
+            }
+        }
 
-  async function entrar() {
-    var p = $('arch-pass').value;
-    if (!p) { $('arch-err').textContent = 'Escribe tu contraseña'; return; }
-    $('arch-go').disabled = true;
-    var tok = await pedirToken(p).catch(function () { return null; });
-    $('arch-go').disabled = false;
-    if (!tok) { pintarAuth('Contraseña incorrecta'); return; }
-    st.token = tok;
-    await iniciar();
-  }
+        /* ========== MÓDULO DE ESCANEO (levantamiento) ========== */
+        .scan-header { display:flex; justify-content:space-between; align-items:center; gap:0.6rem; margin-bottom:0.8rem; flex-wrap:wrap; }
+        .scan-header-actions { display:flex; gap:0.5rem; flex-wrap:wrap; }
+        .scan-meta { display:flex; gap:1rem; flex-wrap:wrap; align-items:center; margin-bottom:1rem; font-size:0.85rem; }
+        .scan-resumen { margin-top:1rem; display:flex; gap:1.5rem; flex-wrap:wrap; font-size:0.85rem; }
+        .scan-result-row { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px; flex-wrap:wrap; }
+        .scan-lista { max-height:420px; overflow-y:auto; font-size:0.8rem; }
+        .scan-item { border-bottom:1px solid var(--border-color); padding-bottom:6px; }
+        .scan-item-alerta { background:rgba(255,193,7,.06); }
+        .scan-result-status { display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; }
+        .scan-estatus { padding:3px 6px; border-radius:6px; border:1px solid var(--border-color); background:var(--input-bg); color:var(--text-main); font-size:0.75rem; }
+        .scan-comentario { width:calc(100% - 12px); margin:0 6px; padding:5px 8px; font-size:0.75rem; border:1px dashed var(--border-color); border-radius:6px; background:transparent; color:var(--text-main); }
+        .scan-comentario:focus { border-style:solid; outline:none; border-color:var(--active-bg); }
+        .scan-alerta { font-size:0.72rem; color:var(--warning-color); padding:0 6px 4px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+        .scan-item .btn-action { flex:0 0 auto; width:auto; }
+        .scan-fix, .scan-quitar { padding:2px 8px !important; font-size:0.7rem !important; }
+        .scan-quitar { color:var(--danger-color); background:transparent; border:1px solid var(--border-color); }
+        .scan-tag { font-size:0.65rem; padding:1px 6px; border-radius:6px; background:var(--input-bg); color:#888; margin-left:4px; }
+        .etq-config { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:12px 16px; align-items:end; margin-bottom:0.8rem; }
+        .etq-config label { display:flex; flex-direction:column; gap:4px; font-size:0.8rem; font-weight:600; }
+        .etq-config select { padding:8px 10px; border-radius:8px; border:1px solid var(--border-color); background:var(--input-bg); color:var(--text-main); }
+        .etq-info { grid-column:1 / -1; background:rgba(33,150,243,.1); color:var(--text-main); border-radius:8px; padding:10px 12px; font-size:0.85rem; text-align:center; }
+        .etq-bar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0.6rem 0; font-size:0.85rem; }
+        .etq-wrap { overflow-x:auto; }
+        .etq-wrap td { font-size:0.8rem; vertical-align:middle; }
+        .etq-mini { display:inline-flex; gap:6px; align-items:center; border:1px solid var(--border-color); border-radius:6px; padding:3px 6px; background:#fff; color:#000; font-size:9px; line-height:1.15; max-width:220px; }
+        .etq-mini svg { width:38px; height:38px; flex-shrink:0; }
+        .scan-pendientes { margin-top:1rem; font-size:0.8rem; border:1px solid var(--border-color); border-radius:10px; padding:6px 8px; }
+        .scan-pendientes summary { cursor:pointer; font-weight:600; color:var(--danger-color); padding:4px 2px; }
+        .scan-pendientes .btn-action { padding:2px 8px; font-size:0.7rem; }
+        .scan-result-status { white-space:nowrap; }
 
-  /* Sube las páginas directo al bucket con las URLs firmadas de "preparar" (sin pasar las
-     imágenes por la Edge Function), de SUBIDAS_A_LA_VEZ en SUBIDAS_A_LA_VEZ. */
-  async function subirPaginas(pags, subidas, aviso) {
-    var c = (typeof _sb !== 'undefined' && _sb) || (typeof initSupabase === 'function' ? initSupabase() : null);
-    if (!c) throw new Error('Sin conexión a Supabase');
-    var bucket = c.storage.from('archivero'), hechas = 0, sig = 0;
-    async function trabajador() {
-      while (sig < subidas.length) {
-        var i = sig++;
-        var r = await bucket.uploadToSignedUrl(subidas[i].ruta, subidas[i].token, pags[i].blob, { contentType: pags[i].mime });
-        if (r.error) throw new Error('Página ' + (i + 1) + ': ' + r.error.message);
-        aviso('Subiendo páginas… ' + (++hechas) + ' de ' + subidas.length);
-      }
-    }
-    var n = Math.min(SUBIDAS_A_LA_VEZ, subidas.length), ts = [];
-    for (var k = 0; k < n; k++) ts.push(trabajador());
-    await Promise.all(ts);
-  }
+        /* ========== RESPONSIVE ========== */
+        @media (max-width: 768px) {
+            .sidebar { width: 60px; padding: 0.8rem 0.4rem; font-size: 0.7rem; top: 8px; left: 8px; bottom: 8px; }
+            .sidebar .brand { font-size: 0; padding: 0 0 0.8rem; }
+            .sidebar .brand i { font-size: 1.2rem; }
+            .sidebar .brand span { display: none; }
+            .nav-item { padding: 6px 10px; }
+            .nav-item span { display: none; }
+            .nav-item .badge { display: none; }
+            .dark-toggle span { display: none; }
+            .dark-toggle .toggle-track { width: 28px; height: 16px; }
+            .main-content { margin-left: 76px; width: calc(100% - 76px); padding: 1rem; }
+            .kpi-grid { grid-template-columns: 1fr 1fr; }
+            .dashboard-widgets { grid-template-columns: 1fr; }
+            .login-container { padding: 1.5rem; }
+            .assets-container { grid-template-columns: 1fr; }
+            .doc-checkboxes { flex-direction: column; gap: 0.5rem; }
+            .modal-box { width: 95%; padding: 1rem; }
 
-  async function subir() {
-    var emp = ($('arch-emp').value || '').trim();
-    var file = $('arch-file').files[0];
-    var veh = conTienda();
-    var tienda = veh ? $('arch-tienda').value : null;
-    var razon = veh ? null : $('arch-razon').value;
-    if (!emp) { msg('Escribe el nombre del empleado'); return; }
-    if (veh && !tienda) { msg('Selecciona la sucursal'); return; }
-    if (!veh && !razon) { msg('Selecciona la razón social'); return; }
-    if (!file) { msg('Selecciona el PDF'); return; }
-    if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') { msg('El archivo debe ser PDF'); return; }
-    if (file.size > MAX_PDF) { msg('El PDF pesa ' + kb(file.size) + '; el máximo es 50 MB'); return; }
-    var cat = st.cat;
-    var aviso = function (t) { st.subiendo = t; var s = document.querySelector('.arch-subir .kc-sub'); if (s) s.textContent = t; };
-    st.subiendo = 'Leyendo PDF…'; pintar();
-    try {
-      var pags = await pdfAPaginas(file, aviso);
-      var total = pags.reduce(function (a, p) { return a + p.bytes; }, 0);
-      var datos = { categoria: cat, empleado: emp, razon: razon, tienda_id: tienda, nombre_original: file.name };
-      /* 1) La Edge Function valida permisos y entrega una URL firmada por página. */
-      aviso('Preparando ' + pags.length + ' página(s) (' + kb(total) + ')…');
-      var prep = await api('preparar', Object.assign({ paginas: pags.map(function (p) { return { mime: p.mime }; }) }, datos));
-      /* 2) Cada página sube directo al bucket. 3) Se confirma y queda registrado. */
-      await subirPaginas(pags, prep.subidas, aviso);
-      aviso('Registrando documento…');
-      await api('confirmar', Object.assign({ id: prep.id, rutas: prep.subidas.map(function (x) { return x.ruta; }) }, datos));
-      msg('✓ Guardado: ' + pags.length + ' página(s) WebP al ' + PCT + ' (' + kb(total) + '; el PDF pesaba ' + kb(file.size) + ')' +
-        (pags[0] && pags[0].mime !== 'image/webp' ? ' (JPEG: este navegador no genera WebP)' : ''));
-      st.subiendo = '';
-      delete st.cache[cat];
-      await cargarLista();
-    } catch (e) {
-      st.subiendo = '';
-      if (st.token) { pintar(); msg('Error al subir: ' + e.message); }
-    }
-  }
+            /* Tarjeta de usuario en la barra superior: se ajusta al ancho disponible */
+            .topbar-user { padding: 10px 12px; gap: 8px; top: 8px; }
+            .topbar-user-info { max-width: calc(100vw - 76px - 2rem - 50px); }
+            .topbar-user-name { font-size: 0.78rem; }
+            .topbar-user-puesto { font-size: 0.62rem; }
+            .topbar-user-avatar { width: 32px; height: 32px; font-size: 0.72rem; }
 
-  async function abrirVisor(doc, soloPDF) {
-    try {
-      if (!soloPDF) { st.visor = { doc: doc, urls: null }; pintar(); window.scrollTo(0, 0); }
-      var v = await api('ver', { id: doc.id });
-      var urls = v.paginas || [];
-      /* Al descargar, el PDF se arma con las páginas WebP guardadas. */
-      if (soloPDF) { msg('Generando PDF…'); await descargarPDF(doc, urls); return; }
-      if (st.visor && st.visor.doc.id === doc.id) { st.visor.urls = urls; pintar(); }
-    } catch (e) { if (st.token) msg('Error: ' + e.message); }
-  }
+            /* Tablas genéricas sin tratamiento especial: scroll horizontal en vez de romper el layout */
+            .widget-card table { min-width: 480px; }
+            #inventarios-list table { min-width: 0; }
 
-  async function borrar(doc) {
-    if (!confirm('¿Eliminar la responsiva de ' + doc.empleado + '? Esta acción no se puede deshacer.')) return;
-    try { await api('borrar', { id: doc.id }); msg('Documento eliminado'); await cargarLista(); }
-    catch (e) { if (st.token) msg('Error: ' + e.message); }
-  }
+            /* Levantamiento (escaneo) más claro en teléfono */
+            .scan-header { flex-direction: column; align-items: stretch; }
+            .scan-header-actions button { flex: 1; }
+            .scan-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 1rem; font-size: 0.8rem; }
+            .scan-resumen { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+            .scan-resumen span { background: var(--input-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 8px 10px; text-align: center; }
+            .scan-result-row { flex-direction: column; align-items: flex-start; gap: 2px; }
 
-  /* ---------- Sección y menú ---------- */
-  function abrir() {
-    if (!puedeVer()) { msg('Sin permisos'); return; }
-    setView('archivero');
-  }
+            /* Tablas -> tarjetas apiladas para no cortar columnas */
+            #inventarios-list table, #inventarios-list tbody, #inventarios-list tr, #inventarios-list td { display: block; width: 100%; }
+            #inventarios-list thead { display: none; }
+            #inventarios-list tr { margin-bottom: 10px; border: 1px solid var(--border-color); border-radius: 8px; padding: 6px 10px; }
+            #inventarios-list td { border: none; padding: 5px 0; text-align: right; }
+            #inventarios-list td::before { content: attr(data-label); float: left; font-weight: 600; color: #888; }
 
-  function mostrarVista(visible) {
-    var v = $('view-archivero'), n = $('nav-archivero');
-    if (!v) return;
-    var antes = v.style.display !== 'none';
-    v.style.display = visible ? 'block' : 'none';
-    if (n) n.classList.toggle('active', visible);
-    if (visible && !antes) {
-      st.visor = null; st.q = ''; st.tiendaF = ''; st.razonF = ''; st.subiendo = '';
-      st.token = leerToken();
-      if (st.token) iniciar(); else pintarAuth('');
-    }
-    if (!visible && antes) { st.docs = []; st.visor = null; }
-  }
+            /* Toolbars y filtros: apilados y a ancho completo, sin quedar pegados a la tarjeta de usuario */
+            .toolbar { flex-direction: column; align-items: stretch; margin-top: 0.4rem; }
+            .toolbar .controls-group { width: 100%; }
+            .toolbar .controls-group select, .toolbar .controls-group input, .toolbar > button { width: 100%; }
+            .notif-panel { position: fixed; top: 64px; left: 8px; right: 8px; width: auto; max-width: none; }
+            input, select, textarea, button { font-size: 16px; }
+        }
 
-  /* Encabezado de la app: el rol Sistemas ve "Monitor de Documentos"; los demás, el original. */
-  var ENCABEZADO = null;
-  function actualizarEncabezado() {
-    var h = document.querySelector('.topbar-title h1'), p = $('topbar-sub');
-    if (!h || !p) return;
-    if (!ENCABEZADO) ENCABEZADO = { h: h.innerHTML, p: p.textContent, t: document.title };
-    var sis = typeof _session !== 'undefined' && _session && _session.rol === 'sistemas';
-    h.innerHTML = sis ? 'Monitor de <b>Documentos</b>' : ENCABEZADO.h;
-    p.textContent = sis ? 'Grupo Kuroda · Sistema de documentos e inventarios de activos' : ENCABEZADO.p;
-    document.title = sis ? 'Monitor de Documentos — Grupo Kuroda' : ENCABEZADO.t;
-  }
+        /* ========== RESPONSIVE: teléfonos pequeños ========== */
+        @media (max-width: 420px) {
+            .sidebar { width: 52px; padding: 0.6rem 0.3rem; top: 6px; left: 6px; bottom: 6px; }
+            .main-content { margin-left: 64px; width: calc(100% - 64px); padding: 0.75rem; }
+            .kpi-grid { grid-template-columns: 1fr; }
+            .kpi-card { padding: 0.8rem 1rem; }
+            .topbar-user { padding: 8px 10px; }
+            .topbar-user-puesto { display: none; }
+            .topbar-user-info { max-width: calc(100vw - 64px - 1.5rem - 44px); }
+            .topbar-user-avatar { width: 28px; height: 28px; font-size: 0.68rem; }
+            h2 { font-size: 1.1rem; }
+        }
 
-  function actualizarMenu() {
-    var n = $('nav-archivero');
-    if (n) n.style.display = puedeVer() ? '' : 'none';
-    actualizarEncabezado();
-    if (!puedeVer() && typeof VIEW !== 'undefined' && VIEW === 'archivero') setView('dash');
-  }
+        /* ========== AJUSTES ========== */
+        .theme-selector {
+            display: flex;
+            gap: 1rem;
+            margin: 0.5rem 0;
+        }
+        .theme-btn {
+            padding: 8px 20px;
+            border-radius: 6px;
+            border: 2px solid var(--border-color);
+            background: var(--card-bg);
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .theme-btn.active {
+            border-color: var(--active-bg);
+            background: var(--active-bg);
+            color: white;
+        }
+        .theme-btn:hover { opacity: 0.8; }
+        .settings-group {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .settings-group:last-child { border-bottom: none; }
+        .settings-group label {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 4px;
+            color: var(--text-main);
+        }
+        .settings-group .help-text {
+            font-size: 0.75rem;
+            color: #888;
+            margin-top: 4px;
+        }
+        .session-info {
+            display: grid;
+            grid-template-columns: 80px 1fr;
+            gap: 4px 12px;
+            font-size: 0.85rem;
+            margin-top: 0.5rem;
+        }
+        .session-info .label { font-weight: 600; color: #888; }
+        .session-info .value { color: var(--text-main); }
+        .storage-actions {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-top: 0.5rem;
+        }
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            left: 0; top: 0;
+            opacity: 0;
+            cursor: pointer;
+            width: 100%; height: 100%;
+        }
+    </style>
+</head>
+<body>
 
-  function montar() {
-    if ($('view-archivero')) return;
-    var css = document.createElement('style');
-    css.id = 'arch-style';
-    css.textContent =
-      '.arch-subir{border:1px dashed var(--border);border-radius:12px;padding:14px;background:var(--soft)}' +
-      '.arch-sub-t{font-size:13px;font-weight:700;margin-bottom:10px}' +
-      '.arch-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}' +
-      '.arch-lbl{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted)}' +
-      '.arch-del{color:var(--red)}.arch-del:hover{border-color:var(--red);color:var(--red)}' +
-      '.arch-visor{padding-bottom:10px}' +
-      '.arch-pag{display:block;max-width:100%;margin:0 auto 14px;border:1px solid var(--border);border-radius:6px;background:#fff;box-shadow:var(--shadow)}';
-    document.head.appendChild(css);
+    <!-- ======================== LOGIN ======================== -->
+    <div id="login-screen">
+        <div class="lp-panel">
+            <div class="lp-panel-logo"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAV4AAAFeCAYAAADNK3caAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyNpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuNi1jMTQ4IDc5LjE2NDAzNiwgMjAxOS8wOC8xMy0wMTowNjo1NyAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIDIxLjAgKFdpbmRvd3MpIiB4bXBNTTpJbnN0YW5jZUlEPSJ4bXAuaWlkOkYxRDRBRTc1MTUyNjExRUVCODRFOEMxRjU0RkUyRTIwIiB4bXBNTTpEb2N1bWVudElEPSJ4bXAuZGlkOkYxRDRBRTc2MTUyNjExRUVCODRFOEMxRjU0RkUyRTIwIj4gPHhtcE1NOkRlcml2ZWRGcm9tIHN0UmVmOmluc3RhbmNlSUQ9InhtcC5paWQ6RjFENEFFNzMxNTI2MTFFRUI4NEU4QzFGNTRGRTJFMjAiIHN0UmVmOmRvY3VtZW50SUQ9InhtcC5kaWQ6RjFENEFFNzQxNTI2MTFFRUI4NEU4QzFGNTRGRTJFMjAiLz4gPC9yZGY6RGVzY3JpcHRpb24+IDwvcmRmOlJERj4gPC94OnhtcG1ldGE+IDw/eHBhY2tldCBlbmQ9InIiPz4zyQ/qAABCJUlEQVR42uydB3wU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" alt="Kuroda"></div>
+            <div class="lp-panel-name">KURODA</div>
+            <div class="lp-panel-div"></div>
+            <div class="lp-panel-tag">Monitor de Cumplimiento<br>Sistema Interno de Control de Activos</div>
+            <div class="lp-panel-foot">Acceso Restringido</div>
+        </div>
+        <div class="login-right">
+        <div class="login-container">
+            <div class="login-header">
+                <div class="logo-kuroda">KURODA<span>.</span></div>
+                <div class="sub-logo">Sistema Interno de Control de Activos</div>
+            </div>
+            <div class="login-welcome">
+                <h2>Bienvenido</h2>
+                <p>Ingresa tus credenciales para continuar</p>
+            </div>
+            <div class="login-badge">INICIO DE SESIÓN</div>
+            <form class="login-form" id="login-form" onsubmit="return login(event)">
+                <label>USUARIO</label>
+                <div class="input-group">
+                    <input type="text" id="username" placeholder="ej. admin" autocomplete="username" autofocus>
+                </div>
+                <label>CONTRASEÑA</label>
+                <div class="input-group">
+                    <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+                    <span class="toggle-pwd" onclick="togglePasswordVisibility()">
+                        <i class="far fa-eye" id="pwdIcon"></i>
+                    </span>
+                </div>
+                <div class="login-options">
+                    <label><input type="checkbox" id="showPwdCheck" onchange="syncPasswordVisibility()"> Mostrar contraseña</label>
+                </div>
+                <div class="login-error" id="login-error">Usuario o contraseña incorrectos</div>
+                <button type="submit" class="btn-login">Ingresar</button>
+            </form>
+            <div class="login-footer">Grupo Kuroda · Sistema de Control de Activos</div>
+        </div>
+        </div>
+    </div>
 
-    var ref = $('view-correos') || $('view-generador') || $('view-dash');
-    var d = document.createElement('div');
-    d.id = 'view-archivero';
-    d.style.display = 'none';
-    d.innerHTML =
-      '<div class="card kc-panel">' +
-      '<div class="kc-hdr"><span style="font-size:18px">🗄️</span><h3>Archivero de responsivas</h3></div>' +
-      '<div id="arch-auth" style="display:none;padding:22px 20px">' +
-      '<p style="font-size:13px;color:var(--muted);margin:0 0 10px">Confirma tu contraseña una sola vez para activar el acceso al archivero en este navegador.</p>' +
-      '<div class="kc-row"><input type="password" id="arch-pass" class="kc-in" placeholder="Contraseña" autocomplete="current-password" style="width:240px">' +
-      '<button id="arch-go" class="kc-btn kc-pri">Continuar</button></div>' +
-      '<div id="arch-err" style="font-size:12px;color:var(--red);min-height:18px;margin-top:8px"></div></div>' +
-      '<div id="arch-main" style="display:none">' +
-      '<div class="kc-bar"><div class="kc-tabs" id="arch-tabs"></div></div>' +
-      '<div id="arch-body" class="kc-body" style="padding-top:14px"></div></div></div>';
-    if (ref && ref.parentNode) ref.parentNode.insertBefore(d, ref.nextSibling);
-    else document.body.appendChild(d);
+    <!-- ======================== DASHBOARD ======================== -->
+    <div id="dashboard">
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
+            <div class="brand">
+                <i class="fas fa-shield-alt"></i>
+                <span>Bastión</span>
+            </div>
+            <div class="nav-item active" onclick="switchTab('inventario', this)">
+                <i class="fas fa-home"></i> <span>Inicio</span>
+                <span class="badge" id="inv-badge">0</span>
+            </div>
+            <div class="nav-item" onclick="switchTab('activos', this)">
+                <i class="fas fa-boxes"></i> <span>Activos</span>
+            </div>
+            <div class="nav-item" onclick="switchTab('inventarios', this)">
+                <i class="fas fa-qrcode"></i> <span>Inventarios</span>
+                <span class="badge" id="scan-badge">0</span>
+            </div>
+            <div class="nav-item" onclick="switchTab('etiquetas', this); renderEtiquetas()">
+                <i class="fas fa-tags"></i> <span>Etiquetas</span>
+            </div>
+            <div class="nav-item" onclick="switchTab('centros', this)">
+                <i class="fas fa-store"></i> <span>Centros</span>
+            </div>
+            <div class="nav-item" onclick="switchTab('movimientos', this)">
+                <i class="fas fa-exchange-alt"></i> <span>Movimientos</span>
+                <span class="badge" id="mov-badge">0</span>
+            </div>
+            <div class="nav-item" onclick="switchTab('usuarios', this)" id="nav-usuarios">
+                <i class="fas fa-users"></i> <span>Usuarios</span>
+            </div>
+            <div class="nav-item" onclick="switchTab('ajustes', this)">
+                <i class="fas fa-cog"></i> <span>Ajustes</span>
+            </div>
+            <div class="sidebar-separator"></div>
+            <button type="button" class="supabase-status checking" id="supabase-status-btn" onclick="verificarConexionSupabase()" title="Click para volver a verificar">
+                <span class="dot"></span>
+                <span id="supabase-status-text">Verificando Supabase…</span>
+            </button>
+            <div class="dark-toggle" onclick="toggleDarkMode()">
+                <i class="fas fa-moon"></i>
+                <span>Modo oscuro</span>
+                <div class="toggle-track"></div>
+            </div>
+            <div class="nav-item logout" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i> <span>Salir</span>
+            </div>
+        </aside>
 
-    d.addEventListener('click', function (e) {
-      if (e.target.id === 'arch-go') return entrar();
-      var t = e.target.closest('[data-arch-cat]');
-      if (t) { st.cat = t.getAttribute('data-arch-cat'); st.visor = null; st.q = ''; st.tiendaF = ''; st.razonF = ''; cargarLista(); return; }
-      var b = e.target.closest('[data-ar]');
-      if (!b) return;
-      var a = b.getAttribute('data-ar');
-      if (a === 'subir') return subir();
-      if (a === 'cerrar-visor') { st.visor = null; pintar(); return; }
-      if (a === 'pdf-visor' && st.visor) return abrirVisor(st.visor.doc, true);
-      var tr = b.closest('tr'), id = tr && tr.getAttribute('data-id');
-      var doc = st.docs.filter(function (x) { return x.id === id; })[0];
-      if (!doc) return;
-      if (a === 'ver') return abrirVisor(doc, false);
-      if (a === 'pdf') return abrirVisor(doc, true);
-      if (a === 'borrar') return borrar(doc);
-    });
-    d.addEventListener('input', function (e) {
-      if (e.target.id === 'arch-q') {
-        st.q = e.target.value;
-        var pos = e.target.selectionStart;
-        pintar();
-        var q = $('arch-q'); if (q) { q.focus(); q.setSelectionRange(pos, pos); }
-      }
-    });
-    d.addEventListener('change', function (e) {
-      if (e.target.id === 'arch-tf') { st.tiendaF = e.target.value; pintar(); }
-      if (e.target.id === 'arch-rf') { st.razonF = e.target.value; pintar(); }
-    });
-    d.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && e.target.id === 'arch-pass') entrar();
-    });
-  }
+        <!-- MAIN CONTENT -->
+        <main class="main-content">
+            <div class="topbar-user">
+                <div class="topbar-actions">
+                    <button type="button" class="notif-bell" onclick="toggleNotifPanel()" title="Notificaciones">
+                        <i class="fas fa-bell"></i>
+                        <span class="notif-badge" id="notif-badge">0</span>
+                    </button>
+                    <div class="notif-panel" id="notif-panel">
+                        <div class="notif-panel-header"><i class="fas fa-bell"></i> Notificaciones</div>
+                        <div id="notif-panel-body"></div>
+                    </div>
+                </div>
+                <div class="topbar-user-info">
+                    <span class="topbar-user-name" id="topbar-user-nombre">-</span>
+                    <span class="topbar-user-puesto" id="topbar-user-puesto">-</span>
+                </div>
+                <div class="topbar-user-avatar" id="topbar-user-avatar">-</div>
+            </div>
 
-  /* ---------- Enganches con app-core.js (encadenados con los de app-correos.js) ---------- */
-  function enganchar() {
-    if (typeof window.setView === 'function' && !window.setView._ar) {
-      var sv = window.setView;
-      window.setView = function (v) {
-        var r = sv.apply(this, arguments);
-        mostrarVista(v === 'archivero');
-        return r;
-      };
-      window.setView._ar = true;
-    }
-    /* "archivero" no está en la lista de vistas de app-core: mientras corre la restricción se
-       usa "documentos" (visible para todos los roles con archivero) para que no redirija. */
-    if (typeof window.applyVistasRestriction === 'function' && !window.applyVistasRestriction._ar) {
-      var avr = window.applyVistasRestriction;
-      window.applyVistasRestriction = function () {
-        var enArch = typeof VIEW !== 'undefined' && VIEW === 'archivero';
-        if (enArch) VIEW = 'documentos';
-        var r = avr.apply(this, arguments);
-        if (enArch) VIEW = 'archivero';
-        actualizarMenu();
-        return r;
-      };
-      window.applyVistasRestriction._ar = true;
-    }
-    if (typeof window.doLogout === 'function' && !window.doLogout._ar) {
-      var lo = window.doLogout;
-      window.doLogout = function () {
-        if (typeof VIEW !== 'undefined' && VIEW === 'archivero') setView('dash');
-        var r = lo.apply(this, arguments);
-        actualizarMenu();
-        return r;
-      };
-      window.doLogout._ar = true;
-    }
-  }
+            <!-- ===== INICIO (dashboard) ===== -->
+            <section id="inventario" class="section-view active">
+                <h2>Inicio</h2>
+                <p class="subtitle">Resumen de activos por centro y estado.</p>
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="kpi-icon icon-total"><i class="fas fa-cubes"></i></div>
+                        <div class="kpi-info"><h3>Total</h3><p id="kpi-total">0</p></div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon icon-found"><i class="fas fa-check-circle"></i></div>
+                        <div class="kpi-info" title="Según el último inventario finalizado de cada centro"><h3>Encontrados</h3><p id="kpi-found">0</p></div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon icon-missing"><i class="fas fa-exclamation-triangle"></i></div>
+                        <div class="kpi-info" title="Según el último inventario finalizado de cada centro"><h3>Faltantes</h3><p id="kpi-missing">0</p></div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon icon-audits"><i class="fas fa-clipboard-check"></i></div>
+                        <div class="kpi-info" title="Inventarios finalizados"><h3>Auditorías</h3><p id="kpi-audits">0</p></div>
+                    </div>
+                </div>
+                <div class="dashboard-widgets">
+                    <div class="widget-card">
+                        <h3>Estado del Inventario</h3>
+                        <p style="font-size:12px;opacity:.7;margin:-4px 0 10px">Último inventario finalizado de cada centro</p>
+                        <div class="progress-container">
+                            <div class="progress-labels">
+                                <span style="color:var(--success-color);" id="pct-found-label">0% Localizados</span>
+                                <span style="color:var(--danger-color);" id="pct-missing-label">0% Faltantes</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill-success" id="progress-found" style="width:0%;"></div>
+                                <div class="progress-fill-danger" id="progress-missing" style="width:0%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="widget-card">
+                        <h3>Últimos movimientos</h3>
+                        <table>
+                            <thead><tr><th>Activo</th><th>Origen → Destino</th><th>Fecha</th><th>Usuario</th></tr></thead>
+                            <tbody id="ultimos-movimientos">
+                                <tr><td colspan="4" style="color:#888; text-align:center;">Sin movimientos recientes</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
 
-  function init() { montar(); enganchar(); actualizarMenu(); }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
-  window.abrirArchivero = abrir;
-})();
+            <!-- ===== ACTIVOS ===== -->
+            <section id="activos" class="section-view">
+                <h2>Directorio de Activos</h2>
+                <p class="subtitle">Administra todos los equipos registrados.</p>
+                <div class="toolbar">
+                    <div class="controls-group">
+                        <input type="text" placeholder="Buscar por nombre, serie, activo fijo..." id="search-activo">
+                        <select id="filtro-categoria-activo" onchange="filtrarActivos()">
+                            <option value="">Todas las categorías</option>
+                            <option value="computo">Equipo de cómputo</option>
+                            <option value="mobiliario">Mobiliario</option>
+                            <option value="herramienta">Herramienta</option>
+                            <option value="vehiculos">Vehículos</option>
+                            <option value="electrodomestico">Electrodoméstico</option>
+                            <option value="inmueble">Inmueble / terreno</option>
+                            <option value="otros">Otros</option>
+                        </select>
+                        <select id="filtro-tienda-activo" onchange="filtrarActivos()" title="Filtrar por tienda / centro">
+                            <option value="">Todas las tiendas</option>
+                        </select>
+                        <span id="activos-conteo" style="font-size:0.8rem; opacity:.7;"></span>
+                    </div>
+                    <div class="controls-group">
+                        <button class="btn-primary" onclick="resetAssetForm(); openModal('modalActivo')"><i class="fas fa-plus"></i> Nuevo</button>
+                        <button class="btn-action" onclick="exportarTiendaFiltrada()" title="Exportar a Excel los activos de la tienda seleccionada"><i class="fas fa-file-excel"></i> Exportar</button>
+                        <button class="btn-action" onclick="toggleView('grid')" id="view-grid-btn" style="background:var(--active-bg); color:white;"><i class="fas fa-th"></i></button>
+                        <button class="btn-action" onclick="toggleView('list')" id="view-list-btn"><i class="fas fa-list"></i></button>
+                    </div>
+                </div>
+                <div class="assets-container" id="assets-grid"></div>
+            </section>
+
+            <!-- ===== INVENTARIOS (Escaneo) ===== -->
+            <section id="inventarios" class="section-view">
+                <h2>Módulo de Inventarios</h2>
+                <p class="subtitle">Realiza nuevos levantamientos o continúa borradores.</p>
+                <div class="toolbar">
+                    <button class="btn-primary" onclick="openModal('modalNuevoInventario')" id="btnNuevoLevantamiento"><i class="fas fa-plus"></i> Nuevo Levantamiento</button>
+                    <div class="controls-group">
+                        <select id="filtro-inventario" onchange="filtrarInventarios()">
+                            <option value="todos">Todos</option>
+                            <option value="borrador">Borradores</option>
+                            <option value="finalizado">Finalizados</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="lista-inventarios" class="widget-card">
+                    <h3>Inventarios guardados</h3>
+                    <div id="inventarios-list" style="font-size:0.8rem;">
+                        <p style="color:#888; text-align:center; padding:1rem;">No hay inventarios registrados.</p>
+                    </div>
+                </div>
+                <div id="scan-area" style="display:none; margin-top:1.5rem;">
+                    <div class="widget-card">
+                        <div class="scan-header">
+                            <h3 style="margin:0; border:none; padding:0;" id="scan-title">Inventario en curso</h3>
+                            <div class="scan-header-actions">
+                                <button class="btn-secondary" onclick="finalizarInventario()"><i class="fas fa-check"></i> Finalizar</button>
+                                <button class="btn-action" style="background:#dc3545; color:white;" onclick="cancelarInventario()"><i class="fas fa-times"></i> Cancelar</button>
+                            </div>
+                        </div>
+                        <div class="scan-meta">
+                            <span><strong>Tienda:</strong> <span id="scan-tienda">-</span></span>
+                            <span><strong>Categoría:</strong> <span id="scan-categoria">-</span></span>
+                            <span><strong>Escaneados:</strong> <span id="scan-count">0</span></span>
+                        </div>
+                        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+                            <input type="text" id="scan-input" placeholder="Escanea con lector o escribe el código y presiona Enter" autocomplete="off" style="flex:1; min-width:260px; padding:10px 12px; border:1px solid var(--border-color); border-radius:8px; background:var(--input-bg); color:var(--text-main);">
+                            <button class="btn-primary" onclick="registrarScanManual()"><i class="fas fa-check"></i> Agregar</button>
+                            <button class="btn-secondary" onclick="abrirCamaraScan()"><i class="fas fa-camera"></i> Usar cámara</button>
+                        </div>
+                        <div id="scan-resumen-live" class="scan-resumen"></div>
+                        <div id="scan-results" style="margin-top:1rem;"></div>
+                        <div id="vehiculo-module" style="display:none;" class="vehiculo-docs">
+                            <h4>🚗 Documentos del Vehículo</h4>
+                            <div class="doc-checkboxes">
+                                <label><input type="checkbox" class="doc-check" data-doc="carta"> Carta responsiva</label>
+                                <label><input type="checkbox" class="doc-check" data-doc="poliza"> Póliza de seguro</label>
+                                <label><input type="checkbox" class="doc-check" data-doc="licencia"> Licencia</label>
+                                <label><input type="checkbox" class="doc-check" data-doc="tarjeta"> Tarjeta de circulación</label>
+                            </div>
+                            <button class="btn-success" onclick="exportarExcelVehiculos()"><i class="fas fa-file-excel"></i> Exportar Excel</button>
+                            <div class="vehiculo-table-wrap">
+                                <table id="vehiculo-table">
+                                    <thead><tr><th>Fecha</th><th>Equipo</th><th>Responsable</th><th>Póliza</th><th>Tarjeta</th><th>Licencia</th><th>Estatus</th></tr></thead>
+                                    <tbody id="vehiculo-tbody"><tr><td colspan="7" style="color:#888;">Sin registros</td></tr></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ===== CENTROS (vista jerárquica) ===== -->
+            <section id="etiquetas" class="section-view">
+                <h1>Etiquetas para escaneo</h1>
+                <p class="subtitle">Etiquetas con código QR conectadas al catálogo: el QR lleva el <strong>activo fijo</strong>, el mismo dato que reconoce el escáner del módulo de Inventarios.</p>
+                <div class="toolbar">
+                    <div class="controls-group">
+                        <input type="text" id="etq-q" placeholder="Buscar por nombre, serie, activo fijo..." oninput="renderEtiquetas()">
+                        <select id="etq-tienda" onchange="renderEtiquetas()" title="Tienda / centro"></select>
+                        <select id="etq-cat" onchange="renderEtiquetas()" title="Categoría"></select>
+                    </div>
+                    <div class="controls-group">
+                        <button class="btn-primary" onclick="imprimirEtiquetasSeleccion()"><i class="fas fa-print"></i> Imprimir (<span id="etq-n">0</span>)</button>
+                    </div>
+                </div>
+                <div class="widget-card etq-config">
+                    <label>Formato
+                        <select id="etq-formato" onchange="actualizarConfigEtiquetas()">
+                            <option value="carta">Hoja carta (cuadrícula)</option>
+                            <option value="rollo">Rollo térmico · 50 × 25 mm (una por etiqueta)</option>
+                        </select>
+                    </label>
+                    <label class="etq-solo-hoja">Etiquetas por fila
+                        <select id="etq-cols" onchange="actualizarConfigEtiquetas()"></select>
+                    </label>
+                    <label class="etq-solo-hoja">Etiquetas por columna
+                        <select id="etq-rows" onchange="actualizarConfigEtiquetas()"></select>
+                    </label>
+                    <label>Escala de impresión (%)
+                        <select id="etq-escala" onchange="actualizarConfigEtiquetas()"></select>
+                    </label>
+                    <div class="etq-info" id="etq-info"></div>
+                </div>
+                <div class="etq-bar">
+                    <label><input type="checkbox" id="etq-todos" onchange="seleccionarEtiquetasFiltradas(this.checked)"> Seleccionar los <span id="etq-filtrados">0</span> filtrados</label>
+                    <button class="btn-action" style="flex:0 0 auto;" onclick="seleccionEtiquetas.clear(); renderEtiquetas()">Limpiar selección</button>
+                    <span id="etq-nota" style="font-size:0.75rem; opacity:.7;"></span>
+                </div>
+                <div class="widget-card etq-wrap">
+                    <table>
+                        <thead><tr><th style="width:32px;"></th><th>Activo fijo</th><th>Nombre</th><th>Serie</th><th>Tienda</th><th>Vista previa</th></tr></thead>
+                        <tbody id="etq-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="centros" class="section-view">
+                <h2>Centros de Trabajo</h2>
+                <p class="subtitle">Sucursales y centros operativos.</p>
+                <div class="toolbar">
+                    <div class="controls-group">
+                        <input type="text" id="search-centro" placeholder="Buscar centro..." style="min-width:250px;">
+                    </div>
+                    <button class="btn-primary" onclick="abrirModalCentro()"><i class="fas fa-plus"></i> Nuevo Centro</button>
+                </div>
+                <div id="centros-list" class="centros-container">
+                    <!-- Renderizado dinámico -->
+                </div>
+            </section>
+
+            <!-- ===== MOVIMIENTOS ===== -->
+            <section id="movimientos" class="section-view">
+                <h2>Movimientos de Activos</h2>
+                <p class="subtitle">Registra traslados usando el número de serie.</p>
+                <div class="toolbar">
+                    <button class="btn-primary" onclick="abrirModalMovimiento()"><i class="fas fa-exchange-alt"></i> Registrar Movimiento</button>
+                </div>
+                <div class="widget-card">
+                    <table>
+                        <thead><tr><th>Activo</th><th>Serie</th><th>Origen</th><th>Destino</th><th>Fecha</th><th>Usuario</th></tr></thead>
+                        <tbody id="movimientos-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- ===== USUARIOS (solo admin) ===== -->
+            <section id="usuarios" class="section-view">
+                <h2>Gestión de Usuarios</h2>
+                <p class="subtitle">Administra cuentas y permisos. (Solo administradores)</p>
+                <div class="toolbar">
+                    <button class="btn-primary" onclick="abrirModalUsuario()"><i class="fas fa-user-plus"></i> Nuevo Usuario</button>
+                </div>
+                <div class="widget-card">
+                    <table>
+                        <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Centro</th><th>Acciones</th></tr></thead>
+                        <tbody id="usuarios-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- ===== AJUSTES ===== -->
+            <section id="ajustes" class="section-view">
+                <h2>Configuración del Sistema</h2>
+                <p class="subtitle">Parámetros generales y preferencias.</p>
+
+                <!-- Apariencia -->
+                <div class="widget-card settings-group">
+                    <h3 style="border:none; padding:0; margin-bottom:0.5rem;">Apariencia</h3>
+                    <p class="help-text" style="margin-bottom:0.5rem;">El tema se guarda en este dispositivo y aplica a web, tablet y móvil.</p>
+                    <div class="theme-selector">
+                        <button class="theme-btn" id="theme-dark" onclick="elegirTema('dark')"><i class="fas fa-moon"></i> Oscuro</button>
+                        <button class="theme-btn" id="theme-light" onclick="elegirTema('light')"><i class="fas fa-sun"></i> Claro</button>
+                    </div>
+                </div>
+
+                <!-- Empresa -->
+                <div class="widget-card settings-group">
+                    <h3 style="border:none; padding:0; margin-bottom:0.5rem;">Empresa</h3>
+                    <p class="help-text" style="margin-bottom:0.5rem;">Nombre que aparece en el inventario. Solo el administrador lo cambia.</p>
+                    <label>Razón social</label>
+                    <input type="text" id="razon-social" placeholder="Industrias Meridiano" style="max-width:400px;">
+                    <button class="btn-primary" style="margin-top:0.5rem;" onclick="guardarRazonSocial()"><i class="fas fa-save"></i> Guardar</button>
+                </div>
+
+                <!-- Sesión -->
+                <div class="widget-card settings-group">
+                    <h3 style="border:none; padding:0; margin-bottom:0.5rem;">Sesión</h3>
+                    <div class="session-info">
+                        <span class="label">Nombre</span>
+                        <span class="value" id="session-nombre">-</span>
+                        <span class="label">Usuario</span>
+                        <span class="value" id="session-usuario">-</span>
+                        <span class="label">Rol</span>
+                        <span class="value" id="session-rol">-</span>
+                        <span class="label">Centro</span>
+                        <span class="value" id="session-centro">-</span>
+                    </div>
+                </div>
+
+                <!-- Almacenamiento -->
+                <div class="widget-card settings-group">
+                    <h3 style="border:none; padding:0; margin-bottom:0.5rem;">Almacenamiento</h3>
+                    <p class="help-text" style="margin-bottom:0.5rem;">
+                        Activos, centros, movimientos e inventarios se guardan directamente en Supabase (proyecto <code>xlygkolfmetytowixtnb</code>).
+                        Ya no se usa almacenamiento local del navegador. Estado de conexión: <strong id="storage-mode-label">Verificando…</strong>.
+                    </p>
+                    <p class="help-text" style="margin-bottom:0.5rem;">
+                        La carga de Excel usa el formato exacto de SAP (columnas <em>Soc., Ce.coste, Activo fijo, Denominación del activo fijo, Número de serie</em>, etc.).
+                        El centro se detecta a partir de <strong>Ce.coste</strong> tomando los primeros 4 caracteres (ej. <code>KN00V</code> → <code>KN00</code>) y se empareja contra el catálogo maestro de centros Kuroda.
+                        Si un código no está en la lista oficial, ese activo <strong>se omite</strong> (no se carga y no se crea un centro nuevo) — se avisa cuáles se omitieron en el reporte de importación.
+                    </p>
+                    <label style="display:flex; align-items:center; gap:6px; font-weight:400; margin-bottom:0.8rem; cursor:pointer;">
+                        <input type="checkbox" id="import-modo-reemplazo" style="width:auto;">
+                        Reemplazar toda la base de activos con este archivo (en vez de actualizar/agregar)
+                    </label>
+                    <div class="storage-actions">
+                        <div class="file-input-wrapper">
+                            <button class="btn-primary"><i class="fas fa-file-upload"></i> Cargar activos desde Excel</button>
+                            <input type="file" accept=".xlsx,.xls" onchange="cargarExcelActivos(event)">
+                        </div>
+                        <button class="btn-secondary" onclick="verCentrosNoReconocidos()"><i class="fas fa-triangle-exclamation"></i> Ver centros sin reconocer</button>
+                        <button class="btn-danger" onclick="resetearDatos()"><i class="fas fa-undo"></i> Recargar datos desde Supabase</button>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- ======================== MODALES ======================== -->
+
+    <!-- Modal Nuevo Inventario -->
+    <div class="modal-overlay" id="modalNuevoInventario">
+        <div class="modal-box">
+            <h3><i class="fas fa-clipboard-list"></i> Nuevo Levantamiento</h3>
+            <label>Tienda / Centro</label>
+            <select id="modal-tienda-inv"></select>
+            <label>Categoría</label>
+            <select id="modal-categoria-inv" onchange="toggleVehTipoField()">
+                <option value="computo">Equipo de Cómputo</option>
+                <option value="mobiliario">Mobiliario</option>
+                <option value="herramienta">Herramienta</option>
+                <option value="vehiculos">Vehículos</option>
+                <option value="otros">Otros</option>
+            </select>
+            <div id="modal-veh-tipo-wrap" style="display:none;">
+                <label>Tipo de levantamiento</label>
+                <select id="modal-veh-tipo">
+                    <option value="simple">Simple (igual que cómputo)</option>
+                    <option value="documentos">Con documentos vehiculares</option>
+                </select>
+            </div>
+            <label>Responsable</label>
+            <input type="text" id="modal-responsable-inv" placeholder="Nombre del encargado">
+            <div class="modal-buttons">
+                <button class="btn-secondary" onclick="closeModal('modalNuevoInventario')">Cancelar</button>
+                <button class="btn-primary" onclick="crearInventario()"><i class="fas fa-play"></i> Iniciar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Responsable del Vehículo (variante con documentos) -->
+    <div class="modal-overlay" id="modalResponsableVehiculo">
+        <div class="modal-box" style="max-width:min(380px,95vw);">
+            <h3><i class="fas fa-user"></i> Responsable del vehículo</h3>
+            <p class="sub">Se guardará en la tabla de documentos vehiculares.</p>
+            <label>Nombre del responsable</label>
+            <input type="text" id="veh-resp-input" placeholder="Nombre completo" onkeypress="if(event.key==='Enter') confirmarResponsableVehiculo()">
+            <div class="modal-buttons">
+                <button class="btn-secondary" onclick="closeModal('modalResponsableVehiculo')">Cancelar</button>
+                <button class="btn-primary" onclick="confirmarResponsableVehiculo()"><i class="fas fa-check"></i> Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Cámara de Escaneo -->
+    <div class="modal-overlay" id="modalCamaraScan">
+        <div class="modal-box" style="max-width:min(420px,95vw);">
+            <h3><i class="fas fa-camera"></i> Escanear con cámara</h3>
+            <p class="sub" id="camara-scan-status">Apunta la cámara al código de barras o QR del activo.</p>
+            <video id="camara-scan-video" style="width:100%; border-radius:8px; background:#000; max-height:320px; object-fit:cover;" muted playsinline></video>
+            <div class="modal-buttons">
+                <button class="btn-secondary" onclick="cerrarCamaraScan()">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Informe Final de Auditoría -->
+    <div class="modal-overlay" id="modalInformeAuditoria">
+        <div class="modal-box" style="max-width:min(480px,95vw);">
+            <h3><i class="fas fa-file-alt"></i> Auditoría finalizada</h3>
+            <p class="sub">Descarga el informe ejecutivo de este levantamiento.</p>
+            <div id="informe-resumen-body" style="font-size:0.85rem; margin:1rem 0;"></div>
+            <div class="modal-buttons" style="justify-content:flex-start; flex-wrap:wrap; gap:0.5rem;">
+                <button class="btn-primary" onclick="descargarInformePDF(window.__ultimoInventarioId)"><i class="fas fa-file-pdf"></i> Descargar PDF</button>
+                <button class="btn-secondary" onclick="descargarInformeWord(window.__ultimoInventarioId)"><i class="fas fa-file-word"></i> Descargar Word</button>
+            </div>
+            <div class="modal-buttons">
+                <button class="btn-secondary" onclick="closeModal('modalInformeAuditoria')">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Editar Activo -->
+    <div class="modal-overlay" id="modalActivo">
+        <div class="modal-box">
+            <h3 id="modal-activo-title"><i class="fas fa-edit"></i> Editar Activo</h3>
+            <p class="sub">Actualiza la ficha. Los cambios quedan en el historial.</p>
+            <input type="hidden" id="edit-index">
+            <label>Serie</label>
+            <input type="text" id="activo-serie" placeholder="Ej: DL5540-MX-8821">
+            <label>Activo fijo</label>
+            <input type="text" id="activo-activofijo" placeholder="Ej: 40000307" readonly>
+            <label>Nombre</label>
+            <input type="text" id="activo-nombre" placeholder="Ej: Laptop Dell Latitude 5540">
+            <label>Categoría</label>
+            <select id="activo-categoria">
+                <option value="computo">Equipo de cómputo</option>
+                <option value="mobiliario">Mobiliario</option>
+                <option value="herramienta">Herramienta</option>
+                <option value="vehiculos">Vehículos</option>
+                <option value="electrodomestico">Electrodoméstico</option>
+                <option value="inmueble">Inmueble / terreno</option>
+                <option value="otros">Otros</option>
+            </select>
+            <label>Estado</label>
+            <select id="activo-estado">
+                <option value="Asignado">Asignado</option>
+                <option value="Disponible">Disponible</option>
+                <option value="En reparación">En reparación</option>
+                <option value="Dado de baja">Dado de baja</option>
+            </select>
+            <label>Marca</label>
+            <input type="text" id="activo-marca" placeholder="Ej: Dell">
+            <label>Modelo</label>
+            <input type="text" id="activo-modelo" placeholder="Ej: Latitude 5540">
+            <label>Centro / sucursal</label>
+            <select id="activo-centro"></select>
+            <label>Asignado a</label>
+            <input type="text" id="activo-asignado" placeholder="Ej: Laura Méndez">
+            <label>Fecha de compra</label>
+            <input type="date" id="activo-fecha-compra">
+            <label>Proveedor</label>
+            <input type="text" id="activo-proveedor" placeholder="Ej: Office Depot">
+            <label>Factura</label>
+            <input type="text" id="activo-factura" placeholder="Ej: F-2026-00123">
+            <label>Notas</label>
+            <textarea id="activo-notas" rows="3" placeholder="Equipo de dirección de operaciones."></textarea>
+            <div class="modal-buttons">
+                <button class="btn-secondary" onclick="closeModal('modalActivo')">Cancelar</button>
+                <button class="btn-primary" onclick="saveAsset()"><i class="fas fa-save"></i> Guardar cambios</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Solicitar Baja -->
+    <div class="modal-overlay" id="modalSolicitarBaja">
+        <div class="modal-box" style="max-width:min(420px,95vw);">
+            <h3><i class="fas fa-ban"></i> Solicitar baja de activo</h3>
+            <p class="sub">Se enviará a auditoría para su aprobación. El activo seguirá activo hasta que se apruebe.</p>
+            <input type="hidden" id="baja-activo-index">
+            <label>Motivo de la baja</label>
+            <textarea id="baja-motivo" rows="3" placeholder="Ej: Equipo dañado sin reparación posible"></textarea>
+            <div class="modal-buttons">
+                <button class="btn-secondary" onclick="closeModal('modalSolicitarBaja')">Cancelar</button>
+                <button class="btn-primary" onclick="confirmarSolicitudBaja()"><i class="fas fa-paper-plane"></i> Enviar solicitud</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Centro -->
+    <div class="modal-overlay" id="modalCentro">
+        <div class="modal-box">
+            <h3 id="modal-centro-title"><i class="fas fa-store"></i> Nuevo Centro</h3>
+            <input type="hidden" id="edit-centro-id">
+            <label>Código (Ce.coste, ej. KN00)</label>
+            <input type="text" id="centro-codigo" placeholder="Ej: KN00">
+            <label>Nombre</label>
+            <input type="text" id="centro-nombre" placeholder="Ej: KN 20 DE NOV MENUDEO">
+            <label>Razón social</label>
+            <select id="centro-razonsocial">
+                <option value="KNO">KNO</option>
+                <option value="KSC">KSC</option>
+                <option value="KSA">KSA</option>
+            </select>
+            <label>Ubicación</label>
+            <input type="text" id="centro-ubicacion" placeholder="Ej: Av. Reforma 123">
+            <label>Responsable</label>
+            <input type="text" id="centro-responsable" placeholder="Ej: María Fernández">
+            <div class="modal-buttons">
+                <button class="btn-secondary" onclick="closeModal('modalCentro')">Cancelar</button>
+                <button class="btn-primary" onclick="guardarCentro()"><i class="fas fa-save"></i> Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Reporte de Importación -->
+    <div class="modal-overlay" id="modalReporteImport">
+        <div class="modal-box" style="max-width:min(600px,95vw);">
+            <h3><i class="fas fa-file-circle-check"></i> Reporte de importación</h3>
+            <div id="reporte-import-body" style="font-size:0.82rem; max-height:60vh; overflow-y:auto;"></div>
+            <div class="modal-buttons">
+                <button class="btn-primary" onclick="closeModal('modalReporteImport')">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Movimiento -->
+    <div class="modal-overlay" id="modalMovimiento">
+        <div class="modal-box">
+            <h3><i class="fas fa-exchange-alt"></i> Registrar Movimiento</h3>
+            <label>Serie del Activo</label>
+            <input type="text" id="mov-serie" placeholder="Ej: DL5540-MX-8821" list="series-list">
+            <datalist id="series-list"></datalist>
+            <label>Origen</label>
+            <select id="mov-origen"></select>
+            <label>Destino</label>
+            <select id="mov-destino"></select>
+            <div class="modal-buttons">
+                <button class="btn-secondary" onclick="closeModal('modalMovimiento')">Cancelar</button>
+                <button class="btn-primary" onclick="registrarMovimiento()"><i class="fas fa-check"></i> Registrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Usuario -->
+    <div class="modal-overlay" id="modalUsuario">
+        <div class="modal-box">
+            <h3 id="modal-usuario-title"><i class="fas fa-user-edit"></i> Editar usuario</h3>
+            <p class="sub">Deja la contraseña en blanco para no cambiarla.</p>
+            <input type="hidden" id="edit-usuario-id">
+            <label>Nombre completo</label>
+            <input type="text" id="usuario-nombre" placeholder="Ej: Juan Pérez">
+            <label>Usuario</label>
+            <input type="text" id="usuario-username" placeholder="Ej: jperez">
+            <label>Puesto</label>
+            <input type="text" id="usuario-puesto" placeholder="Ej: Auditor Jr">
+            <p class="sub" style="margin-top:-0.6rem;">Si el puesto incluye la palabra "Auditor", esa persona podrá aprobar o rechazar bajas de activos.</p>
+            <label>Nueva contraseña</label>
+            <input type="password" id="usuario-password" autocomplete="new-password" placeholder="Obligatoria al crear; en blanco para no cambiar">
+            <label>Rol</label>
+            <select id="usuario-rol">
+                <option value="admin">Administrador</option>
+                <option value="user">Usuario</option>
+            </select>
+            <label>Centro de adscripción</label>
+            <select id="usuario-centro"></select>
+            <div class="modal-buttons">
+                <button class="btn-secondary" onclick="closeModal('modalUsuario')">Cancelar</button>
+                <button class="btn-primary" onclick="guardarUsuario()"><i class="fas fa-save"></i> Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================== SUPABASE SDK ======================== -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+
+    <!-- ======================== SCRIPTS ======================== -->
+    <script>
+        // ============================================================
+        // 0.0 CONEXIÓN A SUPABASE (Auth real + roles admin/user)
+        // ------------------------------------------------------------
+        // La app usa "username", pero Supabase Auth trabaja con email,
+        // así que armamos un correo interno "<username>@bastionactivos.local".
+        // Es transparente: el usuario solo ve/escribe su username.
+        // ============================================================
+        const SUPABASE_URL = 'https://xlygkolfmetytowixtnb.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhseWdrb2xmbWV0eXRvd2l4dG5iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjA1NjEsImV4cCI6MjA5NzI5NjU2MX0.fitb_YAg9kLUrolTFivduDJk3ozIh_f4HX6frlcZLFI';
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY,
+            window.ACTIVOS_EMBED ? { auth: { storageKey: 'kuroda-monitor-auth', autoRefreshToken: false, detectSessionInUrl: false } } : undefined);
+
+        function usernameToEmail(username) {
+            return `${String(username).trim().toLowerCase()}@bastionactivos.local`;
+        }
+
+        // Escapa texto antes de meterlo en innerHTML (nombres, series, códigos escaneados, etc.)
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        // Fotos: se guardan en Supabase Storage (bucket privado "activos-fotos") y en la tabla
+        // queda "sb:<ruta>". Se muestran con URLs firmadas (_fotoUrls). Las fotos antiguas en
+        // base64 (data:image/...) se siguen mostrando y se migran a Storage al entrar un editor.
+        const FOTOS_BUCKET = 'activos-fotos', FOTO_PREFIJO = 'sb:', FOTO_CALIDAD = 0.6, FOTO_MAX = 1024;
+        const _fotoUrls = new Map();
+        const rutaFoto = f => typeof f === 'string' && f.startsWith(FOTO_PREFIJO) ? f.slice(FOTO_PREFIJO.length) : null;
+        const fotoSegura = f => {
+            const ruta = rutaFoto(f);
+            if (ruta) return esc(_fotoUrls.get(ruta) || '');
+            return /^(data:image\/|https:\/\/)/.test(f || '') ? esc(f) : '';
+        };
+
+        // Categoría sugerida por el nombre del activo (importación de Excel). Mismas reglas con
+        // las que se reclasificaron en Supabase los activos que estaban en "otros" (29/09/2026).
+        // El orden importa: la primera regla que coincide gana.
+        const REGLAS_CATEGORIA = [
+            ['otros',            /LICEN[CS]|PARTICIPACION DE MERCADO|COMPRA DE CARTERA/],
+            ['vehiculos',        /\b(CHEVROLET|SAVEIRO|VOLKSWAGEN|TIIDA|MARCH|NP300|DODGE|RAM (700|ST|1500|2500|4000)|KENWORTH|FORD|F-?550|F-?350|HINO|NISSAN|TORNADO|PICK ?UP|SEDAN|CAMION|CAMIÓN|MONTACARGAS?|PLATAFORMA|REMOLQUE|MOTOCICLETA|CAMIONETA|HILUX|KIA|ISUZU|INTERNATIONAL|FREIGHTLINER|CHASIS|VEH[IÍ]CULO)\b/],
+            ['computo',          /\b(OPTIPLEX|ALL[ -]?IN[ -]?ONE|AIO|LATITUDE|ATTITUDE|INSPIRON|VOSTRO|PRECISION|NOTEBOOK|LAPTOP|TABLETA?|GALAXY TAB|IPAD|MULTIFU?N?CIONAL|IMPRESORA|MINIPRINTER|COPIADORA|ESC[AÁ]NER|SCANNER|MONITOR|PROYECTOR|MERAKI|CISCO|CISCOMERAKI|ROUTER|SWITCH(ES|S)?|CONMUTADOR|DISCO DURO|SSD|LECTOR|MS5145|CHECADOR|NO ?BREAK|UPS|SERVIDOR|CPU|COMPUTADORA|PROBOOK|ELITEBOOK|THINKPAD|LENOVO|PIN ?PAD|CAJERO AUTOM[AÁ]TICO|DVR|NVR|TERMINAL|FOTOVOLTAICO)\b|\bHP \d{3} G\d|EQUIPO DE C[OÓ]MPUTO/],
+            ['electrodomestico', /\b(MINI ?SPLIT|A\/C|AIRE ACONDIC\w*|REFRIGERACION|REFRIGERADOR(ES)?|AIRE ACOND|CALENTADORE?S?|TELEVISOR|SMART TV|PORTACOOL|SEER|HORNO|MICROONDAS|CAFETERA|ENFRIADOR|DESPACHADOR|C[AÁ]MARAS?|CONDENSADOR)\b|\bLED \d{2}"/],
+            ['mobiliario',       /\b(MOBILIARIO|RETORNOS?|PEDESTAL|MESAS?|MAMPARAS?|ESTANTERIAS?|ESCRITORIOS?|SILLAS?|SILLON|ARCHIVEROS?|LIBREROS?|CREDENZA|COMEDOR|LOCKERS?|CAJA FUERTE|GABINETE|RACKS?|ANAQUEL(ES)?|MUEBLES?)\b/],
+            ['inmueble',         /\b(TERRENO|PREDIO|LOTE|RANCHO|R[UÚ]STICO|MANZANA)\b/],
+        ];
+        function categoriaPorNombre(nombre) {
+            const n = String(nombre || '').toUpperCase();
+            const r = REGLAS_CATEGORIA.find(([, re]) => re.test(n));
+            return r ? r[0] : 'otros';
+        }
+
+        // Código interno único (el escáner identifica el activo por este código)
+        function nuevoCodigoActivo(usados = new Set(assets.map(a => a.codigo))) {
+            let c;
+            do { c = 'BST-' + crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase(); } while (usados.has(c));
+            usados.add(c);
+            return c;
+        }
+        // Reasigna códigos repetidos o vacíos (quedaron de importaciones anteriores)
+        function repararCodigosDuplicados() {
+            const usados = new Set(assets.map(a => a.codigo)), vistos = new Set();
+            let n = 0;
+            assets.forEach(a => {
+                if (a.codigo && !vistos.has(a.codigo)) { vistos.add(a.codigo); return; }
+                a.codigo = nuevoCodigoActivo(usados);
+                n++;
+            });
+            if (n) { saveAllData(); showNotification(`${n} código(s) interno(s) repetidos o vacíos se regeneraron`, 'info', 5000); }
+        }
+        // Reduce la foto a máx. 1024 px y la convierte a WebP al 60 %
+        // (JPEG al 60 % si el navegador no genera WebP, p. ej. Safari antiguo).
+        function comprimirImagen(file, max = FOTO_MAX) {
+            return new Promise((ok, fail) => {
+                const img = new Image(), url = URL.createObjectURL(file);
+                img.onload = () => {
+                    const k = Math.min(1, max / Math.max(img.width, img.height));
+                    const c = document.createElement('canvas');
+                    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+                    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+                    URL.revokeObjectURL(url);
+                    const listo = b => b ? ok(b) : fail(new Error('no se pudo comprimir la imagen'));
+                    c.toBlob(b => {
+                        if (b && b.type === 'image/webp') return ok(b);
+                        c.toBlob(listo, 'image/jpeg', FOTO_CALIDAD);
+                    }, 'image/webp', FOTO_CALIDAD);
+                };
+                img.onerror = () => { URL.revokeObjectURL(url); fail(new Error('imagen no válida')); };
+                img.src = url;
+            });
+        }
+
+        // Comprime y sube la foto del activo a Storage; devuelve el valor para foto_url ("sb:<ruta>").
+        async function subirFotoActivo(asset, file) {
+            const blob = await comprimirImagen(file);
+            const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
+            const ruta = `${asset.id}/${crypto.randomUUID()}.${ext}`;
+            const { error } = await supabaseClient.storage.from(FOTOS_BUCKET)
+                .upload(ruta, blob, { contentType: blob.type, cacheControl: '31536000', upsert: false });
+            if (error) throw error;
+            const { data } = await supabaseClient.storage.from(FOTOS_BUCKET).createSignedUrl(ruta, 43200);
+            if (data && data.signedUrl) _fotoUrls.set(ruta, data.signedUrl);
+            return FOTO_PREFIJO + ruta;
+        }
+
+        // Borra de Storage una foto que ya no se usa (si falla, solo queda el archivo huérfano).
+        async function borrarFotoActivo(foto) {
+            const ruta = rutaFoto(foto);
+            if (!ruta) return;
+            _fotoUrls.delete(ruta);
+            try { await supabaseClient.storage.from(FOTOS_BUCKET).remove([ruta]); } catch (e) { console.warn(e); }
+        }
+
+        // URLs firmadas (12 h) de todas las fotos en Storage, en una sola petición.
+        async function firmarFotos() {
+            _fotoUrls.clear();
+            const rutas = [...new Set(assets.map(a => rutaFoto(a.foto)).filter(Boolean))];
+            for (const lote of enLotes(rutas, 500)) {
+                const { data, error } = await supabaseClient.storage.from(FOTOS_BUCKET).createSignedUrls(lote, 43200);
+                if (error) { console.warn('No se pudieron firmar las fotos:', error.message); return; }
+                (data || []).forEach(d => { if (d.signedUrl && d.path) _fotoUrls.set(d.path, d.signedUrl); });
+            }
+        }
+
+        // Pasa a Storage (WebP 60 %) las fotos antiguas guardadas en base64 dentro de la tabla.
+        async function migrarFotosBase64() {
+            if (!currentUser || currentUser.role === 'viewer') return;
+            const pendientes = assets.filter(a => /^data:image\//.test(a.foto || ''));
+            if (!pendientes.length) return;
+            let n = 0;
+            for (const a of pendientes) {
+                try {
+                    const blob = await (await fetch(a.foto)).blob();
+                    a.foto = await subirFotoActivo(a, blob);
+                    n++;
+                } catch (err) { console.warn('No se pudo migrar la foto de', a.id, err); }
+            }
+            if (n) { renderAssets(); saveAllData(); showNotification(`${n} foto(s) se pasaron a Supabase Storage (WebP 60 %)`, 'info', 5000); }
+        }
+
+        // ============================================================
+        // 0. VARIABLES GLOBALES
+        // ============================================================
+        let currentUser = null;
+        let users = [];
+        let centros = [];
+        let movimientos = [];
+        let assets = [];
+        let audits = [];
+        let inventarios = [];
+        let scanResults = [];
+        let vehiculos = [];
+        let solicitudesBaja = [];
+        let inventarioActivo = null;
+        let razonSocial = 'Grupo Kuroda';
+
+        // ============================================================
+        // 0.1 CAPA DE DATOS (Supabase) — sin localStorage
+        // ------------------------------------------------------------
+        // Todo el estado (centros, activos, movimientos, inventarios,
+        // razón social) vive en las tablas de Supabase del proyecto
+        // xlygkolfmetytowixtnb. Los arrays en memoria (centros, assets,
+        // movimientos, inventarios) son una caché local que se recarga
+        // al iniciar sesión y se sincroniza contra Supabase en cada
+        // guardarAllData().
+        // ============================================================
+
+        // ---- Verificación de conexión (botón en el sidebar) ----
+        async function verificarConexionSupabase() {
+            const btn = document.getElementById('supabase-status-btn');
+            const txt = document.getElementById('supabase-status-text');
+            btn.className = 'supabase-status checking';
+            txt.textContent = 'Verificando Supabase…';
+            try {
+                const { error } = await supabaseClient.from('centros').select('id').limit(1);
+                if (error) throw error;
+                marcarConexionOk();
+            } catch (err) {
+                marcarConexionMal();
+            }
+        }
+        function marcarConexionOk() {
+            const btn = document.getElementById('supabase-status-btn');
+            const txt = document.getElementById('supabase-status-text');
+            const label = document.getElementById('storage-mode-label');
+            if (btn) btn.className = 'supabase-status online';
+            if (txt) txt.textContent = 'Conectado a Supabase';
+            if (label) label.textContent = 'Conectado';
+        }
+        function marcarConexionMal() {
+            const btn = document.getElementById('supabase-status-btn');
+            const txt = document.getElementById('supabase-status-text');
+            const label = document.getElementById('storage-mode-label');
+            if (btn) btn.className = 'supabase-status offline';
+            if (txt) txt.textContent = 'Sin conexión a Supabase';
+            if (label) label.textContent = 'Sin conexión';
+        }
+
+        // ---- Sincronización incremental. Cada cliente recuerda lo que cargó/guardó (_snap):
+        //  - solo sube las filas que cambiaron (no reescribe la tabla completa en cada guardado)
+        //  - solo borra filas que ESTE cliente ya conocía (nunca borra lo que otro usuario
+        //    agregó mientras tanto, ni todo si la carga inicial falló)
+        //  - soloInsertar (movimientos): el historial no se reescribe
+        // El delete físico solo lo permiten las políticas RLS a admin; lo denegado se cuenta
+        // y se recarga desde Supabase.
+        const _snap = {};
+        let _guardando = false, _pendiente = false, _razonGuardada = null;
+        const snapTabla = (tabla, filas) => { _snap[tabla] = new Map(filas.map(r => [r.id, JSON.stringify(r)])); };
+        const enLotes = (arr, n) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n));
+
+        // Supabase entrega como máximo 1000 filas por consulta: traerTodo pide la tabla en
+        // bloques de 1000 (ordenados además por id) hasta traerla completa.
+        async function traerTodo(armar, bloque = 1000) {
+            let todas = [];
+            for (let desde = 0; ; desde += bloque) {
+                const { data, error } = await armar().order('id', { ascending: true }).range(desde, desde + bloque - 1);
+                if (error) return { data: null, error };
+                todas = todas.concat(data || []);
+                if (!data || data.length < bloque) return { data: todas, error: null };
+            }
+        }
+
+        async function sincronizarTabla(tabla, filas, soloInsertar = false) {
+            const previo = _snap[tabla] || new Map();
+            const nuevo = new Map(filas.map(r => [r.id, JSON.stringify(r)]));
+            const subir = filas.filter(r => soloInsertar ? !previo.has(r.id) : previo.get(r.id) !== nuevo.get(r.id));
+            const borrar = [...previo.keys()].filter(id => !nuevo.has(id));
+            let denegadas = 0;
+            for (const lote of enLotes(borrar, 100)) {
+                const { data, error } = await supabaseClient.from(tabla).delete().in('id', lote).select('id');
+                if (error) throw error;
+                denegadas += lote.length - (data || []).length;
+            }
+            for (const lote of enLotes(subir, 500)) {
+                const { error } = await supabaseClient.from(tabla).upsert(lote, { onConflict: 'id' });
+                if (error) throw error;
+            }
+            _snap[tabla] = nuevo;
+            return denegadas;
+        }
+
+        // ---- Mapeos JS (camelCase) <-> filas de Supabase (snake_case) ----
+        function centroARow(c) {
+            return {
+                id: c.id, codigo: c.codigo, nombre: c.nombre,
+                razon_social: c.razonSocial || 'KNO',
+                ubicacion: c.ubicacion || '', responsable: c.responsable || '',
+                no_reconocido: !!c.noReconocido
+            };
+        }
+        function rowACentro(r) {
+            return {
+                id: r.id, codigo: r.codigo, nombre: r.nombre,
+                razonSocial: r.razon_social, ubicacion: r.ubicacion || '',
+                responsable: r.responsable || '', noReconocido: !!r.no_reconocido
+            };
+        }
+        function assetARow(a) {
+            const centro = centros.find(c => c.nombre === a.centro) ||
+                (a.centroCodigo ? centros.find(c => c.codigo === a.centroCodigo) : null);
+            return {
+                id: a.id,
+                activo_fijo: a.activoFijo || a.codigo || a.id,
+                codigo_interno: a.codigo || null,
+                nombre: a.nombre, serie: a.serie || '',
+                categoria: a.categoria || 'otros', estado: a.estado || 'Disponible',
+                marca: a.marca || '', modelo: a.modelo || '',
+                centro_id: centro ? centro.id : null,
+                centro_codigo: a.centroCodigo || (centro ? centro.codigo : null),
+                razon_social: a.razonSocial || (centro ? centro.razonSocial : null),
+                asignado_a: a.asignado || '',
+                fecha_compra: a.fechaCompra || null,
+                numero_inventario: a.numInventario || '',
+                cuenta_contable: a.cuentaContable || '',
+                valor: a.valor || 0, proveedor: a.proveedor || '', factura: a.factura || '',
+                notas: a.notas || '',
+                foto_url: a.foto || null
+            };
+        }
+        function rowAAsset(r) {
+            const centro = centros.find(c => c.id === r.centro_id);
+            return {
+                id: r.id, codigo: r.codigo_interno || '', activoFijo: r.activo_fijo,
+                nombre: r.nombre, serie: r.serie || '', categoria: r.categoria,
+                estado: r.estado, marca: r.marca || '', modelo: r.modelo || '',
+                centro: centro ? centro.nombre : '', centroCodigo: r.centro_codigo || '',
+                razonSocial: r.razon_social || '', asignado: r.asignado_a || '',
+                fechaCompra: r.fecha_compra || '', numInventario: r.numero_inventario || '',
+                cuentaContable: r.cuenta_contable || '', valor: r.valor || 0,
+                proveedor: r.proveedor || '', factura: r.factura || '',
+                notas: r.notas || '', foto: r.foto_url || null
+            };
+        }
+
+        // ---- Solicitudes de baja (requieren aprobación de auditoría) ----
+        function bajaARow(s) {
+            return {
+                id: s.id, activo_id: s.activoId || null, activo_nombre: s.activoNombre || '',
+                motivo: s.motivo || '', solicitado_por: s.solicitadoPor || '',
+                solicitado_por_id: s.solicitadoPorId || null, fecha: s.fecha || new Date().toISOString(),
+                estado: s.estado || 'pendiente', resuelto_por: s.resueltoPor || null,
+                fecha_resuelto: s.fechaResuelto || null
+            };
+        }
+        function rowABaja(r) {
+            return {
+                id: r.id, activoId: r.activo_id, activoNombre: r.activo_nombre || '',
+                motivo: r.motivo || '', solicitadoPor: r.solicitado_por || '',
+                solicitadoPorId: r.solicitado_por_id, fecha: r.fecha, estado: r.estado || 'pendiente',
+                resueltoPor: r.resuelto_por || null, fechaResuelto: r.fecha_resuelto || null
+            };
+        }
+
+        // Un "auditor" es admin, o cualquier usuario cuyo puesto incluya la palabra "auditor"
+        // (no requiere un rol nuevo en la base de datos).
+        function esAuditor(u) {
+            return !!u && (u.role === 'admin' || (u.puesto || '').toLowerCase().includes('auditor'));
+        }
+        function movARow(m) {
+            const asset = (m.activoId && assets.find(a => a.id === m.activoId)) || assets.find(a => a.serie === m.serie) || assets.find(a => a.nombre === m.activoNombre);
+            const origenC = centros.find(c => c.nombre === m.origen);
+            const destinoC = centros.find(c => c.nombre === m.destino);
+            return {
+                id: m.id, activo_id: asset ? asset.id : null, serie: m.serie || '',
+                origen_id: origenC ? origenC.id : null, destino_id: destinoC ? destinoC.id : null,
+                fecha: m.fecha || new Date().toISOString(),
+                usuario_id: currentUser ? currentUser.id : null,
+                activo_nombre: m.activoNombre || '', origen_nombre: m.origen || '',
+                destino_nombre: m.destino || '', usuario_nombre: m.usuario || ''
+            };
+        }
+        function rowAMov(r) {
+            return {
+                id: r.id, activoId: r.activo_id || null, serie: r.serie || '', activoNombre: r.activo_nombre || '',
+                origen: r.origen_nombre || '', destino: r.destino_nombre || '',
+                fecha: r.fecha, usuario: r.usuario_nombre || ''
+            };
+        }
+        function invARow(i) {
+            const centro = centros.find(c => c.nombre === i.tienda);
+            return {
+                id: i.id, centro_id: centro ? centro.id : null,
+                categoria: i.categoria || null, responsable: i.responsable || '',
+                estado: i.estado || 'borrador',
+                fecha_inicio: i.fecha || new Date().toISOString(),
+                fecha_fin: i.estado === 'finalizado' ? (i.fechaFin || new Date().toISOString()) : null,
+                datos: {
+                    items: i.items || [], vehiculos: i.vehiculos || [], vehTipo: i.vehTipo || null,
+                    resumen: i.resumen || null, faltantesList: i.faltantesList || [], sobrantesList: i.sobrantesList || [],
+                    reparacionList: i.reparacionList || [], bajaList: i.bajaList || []
+                }
+            };
+        }
+        function rowAInv(r) {
+            const centro = centros.find(c => c.id === r.centro_id);
+            const datos = r.datos || {};
+            return {
+                id: r.id, tienda: centro ? centro.nombre : '', categoria: r.categoria,
+                responsable: r.responsable || '', fecha: r.fecha_inicio, estado: r.estado,
+                items: datos.items || [], vehiculos: datos.vehiculos || [], vehTipo: datos.vehTipo || null,
+                fechaFin: r.fecha_fin || null, resumen: datos.resumen || undefined,
+                faltantesList: datos.faltantesList || [], sobrantesList: datos.sobrantesList || [],
+                reparacionList: datos.reparacionList || [], bajaList: datos.bajaList || []
+            };
+        }
+
+        // ============================================================
+        // 0.2 CATÁLOGO MAESTRO DE CENTROS KURODA
+        // ------------------------------------------------------------
+        // Fuente: lista oficial de Centro / Tienda / Razón social.
+        // La clave es el código base de 4 caracteres (KN + 2 dígitos).
+        // Cualquier código de SAP con letras al final (KN00V, KN00I,
+        // KN98DO, etc.) pertenece al MISMO centro base: se toman solo los
+        // primeros 4 caracteres para emparejar contra este catálogo.
+        // ============================================================
+        const CENTROS_MAESTRO_VERSION = 'kuroda-2026-09-04';
+        const CENTROS_MAESTRO = {
+            'KN00': { nombre: 'KN 20 DE NOV MENUDEO', razonSocial: 'KNO' },
+            'KN01': { nombre: 'KN EXPRESS',            razonSocial: 'KNO' },
+            'KN03': { nombre: 'KN ENSENADA MAYOREO',   razonSocial: 'KNO' },
+            'KN04': { nombre: 'KN ENSENADA MENUDEO',   razonSocial: 'KNO' },
+            'KN05': { nombre: 'KN MEXICALI MENUDEO',   razonSocial: 'KNO' },
+            'KN06': { nombre: 'KN MEXICALI MAYOREO',   razonSocial: 'KNO' },
+            'KN07': { nombre: 'KN PEÑASCO',            razonSocial: 'KNO' },
+            'KN09': { nombre: 'KN MOSAIKOS',           razonSocial: 'KNO' },
+            'KN14': { nombre: 'KN TIJUANA PROYECTOS',  razonSocial: 'KNO' },
+            'KN15': { nombre: 'KN BO VALLE DE GPE.',   razonSocial: 'KNO' },
+            'KN16': { nombre: 'KN CEDIS TECATE',       razonSocial: 'KNO' },
+            'KN17': { nombre: 'KN ROSARITO',           razonSocial: 'KNO' },
+            'KN18': { nombre: 'KN PEDREGAL',           razonSocial: 'KNO' },
+            'KN19': { nombre: 'KN TECATE',             razonSocial: 'KNO' },
+            'KN21': { nombre: 'NOGALES',               razonSocial: 'KNO' },
+            'KN99': { nombre: 'ADMINISTRACION',        razonSocial: 'KNO' },
+            'KN98': { nombre: '313',                   razonSocial: 'KNO' }
+        };
+
+        // Extrae el código base (KN + 2 dígitos) de un código de SAP tipo
+        // "KN00V", "KN98DO", "kn06v", etc. Devuelve null si no hay texto.
+        function resolveCentroCode(raw) {
+            if (!raw) return null;
+            const clean = String(raw).trim().toUpperCase();
+            const match = clean.match(/^(KN\d{2})/);
+            return match ? match[1] : clean;
+        }
+
+        // Genera el arreglo de centros a partir del catálogo maestro.
+        function generarCentrosDesdeMaestro() {
+            return Object.entries(CENTROS_MAESTRO).map(([codigo, info]) => ({
+                id: crypto.randomUUID(),
+                codigo,
+                nombre: info.nombre,
+                razonSocial: info.razonSocial,
+                ubicacion: '',
+                responsable: '',
+                noReconocido: false
+            }));
+        }
+
+        // ============================================================
+        // 1. INICIALIZACIÓN DE DATOS POR DEFECTO
+        // ============================================================
+        async function initData() {
+            // Usuarios: se manejan 100% desde Supabase (usuarios2 + Auth),
+            // renderUsuarios() los carga cuando se abre esa pestaña.
+            users = [];
+            audits = [];
+            vehiculos = [];
+
+            // Todas las consultas salen al mismo tiempo (antes iban en 3 tandas seguidas).
+            const [{ data: centrosData, error: e1 }, { data: cfgData }, { data: assetsData, error: e3 }, { data: movData, error: e4 }, { data: invData, error: e5 }, bajaRes] = await Promise.all([
+                traerTodo(() => supabaseClient.from('centros').select('*').order('codigo')),
+                supabaseClient.from('app_config').select('*'),
+                traerTodo(() => supabaseClient.from('activos').select('*')),
+                traerTodo(() => supabaseClient.from('movimientos').select('*').order('fecha', { ascending: false })),
+                traerTodo(() => supabaseClient.from('inventarios').select('*').order('fecha_inicio', { ascending: false })),
+                traerTodo(() => supabaseClient.from('solicitudes_baja').select('*').order('fecha', { ascending: false })).then(r => r, err => ({ error: err }))
+            ]);
+            if (e1) throw e1;
+            centros = (centrosData || []).map(rowACentro);
+            if (centros.length === 0 && currentUser && currentUser.role === 'admin') {
+                // Primera vez: siembra el catálogo maestro en Supabase.
+                centros = generarCentrosDesdeMaestro();
+                await sincronizarTabla('centros', centros.map(centroARow));
+            }
+
+            const cfg = {};
+            (cfgData || []).forEach(r => { cfg[r.key] = r.value; });
+            razonSocial = cfg.razon_social || 'Grupo Kuroda';
+            document.getElementById('razon-social').value = razonSocial;
+
+            if (e3) throw e3;
+            if (e4) throw e4;
+            if (e5) throw e5;
+            assets = (assetsData || []).map(rowAAsset);
+            movimientos = (movData || []).map(rowAMov);
+            inventarios = (invData || []).map(rowAInv);
+
+            // Tabla opcional: si aún no se creó en Supabase, seguimos sin romper la app.
+            try {
+                if (bajaRes.error) throw bajaRes.error;
+                solicitudesBaja = (bajaRes.data || []).map(rowABaja);
+            } catch (err) {
+                solicitudesBaja = [];
+            }
+
+            // Foto de lo cargado: base para el guardado incremental
+            snapTabla('centros', centros.map(centroARow));
+            snapTabla('activos', assets.map(assetARow));
+            snapTabla('movimientos', movimientos.map(movARow));
+            snapTabla('inventarios', inventarios.map(invARow));
+            snapTabla('solicitudes_baja', solicitudesBaja.map(bajaARow));
+            _razonGuardada = razonSocial;
+        }
+
+        // ============================================================
+        // 2. LOGIN / LOGOUT
+        // ============================================================
+        // Convierte el perfil de usuarios2 (Supabase) al formato que ya
+        // usa el resto de la app (currentUser.nombreCompleto, etc.)
+        function perfilAAppUser(perfil) {
+            if (!perfil) return null;
+            return {
+                id: perfil.id,
+                username: perfil.username,
+                nombreCompleto: perfil.nombre_completo || perfil.username,
+                role: perfil.role,
+                puesto: perfil.puesto || '',
+                centro: perfil.centro_nombre || '',
+                centro_id: perfil.centro_id,
+                activo: perfil.activo,
+                tema: perfil.tema || 'light'
+            };
+        }
+
+        async function cargarPerfilActual() {
+            const { data: { user } } = await supabaseClient.auth.getUser();
+            if (!user) return null;
+            const { data, error } = await supabaseClient
+                .from('usuarios2')
+                .select('id, username, nombre_completo, role, puesto, centro_id, activo, tema')
+                .eq('id', user.id)
+                .single();
+            if (error || !data) return null;
+            return data;
+        }
+
+        async function login(e) {
+            e.preventDefault();
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value.trim();
+            const errorEl = document.getElementById('login-error');
+            errorEl.style.display = 'none';
+
+            const { error: authError } = await supabaseClient.auth.signInWithPassword({
+                email: usernameToEmail(username),
+                password: password
+            });
+
+            if (authError) {
+                errorEl.textContent = 'Usuario o contraseña incorrectos';
+                errorEl.style.display = 'block';
+                return false;
+            }
+
+            const perfil = await cargarPerfilActual();
+            if (!perfil || !perfil.activo) {
+                await supabaseClient.auth.signOut();
+                errorEl.textContent = perfil ? 'Tu usuario está deshabilitado. Contacta al admin.' : 'No se encontró tu perfil de usuario.';
+                errorEl.style.display = 'block';
+                return false;
+            }
+
+            currentUser = perfilAAppUser(perfil);
+            await showDashboard();
+            return false;
+        }
+
+        async function logout() {
+            await supabaseClient.auth.signOut();
+            currentUser = null;
+            document.getElementById('login-screen').style.display = 'flex';
+            document.getElementById('dashboard').classList.remove('active');
+            document.getElementById('dashboard').style.display = 'none';
+            document.getElementById('password').value = '';
+            document.getElementById('login-error').style.display = 'none';
+            const container = document.getElementById('notificationContainer');
+            if (container) container.innerHTML = '';
+            actualizarTopbarUsuario();
+        }
+
+        async function showDashboard() {
+            document.getElementById('login-screen').style.display = 'none';
+            const dashboard = document.getElementById('dashboard');
+            dashboard.style.display = 'flex';
+            dashboard.classList.add('active');
+            setTheme(currentUser && currentUser.tema === 'dark' ? 'dark' : 'light');
+            await loadAllData();
+            renderAll();
+            if (currentUser && currentUser.role === 'admin') repararCodigosDuplicados();
+            migrarFotosBase64();
+            if (currentUser && currentUser.role !== 'admin') {
+                document.getElementById('nav-usuarios').style.display = 'none';
+            } else {
+                document.getElementById('nav-usuarios').style.display = 'flex';
+            }
+            document.getElementById('modal-responsable-inv').value = currentUser ? currentUser.nombreCompleto || currentUser.username : 'admin';
+            actualizarSesion();
+        }
+
+        // ============================================================
+        // 3. CARGA Y PERSISTENCIA
+        // ============================================================
+        async function loadAllData() {
+            try {
+                await initData();
+                await firmarFotos();
+                marcarConexionOk();
+            } catch (err) {
+                console.error(err);
+                showNotification('No se pudieron cargar los datos de Supabase: ' + (err.message || err), 'danger');
+                marcarConexionMal();
+            }
+        }
+
+        async function recargarDatos() {
+            await loadAllData();
+            renderAll();
+        }
+
+        async function saveAllData() {
+            if (_guardando) { _pendiente = true; return; }
+            _guardando = true;
+            try {
+                do {
+                    _pendiente = false;
+                    const denegadas = (await Promise.all([
+                        sincronizarTabla('centros', centros.map(centroARow)),
+                        sincronizarTabla('activos', assets.map(assetARow)),
+                        sincronizarTabla('movimientos', movimientos.map(movARow), true),
+                        sincronizarTabla('inventarios', inventarios.map(invARow))
+                    ])).reduce((a, b) => a + b, 0);
+                    if (razonSocial !== _razonGuardada) {
+                        const { error } = await supabaseClient.from('app_config').upsert([{ key: 'razon_social', value: razonSocial }], { onConflict: 'key' });
+                        if (error) throw error;
+                        _razonGuardada = razonSocial;
+                    }
+                    try { await sincronizarTabla('solicitudes_baja', solicitudesBaja.map(bajaARow)); } catch (errBaja) { /* tabla opcional aún no creada */ }
+                    if (denegadas > 0) {
+                        showNotification('Algunos registros no se pudieron eliminar (sin permiso). Se recargaron los datos.', 'warning', 5000);
+                        await recargarDatos();
+                    }
+                    marcarConexionOk();
+                } while (_pendiente);
+            } catch (err) {
+                console.error(err);
+                showNotification('No se pudo guardar en Supabase: ' + (err.message || err), 'danger');
+                marcarConexionMal();
+            } finally {
+                _guardando = false;
+            }
+        }
+
+        // ============================================================
+        // 4. FUNCIONES DE RENDER (todas las secciones)
+        // ============================================================
+        function renderAll() {
+            renderAssets();
+            renderAudits();
+            renderCentros();
+            renderMovimientos();
+            renderUsuarios();
+            renderInventariosList();
+            updateKPIs();
+            updateBadges();
+            actualizarSelectCentros();
+            actualizarSelectMovimientos();
+            actualizarDatalistSeries();
+            actualizarSelectUsuarioCentro();
+            renderNotificaciones();
+        }
+
+        // Movimientos del más reciente al más antiguo (Supabase los entrega en orden
+        // descendente y los nuevos se agregan al final del arreglo).
+        const movimientosRecientes = () => movimientos.slice().sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+
+        // Encontrados / faltantes reales: resumen del último inventario finalizado de cada
+        // centro y categoría (el resumen se congela al finalizar el inventario).
+        function resumenInventarios() {
+            const ultimos = new Map();
+            inventarios.forEach(i => {
+                if (i.estado !== 'finalizado' || !i.resumen) return;
+                const k = (i.tienda || '') + '|' + (i.categoria || '');
+                const f = i.fechaFin || i.fecha || '';
+                const prev = ultimos.get(k);
+                if (!prev || String(f) > String(prev.fechaFin || prev.fecha || '')) ultimos.set(k, i);
+            });
+            let found = 0, missing = 0;
+            ultimos.forEach(i => { found += i.resumen.encontradosTotal || 0; missing += i.resumen.faltantesTotal || 0; });
+            return { found, missing, finalizados: inventarios.filter(i => i.estado === 'finalizado').length };
+        }
+
+        function updateKPIs() {
+            const total = assets.length;
+            const { found, missing, finalizados } = resumenInventarios();
+            const revisados = found + missing;
+            document.getElementById('kpi-total').textContent = total;
+            document.getElementById('kpi-found').textContent = found;
+            document.getElementById('kpi-missing').textContent = missing;
+            document.getElementById('kpi-audits').textContent = finalizados;
+            const pctFound = revisados ? Math.round((found/revisados)*100) : 0;
+            const pctMissing = revisados ? 100 - pctFound : 0;
+            document.getElementById('pct-found-label').textContent = `${pctFound}% Localizados`;
+            document.getElementById('pct-missing-label').textContent = `${pctMissing}% Faltantes`;
+            document.getElementById('progress-found').style.width = `${pctFound}%`;
+            document.getElementById('progress-missing').style.width = `${pctMissing}%`;
+            // Últimos movimientos
+            const tbody = document.getElementById('ultimos-movimientos');
+            if (movimientos.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" style="color:#888; text-align:center;">Sin movimientos recientes</td></tr>`;
+            } else {
+                const last = movimientosRecientes().slice(0, 5);
+                tbody.innerHTML = last.map(m => `
+                    <tr>
+                        <td>${esc(m.activoNombre || m.serie)}</td>
+                        <td>${esc(m.origen)} → ${esc(m.destino)}</td>
+                        <td>${new Date(m.fecha).toLocaleDateString()}</td>
+                        <td>${esc(m.usuario)}</td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        function updateBadges() {
+            document.getElementById('inv-badge').textContent = assets.length;
+            document.getElementById('scan-badge').textContent = inventarios.filter(i => i.estado === 'borrador').length;
+            document.getElementById('mov-badge').textContent = movimientos.length;
+        }
+
+        // ---- Activos (con Activo fijo) ----
+        function renderAssets() {
+            const container = document.getElementById('assets-grid');
+            container.innerHTML = '';
+            if (assets.length === 0) {
+                container.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:2rem; color:#888;">No hay activos.</div>`;
+                return;
+            }
+            assets.forEach((asset, index) => {
+                const card = document.createElement('div');
+                card.className = 'asset-card';
+                card.dataset.categoria = asset.categoria || '';
+                card.dataset.centro = asset.centro || '';
+                const fotoOk = fotoSegura(asset.foto);
+                const fotoHtml = fotoOk ? `<img src="${fotoOk}" alt="Foto">` : `<i class="fas fa-camera fa-2x"></i>`;
+                const estadoCls = asset.estado === 'Asignado' ? 'badge-done' : 'badge-process';
+                card.innerHTML = `
+                    <div class="asset-image-placeholder">${fotoHtml}</div>
+                    <div class="asset-info">
+                        <h3>${esc(asset.nombre)}</h3>
+                        <p><strong>Serie:</strong> ${esc(asset.serie)}</p>
+                        ${asset.activoFijo ? `<p><strong>Activo fijo:</strong> ${esc(asset.activoFijo)}</p>` : ''}
+                        <p><span class="status-badge ${estadoCls}" style="font-size:0.6rem;">${esc(asset.estado)}</span> · ${asset.centroCodigo ? esc(asset.centroCodigo) + ' · ' : ''}${esc(asset.centro)}</p>
+                    </div>
+                    <div class="asset-menu">
+                        <button type="button" class="asset-menu-btn" onclick="toggleMenuActivo(this, event)" title="Acciones" aria-label="Acciones" aria-haspopup="menu" aria-expanded="false"><span aria-hidden="true">⋮</span></button>
+                        <div class="asset-menu-list" role="menu">
+                            <button type="button" class="asset-menu-item" role="menuitem" onclick="editAsset(${index})"><i class="fas fa-edit"></i> Editar</button>
+                            <label class="asset-menu-item file-upload-wrapper" role="menuitem" title="Subir o cambiar foto"><i class="fas fa-camera"></i> ${asset.foto ? 'Cambiar foto' : 'Subir foto'}<input type="file" accept="image/*" onchange="uploadPhoto(${index}, event)"></label>
+                            <button type="button" class="asset-menu-item" role="menuitem" onclick="imprimirEtiquetas([assets[${index}]])" title="Etiqueta con QR para el escaneo"><i class="fas fa-qrcode"></i> Imprimir etiqueta</button>
+                            <div class="asset-menu-sep"></div>
+                            ${asset.estado !== 'Dado de baja' ? `<button type="button" class="asset-menu-item peligro" role="menuitem" onclick="solicitarBajaActivo(${index})" title="Solicitar baja a auditoría"><i class="fas fa-ban"></i> Dar de baja</button>` : ''}
+                            <button type="button" class="asset-menu-item peligro" role="menuitem" onclick="deleteAsset(${index})" title="Eliminar registro"><i class="fas fa-trash"></i> Eliminar</button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+            actualizarFiltroTienda();
+            filtrarActivos();
+        }
+
+        // Menú ⋮ de la tarjeta de activo: uno abierto a la vez; se cierra al elegir una opción,
+        // al dar clic fuera o con Esc. Si no cabe hacia abajo, se abre hacia arriba.
+        function cerrarMenusActivo() {
+            document.querySelectorAll('.asset-menu.abierto').forEach(m => {
+                m.classList.remove('abierto', 'arriba');
+                m.closest('.asset-card')?.classList.remove('menu-abierto');
+                m.querySelector('.asset-menu-btn')?.setAttribute('aria-expanded', 'false');
+            });
+        }
+        function toggleMenuActivo(btn, ev) {
+            ev.stopPropagation();
+            const menu = btn.closest('.asset-menu');
+            const abrir = !menu.classList.contains('abierto');
+            cerrarMenusActivo();
+            if (!abrir) return;
+            menu.classList.add('abierto');
+            menu.closest('.asset-card')?.classList.add('menu-abierto');
+            btn.setAttribute('aria-expanded', 'true');
+            const lista = menu.querySelector('.asset-menu-list');
+            const r = lista.getBoundingClientRect();
+            if (r.bottom > window.innerHeight - 8 && btn.getBoundingClientRect().top > r.height + 16) menu.classList.add('arriba');
+        }
+        document.addEventListener('click', ev => {
+            if (!ev.target.closest('.asset-menu')) return cerrarMenusActivo();
+            // Elegir una opción cierra el menú (la de foto se cierra al abrir el selector de archivo).
+            if (ev.target.closest('.asset-menu-item')) setTimeout(cerrarMenusActivo, 0);
+        });
+        document.addEventListener('keydown', ev => { if (ev.key === 'Escape') cerrarMenusActivo(); });
+
+        async function uploadPhoto(index, event) {
+            const file = event.target.files[0];
+            const asset = assets[index];
+            if (!file || !asset) return;
+            showNotification('Subiendo foto…', 'info', 2500);
+            try {
+                const anterior = asset.foto;
+                asset.foto = await subirFotoActivo(asset, file);
+                renderAssets();
+                await saveAllData();
+                if (anterior !== asset.foto) borrarFotoActivo(anterior);
+            } catch (err) {
+                showNotification('No se pudo subir la foto: ' + (err.message || err), 'danger');
+            } finally {
+                event.target.value = '';
+            }
+        }
+
+        function editAsset(index) {
+            const a = assets[index];
+            document.getElementById('modal-activo-title').textContent = '✏️ Editar Activo';
+            document.getElementById('edit-index').value = index;
+            document.getElementById('activo-serie').value = a.serie || '';
+            document.getElementById('activo-activofijo').value = a.activoFijo || '';
+            document.getElementById('activo-nombre').value = a.nombre;
+            document.getElementById('activo-categoria').value = a.categoria;
+            document.getElementById('activo-estado').value = a.estado || 'Asignado';
+            document.getElementById('activo-marca').value = a.marca || '';
+            document.getElementById('activo-modelo').value = a.modelo || '';
+            document.getElementById('activo-centro').value = a.centro || '';
+            document.getElementById('activo-asignado').value = a.asignado || '';
+            document.getElementById('activo-fecha-compra').value = a.fechaCompra || '';
+            document.getElementById('activo-proveedor').value = a.proveedor || '';
+            document.getElementById('activo-factura').value = a.factura || '';
+            document.getElementById('activo-notas').value = a.notas || '';
+            openModal('modalActivo');
+        }
+
+        function deleteAsset(index) {
+            if (confirm(`¿Eliminar "${assets[index].nombre}"?`)) {
+                // Solo admin puede borrar activos (RLS); solo entonces se borra también su foto.
+                if (currentUser && currentUser.role === 'admin') borrarFotoActivo(assets[index].foto);
+                assets.splice(index, 1);
+                renderAssets();
+                saveAllData();
+            }
+        }
+
+        function saveAsset() {
+            const index = document.getElementById('edit-index').value;
+            const serie = document.getElementById('activo-serie').value.trim();
+            const activoFijo = document.getElementById('activo-activofijo').value.trim();
+            const nombre = document.getElementById('activo-nombre').value.trim();
+            const categoria = document.getElementById('activo-categoria').value;
+            const estado = document.getElementById('activo-estado').value;
+            const marca = document.getElementById('activo-marca').value.trim();
+            const modelo = document.getElementById('activo-modelo').value.trim();
+            const centro = document.getElementById('activo-centro').value;
+            const asignado = document.getElementById('activo-asignado').value.trim();
+            const fechaCompra = document.getElementById('activo-fecha-compra').value;
+            const proveedor = document.getElementById('activo-proveedor').value.trim();
+            const factura = document.getElementById('activo-factura').value.trim();
+            const notas = document.getElementById('activo-notas').value.trim();
+
+            if (!serie || !nombre) {
+                alert('⚠️ Serie y Nombre son obligatorios');
+                return;
+            }
+
+            // No permitir dar de alta un activo que ya existe (misma serie o mismo activo fijo)
+            const yaExiste = assets.some((a, i) => {
+                if (index && i === parseInt(index)) return false; // permitir guardar el mismo registro al editar
+                const mismaSerie = serie && a.serie && a.serie.trim().toLowerCase() === serie.toLowerCase();
+                const mismoFijo = activoFijo && a.activoFijo && a.activoFijo.trim().toLowerCase() === activoFijo.toLowerCase();
+                return mismaSerie || mismoFijo;
+            });
+            if (yaExiste) {
+                showNotification('⚠️ Ya existe un activo registrado con esa serie o activo fijo', 'danger', 4000);
+                return;
+            }
+
+            const estadoAnterior = index ? (assets[parseInt(index)].estado || '') : '';
+            const pideBajaDirecta = estado === 'Dado de baja' && estadoAnterior !== 'Dado de baja';
+            const estadoFinal = (pideBajaDirecta && !esAuditor(currentUser)) ? estadoAnterior : estado;
+
+            const assetData = {
+                serie, activoFijo, nombre, categoria, estado: estadoFinal || 'Disponible', marca, modelo, centro,
+                asignado, fechaCompra, valor: 0, proveedor, factura, notas, foto: null
+            };
+            const cSel = centros.find(c => c.nombre === centro);
+            assetData.centroCodigo = cSel ? cSel.codigo : '';
+            assetData.razonSocial = cSel ? cSel.razonSocial : '';
+
+            if (index) {
+                const idx = parseInt(index);
+                assetData.foto = assets[idx].foto || null;
+                assets[idx] = { ...assets[idx], ...assetData };
+            } else {
+                assetData.codigo = nuevoCodigoActivo();
+                assetData.id = crypto.randomUUID();
+                assets.push(assetData);
+            }
+            closeModal('modalActivo');
+            renderAssets();
+            saveAllData();
+            resetAssetForm();
+
+            if (pideBajaDirecta && !esAuditor(currentUser)) {
+                showNotification('El cambio a "Dado de baja" requiere aprobación de auditoría. Usa el botón "Dar de baja" en la tarjeta del activo.', 'info', 5000);
+            }
+        }
+
+        function resetAssetForm() {
+            document.getElementById('modal-activo-title').textContent = '📦 Nuevo Activo';
+            document.getElementById('edit-index').value = '';
+            document.getElementById('activo-serie').value = '';
+            document.getElementById('activo-activofijo').value = '';
+            document.getElementById('activo-nombre').value = '';
+            document.getElementById('activo-categoria').value = 'computo';
+            document.getElementById('activo-estado').value = 'Disponible';
+            document.getElementById('activo-marca').value = '';
+            document.getElementById('activo-modelo').value = '';
+            document.getElementById('activo-centro').value = centros.length ? centros[0].nombre : '';
+            document.getElementById('activo-asignado').value = '';
+            document.getElementById('activo-fecha-compra').value = '';
+            document.getElementById('activo-proveedor').value = '';
+            document.getElementById('activo-factura').value = '';
+            document.getElementById('activo-notas').value = '';
+            actualizarSelectCentros();
+        }
+
+        // ---- Dar de baja (requiere aprobación de auditoría) ----
+        function solicitarBajaActivo(index) {
+            document.getElementById('baja-activo-index').value = index;
+            document.getElementById('baja-motivo').value = '';
+            openModal('modalSolicitarBaja');
+        }
+
+        function confirmarSolicitudBaja() {
+            const index = parseInt(document.getElementById('baja-activo-index').value);
+            const motivo = document.getElementById('baja-motivo').value.trim();
+            const asset = assets[index];
+            if (!asset) { closeModal('modalSolicitarBaja'); return; }
+            if (!motivo) { alert('⚠️ Describe el motivo de la baja'); return; }
+
+            if (esAuditor(currentUser)) {
+                // Auditor/administrador: aplica la baja de inmediato, sin trámite.
+                asset.estado = 'Dado de baja';
+                renderAssets();
+                saveAllData();
+            } else {
+                solicitudesBaja.push({
+                    id: crypto.randomUUID(), activoId: asset.id, activoNombre: asset.nombre,
+                    motivo, solicitadoPor: currentUser ? (currentUser.nombreCompleto || currentUser.username) : '',
+                    solicitadoPorId: currentUser ? currentUser.id : null,
+                    fecha: new Date().toISOString(), estado: 'pendiente'
+                });
+                saveAllData();
+            }
+            renderNotificaciones();
+            closeModal('modalSolicitarBaja');
+            showNotification(esAuditor(currentUser) ? '✅ Activo dado de baja' : '📩 Solicitud de baja enviada a auditoría', 'success');
+        }
+
+        function aprobarBaja(id) {
+            if (!esAuditor(currentUser)) return;
+            const sol = solicitudesBaja.find(s => s.id === id);
+            if (!sol) return;
+            const asset = assets.find(a => a.id === sol.activoId);
+            if (asset) asset.estado = 'Dado de baja';
+            sol.estado = 'aprobada';
+            sol.resueltoPor = currentUser.nombreCompleto || currentUser.username;
+            sol.fechaResuelto = new Date().toISOString();
+            renderAssets();
+            renderNotificaciones();
+            saveAllData();
+            showNotification('✅ Baja aprobada', 'success');
+        }
+
+        function rechazarBaja(id) {
+            if (!esAuditor(currentUser)) return;
+            const sol = solicitudesBaja.find(s => s.id === id);
+            if (!sol) return;
+            sol.estado = 'rechazada';
+            sol.resueltoPor = currentUser.nombreCompleto || currentUser.username;
+            sol.fechaResuelto = new Date().toISOString();
+            renderNotificaciones();
+            saveAllData();
+            showNotification('Solicitud de baja rechazada', 'info');
+        }
+
+        // ---- Campanita de notificaciones ----
+        function toggleNotifPanel() {
+            document.getElementById('notif-panel')?.classList.toggle('show');
+        }
+        document.addEventListener('click', function(e) {
+            const panel = document.getElementById('notif-panel');
+            const bell = document.querySelector('.notif-bell');
+            if (panel && panel.classList.contains('show') && !panel.contains(e.target) && !bell?.contains(e.target)) {
+                panel.classList.remove('show');
+            }
+        });
+
+        function renderNotificaciones() {
+            const badge = document.getElementById('notif-badge');
+            const body = document.getElementById('notif-panel-body');
+            if (!badge || !body) return;
+
+            const pendientes = solicitudesBaja.filter(s => s.estado === 'pendiente');
+            const items = [];
+
+            if (esAuditor(currentUser)) {
+                pendientes.forEach(s => {
+                    items.push(`
+                        <div class="notif-item">
+                            <div class="notif-title"><i class="fas fa-ban" style="color:var(--danger-color);"></i> Baja de "${esc(s.activoNombre)}"</div>
+                            <div class="notif-sub">${esc(s.solicitadoPor || 'Usuario')} · ${esc(s.motivo)}</div>
+                            <div class="notif-actions">
+                                <button class="btn-primary" style="padding:4px 10px; font-size:0.72rem;" onclick="aprobarBaja('${s.id}')">Aprobar</button>
+                                <button class="btn-secondary" style="padding:4px 10px; font-size:0.72rem;" onclick="rechazarBaja('${s.id}')">Rechazar</button>
+                            </div>
+                        </div>
+                    `);
+                });
+            } else if (currentUser) {
+                solicitudesBaja
+                    .filter(s => s.solicitadoPorId === currentUser.id && s.estado !== 'pendiente')
+                    .slice(0, 5)
+                    .forEach(s => {
+                        items.push(`
+                            <div class="notif-item">
+                                <div class="notif-title">Baja de "${esc(s.activoNombre)}" ${s.estado === 'aprobada' ? '✅ aprobada' : '❌ rechazada'}</div>
+                                <div class="notif-sub">${esc(s.motivo)}</div>
+                            </div>
+                        `);
+                    });
+            }
+
+            const countBadge = esAuditor(currentUser) ? pendientes.length : 0;
+            badge.textContent = countBadge;
+            badge.classList.toggle('show', countBadge > 0);
+            body.innerHTML = items.length ? items.join('') : `<div class="notif-empty">Sin notificaciones por ahora.</div>`;
+        }
+
+        function actualizarSelectCentros() {
+            const select = document.getElementById('activo-centro');
+            if (!select) return;
+            const current = select.value;
+            select.innerHTML = centros.map(c => `<option value="${esc(c.nombre)}">${esc(c.nombre)}</option>`).join('');
+            if (current) select.value = current;
+            const tiendaSelect = document.getElementById('modal-tienda-inv');
+            if (tiendaSelect) {
+                const current2 = tiendaSelect.value;
+                tiendaSelect.innerHTML = centros.map(c => `<option value="${esc(c.nombre)}">${esc(c.nombre)}</option>`).join('');
+                if (current2) tiendaSelect.value = current2;
+            }
+        }
+
+        // Filtro de búsqueda incluyendo Activo fijo
+        // Opciones del filtro de tienda: centros del catálogo más cualquier centro que
+        // tengan los activos y no esté en el catálogo. Conserva la tienda elegida.
+        function actualizarFiltroTienda() {
+            const sel = document.getElementById('filtro-tienda-activo');
+            if (!sel) return;
+            const actual = sel.value;
+            const cuenta = new Map();
+            assets.forEach(a => { const k = a.centro || ''; cuenta.set(k, (cuenta.get(k) || 0) + 1); });
+            const lista = centros.map(c => ({ nombre: c.nombre, codigo: c.codigo || '' }));
+            cuenta.forEach((_, nombre) => { if (nombre && !lista.some(c => c.nombre === nombre)) lista.push({ nombre, codigo: '' }); });
+            lista.sort((a, b) => (a.codigo || 'ZZZ').localeCompare(b.codigo || 'ZZZ') || a.nombre.localeCompare(b.nombre));
+            sel.innerHTML = `<option value="">Todas las tiendas (${assets.length})</option>` +
+                lista.map(c => `<option value="${esc(c.nombre)}">${c.codigo ? esc(c.codigo) + ' · ' : ''}${esc(c.nombre)} (${cuenta.get(c.nombre) || 0})</option>`).join('') +
+                (cuenta.get('') ? `<option value="__sin__">Sin tienda (${cuenta.get('')})</option>` : '');
+            if (actual && [...sel.options].some(o => o.value === actual)) sel.value = actual;
+        }
+
+        function filtrarActivos() {
+            const q = (document.getElementById('search-activo')?.value || '').toLowerCase().trim();
+            const cat = document.getElementById('filtro-categoria-activo')?.value || '';
+            const tienda = document.getElementById('filtro-tienda-activo')?.value || '';
+            let visibles = 0, total = 0;
+            document.querySelectorAll('.asset-card').forEach(card => {
+                total++;
+                const text = card.textContent.toLowerCase();
+                const coincideTexto = !q || text.includes(q);
+                const coincideCategoria = !cat || card.dataset.categoria === cat;
+                const coincideTienda = !tienda || (tienda === '__sin__' ? !card.dataset.centro : card.dataset.centro === tienda);
+                const ver = coincideTexto && coincideCategoria && coincideTienda;
+                card.style.display = ver ? '' : 'none';
+                if (ver) visibles++;
+            });
+            const conteo = document.getElementById('activos-conteo');
+            if (conteo) conteo.textContent = total ? `${visibles} de ${total} activos` : '';
+        }
+
+        function exportarTiendaFiltrada() {
+            const tienda = document.getElementById('filtro-tienda-activo')?.value || '';
+            if (!tienda || tienda === '__sin__') { showNotification('Elige una tienda en el filtro para exportar sus activos', 'warning', 4000); return; }
+            exportarActivosCentro(tienda);
+        }
+        document.getElementById('search-activo')?.addEventListener('input', filtrarActivos);
+
+        function toggleView(view) {
+            const container = document.getElementById('assets-grid');
+            const gridBtn = document.getElementById('view-grid-btn');
+            const listBtn = document.getElementById('view-list-btn');
+            if (view === 'list') {
+                container.classList.add('list-view');
+                gridBtn.style.background = '#f1f3f5';
+                gridBtn.style.color = '#495057';
+                listBtn.style.background = 'var(--active-bg)';
+                listBtn.style.color = 'white';
+            } else {
+                container.classList.remove('list-view');
+                gridBtn.style.background = 'var(--active-bg)';
+                gridBtn.style.color = 'white';
+                listBtn.style.background = '#f1f3f5';
+                listBtn.style.color = '#495057';
+            }
+        }
+
+        // ---- Auditorías ----
+        function renderAudits() {
+            const tbody = document.getElementById('audit-body');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            audits.forEach(a => {
+                const row = document.createElement('tr');
+                const cls = a.estado === 'Completada' ? 'badge-done' : 'badge-process';
+                row.innerHTML = `
+                    <td><strong>${a.id}</strong></td>
+                    <td>${a.tienda}</td>
+                    <td>${a.fecha}</td>
+                    <td>${a.total}</td>
+                    <td>${a.diferencias}</td>
+                    <td><span class="status-badge ${cls}">${a.estado}</span></td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // ---- Centros (vista jerárquica, agrupados por Razón social) ----
+        function renderCentros() {
+            const container = document.getElementById('centros-list');
+            if (!container) return;
+            const filtro = document.getElementById('search-centro')?.value.toLowerCase().trim() || '';
+
+            // Agrupar centros por Razón social (KNO / KSC / KSA / Sin reconocer)
+            const grupos = {};
+            centros.forEach(c => {
+                const grupoKey = c.noReconocido ? '⚠️ Sin reconocer (revisar)' : (c.razonSocial || 'Sin razón social');
+                const textoBusqueda = (c.codigo + ' ' + c.nombre + ' ' + c.ubicacion + ' ' + c.responsable).toLowerCase();
+                if (filtro && !textoBusqueda.includes(filtro)) return;
+
+                if (!grupos[grupoKey]) grupos[grupoKey] = [];
+                grupos[grupoKey].push(c);
+            });
+
+            if (Object.keys(grupos).length === 0) {
+                container.innerHTML = `<p style="color:#888; text-align:center; padding:2rem;">No se encontraron centros.</p>`;
+                return;
+            }
+
+            let html = '';
+            for (const [grupoKey, items] of Object.entries(grupos)) {
+                const countTotal = items.reduce((sum, c) => sum + assets.filter(a => a.centro === c.nombre).length, 0);
+                html += `
+                    <div class="centro-grupo">
+                        <div class="centro-grupo-header">
+                            <span>${esc(grupoKey)}</span>
+                            <span class="badge-ciudad">${items.length} centros · ${countTotal} activos</span>
+                        </div>
+                `;
+                items.forEach(c => {
+                    const activosCount = assets.filter(a => a.centro === c.nombre).length;
+                    const alerta = c.noReconocido ? ` <span class="status-badge badge-process" title="Código no encontrado en el catálogo maestro">⚠️ sin reconocer</span>` : '';
+                    html += `
+                        <div class="centro-item">
+                            <div class="info">
+                                <div class="nombre-sucursal"><strong>${esc(c.codigo || '—')}</strong> · ${esc(c.nombre)}${alerta}</div>
+                                <div class="direccion">${esc(c.ubicacion || 'Sin dirección')}</div>
+                                <div class="responsable">Responsable: ${esc(c.responsable || 'No asignado')}</div>
+                            </div>
+                            <div class="acciones">
+                                <span class="contador">${activosCount} activos</span>
+                                <button class="btn-accion btn-ver" onclick="verActivosCentroId('${c.id}')"><i class="fas fa-eye"></i> Ver inventario</button>
+                                <button class="btn-accion btn-editar" onclick="exportarActivosCentro('${c.nombre.replace(/'/g, "\\'")}')"><i class="fas fa-file-excel"></i> Exportar</button>
+                                <button class="btn-accion btn-editar" onclick="editarCentro('${c.id}')"><i class="fas fa-edit"></i> Editar</button>
+                                <button class="btn-accion btn-eliminar" onclick="eliminarCentro('${c.id}')"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += `</div>`;
+            }
+            container.innerHTML = html;
+        }
+
+        function verActivosCentroId(id) { const c = centros.find(x => x.id === id); if (c) verActivosCentro(c.nombre); }
+        function exportarCentroId(id) { const c = centros.find(x => x.id === id); if (c) exportarActivosCentro(c.nombre); }
+        function verActivosCentro(nombreCentro) {
+            const tabActivos = document.querySelector('.nav-item[onclick*="activos"]');
+            if (tabActivos) tabActivos.click();
+            // Abre el directorio filtrado por esa tienda (antes escribía el nombre en la búsqueda).
+            const searchInput = document.getElementById('search-activo');
+            if (searchInput) searchInput.value = '';
+            const tiendaSel = document.getElementById('filtro-tienda-activo');
+            if (tiendaSel) { actualizarFiltroTienda(); tiendaSel.value = nombreCentro; }
+            filtrarActivos();
+        }
+
+        document.getElementById('search-centro')?.addEventListener('input', function() {
+            renderCentros();
+        });
+
+        function abrirModalCentro(data) {
+            const title = document.getElementById('modal-centro-title');
+            const idField = document.getElementById('edit-centro-id');
+            const codigo = document.getElementById('centro-codigo');
+            const nombre = document.getElementById('centro-nombre');
+            const razonSocial = document.getElementById('centro-razonsocial');
+            const ubicacion = document.getElementById('centro-ubicacion');
+            const responsable = document.getElementById('centro-responsable');
+            if (data) {
+                title.textContent = '✏️ Editar Centro';
+                idField.value = data.id;
+                codigo.value = data.codigo || '';
+                nombre.value = data.nombre;
+                razonSocial.value = data.razonSocial || 'KNO';
+                ubicacion.value = data.ubicacion;
+                responsable.value = data.responsable;
+            } else {
+                title.textContent = '🏢 Nuevo Centro';
+                idField.value = '';
+                codigo.value = '';
+                nombre.value = '';
+                razonSocial.value = 'KNO';
+                ubicacion.value = '';
+                responsable.value = '';
+            }
+            openModal('modalCentro');
+        }
+
+        function editarCentro(id) {
+            const c = centros.find(c => c.id === id);
+            if (c) abrirModalCentro(c);
+        }
+
+        function eliminarCentro(id) {
+            if (confirm('¿Eliminar este centro?')) {
+                centros = centros.filter(c => c.id !== id);
+                renderCentros();
+                saveAllData();
+                showNotification('Centro eliminado', 'info');
+            }
+        }
+
+        function guardarCentro() {
+            const id = document.getElementById('edit-centro-id').value;
+            const codigo = document.getElementById('centro-codigo').value.trim().toUpperCase();
+            const nombre = document.getElementById('centro-nombre').value.trim();
+            const razonSocial = document.getElementById('centro-razonsocial').value;
+            const ubicacion = document.getElementById('centro-ubicacion').value.trim();
+            const responsable = document.getElementById('centro-responsable').value.trim();
+            if (!nombre) { alert('El nombre es obligatorio'); return; }
+            if (id) {
+                const c = centros.find(c => c.id === id);
+                if (c) {
+                    const nombreAnterior = c.nombre;
+                    c.codigo = codigo;
+                    c.nombre = nombre;
+                    c.razonSocial = razonSocial;
+                    c.ubicacion = ubicacion;
+                    c.responsable = responsable;
+                    c.noReconocido = false;
+                    // Si el nombre del centro cambió, actualizar también los activos que lo referencian
+                    assets.forEach(a => { if (a.centro === nombreAnterior) { a.centro = nombre; a.centroCodigo = codigo; a.razonSocial = razonSocial; } });
+                    inventarios.forEach(i => { if (i.tienda === nombreAnterior) i.tienda = nombre; });
+                }
+            } else {
+                centros.push({ id: crypto.randomUUID(), codigo, nombre, razonSocial, ubicacion, responsable, noReconocido: false });
+            }
+            closeModal('modalCentro');
+            renderCentros();
+            actualizarSelectCentros();
+            saveAllData();
+            showNotification('Centro guardado', 'success');
+        }
+
+        // ---- Movimientos ----
+        function renderMovimientos() {
+            const tbody = document.getElementById('movimientos-body');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            if (movimientos.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" style="color:#888; text-align:center;">No hay movimientos registrados.</td></tr>`;
+                return;
+            }
+            movimientosRecientes().forEach(m => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${esc(m.activoNombre || m.serie)}</td>
+                    <td><strong>${esc(m.serie)}</strong></td>
+                    <td>${esc(m.origen)}</td>
+                    <td>${esc(m.destino)}</td>
+                    <td>${new Date(m.fecha).toLocaleDateString()}</td>
+                    <td>${esc(m.usuario)}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function abrirModalMovimiento() {
+            actualizarSelectMovimientos();
+            actualizarDatalistSeries();
+            document.getElementById('mov-serie').value = '';
+            const origen = document.getElementById('mov-origen');
+            const destino = document.getElementById('mov-destino');
+            origen.innerHTML = centros.map(c => `<option value="${esc(c.nombre)}">${esc(c.nombre)}</option>`).join('');
+            destino.innerHTML = centros.map(c => `<option value="${esc(c.nombre)}">${esc(c.nombre)}</option>`).join('');
+            openModal('modalMovimiento');
+        }
+
+        function actualizarSelectMovimientos() {}
+
+        function actualizarDatalistSeries() {
+            const datalist = document.getElementById('series-list');
+            if (!datalist) return;
+            datalist.innerHTML = assets.map(a => `<option value="${esc(a.serie)}">${esc(a.serie)} - ${esc(a.nombre)}</option>`).join('');
+        }
+
+        function registrarMovimiento() {
+            const serie = document.getElementById('mov-serie').value.trim();
+            const origen = document.getElementById('mov-origen').value;
+            const destino = document.getElementById('mov-destino').value;
+            if (!serie || !origen || !destino) {
+                alert('Completa todos los campos');
+                return;
+            }
+            if (origen === destino) {
+                alert('Origen y destino deben ser diferentes');
+                return;
+            }
+            const asset = assets.find(a => a.serie === serie);
+            if (!asset) {
+                alert('No se encontró un activo con esa serie');
+                return;
+            }
+            const movimiento = {
+                id: crypto.randomUUID(),
+                activoId: asset.id,
+                serie: serie,
+                activoNombre: asset.nombre,
+                origen: origen,
+                destino: destino,
+                fecha: new Date().toISOString(),
+                usuario: currentUser ? currentUser.nombreCompleto || currentUser.username : 'admin'
+            };
+            movimientos.push(movimiento);
+            asset.centro = destino;
+            const cDest = centros.find(c => c.nombre === destino);
+            if (cDest) { asset.centroCodigo = cDest.codigo; asset.razonSocial = cDest.razonSocial; }
+            closeModal('modalMovimiento');
+            renderMovimientos();
+            updateKPIs();
+            renderAssets();
+            updateKPIs();
+            saveAllData();
+            showNotification(`Movimiento registrado: ${asset.nombre} → ${destino}`, 'success');
+        }
+
+        // ---- Usuarios (Supabase Auth + tabla usuarios2) ----
+        // Nota: el select de "centro" queda solo informativo por ahora
+        // (usuarios2.centro_id es un uuid ligado a la tabla "centros" de
+        // Supabase; conectarlo 1:1 con este dropdown es el siguiente paso).
+        async function renderUsuarios() {
+            const tbody = document.getElementById('usuarios-body');
+            if (!tbody) return;
+            const { data, error } = await supabaseClient
+                .from('usuarios2')
+                .select('id, username, nombre_completo, role, activo, centro_id, puesto')
+                .order('created_at', { ascending: true });
+            if (error) {
+                showNotification('No se pudo cargar la lista de usuarios: ' + error.message, 'danger');
+                return;
+            }
+            users = data.map(u => ({
+                id: u.id,
+                username: u.username,
+                nombreCompleto: u.nombre_completo,
+                role: u.role,
+                activo: u.activo,
+                puesto: u.puesto || '',
+                centro: ''
+            }));
+            tbody.innerHTML = '';
+            users.forEach(u => {
+                const row = document.createElement('tr');
+                const roleCls = u.role === 'admin' ? 'badge-admin' : 'badge-user';
+                const estadoTxt = u.activo === false ? ' <span class="status-badge" style="opacity:.6;">inactivo</span>' : '';
+                row.innerHTML = `
+                    <td><strong>${esc(u.username)}</strong>${estadoTxt}</td>
+                    <td>${esc(u.nombreCompleto || '')}</td>
+                    <td><span class="status-badge ${roleCls}">${esc(u.role)}</span></td>
+                    <td>${esc(u.centro || '-')}</td>
+                    <td>
+                        <button class="btn-action" onclick="editarUsuario('${u.id}')" title="Editar"><i class="fas fa-edit"></i></button>
+                        <button class="btn-action" onclick="pedirNuevaPassword('${u.id}')" title="Restablecer contraseña"><i class="fas fa-key"></i></button>
+                        ${u.username !== 'admin' ? `<button class="btn-action" style="color:var(--danger-color);" onclick="eliminarUsuario('${u.id}')" title="Eliminar"><i class="fas fa-trash"></i></button>` : ''}
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Restablecer contraseña — solo visible/funcional si eres admin;
+        // el backend (función admin_reset_password) también lo exige.
+        async function pedirNuevaPassword(id) {
+            const username = (users.find(u => u.id === id) || {}).username || '';
+            if (!currentUser || currentUser.role !== 'admin') {
+                showNotification('Solo un admin puede restablecer contraseñas', 'danger');
+                return;
+            }
+            const nueva = prompt(`Nueva contraseña para "${username}" (mínimo 6 caracteres):`);
+            if (!nueva) return;
+            if (nueva.length < 6) {
+                alert('La contraseña debe tener al menos 6 caracteres');
+                return;
+            }
+            const { error } = await supabaseClient.rpc('admin_reset_password', {
+                target_id: id,
+                new_password: nueva
+            });
+            if (error) {
+                showNotification('No se pudo restablecer la contraseña: ' + error.message, 'danger');
+                return;
+            }
+            showNotification(`Contraseña de "${username}" restablecida`, 'success');
+        }
+
+        function actualizarSelectUsuarioCentro() {
+            const select = document.getElementById('usuario-centro');
+            if (!select) return;
+            const current = select.value;
+            select.innerHTML = centros.map(c => `<option value="${esc(c.nombre)}">${esc(c.nombre)}</option>`).join('');
+            if (current) select.value = current;
+        }
+
+        function abrirModalUsuario(data) {
+            const title = document.getElementById('modal-usuario-title');
+            const idField = document.getElementById('edit-usuario-id');
+            const username = document.getElementById('usuario-username');
+            const nombre = document.getElementById('usuario-nombre');
+            const puesto = document.getElementById('usuario-puesto');
+            const password = document.getElementById('usuario-password');
+            const rol = document.getElementById('usuario-rol');
+            const centroSelect = document.getElementById('usuario-centro');
+            actualizarSelectUsuarioCentro();
+
+            if (data) {
+                title.textContent = '✏️ Editar usuario';
+                idField.value = data.id;
+                username.value = data.username;
+                nombre.value = data.nombreCompleto || '';
+                puesto.value = data.puesto || '';
+                password.value = '';
+                rol.value = data.role;
+                centroSelect.value = data.centro || '';
+                if (data.username === 'admin') {
+                    username.disabled = true;
+                    document.querySelector('#modalUsuario .sub').textContent = 'Usuario administrador. No se puede cambiar el nombre de usuario.';
+                } else {
+                    username.disabled = false;
+                    document.querySelector('#modalUsuario .sub').textContent = 'Deja la contraseña en blanco para no cambiarla.';
+                }
+            } else {
+                title.textContent = '👤 Nuevo Usuario';
+                idField.value = '';
+                username.value = '';
+                nombre.value = '';
+                puesto.value = '';
+                password.value = '';
+                rol.value = 'user';
+                centroSelect.value = centros.length ? centros[0].nombre : '';
+                username.disabled = false;
+                document.querySelector('#modalUsuario .sub').textContent = 'Deja la contraseña en blanco para no cambiarla.';
+            }
+            openModal('modalUsuario');
+        }
+
+        function editarUsuario(id) {
+            const u = users.find(u => u.id === id);
+            if (u) abrirModalUsuario(u);
+        }
+
+        async function eliminarUsuario(id) {
+            if (!currentUser || currentUser.role !== 'admin') {
+                showNotification('Solo un admin puede eliminar usuarios', 'danger');
+                return;
+            }
+            if (currentUser.id === id) {
+                alert('No puedes eliminar tu propia cuenta');
+                return;
+            }
+            if (!confirm('¿Eliminar este usuario?')) return;
+            const { error } = await supabaseClient.rpc('admin_delete_user', { target_id: id });
+            if (error) {
+                showNotification('No se pudo eliminar: ' + error.message, 'danger');
+                return;
+            }
+            await renderUsuarios();
+            showNotification('Usuario eliminado', 'info');
+        }
+
+        async function guardarUsuario() {
+            const id = document.getElementById('edit-usuario-id').value;
+            const username = document.getElementById('usuario-username').value.trim();
+            const nombreCompleto = document.getElementById('usuario-nombre').value.trim() || username;
+            const puesto = document.getElementById('usuario-puesto').value.trim();
+            const password = document.getElementById('usuario-password').value.trim();
+            const role = document.getElementById('usuario-rol').value;
+            // El centro por ahora es solo informativo (ver nota en renderUsuarios)
+
+            if (!username) {
+                alert('El usuario es obligatorio');
+                return;
+            }
+
+            if (id) {
+                // --- Editar usuario existente ---
+                // Se envía p_puesto explícitamente porque en la base hay dos
+                // versiones de admin_update_user (con y sin ese parámetro) y
+                // sin este dato Postgres no puede elegir cuál usar.
+                const { error: errUpd } = await supabaseClient.rpc('admin_update_user', {
+                    target_id: id,
+                    p_username: username,
+                    p_nombre_completo: nombreCompleto,
+                    p_centro_id: null,
+                    p_activo: true,
+                    p_puesto: puesto
+                });
+                if (errUpd) {
+                    showNotification('No se pudo actualizar: ' + errUpd.message, 'danger');
+                    return;
+                }
+                const { error: errRole } = await supabaseClient.rpc('admin_set_role', {
+                    target_id: id,
+                    new_role: role
+                });
+                if (errRole) {
+                    showNotification('Usuario actualizado, pero no se pudo cambiar el rol: ' + errRole.message, 'danger');
+                }
+                if (password) {
+                    if (password.length < 6) {
+                        alert('La contraseña debe tener al menos 6 caracteres (se guardó el resto de los cambios)');
+                    } else {
+                        const { error: errPass } = await supabaseClient.rpc('admin_reset_password', {
+                            target_id: id,
+                            new_password: password
+                        });
+                        if (errPass) showNotification('No se pudo cambiar la contraseña: ' + errPass.message, 'danger');
+                    }
+                }
+            } else {
+                // --- Crear usuario nuevo ---
+                // Usamos una Edge Function con permisos de servidor (no
+                // auth.signUp desde el navegador) para que crear un usuario
+                // NO le robe la sesión activa al admin que está logueado.
+                if (!currentUser || currentUser.role !== 'admin') {
+                    showNotification('Solo un admin puede crear usuarios', 'danger');
+                    return;
+                }
+                if (!password || password.length < 6) {
+                    alert('La contraseña es obligatoria (mínimo 6 caracteres)');
+                    return;
+                }
+                const { data, error: errCreate } = await supabaseClient.functions.invoke('admin-create-user', {
+                    body: {
+                        username,
+                        password,
+                        nombreCompleto,
+                        puesto,
+                        role
+                    }
+                });
+                if (errCreate || (data && data.error)) {
+                    showNotification('No se pudo crear el usuario: ' + ((data && data.error) || errCreate.message), 'danger');
+                    return;
+                }
+            }
+            closeModal('modalUsuario');
+            await renderUsuarios();
+            showNotification('Usuario guardado', 'success');
+        }
+
+        // ---- Inventarios ----
+        function toggleVehTipoField() {
+            const categoria = document.getElementById('modal-categoria-inv').value;
+            const wrap = document.getElementById('modal-veh-tipo-wrap');
+            wrap.style.display = categoria === 'vehiculos' ? 'block' : 'none';
+        }
+
+        function crearInventario() {
+            const tienda = document.getElementById('modal-tienda-inv').value;
+            const categoria = document.getElementById('modal-categoria-inv').value;
+            const responsable = document.getElementById('modal-responsable-inv').value.trim();
+            if (!tienda || !categoria || !responsable) {
+                alert('Completa todos los campos');
+                return;
+            }
+            const vehTipo = categoria === 'vehiculos' ? document.getElementById('modal-veh-tipo').value : null;
+            const newInv = {
+                id: crypto.randomUUID(),
+                tienda: tienda,
+                categoria: categoria,
+                vehTipo: vehTipo,
+                responsable: responsable,
+                fecha: new Date().toISOString(),
+                items: [],
+                estado: 'borrador',
+                vehiculos: []
+            };
+            inventarios.push(newInv);
+            inventarioActivo = newInv.id;
+            closeModal('modalNuevoInventario');
+            renderInventariosList();
+            abrirInventario(newInv.id);
+            saveAllData();
+            showNotification(`Inventario creado en ${tienda} (${categoria})`, 'success');
+        }
+
+        function abrirInventario(id) {
+            const inv = inventarios.find(i => i.id === id);
+            if (!inv) return;
+            inventarioActivo = id;
+            const scanArea = document.getElementById('scan-area');
+            scanArea.style.display = 'block';
+            document.getElementById('scan-tienda').textContent = inv.tienda;
+            document.getElementById('scan-categoria').textContent = inv.categoria;
+            document.getElementById('scan-count').textContent = inv.items.length;
+            document.getElementById('scan-title').textContent = `📋 Inventario: ${inv.tienda} (${inv.categoria})`;
+
+            const vehModule = document.getElementById('vehiculo-module');
+            if (inv.categoria === 'vehiculos' && inv.vehTipo === 'documentos') {
+                vehModule.style.display = 'block';
+                vehiculos = inv.vehiculos || [];
+                renderVehiculosTabla(vehiculos);
+            } else {
+                vehModule.style.display = 'none';
+                vehiculos = [];
+            }
+            // Los escaneos guardados se vuelven a comparar con el catálogo ACTUAL: si un activo se
+            // corrigió (categoría o sucursal) después de escanearlo, deja de marcarse "a revisar".
+            scanResults = (inv.items || []).map(i => evaluarItem(inv, i));
+            inv.items = scanResults.slice();
+            renderScanResults();
+            updateScanCount();
+            saveAllData();
+            setTimeout(() => document.getElementById('scan-input')?.focus(), 50);
+        }
+
+        function renderInventariosList() {
+            const container = document.getElementById('inventarios-list');
+            if (!container) return;
+            const filtro = document.getElementById('filtro-inventario')?.value || 'todos';
+            let filtered = inventarios;
+            if (filtro === 'borrador') filtered = inventarios.filter(i => i.estado === 'borrador');
+            else if (filtro === 'finalizado') filtered = inventarios.filter(i => i.estado === 'finalizado');
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<p style="color:#888; text-align:center; padding:1rem;">No hay inventarios.</p>`;
+                return;
+            }
+            let html = `<table><thead><tr><th>Tienda</th><th>Categoría</th><th>Fecha</th><th>Items</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>`;
+            filtered.forEach(inv => {
+                const estadoCls = inv.estado === 'borrador' ? 'badge-process' : 'badge-done';
+                html += `<tr>
+                    <td data-label="Tienda">${esc(inv.tienda)}</td>
+                    <td data-label="Categoría">${esc(inv.categoria)}</td>
+                    <td data-label="Fecha">${new Date(inv.fecha).toLocaleDateString()}</td>
+                    <td data-label="Items">${inv.items.length}</td>
+                    <td data-label="Estado"><span class="status-badge ${estadoCls}">${esc(inv.estado)}</span></td>
+                    <td data-label="Acciones">
+                        ${inv.estado === 'borrador' ? `<button class="btn-primary" style="padding:2px 8px; font-size:0.7rem;" onclick="abrirInventario('${inv.id}')"><i class="fas fa-play"></i> Continuar</button>` : `
+                        <button class="btn-action" style="padding:2px 8px; font-size:0.7rem; color:var(--danger-color);" onclick="descargarInformePDF('${inv.id}')" title="Informe en PDF"><i class="fas fa-file-pdf"></i></button>
+                        <button class="btn-action" style="padding:2px 8px; font-size:0.7rem; color:var(--info-color);" onclick="descargarInformeWord('${inv.id}')" title="Informe en Word"><i class="fas fa-file-word"></i></button>`}
+                        <button class="btn-action" style="padding:2px 8px; font-size:0.7rem; color:var(--danger-color);" onclick="eliminarInventario('${inv.id}')"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>`;
+            });
+            html += `</tbody></table>`;
+            container.innerHTML = html;
+        }
+
+        function eliminarInventario(id) {
+            if (confirm('¿Eliminar este inventario?')) {
+                inventarios = inventarios.filter(i => i.id !== id);
+                if (inventarioActivo === id) {
+                    inventarioActivo = null;
+                    document.getElementById('scan-area').style.display = 'none';
+                    scanResults = [];
+                    renderScanResults();
+                }
+                renderInventariosList();
+                saveAllData();
+                showNotification('Inventario eliminado', 'info');
+            }
+        }
+
+        function filtrarInventarios() {
+            renderInventariosList();
+        }
+
+        function finalizarInventario() {
+            if (!inventarioActivo) return;
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            if (!inv) return;
+            if (scanResults.length === 0) {
+                if (!confirm('El inventario está vacío. ¿Finalizar de todos modos?')) return;
+            }
+            inv.items = scanResults.slice();
+            if (inv.categoria === 'vehiculos') {
+                inv.vehiculos = vehiculos.slice();
+            }
+
+            // Congela el resultado de la auditoría en el momento del cierre,
+            // así el informe ejecutivo siempre refleja lo que pasó ese día,
+            // aunque el catálogo de activos cambie después.
+            const r = calcularResumen(inv, inv.items);
+            if (r.faltantes.length && !confirm(`Quedan ${r.faltantes.length} activo(s) pendientes de revisar; se registrarán como FALTANTES. ¿Finalizar?`)) return;
+            inv.resumen = {
+                universoTotal: r.universo.length,
+                encontradosTotal: r.encontrados.length,
+                reparacionTotal: r.reparacion.length,
+                bajaTotal: r.baja.length,
+                faltantesTotal: r.faltantes.length,
+                sobrantesTotal: r.sobrantes.length,
+                fechaFin: new Date().toISOString()
+            };
+            const fila = a => { const i = r.itemDe(a) || {}; return { codigo: a.codigo, activoFijo: a.activoFijo, nombre: a.nombre, serie: a.serie, marca: a.marca, modelo: a.modelo, comentario: i.comentario || '' }; };
+            inv.faltantesList = r.faltantes.map(fila);
+            inv.reparacionList = r.reparacion.map(fila);
+            inv.bajaList = r.baja.map(fila);
+            inv.sobrantesList = r.sobrantes.map(s => ({ codigo: s.code, nombre: s.name, centro: s.centro, alerta: s.alerta, comentario: s.comentario || '' }));
+
+            // El catálogo refleja lo revisado: "En reparación" cambia el estado del activo;
+            // "Dado de baja" lo aplica un auditor directo y los demás usuarios generan una
+            // solicitud de baja para que auditoría la apruebe (mismo trámite que en Activos).
+            const folio = inv.id.slice(0, 8).toUpperCase();
+            r.reparacion.forEach(a => { a.estado = 'En reparación'; });
+            r.baja.forEach(a => {
+                if (a.estado === 'Dado de baja') return;
+                if (esAuditor(currentUser)) { a.estado = 'Dado de baja'; return; }
+                if (solicitudesBaja.some(b => b.activoId === a.id && b.estado === 'pendiente')) return;
+                const i = r.itemDe(a) || {};
+                solicitudesBaja.push({
+                    id: crypto.randomUUID(), activoId: a.id, activoNombre: a.nombre,
+                    motivo: `Inventario ${folio} (${inv.tienda})` + (i.comentario ? ': ' + i.comentario : ''),
+                    solicitadoPor: currentUser ? (currentUser.nombreCompleto || currentUser.username) : '',
+                    solicitadoPorId: currentUser ? currentUser.id : null,
+                    fecha: new Date().toISOString(), estado: 'pendiente'
+                });
+            });
+            renderAssets();
+            renderNotificaciones();
+
+            inv.fechaFin = inv.resumen.fechaFin;
+            inv.estado = 'finalizado';
+            inventarioActivo = null;
+            document.getElementById('scan-area').style.display = 'none';
+            scanResults = [];
+            renderScanResults();
+            renderInventariosList();
+            updateKPIs();
+            saveAllData();
+            showNotification('✅ Inventario finalizado', 'success');
+            mostrarModalInformeFinal(inv.id);
+        }
+
+        function mostrarModalInformeFinal(id) {
+            const inv = inventarios.find(i => i.id === id);
+            if (!inv) return;
+            window.__ultimoInventarioId = id;
+            const r = inv.resumen || {};
+            document.getElementById('informe-resumen-body').innerHTML = `
+                <p><strong>Tienda:</strong> ${esc(inv.tienda)} &nbsp; <strong>Categoría:</strong> ${esc(inv.categoria)}</p>
+                <div style="display:flex; gap:1.2rem; flex-wrap:wrap; margin-top:0.6rem;">
+                    <div>📦 Universo<br><strong>${r.universoTotal ?? 0}</strong></div>
+                    <div style="color:var(--success-color);">✅ Encontrados<br><strong>${r.encontradosTotal ?? 0}</strong></div>
+                    <div style="color:var(--info-color);">🔧 En reparación<br><strong>${r.reparacionTotal ?? 0}</strong></div>
+                    <div style="color:#888;">🗑️ Dados de baja<br><strong>${r.bajaTotal ?? 0}</strong></div>
+                    <div style="color:var(--danger-color);">❌ Faltantes<br><strong>${r.faltantesTotal ?? 0}</strong></div>
+                    <div style="color:var(--warning-color);">⚠️ Fuera de lugar<br><strong>${r.sobrantesTotal ?? 0}</strong></div>
+                </div>
+            `;
+            openModal('modalInformeAuditoria');
+        }
+
+        function cancelarInventario() {
+            if (!inventarioActivo) return;
+            if (confirm('¿Cancelar el inventario en curso? Los datos no guardados se perderán.')) {
+                inventarioActivo = null;
+                document.getElementById('scan-area').style.display = 'none';
+                scanResults = [];
+                renderScanResults();
+                showNotification('Inventario cancelado', 'info');
+            }
+        }
+
+        // ---- Universo de activos esperado para un levantamiento ----
+        function calcularUniverso(inv) {
+            return assets.filter(a => a.centro === inv.tienda && a.categoria === inv.categoria);
+        }
+
+        function buscarActivoPorCodigo(code) {
+            const c = String(code).trim();
+            if (!c) return null;
+            return assets.find(a => a.codigo === c) ||
+                   assets.find(a => a.activoFijo === c) ||
+                   assets.find(a => a.serie === c) || null;
+        }
+
+        // ---- Estatus de revisión de cada activo del inventario ----
+        // Encontrado: está físicamente. En reparación / Dado de baja: no está, pero está justificado.
+        const ESTATUS_REVISION = ['Encontrado', 'En reparación', 'Dado de baja'];
+        const estatusDe = i => ESTATUS_REVISION.includes(i.estatus) ? i.estatus : 'Encontrado';
+
+        // Compara un escaneo con el catálogo actual (sucursal y categoría del inventario).
+        function evaluarItem(inv, item) {
+            const asset = (item.assetId && assets.find(a => a.id === item.assetId)) || buscarActivoPorCodigo(item.code);
+            const it = { ...item, estatus: estatusDe(item), comentario: item.comentario || '' };
+            if (!asset) {
+                return { ...it, assetId: null, name: item.name || 'Código no registrado en el catálogo', centro: 'N/A',
+                    alerta: '⚠️ Código no encontrado en el catálogo de activos', enUniverso: false, motivo: 'no-registrado' };
+            }
+            it.assetId = asset.id; it.name = asset.nombre; it.centro = asset.centro;
+            if (asset.centro !== inv.tienda) {
+                return { ...it, alerta: `⚠️ Este activo pertenece a otra sucursal: ${asset.centro}`, enUniverso: false, motivo: 'otra-sucursal' };
+            }
+            if (asset.categoria !== inv.categoria) {
+                return { ...it, alerta: `⚠️ En el catálogo está como "${nombreCategoria(asset.categoria)}", no como "${nombreCategoria(inv.categoria)}"`, enUniverso: false, motivo: 'otra-categoria' };
+            }
+            return { ...it, alerta: '', enUniverso: true, motivo: '' };
+        }
+
+        // Nombre legible de una categoría (el de la lista de categorías del formulario de activos).
+        function nombreCategoria(c) {
+            const o = [...document.querySelectorAll('#activo-categoria option')].find(x => x.value === c);
+            return o ? o.textContent : (c || '—');
+        }
+
+        // Compara lo revisado contra el universo real de la tienda/categoría:
+        //   encontrados (están), en reparación y dados de baja (justificados), faltantes (sin
+        //   localizar) y "fuera de lugar" (escaneados que no pertenecen al universo).
+        function calcularResumen(inv, items) {
+            const universo = calcularUniverso(inv);
+            const validos = items.filter(i => i.enUniverso !== undefined ? i.enUniverso : !i.alerta);
+            const porAsset = new Map();
+            validos.forEach(i => { if (i.assetId) porAsset.set(i.assetId, i); });
+            const codigos = new Map(validos.map(i => [i.code, i]));
+            const itemDe = a => porAsset.get(a.id) || codigos.get(a.codigo) || (a.activoFijo && codigos.get(a.activoFijo)) || (a.serie && codigos.get(a.serie)) || null;
+            const con = est => universo.filter(a => { const i = itemDe(a); return i && estatusDe(i) === est; });
+            const encontrados = con('Encontrado');
+            const reparacion = con('En reparación');
+            const baja = con('Dado de baja');
+            const faltantes = universo.filter(a => !itemDe(a));
+            const sobrantes = items.filter(i => i.enUniverso !== undefined ? !i.enUniverso : !!i.alerta);
+            return { universo, encontrados, reparacion, baja, faltantes, sobrantes, itemDe };
+        }
+
+        function registrarScanManual() {
+            const input = document.getElementById('scan-input');
+            const code = input.value.trim();
+            if (!code) return;
+            registrarScan(code);
+            input.value = '';
+            input.focus();
+        }
+
+        document.getElementById('scan-input')?.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                registrarScanManual();
+            }
+        });
+
+        // Registra un código real (leído por lector físico, cámara o
+        // tecleado a mano) contra el inventario en curso.
+        function registrarScan(code) {
+            if (!inventarioActivo) {
+                showNotification('Primero inicia o continua un inventario', 'warning');
+                return;
+            }
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            if (!inv) return;
+            const codigo = String(code).trim();
+            if (!codigo) return;
+
+            if (scanResults.some(r => r.code === codigo)) {
+                showNotification(`⚠️ ${codigo} ya fue escaneado en este inventario`, 'warning');
+                return;
+            }
+
+            const assetFound = buscarActivoPorCodigo(codigo);
+            const previo = assetFound && scanResults.find(r => r.assetId === assetFound.id);
+            if (previo) {
+                // Se había marcado a mano desde "Pendientes" y ahora sí se escaneó: queda como encontrado.
+                if (previo.manual) {
+                    previo.manual = false; previo.estatus = 'Encontrado'; previo.timestamp = new Date().toLocaleTimeString();
+                    guardarRevision();
+                    showNotification(`✅ ${assetFound.nombre} escaneado (antes marcado a mano)`, 'success');
+                } else {
+                    showNotification(`⚠️ ${assetFound.nombre} ya fue escaneado en este inventario`, 'warning');
+                }
+                return;
+            }
+            const item = evaluarItem(inv, { code: codigo, assetId: assetFound ? assetFound.id : null, found: true,
+                timestamp: new Date().toLocaleTimeString(), estatus: 'Encontrado', comentario: '' });
+            const { name, alerta } = item;
+            scanResults.push(item);
+
+            renderScanResults();
+            updateScanCount();
+            inv.items = scanResults.slice();
+            saveAllData();
+            let msg = alerta ? `${codigo} - ${name}` : `✅ ${codigo} - ${name}`;
+            if (alerta) msg += ' | ' + alerta;
+            showNotification(msg, alerta ? 'warning' : 'success');
+
+            // Variante "con documentos vehiculares": pide el responsable en un
+            // modal propio (el prompt() nativo del navegador no funciona bien
+            // dentro de la app). La variante "simple" no abre nada extra y se
+            // comporta igual que un levantamiento de cómputo.
+            if (inv.categoria === 'vehiculos' && inv.vehTipo === 'documentos') {
+                abrirModalResponsableVehiculo(name, inv.responsable || '');
+            }
+        }
+
+        // ---- Responsable del vehículo (variante "con documentos") ----
+        let vehiculoPendiente = null;
+        function abrirModalResponsableVehiculo(equipoNombre, responsableSugerido) {
+            vehiculoPendiente = { equipo: equipoNombre };
+            document.getElementById('veh-resp-input').value = responsableSugerido;
+            openModal('modalResponsableVehiculo');
+            setTimeout(() => document.getElementById('veh-resp-input').focus(), 50);
+        }
+
+        function confirmarResponsableVehiculo() {
+            if (!vehiculoPendiente) { closeModal('modalResponsableVehiculo'); return; }
+            const responsable = document.getElementById('veh-resp-input').value.trim() || 'N/A';
+            const poliza = document.querySelector('.doc-check[data-doc="poliza"]')?.checked ? 'OK' : 'X';
+            const tarjeta = document.querySelector('.doc-check[data-doc="tarjeta"]')?.checked ? 'OK' : 'X';
+            const licencia = document.querySelector('.doc-check[data-doc="licencia"]')?.checked ? 'OK' : 'X';
+            const estatus = (poliza === 'OK' && tarjeta === 'OK' && licencia === 'OK') ? 'Completo' : 'Incompleto';
+            vehiculos.push({
+                fecha: new Date().toLocaleDateString('es-MX'),
+                equipo: vehiculoPendiente.equipo,
+                responsable: responsable,
+                poliza: poliza,
+                tarjeta: tarjeta,
+                licencia: licencia,
+                estatus: estatus
+            });
+            renderVehiculosTabla(vehiculos);
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            if (inv) { inv.vehiculos = vehiculos.slice(); saveAllData(); }
+            vehiculoPendiente = null;
+            closeModal('modalResponsableVehiculo');
+        }
+
+        // ============================================================
+        // ETIQUETAS CON QR (conectadas al catálogo)
+        // ------------------------------------------------------------
+        // El QR contiene el activo fijo (único en el catálogo); si no hay, el código interno.
+        // buscarActivoPorCodigo() reconoce ambos, así que lo impreso aquí se escanea directo
+        // en Inventarios. Se imprime desde un iframe oculto con el tamaño de página exacto.
+        // ============================================================
+        const QR_LIB = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
+        const seleccionEtiquetas = new Set();
+        const cargarScript = (src, listo) => listo() ? Promise.resolve() : new Promise((ok, mal) => {
+            const sc = document.createElement('script');
+            sc.src = src; sc.onload = ok; sc.onerror = () => mal(new Error('No se pudo cargar ' + src));
+            document.head.appendChild(sc);
+        });
+        const cargarQR = () => cargarScript(QR_LIB, () => typeof window.qrcode === 'function');
+        const valorQR = a => String(a.activoFijo || a.codigo || '').trim();
+        function qrSvg(texto) {
+            const q = window.qrcode(0, 'M');
+            q.addData(texto);
+            q.make();
+            return q.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+        }
+
+        function filtradosEtiquetas() {
+            const q = (document.getElementById('etq-q')?.value || '').toLowerCase().trim();
+            const t = document.getElementById('etq-tienda')?.value || '';
+            const c = document.getElementById('etq-cat')?.value || '';
+            return assets.filter(a =>
+                a.estado !== 'Dado de baja' &&
+                (!t || a.centro === t) && (!c || a.categoria === c) &&
+                (!q || [a.nombre, a.serie, a.activoFijo, a.codigo].some(v => String(v || '').toLowerCase().includes(q))));
+        }
+
+        async function renderEtiquetas() {
+            const body = document.getElementById('etq-body');
+            if (!body) return;
+            // Filtros de tienda y categoría (se arman una vez, conservando lo elegido)
+            const selT = document.getElementById('etq-tienda'), selC = document.getElementById('etq-cat');
+            if (selT && selT.options.length <= 1) {
+                const tiendas = [...new Set(assets.map(a => a.centro).filter(Boolean))].sort();
+                selT.innerHTML = '<option value="">Todas las tiendas</option>' + tiendas.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+            }
+            if (selC && selC.options.length <= 1) {
+                selC.innerHTML = '<option value="">Todas las categorías</option>' +
+                    [...document.querySelectorAll('#activo-categoria option')].map(o => `<option value="${esc(o.value)}">${esc(o.textContent)}</option>`).join('');
+            }
+            actualizarConfigEtiquetas();
+            const lista = filtradosEtiquetas();
+            const MAX = 300; // se muestran hasta 300 renglones; la selección puede incluir más
+            document.getElementById('etq-filtrados').textContent = lista.length;
+            document.getElementById('etq-todos').checked = lista.length > 0 && lista.every(a => seleccionEtiquetas.has(a.id));
+            document.getElementById('etq-nota').textContent = lista.length > MAX ? `Se muestran ${MAX} de ${lista.length}; usa la búsqueda o los filtros.` : '';
+            document.getElementById('etq-n').textContent = seleccionEtiquetas.size;
+            if (!lista.length) { body.innerHTML = '<tr><td colspan="6" style="color:#888; text-align:center;">Sin activos con estos filtros.</td></tr>'; return; }
+            let qrOk = true;
+            try { await cargarQR(); } catch (e) { qrOk = false; }
+            body.innerHTML = lista.slice(0, MAX).map(a => `
+                <tr>
+                    <td><input type="checkbox" ${seleccionEtiquetas.has(a.id) ? 'checked' : ''} onchange="alternarEtiqueta('${a.id}', this.checked)"></td>
+                    <td><strong>${esc(a.activoFijo || '—')}</strong></td>
+                    <td>${esc(a.nombre)}</td>
+                    <td>${esc(a.serie || '—')}</td>
+                    <td>${esc(a.centroCodigo || '')} ${esc(a.centro || '')}</td>
+                    <td><span class="etq-mini">${qrOk && valorQR(a) ? qrSvg(valorQR(a)) : ''}<span><b>${esc(a.activoFijo || '')}</b><br>${esc(String(a.nombre || '').slice(0, 40))}</span></span></td>
+                </tr>`).join('');
+        }
+        function alternarEtiqueta(id, si) {
+            if (si) seleccionEtiquetas.add(id); else seleccionEtiquetas.delete(id);
+            document.getElementById('etq-n').textContent = seleccionEtiquetas.size;
+        }
+        function seleccionarEtiquetasFiltradas(si) {
+            filtradosEtiquetas().forEach(a => si ? seleccionEtiquetas.add(a.id) : seleccionEtiquetas.delete(a.id));
+            renderEtiquetas();
+        }
+        function imprimirEtiquetasSeleccion() {
+            const lista = assets.filter(a => seleccionEtiquetas.has(a.id));
+            if (!lista.length) { showNotification('Selecciona al menos un activo', 'warning'); return; }
+            imprimirEtiquetas(lista);
+        }
+
+        // ---- Configuración de impresión: formato, cuadrícula y escala (se recuerda en este navegador) ----
+        const HOJA = { ancho: 215.9, alto: 279.4, margen: 8, espacio: 2 }; // carta, en mm
+        const ETQ_DEF = { formato: 'carta', cols: 3, rows: 10, escala: 100 };
+        function leerConfigEtiquetas() {
+            let c = { ...ETQ_DEF };
+            try { c = { ...c, ...JSON.parse(localStorage.getItem('etq-config') || '{}') }; } catch (e) { /* sin almacenamiento */ }
+            const n = (v, min, max, d) => { v = parseInt(v, 10); return v >= min && v <= max ? v : d; };
+            return { formato: c.formato === 'rollo' ? 'rollo' : 'carta', cols: n(c.cols, 1, 6, 3), rows: n(c.rows, 1, 20, 10), escala: n(c.escala, 50, 150, 100) };
+        }
+        // Medidas de cada etiqueta en mm (antes de la escala).
+        function medidaEtiqueta(c) {
+            if (c.formato === 'rollo') return { w: 50, h: 25 };
+            return {
+                w: (HOJA.ancho - 2 * HOJA.margen - (c.cols - 1) * HOJA.espacio) / c.cols,
+                h: (HOJA.alto - 2 * HOJA.margen - (c.rows - 1) * HOJA.espacio) / c.rows,
+            };
+        }
+        function actualizarConfigEtiquetas() {
+            const $ = id => document.getElementById(id);
+            if (!$('etq-cols')) return;
+            const llenar = (sel, vals, fmt) => { if (!sel.options.length) sel.innerHTML = vals.map(v => `<option value="${v}">${fmt(v)}</option>`).join(''); };
+            llenar($('etq-cols'), [1, 2, 3, 4, 5, 6], v => v);
+            llenar($('etq-rows'), Array.from({ length: 20 }, (_, i) => i + 1), v => v);
+            llenar($('etq-escala'), [50, 60, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 130, 140, 150], v => v + '%');
+            let c;
+            if ($('etq-escala').dataset.listo) {
+                c = { formato: $('etq-formato').value, cols: $('etq-cols').value, rows: $('etq-rows').value, escala: $('etq-escala').value };
+                try { localStorage.setItem('etq-config', JSON.stringify(c)); } catch (e) { /* sin almacenamiento */ }
+                c = leerConfigEtiquetas();
+            } else {
+                c = leerConfigEtiquetas();
+                $('etq-formato').value = c.formato; $('etq-cols').value = c.cols; $('etq-rows').value = c.rows; $('etq-escala').value = c.escala;
+                $('etq-escala').dataset.listo = '1';
+            }
+            document.querySelectorAll('.etq-solo-hoja').forEach(el => { el.style.display = c.formato === 'rollo' ? 'none' : ''; });
+            const m = medidaEtiqueta(c), k = c.escala / 100;
+            const mm = v => (v * k).toFixed(1);
+            // Tamaño real del QR (alto de la etiqueta menos el margen interior). Por debajo de
+            // ~12 mm muchos celulares y lectores ya no lo leen de forma confiable.
+            const qrMm = m.h * k * 0.86;
+            const aviso = qrMm < 12 ? ` <br><span style="color:var(--danger-color);font-weight:600;">⚠️ El QR quedaría de ${qrMm.toFixed(0)} mm: puede no leerse. Usa menos etiquetas por columna o más escala (mínimo recomendado 12 mm).</span>` : '';
+            $('etq-info').innerHTML = (c.formato === 'rollo'
+                ? `Rollo: <strong>1 etiqueta por página</strong> de 50 × 25 mm · contenido al ${c.escala}% (${mm(m.w)} × ${mm(m.h)} mm)`
+                : `Máximo: <strong>${c.cols * c.rows} etiquetas</strong> por hoja (${c.cols}x${c.rows}) · cada una de ${mm(m.w)} × ${mm(m.h)} mm al ${c.escala}%`) + ` · QR de ${qrMm.toFixed(0)} mm` + aviso;
+            return c;
+        }
+
+        // HTML de las etiquetas (se usa para imprimir y en las pruebas). Las medidas de la
+        // etiqueta salen de la cuadrícula elegida y todo (tamaño, QR y letra) se multiplica
+        // por la escala, para compensar impresoras que reducen o amplían.
+        function htmlEtiquetas(lista, config) {
+            const c = typeof config === 'string' ? { ...leerConfigEtiquetas(), formato: config } : { ...leerConfigEtiquetas(), ...(config || {}) };
+            const rollo = c.formato === 'rollo';
+            const m = medidaEtiqueta(c), k = c.escala / 100;
+            const w = m.w * k, h = m.h * k;
+            // Letra proporcional al alto de la etiqueta (sin pasar de lo legible en etiquetas grandes).
+            const af = Math.min(4.2, h * 0.16), txt = Math.min(2.5, h * 0.095);
+            const porHoja = rollo ? 1 : c.cols * c.rows;
+            const hojas = [];
+            for (let i = 0; i < lista.length; i += porHoja) hojas.push(lista.slice(i, i + porHoja));
+            // Ancho disponible para el texto (etiqueta − márgenes − QR − separación), en mm.
+            const padX = h * 0.09, padY = h * 0.07, gap = h * 0.08;
+            const anchoTexto = Math.max(4, w - 2 * padX - (h - 2 * padY) - gap);
+            // Letra que hace caber un texto completo en una línea (Arial: ~0.62 del alto por carácter).
+            const ajustar = (texto, max, ancho = anchoTexto) => Math.max(1.2, Math.min(max, ancho / (Math.max(1, String(texto).length) * 0.62)));
+            // Serie completa, nunca recortada: en una línea si cabe a buen tamaño; si no, en dos
+            // renglones (se parte donde sea, las series no tienen espacios) con letra más grande.
+            // El nombre conserva siempre sus 2 renglones.
+            const htmlSerie = serie => {
+                const una = ajustar(serie, txt * 1.1);
+                if (una >= txt * 0.85) return `<div class="ser" style="font-size:${una.toFixed(2)}mm">${esc(serie)}</div>`;
+                const dos = ajustar(serie.slice(0, Math.ceil(serie.length / 2)), txt * 1.1);
+                return `<div class="ser ser2" style="font-size:${Math.max(una, dos).toFixed(2)}mm">${esc(serie)}</div>`;
+            };
+            const etiqueta = a => {
+                const fijo = a.activoFijo || a.codigo || '';
+                const serie = a.serie || '';
+                // El activo fijo comparte renglón con el código de tienda: se ajusta al espacio que queda.
+                const cc = a.centroCodigo || '';
+                const anchoFijo = anchoTexto - (cc ? cc.length * 0.62 * txt + 1.2 : 0);
+                return `<div class="etq"><div class="qr">${qrSvg(valorQR(a))}</div><div class="txt">
+                    <div class="top"><span class="cc">${esc(cc)}</span><span class="af" style="font-size:${ajustar(fijo, af, anchoFijo).toFixed(2)}mm">${esc(fijo)}</span></div>
+                    <div class="nom">${esc(a.nombre || '')}</div>
+                    ${serie ? htmlSerie(serie) : ''}</div></div>`;
+            };
+            const pagina = rollo
+                ? `@page{size:50mm 25mm;margin:0} .hoja{width:50mm;height:25mm;display:flex;align-items:center;justify-content:center}`
+                : `@page{size:letter;margin:${HOJA.margen}mm} .hoja{display:grid;grid-template-columns:repeat(${c.cols},${w.toFixed(2)}mm);
+                   grid-auto-rows:${h.toFixed(2)}mm;gap:${(HOJA.espacio * k).toFixed(2)}mm;align-content:start}`;
+            return `<!doctype html><html><head><meta charset="utf-8"><title>Etiquetas</title><style>
+                *{box-sizing:border-box;margin:0;padding:0} html,body{background:#fff;color:#000;font-family:Arial,Helvetica,sans-serif}
+                ${pagina}
+                .hoja{page-break-after:always;break-after:page} .hoja:last-child{page-break-after:auto;break-after:auto}
+                .etq{width:${w.toFixed(2)}mm;height:${h.toFixed(2)}mm;display:flex;align-items:center;gap:${gap.toFixed(2)}mm;
+                     padding:${padY.toFixed(2)}mm ${padX.toFixed(2)}mm;overflow:hidden;border:0.3mm solid #000;border-radius:${(h * 0.06).toFixed(2)}mm}
+                .qr{height:100%;aspect-ratio:1/1;flex-shrink:0} .qr svg{width:100%;height:100%;display:block}
+                .txt{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:space-between}
+                .top{display:flex;justify-content:space-between;align-items:baseline;gap:1mm}
+                .cc{font-size:${txt.toFixed(2)}mm;white-space:nowrap}
+                .af{font-weight:bold;white-space:nowrap}
+                .nom{font-size:${txt.toFixed(2)}mm;line-height:1.15;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+                .ser{font-weight:bold;white-space:nowrap;letter-spacing:0;line-height:1.1}
+                .ser2{white-space:normal;word-break:break-all;overflow-wrap:anywhere}
+                @media screen{body{padding:10px;background:#eee} .hoja{background:#fff;margin-bottom:10px}}
+            </style></head><body>${hojas.map(g => `<div class="hoja">${g.map(etiqueta).join('')}</div>`).join('')}</body></html>`;
+        }
+
+        async function imprimirEtiquetas(lista) {
+            lista = (lista || []).filter(a => a && valorQR(a));
+            if (!lista.length) { showNotification('Ese activo no tiene activo fijo ni código para el QR', 'warning'); return; }
+            try { await cargarQR(); } catch (e) { showNotification('No se pudo cargar el generador de QR. Revisa tu conexión.', 'danger'); return; }
+            const config = actualizarConfigEtiquetas() || leerConfigEtiquetas();
+            let f = document.getElementById('etq-print-frame');
+            if (f) f.remove();
+            f = document.createElement('iframe');
+            f.id = 'etq-print-frame';
+            f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+            document.body.appendChild(f);
+            const d = f.contentDocument;
+            d.open(); d.write(htmlEtiquetas(lista, config)); d.close();
+            setTimeout(() => { f.contentWindow.focus(); f.contentWindow.print(); }, 250);
+            showNotification(`🖨️ ${lista.length} etiqueta(s) enviadas a imprimir`, 'success');
+        }
+
+        // ---- Escaneo por cámara (código de barras / QR) ----
+        // Con BarcodeDetector (Chrome / Android) lee QR y códigos de barras. En iPhone, Firefox y
+        // otros sin BarcodeDetector se usa jsQR (solo QR, que es lo que llevan las etiquetas).
+        const JSQR_LIB = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+        let camaraStream = null;
+        let camaraDetectorInterval = null;
+
+        async function abrirCamaraScan() {
+            if (!inventarioActivo) {
+                showNotification('Primero inicia o continua un inventario', 'warning');
+                return;
+            }
+            const nativo = 'BarcodeDetector' in window;
+            if (!nativo) {
+                try { await cargarScript(JSQR_LIB, () => typeof window.jsQR === 'function'); }
+                catch (e) {
+                    showNotification('Este navegador no puede leer códigos con la cámara. Usa un lector o escribe el código.', 'warning', 6000);
+                    return;
+                }
+            }
+            openModal('modalCamaraScan');
+            const video = document.getElementById('camara-scan-video');
+            const statusEl = document.getElementById('camara-scan-status');
+            statusEl.textContent = 'Apunta la cámara al código de barras o QR del activo.';
+            try {
+                camaraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                video.srcObject = camaraStream;
+                await video.play();
+                const detector = nativo ? new BarcodeDetector({ formats: ['code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'qr_code', 'code_39'] }) : null;
+                const lienzo = document.createElement('canvas');
+                const leerJsQR = () => {
+                    if (!video.videoWidth) return [];
+                    const k = Math.min(1, 640 / video.videoWidth);
+                    lienzo.width = Math.round(video.videoWidth * k); lienzo.height = Math.round(video.videoHeight * k);
+                    const g = lienzo.getContext('2d', { willReadFrequently: true });
+                    g.drawImage(video, 0, 0, lienzo.width, lienzo.height);
+                    const r = window.jsQR(g.getImageData(0, 0, lienzo.width, lienzo.height).data, lienzo.width, lienzo.height, { inversionAttempts: 'dontInvert' });
+                    return r && r.data ? [{ rawValue: r.data }] : [];
+                };
+                camaraDetectorInterval = setInterval(async () => {
+                    try {
+                        const codes = detector ? await detector.detect(video) : leerJsQR();
+                        if (codes.length > 0) {
+                            const value = codes[0].rawValue;
+                            statusEl.textContent = `Detectado: ${value}`;
+                            registrarScan(value);
+                            cerrarCamaraScan();
+                        }
+                    } catch (err) { /* fotograma sin código legible, se ignora */ }
+                }, 400);
+            } catch (err) {
+                showNotification('No se pudo acceder a la cámara: ' + err.message, 'danger');
+                cerrarCamaraScan();
+            }
+        }
+
+        function cerrarCamaraScan() {
+            if (camaraDetectorInterval) { clearInterval(camaraDetectorInterval); camaraDetectorInterval = null; }
+            if (camaraStream) { camaraStream.getTracks().forEach(t => t.stop()); camaraStream = null; }
+            closeModal('modalCamaraScan');
+        }
+
+        // Guarda la revisión en curso (estatus, comentarios, correcciones) y vuelve a pintar.
+        function guardarRevision() {
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            if (!inv) return;
+            inv.items = scanResults.slice();
+            renderScanResults();
+            updateScanCount();
+            saveAllData();
+        }
+        const itemPorCodigo = code => scanResults.find(r => r.code === code);
+
+        function cambiarEstatusItem(code, estatus) {
+            const it = itemPorCodigo(code);
+            if (!it || !ESTATUS_REVISION.includes(estatus)) return;
+            it.estatus = estatus;
+            guardarRevision();
+        }
+        // El comentario se guarda al salir del campo (no en cada tecla, para no re-pintar mientras escriben).
+        function comentarItem(code, texto) {
+            const it = itemPorCodigo(code);
+            if (!it || it.comentario === texto) return;
+            it.comentario = String(texto || '').slice(0, 500);
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            if (inv) { inv.items = scanResults.slice(); saveAllData(); }
+        }
+        function quitarItem(code) {
+            const it = itemPorCodigo(code);
+            if (!it || !confirm(`¿Quitar ${it.code} de este inventario?`)) return;
+            scanResults = scanResults.filter(r => r.code !== code);
+            guardarRevision();
+        }
+        // Activo de la misma sucursal catalogado en otra categoría: se corrige el catálogo aquí mismo.
+        function corregirCategoriaItem(code) {
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            const it = itemPorCodigo(code);
+            const asset = it && assets.find(a => a.id === it.assetId);
+            if (!inv || !asset) return;
+            if (!confirm(`¿Cambiar "${asset.nombre}" de "${nombreCategoria(asset.categoria)}" a "${nombreCategoria(inv.categoria)}" en el catálogo?`)) return;
+            asset.categoria = inv.categoria;
+            scanResults = scanResults.map(r => evaluarItem(inv, r));
+            renderAssets();
+            guardarRevision();
+            showNotification('✅ Categoría corregida; el activo ya cuenta en este inventario', 'success');
+        }
+        // Pendiente (del universo, aún sin escanear) marcado a mano: encontrado sin etiqueta,
+        // en reparación o dado de baja. Queda como un renglón más, con comentario.
+        function marcarPendiente(assetId, estatus) {
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            const asset = assets.find(a => a.id === assetId);
+            if (!inv || !asset || !ESTATUS_REVISION.includes(estatus)) return;
+            if (scanResults.some(r => r.assetId === assetId)) return;
+            const comentario = (document.getElementById('pend-com-' + assetId)?.value || '').trim();
+            scanResults.push(evaluarItem(inv, {
+                code: asset.activoFijo || asset.codigo || asset.serie, assetId, manual: true, found: true,
+                timestamp: new Date().toLocaleTimeString(), estatus, comentario
+            }));
+            guardarRevision();
+        }
+
+        function renderScanResults() {
+            const container = document.getElementById('scan-results');
+            const resumenEl = document.getElementById('scan-resumen-live');
+            if (!container) return;
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+
+            let r = null;
+            if (inv && resumenEl) {
+                r = calcularResumen(inv, scanResults);
+                resumenEl.innerHTML = `
+                    <span>📦 Universo: <strong>${r.universo.length}</strong></span>
+                    <span style="color:var(--success-color);">✅ Encontrados: <strong>${r.encontrados.length}</strong></span>
+                    <span style="color:var(--info-color);">🔧 En reparación: <strong>${r.reparacion.length}</strong></span>
+                    <span style="color:#888;">🗑️ Dados de baja: <strong>${r.baja.length}</strong></span>
+                    <span style="color:var(--danger-color);">❌ Pendientes: <strong>${r.faltantes.length}</strong></span>
+                    <span style="color:var(--warning-color);">⚠️ Fuera de lugar: <strong>${r.sobrantes.length}</strong></span>
+                `;
+            } else if (resumenEl) {
+                resumenEl.innerHTML = '';
+            }
+
+            const opciones = actual => ESTATUS_REVISION.map(e => `<option value="${e}"${e === actual ? ' selected' : ''}>${e}</option>`).join('');
+            const filas = scanResults.slice().reverse().map(it => {
+                const c = esc(it.code), cj = esc(JSON.stringify(it.code));
+                const ok = !it.alerta;
+                return `
+                <div class="scan-item ${ok ? '' : 'scan-item-alerta'}">
+                    <div class="scan-result-row">
+                        <span class="scan-result-main"><strong>${c}</strong> - ${esc(it.name)} ${it.centro && it.centro !== 'N/A' ? '· ' + esc(it.centro) : ''}
+                            ${it.manual ? '<span class="scan-tag">marcado a mano</span>' : ''}</span>
+                        <span class="scan-result-status">
+                            ${ok ? `<select class="scan-estatus" onchange='cambiarEstatusItem(${cj}, this.value)' title="Estatus de revisión">${opciones(estatusDe(it))}</select>`
+                                 : `<span style="color:var(--warning-color);">⚠️ Revisar</span>`}
+                            <small style="color:#999;">${esc(it.timestamp || '')}</small>
+                            <button class="btn-action scan-quitar" onclick='quitarItem(${cj})' title="Quitar de este inventario" aria-label="Quitar">✕</button>
+                        </span>
+                    </div>
+                    ${it.alerta ? `<div class="scan-alerta">${esc(it.alerta)}
+                        ${it.motivo === 'otra-categoria' && inv ? ` <button class="btn-action scan-fix" onclick='corregirCategoriaItem(${cj})'><i class="fas fa-wrench"></i> Cambiar a ${esc(nombreCategoria(inv.categoria))}</button>` : ''}</div>` : ''}
+                    <input class="scan-comentario" placeholder="Comentario (opcional)" value="${esc(it.comentario || '')}" maxlength="500"
+                        onchange='comentarItem(${cj}, this.value)'>
+                </div>`;
+            }).join('');
+            container.innerHTML = scanResults.length
+                ? `<div class="scan-lista">${filas}</div>`
+                : `<p style="color:#888; text-align:center; padding:0.5rem;">Sin escaneos todavía</p>`;
+
+            // Pendientes: activos del universo que aún no se revisan. Se pueden marcar sin escanear.
+            if (r && r.faltantes.length) {
+                const abierto = document.getElementById('scan-pendientes')?.open ? ' open' : '';
+                container.innerHTML += `
+                <details id="scan-pendientes" class="scan-pendientes"${abierto}>
+                    <summary>❌ Pendientes por revisar (${r.faltantes.length}) — márcalos si no tienen etiqueta, están en reparación o se dieron de baja</summary>
+                    ${r.faltantes.map(a => `
+                    <div class="scan-item">
+                        <div class="scan-result-row">
+                            <span class="scan-result-main"><strong>${esc(a.activoFijo || a.codigo)}</strong> - ${esc(a.nombre)}${a.serie ? ' · Serie ' + esc(a.serie) : ''}</span>
+                            <span class="scan-result-status">
+                                <button class="btn-action" onclick="marcarPendiente('${a.id}','Encontrado')" title="Está, pero sin etiqueta legible">✅ Encontrado</button>
+                                <button class="btn-action" onclick="marcarPendiente('${a.id}','En reparación')">🔧 Reparación</button>
+                                <button class="btn-action" onclick="marcarPendiente('${a.id}','Dado de baja')">🗑️ Baja</button>
+                            </span>
+                        </div>
+                        <input class="scan-comentario" id="pend-com-${a.id}" placeholder="Comentario (opcional, se guarda al marcarlo)" maxlength="500">
+                    </div>`).join('')}
+                </details>`;
+            }
+        }
+
+        function updateScanCount() {
+            document.getElementById('scan-count').textContent = scanResults.length;
+        }
+
+        // ============================================================
+        // INFORME EJECUTIVO DE AUDITORÍA (PDF / Word)
+        // ============================================================
+        function construirDatosInforme(inv) {
+            const r = inv.resumen || {};
+            const faltantes = inv.faltantesList || [];
+            const sobrantes = inv.sobrantesList || [];
+            const encontrados = (inv.items || []).filter(i => (i.enUniverso !== undefined ? i.enUniverso : !i.alerta) && estatusDe(i) === 'Encontrado');
+            const reparacion = inv.reparacionList || [];
+            const baja = inv.bajaList || [];
+            const fechaInicio = inv.fecha ? new Date(inv.fecha).toLocaleString('es-MX') : '-';
+            const fechaFin = r.fechaFin ? new Date(r.fechaFin).toLocaleString('es-MX') : '-';
+            const universoTotal = r.universoTotal ?? 0;
+            const pct = universoTotal ? Math.round(((r.encontradosTotal || 0) / universoTotal) * 100) : 0;
+            // Conciliado: encontrados + justificados (en reparación o dados de baja).
+            const pctConciliado = universoTotal ? Math.round((((r.encontradosTotal || 0) + (r.reparacionTotal || 0) + (r.bajaTotal || 0)) / universoTotal) * 100) : 0;
+            return { inv, r, faltantes, sobrantes, encontrados, reparacion, baja, fechaInicio, fechaFin, pct, pctConciliado };
+        }
+
+        function descargarInformePDF(id) {
+            const inv = inventarios.find(i => i.id === id);
+            if (!inv) { showNotification('No se encontró el inventario', 'danger'); return; }
+            if (inv.estado !== 'finalizado') { showNotification('Solo se puede descargar el informe de una auditoría finalizada', 'warning'); return; }
+            if (!inv.resumen) { showNotification('Este inventario se cerró antes de guardarse su resumen; el informe no se puede reconstruir', 'warning', 5000); return; }
+            const d = construirDatosInforme(inv);
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+            const margin = 40;
+            let y = margin;
+
+            doc.setFontSize(16); doc.setFont(undefined, 'bold');
+            doc.text(razonSocial || 'Grupo Kuroda', margin, y); y += 18;
+            doc.setFontSize(12); doc.setFont(undefined, 'normal');
+            doc.text('Informe Ejecutivo de Auditoría de Inventario', margin, y); y += 22;
+
+            doc.setFontSize(9); doc.setTextColor(90);
+            doc.text(`Folio: ${inv.id.slice(0, 8).toUpperCase()}`, margin, y); y += 14;
+            doc.text(`Tienda / Centro: ${inv.tienda}`, margin, y); y += 14;
+            doc.text(`Categoría: ${inv.categoria}`, margin, y); y += 14;
+            doc.text(`Responsable del levantamiento: ${inv.responsable}`, margin, y); y += 14;
+            doc.text(`Fecha de inicio: ${d.fechaInicio}`, margin, y); y += 14;
+            doc.text(`Fecha de finalización: ${d.fechaFin}`, margin, y); y += 20;
+            doc.setTextColor(0);
+
+            doc.autoTable({
+                startY: y, margin: { left: margin, right: margin }, theme: 'grid',
+                head: [['Indicador', 'Valor']],
+                body: [
+                    ['Universo esperado', String(d.r.universoTotal ?? 0)],
+                    ['Activos encontrados', String(d.r.encontradosTotal ?? 0)],
+                    ['En reparación', String(d.r.reparacionTotal ?? 0)],
+                    ['Dados de baja', String(d.r.bajaTotal ?? 0)],
+                    ['Activos faltantes', String(d.r.faltantesTotal ?? 0)],
+                    ['Fuera de lugar / no reconocidos', String(d.r.sobrantesTotal ?? 0)],
+                    ['% encontrados', d.pct + '%'],
+                    ['% conciliado (encontrados + en reparación + bajas)', d.pctConciliado + '%']
+                ],
+                styles: { fontSize: 9 }, headStyles: { fillColor: [127, 90, 240] }
+            });
+            y = doc.lastAutoTable.finalY + 20;
+
+            doc.setFontSize(11); doc.setFont(undefined, 'bold'); doc.setTextColor(44, 132, 90);
+            doc.text('Activos encontrados', margin, y); y += 6; doc.setTextColor(0);
+            doc.autoTable({
+                startY: y + 6, margin: { left: margin, right: margin }, theme: 'striped',
+                head: [['Código', 'Nombre', 'Hora', 'Comentario']],
+                body: d.encontrados.length ? d.encontrados.map(i => [i.code, i.name, i.timestamp || '-', i.comentario || '']) : [['-', 'Sin activos encontrados', '-', '']],
+                styles: { fontSize: 8 }, headStyles: { fillColor: [44, 182, 125] }
+            });
+            y = doc.lastAutoTable.finalY + 20;
+
+            // En reparación / dados de baja: justificados, con su comentario.
+            [['En reparación', d.reparacion, [33, 150, 243]], ['Dados de baja', d.baja, [120, 120, 120]]].forEach(([titulo, lista, color]) => {
+                if (!lista.length) return;
+                if (y > 620) { doc.addPage(); y = margin; }
+                doc.setFontSize(11); doc.setFont(undefined, 'bold'); doc.setTextColor(color[0], color[1], color[2]);
+                doc.text(titulo, margin, y); y += 6; doc.setTextColor(0);
+                doc.autoTable({
+                    startY: y + 6, margin: { left: margin, right: margin }, theme: 'striped',
+                    head: [['Activo fijo', 'Nombre', 'Serie', 'Comentario']],
+                    body: lista.map(a => [a.activoFijo || a.codigo || '-', a.nombre, a.serie || '-', a.comentario || '']),
+                    styles: { fontSize: 8 }, headStyles: { fillColor: color }
+                });
+                y = doc.lastAutoTable.finalY + 20;
+            });
+
+            if (y > 620) { doc.addPage(); y = margin; }
+            doc.setFontSize(11); doc.setFont(undefined, 'bold'); doc.setTextColor(200, 0, 50);
+            doc.text('Activos faltantes', margin, y); y += 6; doc.setTextColor(0);
+            doc.autoTable({
+                startY: y + 6, margin: { left: margin, right: margin }, theme: 'striped',
+                head: [['Código', 'Activo fijo', 'Nombre', 'Serie']],
+                body: d.faltantes.length ? d.faltantes.map(a => [a.codigo || '-', a.activoFijo || '-', a.nombre, a.serie || '-']) : [['-', '-', 'No hay faltantes ✅', '-']],
+                styles: { fontSize: 8 }, headStyles: { fillColor: [239, 71, 111] }
+            });
+            y = doc.lastAutoTable.finalY + 20;
+
+            if (d.sobrantes.length > 0) {
+                if (y > 620) { doc.addPage(); y = margin; }
+                doc.setFontSize(11); doc.setFont(undefined, 'bold'); doc.setTextColor(180, 130, 0);
+                doc.text('Activos fuera de lugar / a revisar', margin, y); y += 6; doc.setTextColor(0);
+                doc.autoTable({
+                    startY: y + 6, margin: { left: margin, right: margin }, theme: 'striped',
+                    head: [['Código', 'Nombre', 'Observación', 'Comentario']],
+                    body: d.sobrantes.map(s => [s.codigo || '-', s.nombre || '-', s.alerta || '-', s.comentario || '']),
+                    styles: { fontSize: 8 }, headStyles: { fillColor: [249, 168, 37] }
+                });
+                y = doc.lastAutoTable.finalY + 30;
+            }
+
+            if (y > 680) { doc.addPage(); y = margin + 20; }
+            doc.setFontSize(9); doc.setTextColor(90);
+            doc.text('_____________________________', margin, y + 40);
+            doc.text('Firma del responsable del levantamiento', margin, y + 54);
+            doc.text('_____________________________', 320, y + 40);
+            doc.text('Vo.Bo. Administración', 320, y + 54);
+
+            doc.save(`Informe_Auditoria_${inv.tienda}_${inv.categoria}_${inv.id.slice(0, 6)}.pdf`);
+        }
+
+        function descargarInformeWord(id) {
+            const inv = inventarios.find(i => i.id === id);
+            if (!inv) { showNotification('No se encontró el inventario', 'danger'); return; }
+            if (inv.estado !== 'finalizado') { showNotification('Solo se puede descargar el informe de una auditoría finalizada', 'warning'); return; }
+            if (!inv.resumen) { showNotification('Este inventario se cerró antes de guardarse su resumen; el informe no se puede reconstruir', 'warning', 5000); return; }
+            const d = construirDatosInforme(inv);
+            const html = `<html><head><meta charset="utf-8"><style>
+                body{font-family:Calibri,Arial,sans-serif; color:#1e1e2f;}
+                h1{font-size:20px; margin-bottom:0;}
+                h2{font-size:14px; margin:18px 0 4px;}
+                table{border-collapse:collapse; width:100%; margin:6px 0 18px;}
+                th,td{border:1px solid #ccc; padding:6px 8px; font-size:11px; text-align:left;}
+                th{background:#7f5af0; color:#fff;}
+                .meta td{border:none; padding:2px 0; font-size:12px;}
+            </style></head><body>
+                <h1>${esc(razonSocial || 'Grupo Kuroda')}</h1>
+                <p style="color:#555;">Informe Ejecutivo de Auditoría de Inventario</p>
+                <table class="meta">
+                    <tr><td><strong>Folio:</strong></td><td>${inv.id.slice(0, 8).toUpperCase()}</td></tr>
+                    <tr><td><strong>Tienda / Centro:</strong></td><td>${esc(inv.tienda)}</td></tr>
+                    <tr><td><strong>Categoría:</strong></td><td>${esc(inv.categoria)}</td></tr>
+                    <tr><td><strong>Responsable:</strong></td><td>${esc(inv.responsable)}</td></tr>
+                    <tr><td><strong>Fecha de inicio:</strong></td><td>${d.fechaInicio}</td></tr>
+                    <tr><td><strong>Fecha de finalización:</strong></td><td>${d.fechaFin}</td></tr>
+                </table>
+                <table>
+                    <tr><th>Universo</th><th>Encontrados</th><th>En reparación</th><th>Dados de baja</th><th>Faltantes</th><th>Fuera de lugar</th><th>% Encontrados</th><th>% Conciliado</th></tr>
+                    <tr><td>${d.r.universoTotal ?? 0}</td><td>${d.r.encontradosTotal ?? 0}</td><td>${d.r.reparacionTotal ?? 0}</td><td>${d.r.bajaTotal ?? 0}</td><td>${d.r.faltantesTotal ?? 0}</td><td>${d.r.sobrantesTotal ?? 0}</td><td>${d.pct}%</td><td>${d.pctConciliado}%</td></tr>
+                </table>
+                <h2 style="color:#2cb67d;">Activos encontrados</h2>
+                <table><tr><th>Código</th><th>Nombre</th><th>Hora</th><th>Comentario</th></tr>
+                    ${d.encontrados.length ? d.encontrados.map(i => `<tr><td>${esc(i.code)}</td><td>${esc(i.name)}</td><td>${esc(i.timestamp || '-')}</td><td>${esc(i.comentario || '')}</td></tr>`).join('') : '<tr><td colspan="4">Sin activos encontrados</td></tr>'}
+                </table>
+                ${[['En reparación', d.reparacion, '#2196f3'], ['Dados de baja', d.baja, '#777']].filter(x => x[1].length).map(([t, l, c]) => `<h2 style="color:${c};">${t}</h2>
+                <table><tr><th>Activo fijo</th><th>Nombre</th><th>Serie</th><th>Comentario</th></tr>
+                    ${l.map(a => `<tr><td>${esc(a.activoFijo || a.codigo || '-')}</td><td>${esc(a.nombre)}</td><td>${esc(a.serie || '-')}</td><td>${esc(a.comentario || '')}</td></tr>`).join('')}
+                </table>`).join('')}
+                <h2 style="color:#ef476f;">Activos faltantes</h2>
+                <table><tr><th>Código</th><th>Activo fijo</th><th>Nombre</th><th>Serie</th></tr>
+                    ${d.faltantes.length ? d.faltantes.map(a => `<tr><td>${esc(a.codigo || '-')}</td><td>${esc(a.activoFijo || '-')}</td><td>${esc(a.nombre)}</td><td>${esc(a.serie || '-')}</td></tr>`).join('') : '<tr><td colspan="4">No hay faltantes</td></tr>'}
+                </table>
+                ${d.sobrantes.length ? `<h2 style="color:#f9a825;">Activos fuera de lugar / a revisar</h2>
+                <table><tr><th>Código</th><th>Nombre</th><th>Observación</th><th>Comentario</th></tr>
+                    ${d.sobrantes.map(s => `<tr><td>${esc(s.codigo || '-')}</td><td>${esc(s.nombre || '-')}</td><td>${esc(s.alerta || '-')}</td><td>${esc(s.comentario || '')}</td></tr>`).join('')}
+                </table>` : ''}
+                <br><br>
+                <table class="meta" style="margin-top:30px;">
+                    <tr><td style="width:50%;">_____________________________<br>Firma del responsable del levantamiento</td>
+                        <td>_____________________________<br>Vo.Bo. Administración</td></tr>
+                </table>
+            </body></html>`;
+
+            const blob = htmlDocx.asBlob(html);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Informe_Auditoria_${esc(inv.tienda)}_${esc(inv.categoria)}_${inv.id.slice(0, 6)}.docx`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        function renderVehiculosTabla(data) {
+            const tbody = document.getElementById('vehiculo-tbody');
+            if (!tbody) return;
+            if (!data || data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" style="color:#888;">Sin registros de vehículos</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = data.map(v => `
+                <tr>
+                    <td>${esc(v.fecha)}</td>
+                    <td>${esc(v.equipo)}</td>
+                    <td>${esc(v.responsable)}</td>
+                    <td>${esc(v.poliza)}</td>
+                    <td>${esc(v.tarjeta)}</td>
+                    <td>${esc(v.licencia)}</td>
+                    <td><span class="status-badge ${v.estatus === 'Completo' ? 'badge-done' : 'badge-process'}">${esc(v.estatus)}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        // Genera un .xlsx con los activos de una sucursal (o todos, si nombreCentro es null)
+        function exportarActivosCentro(nombreCentro) {
+            const lista = nombreCentro ? assets.filter(a => a.centro === nombreCentro) : assets;
+            if (lista.length === 0) {
+                showNotification('No hay activos para exportar', 'warning');
+                return;
+            }
+            const filas = lista.map(a => ({
+                'Activo fijo': a.activoFijo || '', 'Serie': a.serie || '', 'Nombre': a.nombre || '',
+                'Categoría': a.categoria || '', 'Estado': a.estado || '', 'Marca': a.marca || '',
+                'Modelo': a.modelo || '', 'Centro': a.centro || '', 'Asignado a': a.asignado || '',
+                'Fecha de compra': a.fechaCompra || '', 'Proveedor': a.proveedor || '', 'Factura': a.factura || '',
+                'Notas': a.notas || ''
+            }));
+            const ws = XLSX.utils.json_to_sheet(filas);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Activos');
+            const nombreArchivo = `activos_${(nombreCentro || 'todas_las_sucursales').replace(/[^\w]+/g, '_')}_${new Date().toISOString().slice(0,10)}.xlsx`;
+            XLSX.writeFile(wb, nombreArchivo);
+            showNotification('✅ Excel exportado correctamente', 'success');
+        }
+
+        function exportarExcelVehiculos() {
+            if (vehiculos.length === 0) {
+                showNotification('No hay datos de vehículos para exportar', 'warning');
+                return;
+            }
+            let csv = 'Fecha,Equipo de transporte,Responsable,Póliza,Tarjeta,Licencia,Estatus\n';
+            vehiculos.forEach(v => {
+                csv += `${v.fecha},"${v.equipo}","${v.responsable}",${v.poliza},${v.tarjeta},${v.licencia},"${v.estatus}"\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `vehiculos_${new Date().toISOString().slice(0,10)}.csv`;
+            link.click();
+            showNotification('✅ Excel exportado correctamente', 'success');
+        }
+
+        // ============================================================
+        // 5. FUNCIÓN CARGAR EXCEL (formato SAP: Soc., Ce.coste, Activo fijo, etc.)
+        // ------------------------------------------------------------
+        // Esta función es la única fuente de verdad de activos: cada fila
+        // se identifica por "Activo fijo" (clave única de SAP). Si ya
+        // existe en la base, se ACTUALIZA; si no existe, se AGREGA. El
+        // centro se determina tomando los 4 primeros caracteres de
+        // "Ce.coste" (código base KN##) y buscándolo en CENTROS_MAESTRO.
+        // ============================================================
+        function cargarExcelActivos(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const modoReemplazo = document.getElementById('import-modo-reemplazo')?.checked || false;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const json = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+                    if (!json || json.length < 2) {
+                        showNotification('El archivo está vacío o no tiene filas de datos', 'error');
+                        return;
+                    }
+
+                    const headers = json[0].map(h => String(h || '').trim());
+                    const idx = (name) => headers.indexOf(name);
+                    const colIndex = {
+                        soc: idx('Soc.'),
+                        ceCoste: idx('Ce.coste'),
+                        activoFijo: idx('Activo fijo'),
+                        cuenta: idx('Determinación de cuentas'),
+                        feCapit: idx('Fe.capit.'),
+                        descapEl: idx('Descap.el'),
+                        fabricante: idx('Fabricante del activo fijo'),
+                        numInventario: idx('Número de inventario'),
+                        denominacion: idx('Denominación del activo fijo'),
+                        denominacion2: idx('Denominación AF (2)'),
+                        numSerie: idx('Número de serie')
+                    };
+
+                    if (colIndex.activoFijo === -1 || colIndex.denominacion === -1) {
+                        showNotification('El Excel no tiene el formato esperado (faltan las columnas "Activo fijo" o "Denominación del activo fijo")', 'error');
+                        return;
+                    }
+                    if (colIndex.ceCoste === -1) {
+                        showNotification('Aviso: no se encontró la columna "Ce.coste", no se podrá asignar centro automáticamente', 'warning');
+                    }
+
+                    const porFijo = new Map(assets.map(a => [a.activoFijo, a]));
+                    const codigosUsados = new Set(assets.map(a => a.codigo));
+                    const yaEnLista = new Set();
+                    if (modoReemplazo) {
+                        if (!confirm(`Modo reemplazo: los ${assets.length} activos actuales que NO estén en el Excel se ELIMINARÁN. Los que sí estén conservan foto, código e historial. ¿Continuar?`)) return;
+                        assets = [];
+                    }
+
+                    const reporte = {
+                        creados: 0,
+                        actualizados: 0,
+                        filasIncompletas: 0,
+                        fechasInvalidas: 0,
+                        centrosOmitidos: {},       // codigoBase -> nro de filas OMITIDAS por no estar en el catálogo
+                        duplicadosEnArchivo: {}    // activoFijo -> nro de repeticiones
+                    };
+                    const vistosEnArchivo = new Set();
+
+                    for (let i = 1; i < json.length; i++) {
+                        const row = json[i];
+                        if (!row || row.every(v => v === '' || v === null || v === undefined)) continue;
+
+                        const activoFijo = colIndex.activoFijo > -1 ? String(row[colIndex.activoFijo] || '').trim() : '';
+                        const denominacion = colIndex.denominacion > -1 ? String(row[colIndex.denominacion] || '').trim() : '';
+
+                        if (!activoFijo || !denominacion) {
+                            reporte.filasIncompletas++;
+                            continue;
+                        }
+
+                        const rawCentroCode = colIndex.ceCoste > -1 ? String(row[colIndex.ceCoste] || '').trim() : '';
+                        const codigoBase = resolveCentroCode(rawCentroCode);
+                        const infoMaestro = codigoBase ? CENTROS_MAESTRO[codigoBase] : null;
+
+                        // Si el centro no está en el catálogo maestro (lista oficial), la fila
+                        // se OMITE por completo: no se crea el centro ni se importa el activo.
+                        if (!infoMaestro) {
+                            const key = codigoBase || 'SIN ASIGNAR';
+                            reporte.centrosOmitidos[key] = (reporte.centrosOmitidos[key] || 0) + 1;
+                            continue;
+                        }
+
+                        if (vistosEnArchivo.has(activoFijo)) {
+                            reporte.duplicadosEnArchivo[activoFijo] = (reporte.duplicadosEnArchivo[activoFijo] || 1) + 1;
+                        }
+                        vistosEnArchivo.add(activoFijo);
+
+                        const centroNombre = infoMaestro.nombre;
+                        const centroRazonSocial = infoMaestro.razonSocial;
+
+                        let centroExistente = centros.find(c => c.codigo === codigoBase);
+                        if (!centroExistente) {
+                            // No debería pasar (el catálogo maestro ya siembra estos centros),
+                            // pero por si acaso se re-crea aquí.
+                            centroExistente = {
+                                id: crypto.randomUUID(),
+                                codigo: codigoBase,
+                                nombre: centroNombre,
+                                razonSocial: centroRazonSocial,
+                                ubicacion: '',
+                                responsable: '',
+                                noReconocido: false
+                            };
+                            centros.push(centroExistente);
+                        }
+
+                        const numSerie = colIndex.numSerie > -1 ? String(row[colIndex.numSerie] || '').trim() : '';
+                        const fabricante = colIndex.fabricante > -1 ? String(row[colIndex.fabricante] || '').trim() : '';
+                        const numInventario = colIndex.numInventario > -1 ? String(row[colIndex.numInventario] || '').trim() : '';
+                        const cuenta = colIndex.cuenta > -1 ? String(row[colIndex.cuenta] || '').trim() : '';
+                        const denominacion2 = colIndex.denominacion2 > -1 ? String(row[colIndex.denominacion2] || '').trim() : '';
+                        const fueDadaDeBaja = colIndex.descapEl > -1 && row[colIndex.descapEl];
+
+                        let fechaCompra = '';
+                        if (colIndex.feCapit > -1 && row[colIndex.feCapit]) {
+                            const rawFecha = row[colIndex.feCapit];
+                            let fechaObj = null;
+                            if (rawFecha instanceof Date) {
+                                fechaObj = rawFecha;
+                            } else if (typeof rawFecha === 'number' && window.XLSX && XLSX.SSF) {
+                                // Respaldo por si el archivo no trae la celda como fecha nativa:
+                                // interpreta el número como fecha serial de Excel, no como epoch ms.
+                                const d = XLSX.SSF.parse_date_code(rawFecha);
+                                if (d) fechaObj = new Date(Date.UTC(d.y, d.m - 1, d.d));
+                            } else if (typeof rawFecha === 'string') {
+                                fechaObj = new Date(rawFecha);
+                            }
+                            if (fechaObj && !isNaN(fechaObj.getTime())) {
+                                fechaCompra = fechaObj.toISOString().split('T')[0];
+                            } else {
+                                reporte.fechasInvalidas++;
+                            }
+                        }
+
+                        const categoria = categoriaPorNombre(denominacion);
+
+                        const notas = `Importado/actualizado de Excel. Ce.coste: ${rawCentroCode || 'N/D'}.${denominacion2 ? ' Detalle: ' + denominacion2 + '.' : ''}`;
+
+                        const existente = porFijo.get(activoFijo);
+                        if (existente) {
+                            if (!yaEnLista.has(existente.id)) { yaEnLista.add(existente.id); if (modoReemplazo) assets.push(existente); }
+                            existente.nombre = denominacion;
+                            existente.serie = numSerie || existente.serie;
+                            if (!existente.categoria || existente.categoria === 'otros') existente.categoria = categoria;
+                            existente.marca = fabricante || existente.marca;
+                            existente.centro = centroNombre;
+                            existente.centroCodigo = codigoBase || existente.centroCodigo || '';
+                            existente.razonSocial = centroRazonSocial;
+                            existente.fechaCompra = fechaCompra || existente.fechaCompra;
+                            existente.numInventario = numInventario || existente.numInventario;
+                            existente.cuentaContable = cuenta || existente.cuentaContable;
+                            if (fueDadaDeBaja) existente.estado = 'Dado de baja';
+                            if (!existente.notas || existente.notas.startsWith('Importado/actualizado de Excel')) existente.notas = notas;
+                            reporte.actualizados++;
+                        } else {
+                            assets.push({
+                                id: crypto.randomUUID(),
+                                codigo: nuevoCodigoActivo(codigosUsados),
+                                activoFijo: activoFijo,
+                                nombre: denominacion,
+                                serie: numSerie,
+                                categoria: categoria,
+                                estado: fueDadaDeBaja ? 'Dado de baja' : 'Disponible',
+                                marca: fabricante,
+                                modelo: '',
+                                centro: centroNombre,
+                                centroCodigo: codigoBase || '',
+                                razonSocial: centroRazonSocial,
+                                asignado: '',
+                                fechaCompra: fechaCompra,
+                                numInventario: numInventario,
+                                cuentaContable: cuenta,
+                                valor: 0,
+                                notas: notas,
+                                foto: null
+                            });
+                            porFijo.set(activoFijo, assets[assets.length - 1]);
+                            reporte.creados++;
+                        }
+                    }
+
+                    renderAssets();
+                    renderCentros();
+                    actualizarSelectCentros();
+                    saveAllData();
+                    mostrarReporteImportacion(reporte);
+
+                } catch (err) {
+                    showNotification('Error al leer el archivo: ' + err.message, 'error');
+                    console.error(err);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+            event.target.value = '';
+        }
+
+        // Construye y muestra el modal con el resumen y los errores detectados.
+        function mostrarReporteImportacion(reporte) {
+            const totalOmitidos = Object.values(reporte.centrosOmitidos).reduce((a, b) => a + b, 0);
+            const totalErrores = reporte.filasIncompletas + reporte.fechasInvalidas
+                + Object.keys(reporte.centrosOmitidos).length
+                + Object.keys(reporte.duplicadosEnArchivo).length;
+
+            let html = `
+                <div style="display:flex; gap:1rem; flex-wrap:wrap; margin-bottom:1rem;">
+                    <div><strong style="color:var(--success-color); font-size:1.2rem;">${reporte.creados}</strong><br>Activos nuevos</div>
+                    <div><strong style="color:var(--info-color); font-size:1.2rem;">${reporte.actualizados}</strong><br>Activos actualizados</div>
+                    <div><strong style="color:${totalOmitidos ? 'var(--danger-color)' : 'var(--success-color)'}; font-size:1.2rem;">${totalOmitidos}</strong><br>Activos omitidos</div>
+                    <div><strong style="color:${totalErrores ? 'var(--warning-color)' : 'var(--success-color)'}; font-size:1.2rem;">${totalErrores}</strong><br>Puntos a revisar</div>
+                </div>
+            `;
+
+            const centrosOmit = Object.entries(reporte.centrosOmitidos);
+            if (centrosOmit.length > 0) {
+                html += `<p><strong>⛔ Centros fuera de la lista oficial — NO se cargaron:</strong></p><ul>`;
+                centrosOmit.forEach(([codigo, count]) => {
+                    html += `<li><code>${esc(codigo)}</code> — ${count} activo(s) omitido(s)</li>`;
+                });
+                html += `</ul>`;
+            }
+
+            const dupes = Object.entries(reporte.duplicadosEnArchivo);
+            if (dupes.length > 0) {
+                html += `<p><strong>⚠️ "Activo fijo" repetido dentro del mismo archivo</strong> (se conservó la última fila de cada uno):</p><ul>`;
+                dupes.forEach(([af, count]) => {
+                    html += `<li>Activo fijo <code>${esc(af)}</code> — aparece ${count} veces</li>`;
+                });
+                html += `</ul>`;
+            }
+
+            if (reporte.filasIncompletas > 0) {
+                html += `<p><strong>⚠️ Filas incompletas omitidas:</strong> ${reporte.filasIncompletas} (sin "Activo fijo" o sin "Denominación del activo fijo")</p>`;
+            }
+            if (reporte.fechasInvalidas > 0) {
+                html += `<p><strong>⚠️ Fechas de capitalización inválidas:</strong> ${reporte.fechasInvalidas} fila(s), se dejó la fecha en blanco</p>`;
+            }
+            if (totalErrores === 0) {
+                html += `<p style="color:var(--success-color);">✅ No se detectaron errores en el archivo.</p>`;
+            }
+
+            document.getElementById('reporte-import-body').innerHTML = html;
+            openModal('modalReporteImport');
+            showNotification(`Importación: ${reporte.creados} nuevos, ${reporte.actualizados} actualizados, ${totalOmitidos} omitidos`, totalErrores ? 'warning' : 'success');
+        }
+
+        // Muestra los centros marcados como "no reconocidos" (solo puede pasar
+        // si se crearon manualmente o desde una versión previa del catálogo).
+        // La carga de Excel actual YA NO crea centros nuevos: si un código no
+        // está en la lista oficial, sus activos simplemente se omiten.
+        function verCentrosNoReconocidos() {
+            const pendientes = centros.filter(c => c.noReconocido);
+            if (pendientes.length === 0) {
+                showNotification('No hay centros pendientes de revisión ✅', 'success');
+                return;
+            }
+            let html = `<p>Estos centros no están en el catálogo maestro oficial. Edítalos desde "Centros" para corregir su nombre y razón social, o elimínalos si no corresponden:</p><ul>`;
+            pendientes.forEach(c => {
+                const activosCount = assets.filter(a => a.centro === c.nombre).length;
+                html += `<li><code>${esc(c.codigo)}</code> — ${esc(c.nombre)} (${activosCount} activo(s))</li>`;
+            });
+            html += `</ul>`;
+            document.getElementById('reporte-import-body').innerHTML = html;
+            openModal('modalReporteImport');
+        }
+
+        // ============================================================
+        // 6. AJUSTES
+        // ============================================================
+        function actualizarSesion() {
+            if (!currentUser) return;
+            document.getElementById('session-nombre').textContent = currentUser.nombreCompleto || currentUser.username;
+            document.getElementById('session-usuario').textContent = currentUser.username;
+            document.getElementById('session-rol').textContent = currentUser.role === 'admin' ? 'Administrador' : 'Usuario';
+            document.getElementById('session-centro').textContent = currentUser.centro || '-';
+            actualizarTopbarUsuario();
+        }
+
+        // Rellena la tarjeta de usuario de la barra superior (nombre, puesto
+        // y avatar con iniciales) a partir de currentUser.
+        function actualizarTopbarUsuario() {
+            const nombreEl = document.getElementById('topbar-user-nombre');
+            const puestoEl = document.getElementById('topbar-user-puesto');
+            const avatarEl = document.getElementById('topbar-user-avatar');
+            if (!nombreEl || !puestoEl || !avatarEl) return;
+
+            if (!currentUser) {
+                nombreEl.textContent = '-';
+                puestoEl.textContent = '-';
+                avatarEl.textContent = '-';
+                return;
+            }
+
+            const nombre = currentUser.nombreCompleto || currentUser.username || '-';
+            const puesto = currentUser.puesto || (currentUser.role === 'admin' ? 'Administrador' : 'Usuario');
+
+            nombreEl.textContent = nombre;
+            puestoEl.textContent = puesto;
+
+            const iniciales = nombre
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map(p => p[0].toUpperCase())
+                .join('') || '?';
+            avatarEl.textContent = iniciales;
+        }
+
+        function setTheme(theme) {
+            document.body.classList.toggle('dark-mode', theme === 'dark');
+            document.getElementById('theme-dark').classList.toggle('active', theme === 'dark');
+            document.getElementById('theme-light').classList.toggle('active', theme === 'light');
+        }
+
+        async function guardarRazonSocial() {
+            const value = document.getElementById('razon-social').value.trim();
+            if (!value) return;
+            razonSocial = value;
+            const { error } = await supabaseClient.from('app_config').upsert([{ key: 'razon_social', value: razonSocial }], { onConflict: 'key' });
+            if (error) {
+                showNotification('No se pudo guardar la razón social: ' + error.message, 'danger');
+                return;
+            }
+            showNotification('Razón social actualizada', 'success');
+        }
+
+        async function resetearDatos() {
+            if (!confirm('¿Recargar los datos desde Supabase? Se perderán los cambios locales sin guardar.')) return;
+            await loadAllData();
+            renderAll();
+            showNotification('Datos recargados desde Supabase', 'success');
+        }
+
+        // ============================================================
+        // 7. NOTIFICACIONES Y UTILS
+        // ============================================================
+        function showNotification(msg, type = 'info', duration = 3000) {
+            let container = document.getElementById('notificationContainer');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'notificationContainer';
+                document.body.appendChild(container);
+            }
+            const icons = { success:'✅', error:'❌', warning:'⚠️', info:'ℹ️' };
+            const notif = document.createElement('div');
+            notif.className = `notification ${type}`;
+            notif.innerHTML = `
+                <span class="notif-icon">${icons[type] || 'ℹ️'}</span>
+                <span class="notif-text"></span>
+                <span class="notif-close" onclick="this.parentElement.remove()">✕</span>
+            `;
+            notif.querySelector('.notif-text').textContent = msg;
+            container.appendChild(notif);
+            setTimeout(() => { if (notif.parentElement) notif.remove(); }, duration);
+        }
+
+        function configOption(opt) {
+            showNotification(`⚙️ Configuración de "${opt}"`, 'info');
+        }
+
+        // ============================================================
+        // 8. FUNCIONES DE MODALES Y NAVEGACIÓN
+        // ============================================================
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+            if (id === 'modalNuevoInventario') {
+                document.getElementById('modal-responsable-inv').value = currentUser ? currentUser.nombreCompleto || currentUser.username : 'admin';
+                actualizarSelectCentros();
+                toggleVehTipoField();
+            }
+            if (id === 'modalUsuario') {
+                actualizarSelectUsuarioCentro();
+            }
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', function(e) {
+                if (e.target === this) this.classList.remove('active');
+            });
+        });
+
+        function switchTab(tabId, element) {
+            document.querySelectorAll('.section-view').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            element.classList.add('active');
+        }
+
+        async function elegirTema(tema) {
+            setTheme(tema);
+            if (currentUser) {
+                currentUser.tema = tema;
+                const { error } = await supabaseClient.from('usuarios2').update({ tema }).eq('id', currentUser.id);
+                if (error) showNotification('No se pudo guardar tu preferencia de tema: ' + error.message, 'warning');
+            }
+        }
+
+        async function toggleDarkMode() {
+            const isDark = !document.body.classList.contains('dark-mode');
+            await elegirTema(isDark ? 'dark' : 'light');
+        }
+
+        // ============================================================
+        // 9. INICIALIZACIÓN FINAL
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', async function() {
+            document.getElementById('login-screen').style.display = 'flex';
+            document.getElementById('dashboard').style.display = 'none';
+            setTheme('light');
+            if (window.ACTIVOS_EMBED) { document.getElementById('login-screen').style.display = 'none'; return activosIntegradoIniciar(); }
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) {
+                const perfil = await cargarPerfilActual();
+                if (perfil && perfil.activo) {
+                    currentUser = perfilAAppUser(perfil);
+                    await showDashboard();
+                } else {
+                    await supabaseClient.auth.signOut();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
