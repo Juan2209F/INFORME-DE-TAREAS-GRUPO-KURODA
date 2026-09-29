@@ -1,14 +1,15 @@
 /* Archivero de responsivas — Grupo Kuroda
    Sección "Archivero" del menú lateral (admin, admin_auditor, auditor y sistemas).
-   Pestañas por categoría:
-     - Celular y Equipo de cómputo: admin, admin_auditor, auditor y sistemas.
-     - Vehículos: solo admin y admin_auditor, siempre con sucursal.
-   Eliminar: solo admin, admin_auditor y auditor.
+   Pestañas por apartado: vienen de la tabla archivo_categorias (nombre, ícono, quién ve/sube,
+   quién borra y si requiere sucursal). Hoy: Celular y Equipo de cómputo (admin, admin_auditor,
+   auditor y sistemas; borran admin, admin_auditor y auditor) y Vehículos (solo admin y
+   admin_auditor, siempre con sucursal). Agregar un apartado = insertar una fila en esa tabla.
    Dividido por razón social: cada documento guarda su razón (KNO/KSC/KSA; en vehículos se
    toma de la sucursal) y cada usuario solo ve, sube y borra las de sus razones permitidas
    (lo valida la Edge Function; aquí solo se arma la pantalla con lo que ella devuelve).
-   El PDF firmado NUNCA se sube: el navegador convierte cada página a WebP (calidad 85%) con
-   pdf.js y la Edge Function "archivero" guarda las imágenes en el bucket privado.
+   El PDF firmado NUNCA se sube: el navegador convierte cada página a WebP (calidad 65%) con
+   pdf.js y sube cada imagen DIRECTO al bucket privado con una URL firmada que entrega la Edge
+   Function "archivero" (preparar → subir páginas → confirmar).
    Para consultar se muestran las páginas y se puede descargar de nuevo como PDF (jsPDF).
    Acceso: mismo token de sesión que obtiene app-correos.js al iniciar sesión
    (localStorage "kc_token"); si no hay, se pide la contraseña una sola vez.
@@ -19,17 +20,25 @@
 
   var TOKEN_KEY = 'kc_token';
   var PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
-  var CALIDAD = 0.85; /* WebP al 85% */
+  var CALIDAD = 0.65; /* WebP al 65% (antes 85%): sigue legible para responsivas y pesa menos */
+  var PCT = Math.round(CALIDAD * 100) + '%';
+  var SUBIDAS_A_LA_VEZ = 3;
   var MAX_PDF = 50 * 1024 * 1024; /* tamaño máximo del PDF a convertir (no se sube, solo se lee en el navegador) */
   var ANCHO_PX = 1240; /* ≈150 ppp en tamaño carta/A4 */
+  /* Apartados: se reemplazan con los de la tabla archivo_categorias al abrir el archivero
+     (categorias_info de la acción "sesion"). Estos valores solo son el respaldo. */
   var CAT = {
-    celular: { nombre: 'Celular', icono: '📱' },
-    computo: { nombre: 'Equipo de cómputo', icono: '💻' },
-    vehiculo: { nombre: 'Vehículos', icono: '🚗' }
+    celular: { nombre: 'Celular', icono: '📱', requiere_tienda: false, puede_borrar: false },
+    computo: { nombre: 'Equipo de cómputo', icono: '💻', requiere_tienda: false, puede_borrar: false },
+    vehiculo: { nombre: 'Vehículos', icono: '🚗', requiere_tienda: true, puede_borrar: false }
   };
+  var catDe = function (id) { return CAT[id] || { nombre: id || 'Documento', icono: '📄', requiere_tienda: false, puede_borrar: false }; };
+  var conTienda = function () { return !!catDe(st.cat).requiere_tienda; };
+  /* Borrar se decide por apartado (p. ej. Sistemas ve Celular pero no puede borrar). */
+  var puedeBorrar = function () { return st.infoApartados ? !!catDe(st.cat).puede_borrar : st.puedeBorrarTodo; };
   var ROLES = ['admin', 'admin_auditor', 'auditor', 'sistemas'];
 
-  var st = { token: null, categorias: [], razones: [], puedeBorrar: false, cat: null, docs: [], tiendas: [], q: '', tiendaF: '', razonF: '', cargando: false, subiendo: '', visor: null,
+  var st = { token: null, categorias: [], razones: [], puedeBorrarTodo: false, infoApartados: false, cat: null, docs: [], tiendas: [], q: '', tiendaF: '', razonF: '', cargando: false, subiendo: '', visor: null,
     /* Caché de esta página: con qué token se armó la sesión y la última lista de cada categoría.
        Al volver al archivero se muestra al instante y se actualiza en segundo plano. */
     sesTok: null, cache: {} };
@@ -78,7 +87,7 @@
     return j;
   }
 
-  /* ---------- PDF → WebP (85%) ---------- */
+  /* ---------- PDF → WebP (65%) ---------- */
   function cargarScript(src) {
     return new Promise(function (ok, mal) {
       var s = document.createElement('script');
@@ -100,14 +109,6 @@
       }, 'image/webp', CALIDAD);
     });
   }
-  function blobABase64(blob) {
-    return new Promise(function (ok, mal) {
-      var fr = new FileReader();
-      fr.onload = function () { ok(String(fr.result).split(',')[1]); };
-      fr.onerror = mal;
-      fr.readAsDataURL(blob);
-    });
-  }
   async function pdfAPaginas(file, avance) {
     var lib = await pdfjs();
     var pdf = await lib.getDocument({ data: await file.arrayBuffer() }).promise;
@@ -125,7 +126,8 @@
          pestaña pasa a segundo plano mientras se sube el archivo. */
       await page.render({ canvasContext: ctx, viewport: vp, intent: 'print' }).promise;
       var blob = await canvasABlob(canvas);
-      out.push({ b64: await blobABase64(blob), mime: blob.type, bytes: blob.size });
+      out.push({ blob: blob, mime: blob.type, bytes: blob.size });
+      canvas.width = canvas.height = 0; /* libera la memoria del lienzo */
     }
     return out;
   }
@@ -152,7 +154,7 @@
       var k = Math.min(W / c.width, H / c.height), w = c.width * k, h = c.height * k;
       pdf.addImage(c.toDataURL('image/jpeg', 0.85), 'JPEG', (W - w) / 2, (H - h) / 2, w, h);
     }
-    var nombre = (CAT[doc.categoria].nombre + '_' + doc.empleado).replace(/[^\wÁÉÍÓÚÑáéíóúñ-]+/g, '_') + '.pdf';
+    var nombre = (catDe(doc.categoria).nombre + '_' + doc.empleado).replace(/[^\wÁÉÍÓÚÑáéíóúñ-]+/g, '_') + '.pdf';
     pdf.save(nombre);
   }
 
@@ -168,8 +170,8 @@
   }
 
   function htmlSubir() {
-    var veh = st.cat === 'vehiculo';
-    return '<div class="arch-subir"><div class="arch-sub-t">Subir responsiva firmada (PDF) — ' + esc(CAT[st.cat].nombre) + '</div>' +
+    var veh = conTienda();
+    return '<div class="arch-subir"><div class="arch-sub-t">Subir responsiva firmada (PDF) — ' + esc(catDe(st.cat).nombre) + '</div>' +
       '<div class="arch-row">' +
       '<label class="arch-lbl">Nombre del empleado<input class="kc-in" id="arch-emp" placeholder="Nombre completo" style="min-width:240px"></label>' +
       (veh ? '<label class="arch-lbl">Sucursal<select class="kc-in" id="arch-tienda"><option value="">Selecciona…</option>' +
@@ -182,11 +184,11 @@
       '<label class="arch-lbl">Archivo PDF<input type="file" class="kc-in" id="arch-file" accept="application/pdf,.pdf"></label>' +
       '<button class="kc-btn kc-pri" data-ar="subir"' + (st.subiendo ? ' disabled' : '') + '>' + (st.subiendo ? 'Subiendo…' : 'Subir') + '</button>' +
       '</div>' + (st.subiendo ? '<div class="kc-sub" style="margin-top:6px">' + esc(st.subiendo) + '</div>' : '') +
-      '<div class="kc-note" style="margin:8px 0 0">Cada página se guarda en Supabase Storage como imagen WebP al 85% (el PDF original no se sube). Al descargar, se vuelve a armar el PDF.</div></div>';
+      '<div class="kc-note" style="margin:8px 0 0">Cada página se guarda en Supabase Storage como imagen WebP al ' + PCT + ' (el PDF original no se sube). Al descargar, se vuelve a armar el PDF.</div></div>';
   }
 
   function htmlLista() {
-    var veh = st.cat === 'vehiculo';
+    var veh = conTienda();
     var rows = filtrados();
     var filtros = '<div class="arch-row" style="margin:14px 0 10px">' +
       '<input class="kc-in" id="arch-q" placeholder="Buscar por empleado…" value="' + esc(st.q) + '" style="flex:1;min-width:200px">' +
@@ -207,14 +209,14 @@
           (veh ? '<td>' + esc(d.tiendas ? d.tiendas.nombre : '—') + '</td>' : '') +
           '<td>' + d.paginas + '</td><td>' + kb(d.tamano_bytes) + '</td><td>' + esc(d.subido_por || '') + '</td><td>' + fecha(d.created_at) + '</td>' +
           '<td style="white-space:nowrap"><button class="kc-btn" data-ar="ver">Ver</button> <button class="kc-btn" data-ar="pdf">PDF</button>' +
-          (st.puedeBorrar ? ' <button class="kc-btn arch-del" data-ar="borrar">Eliminar</button>' : '') + '</td></tr>';
+          (puedeBorrar() ? ' <button class="kc-btn arch-del" data-ar="borrar">Eliminar</button>' : '') + '</td></tr>';
       }).join('') + '</tbody></table></div>';
   }
 
   function htmlVisor() {
     var v = st.visor;
     return '<div class="arch-visor"><div class="arch-row" style="justify-content:space-between;margin-bottom:10px">' +
-      '<div><b>' + esc(v.doc.empleado) + '</b> <span class="kc-sub">' + esc(CAT[v.doc.categoria].nombre) + ' · ' + esc(v.doc.razon || '') +
+      '<div><b>' + esc(v.doc.empleado) + '</b> <span class="kc-sub">' + esc(catDe(v.doc.categoria).nombre) + ' · ' + esc(v.doc.razon || '') +
       (v.doc.tiendas ? ' · ' + esc(v.doc.tiendas.nombre) : '') + ' · ' + v.doc.paginas + ' página(s)</span></div>' +
       '<div class="arch-row"><button class="kc-btn" data-ar="pdf-visor">Descargar PDF</button><button class="kc-btn" data-ar="cerrar-visor">Volver a la lista</button></div></div>' +
       (v.urls ? v.urls.map(function (u, i) { return '<img class="arch-pag" src="' + esc(u) + '" alt="Página ' + (i + 1) + '">'; }).join('') : '<p class="kc-empty">Cargando páginas…</p>') +
@@ -227,7 +229,7 @@
     $('arch-auth').style.display = 'none';
     $('arch-main').style.display = 'block';
     $('arch-tabs').innerHTML = st.categorias.map(function (c) {
-      return '<button class="kc-tab' + (c === st.cat ? ' on' : '') + '" data-arch-cat="' + c + '">' + CAT[c].icono + ' ' + esc(CAT[c].nombre) + '</button>';
+      return '<button class="kc-tab' + (c === st.cat ? ' on' : '') + '" data-arch-cat="' + esc(c) + '">' + esc(catDe(c).icono) + ' ' + esc(catDe(c).nombre) + '</button>';
     }).join('');
     body.innerHTML = st.visor ? htmlVisor() : htmlSubir() + htmlLista();
   }
@@ -252,8 +254,11 @@
       /* Una sola llamada trae permisos, razones, tiendas y la lista de la categoría. */
       var s = await api('sesion', { categoria: st.cat });
       st.categorias = s.categorias || [];
+      /* Sin categorias_info (Edge Function anterior) se usa el permiso general de borrar. */
+      st.infoApartados = Array.isArray(s.categorias_info);
+      (s.categorias_info || []).forEach(function (c) { CAT[c.id] = c; });
       st.razones = s.razones || [];
-      st.puedeBorrar = !!s.puede_borrar;
+      st.puedeBorrarTodo = !!s.puede_borrar;
       st.tiendas = s.tiendas || [];
       st.cat = s.categoria || null;
       st.docs = s.documentos || [];
@@ -291,14 +296,34 @@
     await iniciar();
   }
 
+  /* Sube las páginas directo al bucket con las URLs firmadas de "preparar" (sin pasar las
+     imágenes por la Edge Function), de SUBIDAS_A_LA_VEZ en SUBIDAS_A_LA_VEZ. */
+  async function subirPaginas(pags, subidas, aviso) {
+    var c = (typeof _sb !== 'undefined' && _sb) || (typeof initSupabase === 'function' ? initSupabase() : null);
+    if (!c) throw new Error('Sin conexión a Supabase');
+    var bucket = c.storage.from('archivero'), hechas = 0, sig = 0;
+    async function trabajador() {
+      while (sig < subidas.length) {
+        var i = sig++;
+        var r = await bucket.uploadToSignedUrl(subidas[i].ruta, subidas[i].token, pags[i].blob, { contentType: pags[i].mime });
+        if (r.error) throw new Error('Página ' + (i + 1) + ': ' + r.error.message);
+        aviso('Subiendo páginas… ' + (++hechas) + ' de ' + subidas.length);
+      }
+    }
+    var n = Math.min(SUBIDAS_A_LA_VEZ, subidas.length), ts = [];
+    for (var k = 0; k < n; k++) ts.push(trabajador());
+    await Promise.all(ts);
+  }
+
   async function subir() {
     var emp = ($('arch-emp').value || '').trim();
     var file = $('arch-file').files[0];
-    var tienda = st.cat === 'vehiculo' ? $('arch-tienda').value : null;
-    var razon = st.cat === 'vehiculo' ? null : $('arch-razon').value;
+    var veh = conTienda();
+    var tienda = veh ? $('arch-tienda').value : null;
+    var razon = veh ? null : $('arch-razon').value;
     if (!emp) { msg('Escribe el nombre del empleado'); return; }
-    if (st.cat === 'vehiculo' && !tienda) { msg('Selecciona la sucursal'); return; }
-    if (st.cat !== 'vehiculo' && !razon) { msg('Selecciona la razón social'); return; }
+    if (veh && !tienda) { msg('Selecciona la sucursal'); return; }
+    if (!veh && !razon) { msg('Selecciona la razón social'); return; }
     if (!file) { msg('Selecciona el PDF'); return; }
     if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') { msg('El archivo debe ser PDF'); return; }
     if (file.size > MAX_PDF) { msg('El PDF pesa ' + kb(file.size) + '; el máximo es 50 MB'); return; }
@@ -308,15 +333,18 @@
     try {
       var pags = await pdfAPaginas(file, aviso);
       var total = pags.reduce(function (a, p) { return a + p.bytes; }, 0);
-      st.subiendo = 'Guardando ' + pags.length + ' página(s) (' + kb(total) + ')…'; pintar();
-      /* Solo se suben las páginas WebP; el PDF original se queda en la computadora. */
-      await api('subir', {
-        categoria: cat, empleado: emp, razon: razon, tienda_id: tienda, nombre_original: file.name,
-        paginas: pags.map(function (p) { return { b64: p.b64, mime: p.mime }; })
-      });
-      msg('✓ Guardado: ' + pags.length + ' página(s) WebP al 85% (' + kb(total) + '; el PDF pesaba ' + kb(file.size) + ')' +
+      var datos = { categoria: cat, empleado: emp, razon: razon, tienda_id: tienda, nombre_original: file.name };
+      /* 1) La Edge Function valida permisos y entrega una URL firmada por página. */
+      aviso('Preparando ' + pags.length + ' página(s) (' + kb(total) + ')…');
+      var prep = await api('preparar', Object.assign({ paginas: pags.map(function (p) { return { mime: p.mime }; }) }, datos));
+      /* 2) Cada página sube directo al bucket. 3) Se confirma y queda registrado. */
+      await subirPaginas(pags, prep.subidas, aviso);
+      aviso('Registrando documento…');
+      await api('confirmar', Object.assign({ id: prep.id, rutas: prep.subidas.map(function (x) { return x.ruta; }) }, datos));
+      msg('✓ Guardado: ' + pags.length + ' página(s) WebP al ' + PCT + ' (' + kb(total) + '; el PDF pesaba ' + kb(file.size) + ')' +
         (pags[0] && pags[0].mime !== 'image/webp' ? ' (JPEG: este navegador no genera WebP)' : ''));
       st.subiendo = '';
+      delete st.cache[cat];
       await cargarLista();
     } catch (e) {
       st.subiendo = '';
