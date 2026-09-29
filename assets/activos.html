@@ -679,6 +679,37 @@
             width: 100%; height: 100%;
             object-fit: cover;
         }
+        /* Foto de la tarjeta: se toca para verla en grande */
+        .asset-foto-btn { position:relative; display:block; width:100%; height:100%; padding:0; border:0; background:none; cursor:zoom-in; }
+        .asset-foto-zoom { position:absolute; left:8px; bottom:8px; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+            background:rgba(0,0,0,.55); color:#fff; font-size:15px; line-height:1; opacity:.85; transition:opacity .15s; }
+        .asset-foto-btn:hover .asset-foto-zoom, .asset-foto-btn:focus-visible .asset-foto-zoom { opacity:1; }
+
+        /* Visor de fotos (pantalla completa, se adapta a celular, tableta y computadora) */
+        .visor-foto { position:fixed; inset:0; z-index:10050; background:rgba(8,10,20,.96); display:flex; flex-direction:column; align-items:center; justify-content:center;
+            padding:56px 64px 16px; gap:12px; touch-action:pan-y; }
+        .visor-foto[hidden] { display:none; }
+        .visor-foto img { max-width:min(1200px, 100%); max-height:calc(100vh - 170px); max-height:calc(100dvh - 170px); object-fit:contain;
+            border-radius:10px; box-shadow:0 12px 40px rgba(0,0,0,.5); background:#111; user-select:none; -webkit-user-drag:none; }
+        .visor-foto .visor-cargando { color:#ccc; font-size:0.9rem; }
+        .visor-info { color:#f1f2f8; text-align:center; max-width:min(900px, 100%); font-size:0.85rem; line-height:1.4; }
+        .visor-info strong { display:block; font-size:1rem; margin-bottom:2px; }
+        .visor-info span { opacity:.8; }
+        .visor-btn { position:absolute; border:0; border-radius:50%; width:44px; height:44px; background:rgba(255,255,255,.14); color:#fff; font-size:22px; line-height:1;
+            cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s; }
+        .visor-btn:hover, .visor-btn:focus-visible { background:rgba(255,255,255,.28); outline:none; }
+        .visor-btn[disabled] { opacity:.25; cursor:default; }
+        .visor-cerrar { top:10px; right:12px; }
+        .visor-ant { left:12px; top:50%; transform:translateY(-50%); }
+        .visor-sig { right:12px; top:50%; transform:translateY(-50%); }
+        .visor-contador { position:absolute; top:20px; left:16px; color:#ccc; font-size:0.8rem; }
+        @media (max-width: 640px) {
+            .visor-foto { padding:52px 8px 76px; }
+            .visor-foto img { max-height:calc(100vh - 200px); max-height:calc(100dvh - 200px); border-radius:6px; }
+            .visor-ant, .visor-sig { top:auto; bottom:14px; transform:none; }
+            .visor-ant { left:calc(50% - 56px); } .visor-sig { right:calc(50% - 56px); }
+            .visor-info { font-size:0.78rem; }
+        }
         .asset-info h3 { font-size: 0.9rem; margin-bottom: 3px; color: var(--text-main); }
         .asset-info p { font-size: 0.75rem; color: #888; margin: 2px 0; }
         /* Acciones de la tarjeta: botón de tres puntos (⋮) que despliega un menú. */
@@ -2478,7 +2509,9 @@
                 card.dataset.categoria = asset.categoria || '';
                 card.dataset.centro = asset.centro || '';
                 const fotoOk = fotoSegura(asset.foto);
-                const fotoHtml = fotoOk ? `<img src="${fotoOk}" alt="Foto">` : `<i class="fas fa-camera fa-2x"></i>`;
+                const fotoHtml = fotoOk
+                    ? `<button type="button" class="asset-foto-btn" onclick="verFotoActivo(${index})" title="Ver foto en grande" aria-label="Ver foto en grande"><img src="${fotoOk}" alt="Foto de ${esc(asset.nombre)}" loading="lazy"><span class="asset-foto-zoom" aria-hidden="true">⤢</span></button>`
+                    : `<i class="fas fa-camera fa-2x"></i>`;
                 const estadoCls = asset.estado === 'Asignado' ? 'badge-done' : 'badge-process';
                 card.innerHTML = `
                     <div class="asset-image-placeholder">${fotoHtml}</div>
@@ -2492,6 +2525,7 @@
                         <button type="button" class="asset-menu-btn" onclick="toggleMenuActivo(this, event)" title="Acciones" aria-label="Acciones" aria-haspopup="menu" aria-expanded="false"><span aria-hidden="true">⋮</span></button>
                         <div class="asset-menu-list" role="menu">
                             <button type="button" class="asset-menu-item" role="menuitem" onclick="editAsset(${index})"><i class="fas fa-edit"></i> Editar</button>
+                            ${fotoOk ? `<button type="button" class="asset-menu-item" role="menuitem" onclick="verFotoActivo(${index})"><i class="fas fa-expand"></i> Ver foto</button>` : ''}
                             <label class="asset-menu-item file-upload-wrapper" role="menuitem" title="Subir o cambiar foto"><i class="fas fa-camera"></i> ${asset.foto ? 'Cambiar foto' : 'Subir foto'}<input type="file" accept="image/*" onchange="uploadPhoto(${index}, event)"></label>
                             <button type="button" class="asset-menu-item" role="menuitem" onclick="imprimirEtiquetas([assets[${index}]])" title="Etiqueta con QR para el escaneo"><i class="fas fa-qrcode"></i> Imprimir etiqueta</button>
                             <div class="asset-menu-sep"></div>
@@ -2505,6 +2539,84 @@
             actualizarFiltroTienda();
             filtrarActivos();
         }
+
+        // ---- Visor de fotos en grande ----
+        // Se abre al tocar la foto (o "Ver foto" en el menú ⋮). Flechas/deslizar recorren las fotos
+        // de los activos que se ven con los filtros actuales. Esc, ✕ o tocar fuera lo cierra.
+        let visorLista = [], visorPos = 0, visorFocoPrevio = null;
+        function crearVisorFoto() {
+            let v = document.getElementById('visor-foto');
+            if (v) return v;
+            v = document.createElement('div');
+            v.id = 'visor-foto'; v.className = 'visor-foto'; v.hidden = true;
+            v.setAttribute('role', 'dialog'); v.setAttribute('aria-modal', 'true'); v.setAttribute('aria-label', 'Foto del activo');
+            v.innerHTML = `
+                <span class="visor-contador" id="visor-contador"></span>
+                <button type="button" class="visor-btn visor-cerrar" onclick="cerrarVisorFoto()" aria-label="Cerrar" title="Cerrar (Esc)">✕</button>
+                <button type="button" class="visor-btn visor-ant" onclick="moverVisorFoto(-1)" aria-label="Foto anterior" title="Anterior (←)">‹</button>
+                <button type="button" class="visor-btn visor-sig" onclick="moverVisorFoto(1)" aria-label="Foto siguiente" title="Siguiente (→)">›</button>
+                <img id="visor-img" alt="">
+                <div class="visor-info" id="visor-info"></div>`;
+            v.addEventListener('click', e => { if (e.target === v) cerrarVisorFoto(); });
+            let x0 = null;
+            v.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
+            v.addEventListener('touchend', e => {
+                if (x0 === null) return;
+                const dx = e.changedTouches[0].clientX - x0; x0 = null;
+                if (Math.abs(dx) > 50) moverVisorFoto(dx < 0 ? 1 : -1);
+            });
+            document.body.appendChild(v);
+            return v;
+        }
+        function verFotoActivo(index) {
+            cerrarMenusActivo();
+            // Activos visibles (respetando búsqueda y filtros) que tienen foto, en el orden de la lista.
+            visorLista = [...document.querySelectorAll('#assets-grid .asset-card')]
+                .map((card, i) => ({ card, i }))
+                .filter(x => x.card.style.display !== 'none' && assets[x.i] && fotoSegura(assets[x.i].foto))
+                .map(x => x.i);
+            if (!visorLista.includes(index)) visorLista = [index];
+            visorPos = visorLista.indexOf(index);
+            visorFocoPrevio = document.activeElement;
+            const v = crearVisorFoto();
+            v.hidden = false;
+            document.body.style.overflow = 'hidden';
+            pintarVisorFoto();
+            v.querySelector('.visor-cerrar').focus();
+        }
+        function pintarVisorFoto() {
+            const a = assets[visorLista[visorPos]];
+            if (!a) return cerrarVisorFoto();
+            const img = document.getElementById('visor-img');
+            img.src = fotoSegura(a.foto);
+            img.alt = 'Foto de ' + (a.nombre || 'activo');
+            document.getElementById('visor-info').innerHTML = `<strong>${esc(a.nombre || '')}</strong>
+                <span>${[a.activoFijo && 'Activo fijo ' + esc(a.activoFijo), a.serie && 'Serie ' + esc(a.serie), [a.centroCodigo, a.centro].filter(Boolean).map(esc).join(' · ')].filter(Boolean).join(' · ')}</span>`;
+            const varias = visorLista.length > 1;
+            document.getElementById('visor-contador').textContent = varias ? `${visorPos + 1} de ${visorLista.length}` : '';
+            document.querySelector('.visor-ant').style.display = varias ? '' : 'none';
+            document.querySelector('.visor-sig').style.display = varias ? '' : 'none';
+        }
+        function moverVisorFoto(d) {
+            if (visorLista.length < 2) return;
+            visorPos = (visorPos + d + visorLista.length) % visorLista.length;
+            pintarVisorFoto();
+        }
+        function cerrarVisorFoto() {
+            const v = document.getElementById('visor-foto');
+            if (!v || v.hidden) return;
+            v.hidden = true;
+            document.getElementById('visor-img').removeAttribute('src');
+            document.body.style.overflow = '';
+            if (visorFocoPrevio && visorFocoPrevio.focus) visorFocoPrevio.focus();
+        }
+        document.addEventListener('keydown', e => {
+            const v = document.getElementById('visor-foto');
+            if (!v || v.hidden) return;
+            if (e.key === 'Escape') { e.preventDefault(); cerrarVisorFoto(); }
+            else if (e.key === 'ArrowRight') moverVisorFoto(1);
+            else if (e.key === 'ArrowLeft') moverVisorFoto(-1);
+        });
 
         // Menú ⋮ de la tarjeta de activo: uno abierto a la vez; se cierra al elegir una opción,
         // al dar clic fuera o con Esc. Si no cabe hacia abajo, se abre hacia arriba.
