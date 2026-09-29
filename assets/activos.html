@@ -973,7 +973,7 @@
         .scan-tag { font-size:0.65rem; padding:1px 6px; border-radius:6px; background:var(--input-bg); color:#888; margin-left:4px; }
         .etq-config { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:12px 16px; align-items:end; margin-bottom:0.8rem; }
         .etq-config label { display:flex; flex-direction:column; gap:4px; font-size:0.8rem; font-weight:600; }
-        .etq-config select { padding:8px 10px; border-radius:8px; border:1px solid var(--border-color); background:var(--input-bg); color:var(--text-main); }
+        .etq-config select, .etq-config input { padding:8px 10px; border-radius:8px; border:1px solid var(--border-color); background:var(--input-bg); color:var(--text-main); }
         .etq-info { grid-column:1 / -1; background:rgba(33,150,243,.1); color:var(--text-main); border-radius:8px; padding:10px 12px; font-size:0.85rem; text-align:center; }
         .etq-bar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0.6rem 0; font-size:0.85rem; }
         .etq-wrap { overflow-x:auto; }
@@ -1393,9 +1393,16 @@
                 <div class="widget-card etq-config">
                     <label>Formato
                         <select id="etq-formato" onchange="actualizarConfigEtiquetas()">
-                            <option value="carta">Hoja carta (cuadrícula)</option>
+                            <option value="fijo">Tamaño exacto en hoja carta (21.6 × 27.9 cm)</option>
+                            <option value="carta">Hoja carta · cuadrícula por filas y columnas</option>
                             <option value="rollo">Rollo térmico · 50 × 25 mm (una por etiqueta)</option>
                         </select>
+                    </label>
+                    <label class="etq-solo-fijo">Largo de la etiqueta (cm)
+                        <input type="number" id="etq-ancho" min="2" max="20" step="0.1" onchange="actualizarConfigEtiquetas()">
+                    </label>
+                    <label class="etq-solo-fijo">Ancho de la etiqueta (cm)
+                        <input type="number" id="etq-alto" min="1" max="25" step="0.1" onchange="actualizarConfigEtiquetas()">
                     </label>
                     <label class="etq-solo-hoja">Etiquetas por fila
                         <select id="etq-cols" onchange="actualizarConfigEtiquetas()"></select>
@@ -3780,16 +3787,42 @@
 
         // ---- Configuración de impresión: formato, cuadrícula y escala (se recuerda en este navegador) ----
         const HOJA = { ancho: 215.9, alto: 279.4, margen: 8, espacio: 2 }; // carta, en mm
-        const ETQ_DEF = { formato: 'carta', cols: 3, rows: 10, escala: 100 };
+        // Predeterminado: etiquetas de 4.5 × 2.5 cm en hoja carta (40 por hoja, 4 × 10).
+        const ETQ_DEF = { formato: 'fijo', ancho: 4.5, alto: 2.5, cols: 3, rows: 10, escala: 100 };
+        const ETQ_CLAVE = 'etq-config-v2';
         function leerConfigEtiquetas() {
             let c = { ...ETQ_DEF };
-            try { c = { ...c, ...JSON.parse(localStorage.getItem('etq-config') || '{}') }; } catch (e) { /* sin almacenamiento */ }
+            try { c = { ...c, ...JSON.parse(localStorage.getItem(ETQ_CLAVE) || '{}') }; } catch (e) { /* sin almacenamiento */ }
             const n = (v, min, max, d) => { v = parseInt(v, 10); return v >= min && v <= max ? v : d; };
-            return { formato: c.formato === 'rollo' ? 'rollo' : 'carta', cols: n(c.cols, 1, 6, 3), rows: n(c.rows, 1, 20, 10), escala: n(c.escala, 50, 150, 100) };
+            const f = (v, min, max, d) => { v = Math.round(parseFloat(v) * 10) / 10; return v >= min && v <= max ? v : d; };
+            return {
+                formato: ['fijo', 'carta', 'rollo'].includes(c.formato) ? c.formato : 'fijo',
+                ancho: f(c.ancho, 2, 20, ETQ_DEF.ancho), alto: f(c.alto, 1, 25, ETQ_DEF.alto),
+                cols: n(c.cols, 1, 6, 3), rows: n(c.rows, 1, 20, 10), escala: n(c.escala, 50, 150, 100)
+            };
+        }
+        // Tamaño exacto: cuántas caben en la hoja carta con un margen mínimo de 6 mm (zona que
+        // muchas impresoras no imprimen). Se prueba la separación más amplia que no quite
+        // etiquetas y la cuadrícula se centra en la hoja.
+        function acomodoFijo(c) {
+            const k = c.escala / 100, w = c.ancho * 10 * k, h = c.alto * 10 * k, MARGEN = 6;
+            const mejor = (total, tam) => {
+                let r = { n: 0, gap: 0 };
+                for (const gap of [3, 2.5, 2, 1.5, 1, 0.5, 0]) {
+                    const n = Math.floor((total - 2 * MARGEN + gap) / (tam + gap));
+                    if (n > r.n) r = { n, gap };
+                }
+                return r;
+            };
+            const x = mejor(HOJA.ancho, w), y = mejor(HOJA.alto, h);
+            const usoX = x.n * w + (x.n - 1) * x.gap, usoY = y.n * h + (y.n - 1) * y.gap;
+            return { cols: x.n, rows: y.n, gapX: x.gap, gapY: y.gap, w, h,
+                     margenX: (HOJA.ancho - usoX) / 2, margenY: (HOJA.alto - usoY) / 2 };
         }
         // Medidas de cada etiqueta en mm (antes de la escala).
         function medidaEtiqueta(c) {
             if (c.formato === 'rollo') return { w: 50, h: 25 };
+            if (c.formato === 'fijo') return { w: c.ancho * 10, h: c.alto * 10 };
             return {
                 w: (HOJA.ancho - 2 * HOJA.margen - (c.cols - 1) * HOJA.espacio) / c.cols,
                 h: (HOJA.alto - 2 * HOJA.margen - (c.rows - 1) * HOJA.espacio) / c.rows,
@@ -3804,24 +3837,39 @@
             llenar($('etq-escala'), [50, 60, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 130, 140, 150], v => v + '%');
             let c;
             if ($('etq-escala').dataset.listo) {
-                c = { formato: $('etq-formato').value, cols: $('etq-cols').value, rows: $('etq-rows').value, escala: $('etq-escala').value };
-                try { localStorage.setItem('etq-config', JSON.stringify(c)); } catch (e) { /* sin almacenamiento */ }
+                c = { formato: $('etq-formato').value, ancho: $('etq-ancho').value, alto: $('etq-alto').value,
+                      cols: $('etq-cols').value, rows: $('etq-rows').value, escala: $('etq-escala').value };
+                try { localStorage.setItem(ETQ_CLAVE, JSON.stringify(c)); } catch (e) { /* sin almacenamiento */ }
                 c = leerConfigEtiquetas();
+                $('etq-ancho').value = c.ancho; $('etq-alto').value = c.alto;
             } else {
                 c = leerConfigEtiquetas();
                 $('etq-formato').value = c.formato; $('etq-cols').value = c.cols; $('etq-rows').value = c.rows; $('etq-escala').value = c.escala;
+                $('etq-ancho').value = c.ancho; $('etq-alto').value = c.alto;
                 $('etq-escala').dataset.listo = '1';
             }
-            document.querySelectorAll('.etq-solo-hoja').forEach(el => { el.style.display = c.formato === 'rollo' ? 'none' : ''; });
+            document.querySelectorAll('.etq-solo-hoja').forEach(el => { el.style.display = c.formato === 'carta' ? '' : 'none'; });
+            document.querySelectorAll('.etq-solo-fijo').forEach(el => { el.style.display = c.formato === 'fijo' ? '' : 'none'; });
             const m = medidaEtiqueta(c), k = c.escala / 100;
             const mm = v => (v * k).toFixed(1);
             // Tamaño real del QR (alto de la etiqueta menos el margen interior). Por debajo de
             // ~12 mm muchos celulares y lectores ya no lo leen de forma confiable.
-            const qrMm = m.h * k * 0.86;
+            const qrMm = m.h * k * 0.72;
             const aviso = qrMm < 12 ? ` <br><span style="color:var(--danger-color);font-weight:600;">⚠️ El QR quedaría de ${qrMm.toFixed(0)} mm: puede no leerse. Usa menos etiquetas por columna o más escala (mínimo recomendado 12 mm).</span>` : '';
-            $('etq-info').innerHTML = (c.formato === 'rollo'
-                ? `Rollo: <strong>1 etiqueta por página</strong> de 50 × 25 mm · contenido al ${c.escala}% (${mm(m.w)} × ${mm(m.h)} mm)`
-                : `Máximo: <strong>${c.cols * c.rows} etiquetas</strong> por hoja (${c.cols}x${c.rows}) · cada una de ${mm(m.w)} × ${mm(m.h)} mm al ${c.escala}%`) + ` · QR de ${qrMm.toFixed(0)} mm` + aviso;
+            const cm = v => (v * k / 10).toFixed(2).replace(/\.?0+$/, '');
+            let texto;
+            if (c.formato === 'rollo') {
+                texto = `Rollo: <strong>1 etiqueta por página</strong> de 50 × 25 mm · contenido al ${c.escala}% (${mm(m.w)} × ${mm(m.h)} mm)`;
+            } else if (c.formato === 'fijo') {
+                const f = acomodoFijo(c);
+                texto = f.cols && f.rows
+                    ? `<strong>${f.cols * f.rows} etiquetas por hoja</strong> de 21.6 × 27.9 cm (${f.cols} × ${f.rows}) · cada una de <strong>${cm(m.w)} × ${cm(m.h)} cm</strong>` +
+                      (c.escala !== 100 ? ` (${c.ancho} × ${c.alto} cm al ${c.escala}%)` : '')
+                    : `<span style="color:var(--danger-color);font-weight:600;">La etiqueta es más grande que la hoja carta.</span>`;
+            } else {
+                texto = `Máximo: <strong>${c.cols * c.rows} etiquetas</strong> por hoja (${c.cols}x${c.rows}) · cada una de ${mm(m.w)} × ${mm(m.h)} mm al ${c.escala}%`;
+            }
+            $('etq-info').innerHTML = texto + ` · QR de ${qrMm.toFixed(0)} mm` + aviso;
             return c;
         }
 
@@ -3835,17 +3883,19 @@
             const w = m.w * k, h = m.h * k;
             // Letra proporcional al alto de la etiqueta (sin pasar de lo legible en etiquetas grandes).
             const af = Math.min(4.2, h * 0.16), txt = Math.min(2.5, h * 0.095);
-            const porHoja = rollo ? 1 : c.cols * c.rows;
+            const fijo = c.formato === 'fijo' ? acomodoFijo(c) : null;
+            const porHoja = rollo ? 1 : fijo ? Math.max(1, fijo.cols * fijo.rows) : c.cols * c.rows;
             const hojas = [];
             for (let i = 0; i < lista.length; i += porHoja) hojas.push(lista.slice(i, i + porHoja));
             // Ancho disponible para el texto (etiqueta − márgenes − QR − separación), en mm.
             const padX = h * 0.09, padY = h * 0.07, gap = h * 0.08;
-            const anchoTexto = Math.max(4, w - 2 * padX - (h - 2 * padY) - gap);
+            const QR_FRAC = 0.72; // el QR mide 72 % del alto de la etiqueta (18 mm en una de 2.5 cm)
+            const anchoTexto = Math.max(4, w - 2 * padX - h * QR_FRAC - gap);
             // Letra que hace caber un texto completo en una línea (Arial: ~0.62 del alto por carácter).
             const ajustar = (texto, max, ancho = anchoTexto) => Math.max(1.2, Math.min(max, ancho / (Math.max(1, String(texto).length) * 0.62)));
             // Serie completa, nunca recortada: en una línea si cabe a buen tamaño; si no, en dos
             // renglones (se parte donde sea, las series no tienen espacios) con letra más grande.
-            // El nombre conserva siempre sus 2 renglones.
+            // El nombre usa hasta 3 renglones.
             const htmlSerie = serie => {
                 const una = ajustar(serie, txt * 1.1);
                 if (una >= txt * 0.85) return `<div class="ser" style="font-size:${una.toFixed(2)}mm">${esc(serie)}</div>`;
@@ -3855,16 +3905,21 @@
             const etiqueta = a => {
                 const fijo = a.activoFijo || a.codigo || '';
                 const serie = a.serie || '';
-                // El activo fijo comparte renglón con el código de tienda: se ajusta al espacio que queda.
+                // El activo fijo (el dato principal) usa todo el renglón; el código de tienda va al
+                // inicio del nombre.
                 const cc = a.centroCodigo || '';
-                const anchoFijo = anchoTexto - (cc ? cc.length * 0.62 * txt + 1.2 : 0);
                 return `<div class="etq"><div class="qr">${qrSvg(valorQR(a))}</div><div class="txt">
-                    <div class="top"><span class="cc">${esc(cc)}</span><span class="af" style="font-size:${ajustar(fijo, af, anchoFijo).toFixed(2)}mm">${esc(fijo)}</span></div>
-                    <div class="nom">${esc(a.nombre || '')}</div>
+                    <div class="top"><span class="af" style="font-size:${ajustar(fijo, af).toFixed(2)}mm">${esc(fijo)}</span></div>
+                    <div class="nom">${cc ? `<b>${esc(cc)}</b> · ` : ''}${esc(a.nombre || '')}</div>
                     ${serie ? htmlSerie(serie) : ''}</div></div>`;
             };
             const pagina = rollo
                 ? `@page{size:50mm 25mm;margin:0} .hoja{width:50mm;height:25mm;display:flex;align-items:center;justify-content:center}`
+                : fijo
+                ? `@page{size:letter;margin:0} .hoja{width:${HOJA.ancho}mm;height:${(HOJA.alto - 0.5).toFixed(1)}mm;overflow:hidden;
+                   padding:${fijo.margenY.toFixed(2)}mm ${fijo.margenX.toFixed(2)}mm;display:grid;
+                   grid-template-columns:repeat(${fijo.cols},${w.toFixed(2)}mm);grid-auto-rows:${h.toFixed(2)}mm;
+                   column-gap:${fijo.gapX}mm;row-gap:${fijo.gapY}mm;align-content:start}`
                 : `@page{size:letter;margin:${HOJA.margen}mm} .hoja{display:grid;grid-template-columns:repeat(${c.cols},${w.toFixed(2)}mm);
                    grid-auto-rows:${h.toFixed(2)}mm;gap:${(HOJA.espacio * k).toFixed(2)}mm;align-content:start}`;
             return `<!doctype html><html><head><meta charset="utf-8"><title>Etiquetas</title><style>
@@ -3873,12 +3928,12 @@
                 .hoja{page-break-after:always;break-after:page} .hoja:last-child{page-break-after:auto;break-after:auto}
                 .etq{width:${w.toFixed(2)}mm;height:${h.toFixed(2)}mm;display:flex;align-items:center;gap:${gap.toFixed(2)}mm;
                      padding:${padY.toFixed(2)}mm ${padX.toFixed(2)}mm;overflow:hidden;border:0.3mm solid #000;border-radius:${(h * 0.06).toFixed(2)}mm}
-                .qr{height:100%;aspect-ratio:1/1;flex-shrink:0} .qr svg{width:100%;height:100%;display:block}
+                .qr{height:${(h * QR_FRAC).toFixed(2)}mm;width:${(h * QR_FRAC).toFixed(2)}mm;flex-shrink:0} .qr svg{width:100%;height:100%;display:block}
                 .txt{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:space-between}
-                .top{display:flex;justify-content:space-between;align-items:baseline;gap:1mm}
+                .top{display:flex;justify-content:flex-end;align-items:baseline}
                 .cc{font-size:${txt.toFixed(2)}mm;white-space:nowrap}
                 .af{font-weight:bold;white-space:nowrap}
-                .nom{font-size:${txt.toFixed(2)}mm;line-height:1.15;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+                .nom{font-size:${txt.toFixed(2)}mm;line-height:1.15;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;word-break:break-word}
                 .ser{font-weight:bold;white-space:nowrap;letter-spacing:0;line-height:1.1}
                 .ser2{white-space:normal;word-break:break-all;overflow-wrap:anywhere}
                 @media screen{body{padding:10px;background:#eee} .hoja{background:#fff;margin-bottom:10px}}
