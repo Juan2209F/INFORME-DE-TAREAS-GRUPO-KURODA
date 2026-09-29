@@ -958,7 +958,31 @@
         .scan-header-actions { display:flex; gap:0.5rem; flex-wrap:wrap; }
         .scan-meta { display:flex; gap:1rem; flex-wrap:wrap; align-items:center; margin-bottom:1rem; font-size:0.85rem; }
         .scan-resumen { margin-top:1rem; display:flex; gap:1.5rem; flex-wrap:wrap; font-size:0.85rem; }
-        .scan-result-row { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px; border-bottom:1px solid var(--border-color); flex-wrap:wrap; }
+        .scan-result-row { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px; flex-wrap:wrap; }
+        .scan-lista { max-height:420px; overflow-y:auto; font-size:0.8rem; }
+        .scan-item { border-bottom:1px solid var(--border-color); padding-bottom:6px; }
+        .scan-item-alerta { background:rgba(255,193,7,.06); }
+        .scan-result-status { display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; }
+        .scan-estatus { padding:3px 6px; border-radius:6px; border:1px solid var(--border-color); background:var(--input-bg); color:var(--text-main); font-size:0.75rem; }
+        .scan-comentario { width:calc(100% - 12px); margin:0 6px; padding:5px 8px; font-size:0.75rem; border:1px dashed var(--border-color); border-radius:6px; background:transparent; color:var(--text-main); }
+        .scan-comentario:focus { border-style:solid; outline:none; border-color:var(--active-bg); }
+        .scan-alerta { font-size:0.72rem; color:var(--warning-color); padding:0 6px 4px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+        .scan-item .btn-action { flex:0 0 auto; width:auto; }
+        .scan-fix, .scan-quitar { padding:2px 8px !important; font-size:0.7rem !important; }
+        .scan-quitar { color:var(--danger-color); background:transparent; border:1px solid var(--border-color); }
+        .scan-tag { font-size:0.65rem; padding:1px 6px; border-radius:6px; background:var(--input-bg); color:#888; margin-left:4px; }
+        .etq-config { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:12px 16px; align-items:end; margin-bottom:0.8rem; }
+        .etq-config label { display:flex; flex-direction:column; gap:4px; font-size:0.8rem; font-weight:600; }
+        .etq-config select { padding:8px 10px; border-radius:8px; border:1px solid var(--border-color); background:var(--input-bg); color:var(--text-main); }
+        .etq-info { grid-column:1 / -1; background:rgba(33,150,243,.1); color:var(--text-main); border-radius:8px; padding:10px 12px; font-size:0.85rem; text-align:center; }
+        .etq-bar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0.6rem 0; font-size:0.85rem; }
+        .etq-wrap { overflow-x:auto; }
+        .etq-wrap td { font-size:0.8rem; vertical-align:middle; }
+        .etq-mini { display:inline-flex; gap:6px; align-items:center; border:1px solid var(--border-color); border-radius:6px; padding:3px 6px; background:#fff; color:#000; font-size:9px; line-height:1.15; max-width:220px; }
+        .etq-mini svg { width:38px; height:38px; flex-shrink:0; }
+        .scan-pendientes { margin-top:1rem; font-size:0.8rem; border:1px solid var(--border-color); border-radius:10px; padding:6px 8px; }
+        .scan-pendientes summary { cursor:pointer; font-weight:600; color:var(--danger-color); padding:4px 2px; }
+        .scan-pendientes .btn-action { padding:2px 8px; font-size:0.7rem; }
         .scan-result-status { white-space:nowrap; }
 
         /* ========== RESPONSIVE ========== */
@@ -1159,6 +1183,9 @@
                 <i class="fas fa-qrcode"></i> <span>Inventarios</span>
                 <span class="badge" id="scan-badge">0</span>
             </div>
+            <div class="nav-item" onclick="switchTab('etiquetas', this); renderEtiquetas()">
+                <i class="fas fa-tags"></i> <span>Etiquetas</span>
+            </div>
             <div class="nav-item" onclick="switchTab('centros', this)">
                 <i class="fas fa-store"></i> <span>Centros</span>
             </div>
@@ -1350,6 +1377,50 @@
             </section>
 
             <!-- ===== CENTROS (vista jerárquica) ===== -->
+            <section id="etiquetas" class="section-view">
+                <h1>Etiquetas para escaneo</h1>
+                <p class="subtitle">Etiquetas con código QR conectadas al catálogo: el QR lleva el <strong>activo fijo</strong>, el mismo dato que reconoce el escáner del módulo de Inventarios.</p>
+                <div class="toolbar">
+                    <div class="controls-group">
+                        <input type="text" id="etq-q" placeholder="Buscar por nombre, serie, activo fijo..." oninput="renderEtiquetas()">
+                        <select id="etq-tienda" onchange="renderEtiquetas()" title="Tienda / centro"></select>
+                        <select id="etq-cat" onchange="renderEtiquetas()" title="Categoría"></select>
+                    </div>
+                    <div class="controls-group">
+                        <button class="btn-primary" onclick="imprimirEtiquetasSeleccion()"><i class="fas fa-print"></i> Imprimir (<span id="etq-n">0</span>)</button>
+                    </div>
+                </div>
+                <div class="widget-card etq-config">
+                    <label>Formato
+                        <select id="etq-formato" onchange="actualizarConfigEtiquetas()">
+                            <option value="carta">Hoja carta (cuadrícula)</option>
+                            <option value="rollo">Rollo térmico · 50 × 25 mm (una por etiqueta)</option>
+                        </select>
+                    </label>
+                    <label class="etq-solo-hoja">Etiquetas por fila
+                        <select id="etq-cols" onchange="actualizarConfigEtiquetas()"></select>
+                    </label>
+                    <label class="etq-solo-hoja">Etiquetas por columna
+                        <select id="etq-rows" onchange="actualizarConfigEtiquetas()"></select>
+                    </label>
+                    <label>Escala de impresión (%)
+                        <select id="etq-escala" onchange="actualizarConfigEtiquetas()"></select>
+                    </label>
+                    <div class="etq-info" id="etq-info"></div>
+                </div>
+                <div class="etq-bar">
+                    <label><input type="checkbox" id="etq-todos" onchange="seleccionarEtiquetasFiltradas(this.checked)"> Seleccionar los <span id="etq-filtrados">0</span> filtrados</label>
+                    <button class="btn-action" style="flex:0 0 auto;" onclick="seleccionEtiquetas.clear(); renderEtiquetas()">Limpiar selección</button>
+                    <span id="etq-nota" style="font-size:0.75rem; opacity:.7;"></span>
+                </div>
+                <div class="widget-card etq-wrap">
+                    <table>
+                        <thead><tr><th style="width:32px;"></th><th>Activo fijo</th><th>Nombre</th><th>Serie</th><th>Tienda</th><th>Vista previa</th></tr></thead>
+                        <tbody id="etq-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
             <section id="centros" class="section-view">
                 <h2>Centros de Trabajo</h2>
                 <p class="subtitle">Sucursales y centros operativos.</p>
@@ -1723,6 +1794,23 @@
             return /^(data:image\/|https:\/\/)/.test(f || '') ? esc(f) : '';
         };
 
+        // Categoría sugerida por el nombre del activo (importación de Excel). Mismas reglas con
+        // las que se reclasificaron en Supabase los activos que estaban en "otros" (29/09/2026).
+        // El orden importa: la primera regla que coincide gana.
+        const REGLAS_CATEGORIA = [
+            ['otros',            /LICEN[CS]|PARTICIPACION DE MERCADO|COMPRA DE CARTERA/],
+            ['vehiculos',        /\b(CHEVROLET|SAVEIRO|VOLKSWAGEN|TIIDA|MARCH|NP300|DODGE|RAM (700|ST|1500|2500|4000)|KENWORTH|FORD|F-?550|F-?350|HINO|NISSAN|TORNADO|PICK ?UP|SEDAN|CAMION|CAMIÓN|MONTACARGAS?|PLATAFORMA|REMOLQUE|MOTOCICLETA|CAMIONETA|HILUX|KIA|ISUZU|INTERNATIONAL|FREIGHTLINER|CHASIS|VEH[IÍ]CULO)\b/],
+            ['computo',          /\b(OPTIPLEX|ALL[ -]?IN[ -]?ONE|AIO|LATITUDE|ATTITUDE|INSPIRON|VOSTRO|PRECISION|NOTEBOOK|LAPTOP|TABLETA?|GALAXY TAB|IPAD|MULTIFU?N?CIONAL|IMPRESORA|MINIPRINTER|COPIADORA|ESC[AÁ]NER|SCANNER|MONITOR|PROYECTOR|MERAKI|CISCO|CISCOMERAKI|ROUTER|SWITCH(ES|S)?|CONMUTADOR|DISCO DURO|SSD|LECTOR|MS5145|CHECADOR|NO ?BREAK|UPS|SERVIDOR|CPU|COMPUTADORA|PROBOOK|ELITEBOOK|THINKPAD|LENOVO|PIN ?PAD|CAJERO AUTOM[AÁ]TICO|DVR|NVR|TERMINAL|FOTOVOLTAICO)\b|\bHP \d{3} G\d|EQUIPO DE C[OÓ]MPUTO/],
+            ['electrodomestico', /\b(MINI ?SPLIT|A\/C|AIRE ACONDIC\w*|REFRIGERACION|REFRIGERADOR(ES)?|AIRE ACOND|CALENTADORE?S?|TELEVISOR|SMART TV|PORTACOOL|SEER|HORNO|MICROONDAS|CAFETERA|ENFRIADOR|DESPACHADOR|C[AÁ]MARAS?|CONDENSADOR)\b|\bLED \d{2}"/],
+            ['mobiliario',       /\b(MOBILIARIO|RETORNOS?|PEDESTAL|MESAS?|MAMPARAS?|ESTANTERIAS?|ESCRITORIOS?|SILLAS?|SILLON|ARCHIVEROS?|LIBREROS?|CREDENZA|COMEDOR|LOCKERS?|CAJA FUERTE|GABINETE|RACKS?|ANAQUEL(ES)?|MUEBLES?)\b/],
+            ['inmueble',         /\b(TERRENO|PREDIO|LOTE|RANCHO|R[UÚ]STICO|MANZANA)\b/],
+        ];
+        function categoriaPorNombre(nombre) {
+            const n = String(nombre || '').toUpperCase();
+            const r = REGLAS_CATEGORIA.find(([, re]) => re.test(n));
+            return r ? r[0] : 'otros';
+        }
+
         // Código interno único (el escáner identifica el activo por este código)
         function nuevoCodigoActivo(usados = new Set(assets.map(a => a.codigo))) {
             let c;
@@ -2019,7 +2107,8 @@
                 fecha_fin: i.estado === 'finalizado' ? (i.fechaFin || new Date().toISOString()) : null,
                 datos: {
                     items: i.items || [], vehiculos: i.vehiculos || [], vehTipo: i.vehTipo || null,
-                    resumen: i.resumen || null, faltantesList: i.faltantesList || [], sobrantesList: i.sobrantesList || []
+                    resumen: i.resumen || null, faltantesList: i.faltantesList || [], sobrantesList: i.sobrantesList || [],
+                    reparacionList: i.reparacionList || [], bajaList: i.bajaList || []
                 }
             };
         }
@@ -2031,7 +2120,8 @@
                 responsable: r.responsable || '', fecha: r.fecha_inicio, estado: r.estado,
                 items: datos.items || [], vehiculos: datos.vehiculos || [], vehTipo: datos.vehTipo || null,
                 fechaFin: r.fecha_fin || null, resumen: datos.resumen || undefined,
-                faltantesList: datos.faltantesList || [], sobrantesList: datos.sobrantesList || []
+                faltantesList: datos.faltantesList || [], sobrantesList: datos.sobrantesList || [],
+                reparacionList: datos.reparacionList || [], bajaList: datos.bajaList || []
             };
         }
 
@@ -2396,6 +2486,7 @@
                         <div class="asset-menu-list" role="menu">
                             <button type="button" class="asset-menu-item" role="menuitem" onclick="editAsset(${index})"><i class="fas fa-edit"></i> Editar</button>
                             <label class="asset-menu-item file-upload-wrapper" role="menuitem" title="Subir o cambiar foto"><i class="fas fa-camera"></i> ${asset.foto ? 'Cambiar foto' : 'Subir foto'}<input type="file" accept="image/*" onchange="uploadPhoto(${index}, event)"></label>
+                            <button type="button" class="asset-menu-item" role="menuitem" onclick="imprimirEtiquetas([assets[${index}]])" title="Etiqueta con QR para el escaneo"><i class="fas fa-qrcode"></i> Imprimir etiqueta</button>
                             <div class="asset-menu-sep"></div>
                             ${asset.estado !== 'Dado de baja' ? `<button type="button" class="asset-menu-item peligro" role="menuitem" onclick="solicitarBajaActivo(${index})" title="Solicitar baja a auditoría"><i class="fas fa-ban"></i> Dar de baja</button>` : ''}
                             <button type="button" class="asset-menu-item peligro" role="menuitem" onclick="deleteAsset(${index})" title="Eliminar registro"><i class="fas fa-trash"></i> Eliminar</button>
@@ -3288,10 +3379,14 @@
                 vehModule.style.display = 'none';
                 vehiculos = [];
             }
-            scanResults = inv.items || [];
+            // Los escaneos guardados se vuelven a comparar con el catálogo ACTUAL: si un activo se
+            // corrigió (categoría o sucursal) después de escanearlo, deja de marcarse "a revisar".
+            scanResults = (inv.items || []).map(i => evaluarItem(inv, i));
+            inv.items = scanResults.slice();
             renderScanResults();
             updateScanCount();
             saveAllData();
+            setTimeout(() => document.getElementById('scan-input')?.focus(), 50);
         }
 
         function renderInventariosList() {
@@ -3362,15 +3457,42 @@
             // así el informe ejecutivo siempre refleja lo que pasó ese día,
             // aunque el catálogo de activos cambie después.
             const r = calcularResumen(inv, inv.items);
+            if (r.faltantes.length && !confirm(`Quedan ${r.faltantes.length} activo(s) pendientes de revisar; se registrarán como FALTANTES. ¿Finalizar?`)) return;
             inv.resumen = {
                 universoTotal: r.universo.length,
                 encontradosTotal: r.encontrados.length,
+                reparacionTotal: r.reparacion.length,
+                bajaTotal: r.baja.length,
                 faltantesTotal: r.faltantes.length,
                 sobrantesTotal: r.sobrantes.length,
                 fechaFin: new Date().toISOString()
             };
-            inv.faltantesList = r.faltantes.map(a => ({ codigo: a.codigo, activoFijo: a.activoFijo, nombre: a.nombre, serie: a.serie, marca: a.marca, modelo: a.modelo }));
-            inv.sobrantesList = r.sobrantes.map(s => ({ codigo: s.code, nombre: s.name, centro: s.centro, alerta: s.alerta }));
+            const fila = a => { const i = r.itemDe(a) || {}; return { codigo: a.codigo, activoFijo: a.activoFijo, nombre: a.nombre, serie: a.serie, marca: a.marca, modelo: a.modelo, comentario: i.comentario || '' }; };
+            inv.faltantesList = r.faltantes.map(fila);
+            inv.reparacionList = r.reparacion.map(fila);
+            inv.bajaList = r.baja.map(fila);
+            inv.sobrantesList = r.sobrantes.map(s => ({ codigo: s.code, nombre: s.name, centro: s.centro, alerta: s.alerta, comentario: s.comentario || '' }));
+
+            // El catálogo refleja lo revisado: "En reparación" cambia el estado del activo;
+            // "Dado de baja" lo aplica un auditor directo y los demás usuarios generan una
+            // solicitud de baja para que auditoría la apruebe (mismo trámite que en Activos).
+            const folio = inv.id.slice(0, 8).toUpperCase();
+            r.reparacion.forEach(a => { a.estado = 'En reparación'; });
+            r.baja.forEach(a => {
+                if (a.estado === 'Dado de baja') return;
+                if (esAuditor(currentUser)) { a.estado = 'Dado de baja'; return; }
+                if (solicitudesBaja.some(b => b.activoId === a.id && b.estado === 'pendiente')) return;
+                const i = r.itemDe(a) || {};
+                solicitudesBaja.push({
+                    id: crypto.randomUUID(), activoId: a.id, activoNombre: a.nombre,
+                    motivo: `Inventario ${folio} (${inv.tienda})` + (i.comentario ? ': ' + i.comentario : ''),
+                    solicitadoPor: currentUser ? (currentUser.nombreCompleto || currentUser.username) : '',
+                    solicitadoPorId: currentUser ? currentUser.id : null,
+                    fecha: new Date().toISOString(), estado: 'pendiente'
+                });
+            });
+            renderAssets();
+            renderNotificaciones();
 
             inv.fechaFin = inv.resumen.fechaFin;
             inv.estado = 'finalizado';
@@ -3395,6 +3517,8 @@
                 <div style="display:flex; gap:1.2rem; flex-wrap:wrap; margin-top:0.6rem;">
                     <div>📦 Universo<br><strong>${r.universoTotal ?? 0}</strong></div>
                     <div style="color:var(--success-color);">✅ Encontrados<br><strong>${r.encontradosTotal ?? 0}</strong></div>
+                    <div style="color:var(--info-color);">🔧 En reparación<br><strong>${r.reparacionTotal ?? 0}</strong></div>
+                    <div style="color:#888;">🗑️ Dados de baja<br><strong>${r.bajaTotal ?? 0}</strong></div>
                     <div style="color:var(--danger-color);">❌ Faltantes<br><strong>${r.faltantesTotal ?? 0}</strong></div>
                     <div style="color:var(--warning-color);">⚠️ Fuera de lugar<br><strong>${r.sobrantesTotal ?? 0}</strong></div>
                 </div>
@@ -3426,18 +3550,52 @@
                    assets.find(a => a.serie === c) || null;
         }
 
-        // Compara lo escaneado contra el universo real de la tienda/categoría
-        // para obtener encontrados, faltantes y "fuera de lugar" reales.
+        // ---- Estatus de revisión de cada activo del inventario ----
+        // Encontrado: está físicamente. En reparación / Dado de baja: no está, pero está justificado.
+        const ESTATUS_REVISION = ['Encontrado', 'En reparación', 'Dado de baja'];
+        const estatusDe = i => ESTATUS_REVISION.includes(i.estatus) ? i.estatus : 'Encontrado';
+
+        // Compara un escaneo con el catálogo actual (sucursal y categoría del inventario).
+        function evaluarItem(inv, item) {
+            const asset = (item.assetId && assets.find(a => a.id === item.assetId)) || buscarActivoPorCodigo(item.code);
+            const it = { ...item, estatus: estatusDe(item), comentario: item.comentario || '' };
+            if (!asset) {
+                return { ...it, assetId: null, name: item.name || 'Código no registrado en el catálogo', centro: 'N/A',
+                    alerta: '⚠️ Código no encontrado en el catálogo de activos', enUniverso: false, motivo: 'no-registrado' };
+            }
+            it.assetId = asset.id; it.name = asset.nombre; it.centro = asset.centro;
+            if (asset.centro !== inv.tienda) {
+                return { ...it, alerta: `⚠️ Este activo pertenece a otra sucursal: ${asset.centro}`, enUniverso: false, motivo: 'otra-sucursal' };
+            }
+            if (asset.categoria !== inv.categoria) {
+                return { ...it, alerta: `⚠️ En el catálogo está como "${nombreCategoria(asset.categoria)}", no como "${nombreCategoria(inv.categoria)}"`, enUniverso: false, motivo: 'otra-categoria' };
+            }
+            return { ...it, alerta: '', enUniverso: true, motivo: '' };
+        }
+
+        // Nombre legible de una categoría (el de la lista de categorías del formulario de activos).
+        function nombreCategoria(c) {
+            const o = [...document.querySelectorAll('#activo-categoria option')].find(x => x.value === c);
+            return o ? o.textContent : (c || '—');
+        }
+
+        // Compara lo revisado contra el universo real de la tienda/categoría:
+        //   encontrados (están), en reparación y dados de baja (justificados), faltantes (sin
+        //   localizar) y "fuera de lugar" (escaneados que no pertenecen al universo).
         function calcularResumen(inv, items) {
             const universo = calcularUniverso(inv);
             const validos = items.filter(i => i.enUniverso !== undefined ? i.enUniverso : !i.alerta);
-            const idsValidos = new Set(validos.map(i => i.assetId).filter(Boolean));
-            const codigosValidos = new Set(validos.map(i => i.code));
-            const escaneado = a => idsValidos.has(a.id) || codigosValidos.has(a.codigo) || (a.activoFijo && codigosValidos.has(a.activoFijo)) || (a.serie && codigosValidos.has(a.serie));
-            const encontrados = universo.filter(escaneado);
-            const faltantes = universo.filter(a => !escaneado(a));
+            const porAsset = new Map();
+            validos.forEach(i => { if (i.assetId) porAsset.set(i.assetId, i); });
+            const codigos = new Map(validos.map(i => [i.code, i]));
+            const itemDe = a => porAsset.get(a.id) || codigos.get(a.codigo) || (a.activoFijo && codigos.get(a.activoFijo)) || (a.serie && codigos.get(a.serie)) || null;
+            const con = est => universo.filter(a => { const i = itemDe(a); return i && estatusDe(i) === est; });
+            const encontrados = con('Encontrado');
+            const reparacion = con('En reparación');
+            const baja = con('Dado de baja');
+            const faltantes = universo.filter(a => !itemDe(a));
             const sobrantes = items.filter(i => i.enUniverso !== undefined ? !i.enUniverso : !!i.alerta);
-            return { universo, encontrados, faltantes, sobrantes };
+            return { universo, encontrados, reparacion, baja, faltantes, sobrantes, itemDe };
         }
 
         function registrarScanManual() {
@@ -3474,31 +3632,21 @@
             }
 
             const assetFound = buscarActivoPorCodigo(codigo);
-            if (assetFound && scanResults.some(r => r.assetId === assetFound.id)) {
-                showNotification(`⚠️ ${assetFound.nombre} ya fue escaneado en este inventario`, 'warning');
+            const previo = assetFound && scanResults.find(r => r.assetId === assetFound.id);
+            if (previo) {
+                // Se había marcado a mano desde "Pendientes" y ahora sí se escaneó: queda como encontrado.
+                if (previo.manual) {
+                    previo.manual = false; previo.estatus = 'Encontrado'; previo.timestamp = new Date().toLocaleTimeString();
+                    guardarRevision();
+                    showNotification(`✅ ${assetFound.nombre} escaneado (antes marcado a mano)`, 'success');
+                } else {
+                    showNotification(`⚠️ ${assetFound.nombre} ya fue escaneado en este inventario`, 'warning');
+                }
                 return;
             }
-            let name = 'Código no registrado en el catálogo';
-            let centro = 'N/A';
-            let alerta = '';
-            let enUniverso = false;
-
-            if (assetFound) {
-                name = assetFound.nombre;
-                centro = assetFound.centro;
-                const perteneceATienda = centro === inv.tienda;
-                const perteneceACategoria = assetFound.categoria === inv.categoria;
-                if (!perteneceATienda) {
-                    alerta = `⚠️ Este activo pertenece a otra sucursal: ${centro}`;
-                } else if (!perteneceACategoria) {
-                    alerta = `⚠️ Este activo está catalogado en otra categoría: ${assetFound.categoria}`;
-                }
-                enUniverso = perteneceATienda && perteneceACategoria;
-            } else {
-                alerta = '⚠️ Código no encontrado en el catálogo de activos';
-            }
-
-            const item = { code: codigo, assetId: assetFound ? assetFound.id : null, name, found: true, timestamp: new Date().toLocaleTimeString(), centro, alerta, enUniverso };
+            const item = evaluarItem(inv, { code: codigo, assetId: assetFound ? assetFound.id : null, found: true,
+                timestamp: new Date().toLocaleTimeString(), estatus: 'Encontrado', comentario: '' });
+            const { name, alerta } = item;
             scanResults.push(item);
 
             renderScanResults();
@@ -3550,7 +3698,214 @@
             closeModal('modalResponsableVehiculo');
         }
 
+        // ============================================================
+        // ETIQUETAS CON QR (conectadas al catálogo)
+        // ------------------------------------------------------------
+        // El QR contiene el activo fijo (único en el catálogo); si no hay, el código interno.
+        // buscarActivoPorCodigo() reconoce ambos, así que lo impreso aquí se escanea directo
+        // en Inventarios. Se imprime desde un iframe oculto con el tamaño de página exacto.
+        // ============================================================
+        const QR_LIB = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
+        const seleccionEtiquetas = new Set();
+        const cargarScript = (src, listo) => listo() ? Promise.resolve() : new Promise((ok, mal) => {
+            const sc = document.createElement('script');
+            sc.src = src; sc.onload = ok; sc.onerror = () => mal(new Error('No se pudo cargar ' + src));
+            document.head.appendChild(sc);
+        });
+        const cargarQR = () => cargarScript(QR_LIB, () => typeof window.qrcode === 'function');
+        const valorQR = a => String(a.activoFijo || a.codigo || '').trim();
+        function qrSvg(texto) {
+            const q = window.qrcode(0, 'M');
+            q.addData(texto);
+            q.make();
+            return q.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+        }
+
+        function filtradosEtiquetas() {
+            const q = (document.getElementById('etq-q')?.value || '').toLowerCase().trim();
+            const t = document.getElementById('etq-tienda')?.value || '';
+            const c = document.getElementById('etq-cat')?.value || '';
+            return assets.filter(a =>
+                a.estado !== 'Dado de baja' &&
+                (!t || a.centro === t) && (!c || a.categoria === c) &&
+                (!q || [a.nombre, a.serie, a.activoFijo, a.codigo].some(v => String(v || '').toLowerCase().includes(q))));
+        }
+
+        async function renderEtiquetas() {
+            const body = document.getElementById('etq-body');
+            if (!body) return;
+            // Filtros de tienda y categoría (se arman una vez, conservando lo elegido)
+            const selT = document.getElementById('etq-tienda'), selC = document.getElementById('etq-cat');
+            if (selT && selT.options.length <= 1) {
+                const tiendas = [...new Set(assets.map(a => a.centro).filter(Boolean))].sort();
+                selT.innerHTML = '<option value="">Todas las tiendas</option>' + tiendas.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+            }
+            if (selC && selC.options.length <= 1) {
+                selC.innerHTML = '<option value="">Todas las categorías</option>' +
+                    [...document.querySelectorAll('#activo-categoria option')].map(o => `<option value="${esc(o.value)}">${esc(o.textContent)}</option>`).join('');
+            }
+            actualizarConfigEtiquetas();
+            const lista = filtradosEtiquetas();
+            const MAX = 300; // se muestran hasta 300 renglones; la selección puede incluir más
+            document.getElementById('etq-filtrados').textContent = lista.length;
+            document.getElementById('etq-todos').checked = lista.length > 0 && lista.every(a => seleccionEtiquetas.has(a.id));
+            document.getElementById('etq-nota').textContent = lista.length > MAX ? `Se muestran ${MAX} de ${lista.length}; usa la búsqueda o los filtros.` : '';
+            document.getElementById('etq-n').textContent = seleccionEtiquetas.size;
+            if (!lista.length) { body.innerHTML = '<tr><td colspan="6" style="color:#888; text-align:center;">Sin activos con estos filtros.</td></tr>'; return; }
+            let qrOk = true;
+            try { await cargarQR(); } catch (e) { qrOk = false; }
+            body.innerHTML = lista.slice(0, MAX).map(a => `
+                <tr>
+                    <td><input type="checkbox" ${seleccionEtiquetas.has(a.id) ? 'checked' : ''} onchange="alternarEtiqueta('${a.id}', this.checked)"></td>
+                    <td><strong>${esc(a.activoFijo || '—')}</strong></td>
+                    <td>${esc(a.nombre)}</td>
+                    <td>${esc(a.serie || '—')}</td>
+                    <td>${esc(a.centroCodigo || '')} ${esc(a.centro || '')}</td>
+                    <td><span class="etq-mini">${qrOk && valorQR(a) ? qrSvg(valorQR(a)) : ''}<span><b>${esc(a.activoFijo || '')}</b><br>${esc(String(a.nombre || '').slice(0, 40))}</span></span></td>
+                </tr>`).join('');
+        }
+        function alternarEtiqueta(id, si) {
+            if (si) seleccionEtiquetas.add(id); else seleccionEtiquetas.delete(id);
+            document.getElementById('etq-n').textContent = seleccionEtiquetas.size;
+        }
+        function seleccionarEtiquetasFiltradas(si) {
+            filtradosEtiquetas().forEach(a => si ? seleccionEtiquetas.add(a.id) : seleccionEtiquetas.delete(a.id));
+            renderEtiquetas();
+        }
+        function imprimirEtiquetasSeleccion() {
+            const lista = assets.filter(a => seleccionEtiquetas.has(a.id));
+            if (!lista.length) { showNotification('Selecciona al menos un activo', 'warning'); return; }
+            imprimirEtiquetas(lista);
+        }
+
+        // ---- Configuración de impresión: formato, cuadrícula y escala (se recuerda en este navegador) ----
+        const HOJA = { ancho: 215.9, alto: 279.4, margen: 8, espacio: 2 }; // carta, en mm
+        const ETQ_DEF = { formato: 'carta', cols: 3, rows: 10, escala: 100 };
+        function leerConfigEtiquetas() {
+            let c = { ...ETQ_DEF };
+            try { c = { ...c, ...JSON.parse(localStorage.getItem('etq-config') || '{}') }; } catch (e) { /* sin almacenamiento */ }
+            const n = (v, min, max, d) => { v = parseInt(v, 10); return v >= min && v <= max ? v : d; };
+            return { formato: c.formato === 'rollo' ? 'rollo' : 'carta', cols: n(c.cols, 1, 6, 3), rows: n(c.rows, 1, 20, 10), escala: n(c.escala, 50, 150, 100) };
+        }
+        // Medidas de cada etiqueta en mm (antes de la escala).
+        function medidaEtiqueta(c) {
+            if (c.formato === 'rollo') return { w: 50, h: 25 };
+            return {
+                w: (HOJA.ancho - 2 * HOJA.margen - (c.cols - 1) * HOJA.espacio) / c.cols,
+                h: (HOJA.alto - 2 * HOJA.margen - (c.rows - 1) * HOJA.espacio) / c.rows,
+            };
+        }
+        function actualizarConfigEtiquetas() {
+            const $ = id => document.getElementById(id);
+            if (!$('etq-cols')) return;
+            const llenar = (sel, vals, fmt) => { if (!sel.options.length) sel.innerHTML = vals.map(v => `<option value="${v}">${fmt(v)}</option>`).join(''); };
+            llenar($('etq-cols'), [1, 2, 3, 4, 5, 6], v => v);
+            llenar($('etq-rows'), Array.from({ length: 20 }, (_, i) => i + 1), v => v);
+            llenar($('etq-escala'), [50, 60, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 130, 140, 150], v => v + '%');
+            let c;
+            if ($('etq-escala').dataset.listo) {
+                c = { formato: $('etq-formato').value, cols: $('etq-cols').value, rows: $('etq-rows').value, escala: $('etq-escala').value };
+                try { localStorage.setItem('etq-config', JSON.stringify(c)); } catch (e) { /* sin almacenamiento */ }
+                c = leerConfigEtiquetas();
+            } else {
+                c = leerConfigEtiquetas();
+                $('etq-formato').value = c.formato; $('etq-cols').value = c.cols; $('etq-rows').value = c.rows; $('etq-escala').value = c.escala;
+                $('etq-escala').dataset.listo = '1';
+            }
+            document.querySelectorAll('.etq-solo-hoja').forEach(el => { el.style.display = c.formato === 'rollo' ? 'none' : ''; });
+            const m = medidaEtiqueta(c), k = c.escala / 100;
+            const mm = v => (v * k).toFixed(1);
+            // Tamaño real del QR (alto de la etiqueta menos el margen interior). Por debajo de
+            // ~12 mm muchos celulares y lectores ya no lo leen de forma confiable.
+            const qrMm = m.h * k * 0.86;
+            const aviso = qrMm < 12 ? ` <br><span style="color:var(--danger-color);font-weight:600;">⚠️ El QR quedaría de ${qrMm.toFixed(0)} mm: puede no leerse. Usa menos etiquetas por columna o más escala (mínimo recomendado 12 mm).</span>` : '';
+            $('etq-info').innerHTML = (c.formato === 'rollo'
+                ? `Rollo: <strong>1 etiqueta por página</strong> de 50 × 25 mm · contenido al ${c.escala}% (${mm(m.w)} × ${mm(m.h)} mm)`
+                : `Máximo: <strong>${c.cols * c.rows} etiquetas</strong> por hoja (${c.cols}x${c.rows}) · cada una de ${mm(m.w)} × ${mm(m.h)} mm al ${c.escala}%`) + ` · QR de ${qrMm.toFixed(0)} mm` + aviso;
+            return c;
+        }
+
+        // HTML de las etiquetas (se usa para imprimir y en las pruebas). Las medidas de la
+        // etiqueta salen de la cuadrícula elegida y todo (tamaño, QR y letra) se multiplica
+        // por la escala, para compensar impresoras que reducen o amplían.
+        function htmlEtiquetas(lista, config) {
+            const c = typeof config === 'string' ? { ...leerConfigEtiquetas(), formato: config } : { ...leerConfigEtiquetas(), ...(config || {}) };
+            const rollo = c.formato === 'rollo';
+            const m = medidaEtiqueta(c), k = c.escala / 100;
+            const w = m.w * k, h = m.h * k;
+            // Letra proporcional al alto de la etiqueta (sin pasar de lo legible en etiquetas grandes).
+            const af = Math.min(4.2, h * 0.16), txt = Math.min(2.5, h * 0.095);
+            const porHoja = rollo ? 1 : c.cols * c.rows;
+            const hojas = [];
+            for (let i = 0; i < lista.length; i += porHoja) hojas.push(lista.slice(i, i + porHoja));
+            // Ancho disponible para el texto (etiqueta − márgenes − QR − separación), en mm.
+            const padX = h * 0.09, padY = h * 0.07, gap = h * 0.08;
+            const anchoTexto = Math.max(4, w - 2 * padX - (h - 2 * padY) - gap);
+            // Letra que hace caber un texto completo en una línea (Arial: ~0.62 del alto por carácter).
+            const ajustar = (texto, max, ancho = anchoTexto) => Math.max(1.2, Math.min(max, ancho / (Math.max(1, String(texto).length) * 0.62)));
+            // Serie completa, nunca recortada: en una línea si cabe a buen tamaño; si no, en dos
+            // renglones (se parte donde sea, las series no tienen espacios) con letra más grande.
+            // El nombre conserva siempre sus 2 renglones.
+            const htmlSerie = serie => {
+                const una = ajustar(serie, txt * 1.1);
+                if (una >= txt * 0.85) return `<div class="ser" style="font-size:${una.toFixed(2)}mm">${esc(serie)}</div>`;
+                const dos = ajustar(serie.slice(0, Math.ceil(serie.length / 2)), txt * 1.1);
+                return `<div class="ser ser2" style="font-size:${Math.max(una, dos).toFixed(2)}mm">${esc(serie)}</div>`;
+            };
+            const etiqueta = a => {
+                const fijo = a.activoFijo || a.codigo || '';
+                const serie = a.serie || '';
+                // El activo fijo comparte renglón con el código de tienda: se ajusta al espacio que queda.
+                const cc = a.centroCodigo || '';
+                const anchoFijo = anchoTexto - (cc ? cc.length * 0.62 * txt + 1.2 : 0);
+                return `<div class="etq"><div class="qr">${qrSvg(valorQR(a))}</div><div class="txt">
+                    <div class="top"><span class="cc">${esc(cc)}</span><span class="af" style="font-size:${ajustar(fijo, af, anchoFijo).toFixed(2)}mm">${esc(fijo)}</span></div>
+                    <div class="nom">${esc(a.nombre || '')}</div>
+                    ${serie ? htmlSerie(serie) : ''}</div></div>`;
+            };
+            const pagina = rollo
+                ? `@page{size:50mm 25mm;margin:0} .hoja{width:50mm;height:25mm;display:flex;align-items:center;justify-content:center}`
+                : `@page{size:letter;margin:${HOJA.margen}mm} .hoja{display:grid;grid-template-columns:repeat(${c.cols},${w.toFixed(2)}mm);
+                   grid-auto-rows:${h.toFixed(2)}mm;gap:${(HOJA.espacio * k).toFixed(2)}mm;align-content:start}`;
+            return `<!doctype html><html><head><meta charset="utf-8"><title>Etiquetas</title><style>
+                *{box-sizing:border-box;margin:0;padding:0} html,body{background:#fff;color:#000;font-family:Arial,Helvetica,sans-serif}
+                ${pagina}
+                .hoja{page-break-after:always;break-after:page} .hoja:last-child{page-break-after:auto;break-after:auto}
+                .etq{width:${w.toFixed(2)}mm;height:${h.toFixed(2)}mm;display:flex;align-items:center;gap:${gap.toFixed(2)}mm;
+                     padding:${padY.toFixed(2)}mm ${padX.toFixed(2)}mm;overflow:hidden;border:0.3mm solid #000;border-radius:${(h * 0.06).toFixed(2)}mm}
+                .qr{height:100%;aspect-ratio:1/1;flex-shrink:0} .qr svg{width:100%;height:100%;display:block}
+                .txt{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:space-between}
+                .top{display:flex;justify-content:space-between;align-items:baseline;gap:1mm}
+                .cc{font-size:${txt.toFixed(2)}mm;white-space:nowrap}
+                .af{font-weight:bold;white-space:nowrap}
+                .nom{font-size:${txt.toFixed(2)}mm;line-height:1.15;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+                .ser{font-weight:bold;white-space:nowrap;letter-spacing:0;line-height:1.1}
+                .ser2{white-space:normal;word-break:break-all;overflow-wrap:anywhere}
+                @media screen{body{padding:10px;background:#eee} .hoja{background:#fff;margin-bottom:10px}}
+            </style></head><body>${hojas.map(g => `<div class="hoja">${g.map(etiqueta).join('')}</div>`).join('')}</body></html>`;
+        }
+
+        async function imprimirEtiquetas(lista) {
+            lista = (lista || []).filter(a => a && valorQR(a));
+            if (!lista.length) { showNotification('Ese activo no tiene activo fijo ni código para el QR', 'warning'); return; }
+            try { await cargarQR(); } catch (e) { showNotification('No se pudo cargar el generador de QR. Revisa tu conexión.', 'danger'); return; }
+            const config = actualizarConfigEtiquetas() || leerConfigEtiquetas();
+            let f = document.getElementById('etq-print-frame');
+            if (f) f.remove();
+            f = document.createElement('iframe');
+            f.id = 'etq-print-frame';
+            f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+            document.body.appendChild(f);
+            const d = f.contentDocument;
+            d.open(); d.write(htmlEtiquetas(lista, config)); d.close();
+            setTimeout(() => { f.contentWindow.focus(); f.contentWindow.print(); }, 250);
+            showNotification(`🖨️ ${lista.length} etiqueta(s) enviadas a imprimir`, 'success');
+        }
+
         // ---- Escaneo por cámara (código de barras / QR) ----
+        // Con BarcodeDetector (Chrome / Android) lee QR y códigos de barras. En iPhone, Firefox y
+        // otros sin BarcodeDetector se usa jsQR (solo QR, que es lo que llevan las etiquetas).
+        const JSQR_LIB = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
         let camaraStream = null;
         let camaraDetectorInterval = null;
 
@@ -3559,9 +3914,13 @@
                 showNotification('Primero inicia o continua un inventario', 'warning');
                 return;
             }
-            if (!('BarcodeDetector' in window)) {
-                showNotification('Este navegador no soporta escaneo por cámara. Usa el campo de texto con un lector de código de barras o escribe el código a mano.', 'warning', 6000);
-                return;
+            const nativo = 'BarcodeDetector' in window;
+            if (!nativo) {
+                try { await cargarScript(JSQR_LIB, () => typeof window.jsQR === 'function'); }
+                catch (e) {
+                    showNotification('Este navegador no puede leer códigos con la cámara. Usa un lector o escribe el código.', 'warning', 6000);
+                    return;
+                }
             }
             openModal('modalCamaraScan');
             const video = document.getElementById('camara-scan-video');
@@ -3571,10 +3930,20 @@
                 camaraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
                 video.srcObject = camaraStream;
                 await video.play();
-                const detector = new BarcodeDetector({ formats: ['code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'qr_code', 'code_39'] });
+                const detector = nativo ? new BarcodeDetector({ formats: ['code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'qr_code', 'code_39'] }) : null;
+                const lienzo = document.createElement('canvas');
+                const leerJsQR = () => {
+                    if (!video.videoWidth) return [];
+                    const k = Math.min(1, 640 / video.videoWidth);
+                    lienzo.width = Math.round(video.videoWidth * k); lienzo.height = Math.round(video.videoHeight * k);
+                    const g = lienzo.getContext('2d', { willReadFrequently: true });
+                    g.drawImage(video, 0, 0, lienzo.width, lienzo.height);
+                    const r = window.jsQR(g.getImageData(0, 0, lienzo.width, lienzo.height).data, lienzo.width, lienzo.height, { inversionAttempts: 'dontInvert' });
+                    return r && r.data ? [{ rawValue: r.data }] : [];
+                };
                 camaraDetectorInterval = setInterval(async () => {
                     try {
-                        const codes = await detector.detect(video);
+                        const codes = detector ? await detector.detect(video) : leerJsQR();
                         if (codes.length > 0) {
                             const value = codes[0].rawValue;
                             statusEl.textContent = `Detectado: ${value}`;
@@ -3595,43 +3964,132 @@
             closeModal('modalCamaraScan');
         }
 
+        // Guarda la revisión en curso (estatus, comentarios, correcciones) y vuelve a pintar.
+        function guardarRevision() {
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            if (!inv) return;
+            inv.items = scanResults.slice();
+            renderScanResults();
+            updateScanCount();
+            saveAllData();
+        }
+        const itemPorCodigo = code => scanResults.find(r => r.code === code);
+
+        function cambiarEstatusItem(code, estatus) {
+            const it = itemPorCodigo(code);
+            if (!it || !ESTATUS_REVISION.includes(estatus)) return;
+            it.estatus = estatus;
+            guardarRevision();
+        }
+        // El comentario se guarda al salir del campo (no en cada tecla, para no re-pintar mientras escriben).
+        function comentarItem(code, texto) {
+            const it = itemPorCodigo(code);
+            if (!it || it.comentario === texto) return;
+            it.comentario = String(texto || '').slice(0, 500);
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            if (inv) { inv.items = scanResults.slice(); saveAllData(); }
+        }
+        function quitarItem(code) {
+            const it = itemPorCodigo(code);
+            if (!it || !confirm(`¿Quitar ${it.code} de este inventario?`)) return;
+            scanResults = scanResults.filter(r => r.code !== code);
+            guardarRevision();
+        }
+        // Activo de la misma sucursal catalogado en otra categoría: se corrige el catálogo aquí mismo.
+        function corregirCategoriaItem(code) {
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            const it = itemPorCodigo(code);
+            const asset = it && assets.find(a => a.id === it.assetId);
+            if (!inv || !asset) return;
+            if (!confirm(`¿Cambiar "${asset.nombre}" de "${nombreCategoria(asset.categoria)}" a "${nombreCategoria(inv.categoria)}" en el catálogo?`)) return;
+            asset.categoria = inv.categoria;
+            scanResults = scanResults.map(r => evaluarItem(inv, r));
+            renderAssets();
+            guardarRevision();
+            showNotification('✅ Categoría corregida; el activo ya cuenta en este inventario', 'success');
+        }
+        // Pendiente (del universo, aún sin escanear) marcado a mano: encontrado sin etiqueta,
+        // en reparación o dado de baja. Queda como un renglón más, con comentario.
+        function marcarPendiente(assetId, estatus) {
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            const asset = assets.find(a => a.id === assetId);
+            if (!inv || !asset || !ESTATUS_REVISION.includes(estatus)) return;
+            if (scanResults.some(r => r.assetId === assetId)) return;
+            const comentario = (document.getElementById('pend-com-' + assetId)?.value || '').trim();
+            scanResults.push(evaluarItem(inv, {
+                code: asset.activoFijo || asset.codigo || asset.serie, assetId, manual: true, found: true,
+                timestamp: new Date().toLocaleTimeString(), estatus, comentario
+            }));
+            guardarRevision();
+        }
+
         function renderScanResults() {
             const container = document.getElementById('scan-results');
             const resumenEl = document.getElementById('scan-resumen-live');
             if (!container) return;
             const inv = inventarios.find(i => i.id === inventarioActivo);
 
+            let r = null;
             if (inv && resumenEl) {
-                const r = calcularResumen(inv, scanResults);
+                r = calcularResumen(inv, scanResults);
                 resumenEl.innerHTML = `
                     <span>📦 Universo: <strong>${r.universo.length}</strong></span>
                     <span style="color:var(--success-color);">✅ Encontrados: <strong>${r.encontrados.length}</strong></span>
-                    <span style="color:var(--danger-color);">❌ Faltantes: <strong>${r.faltantes.length}</strong></span>
+                    <span style="color:var(--info-color);">🔧 En reparación: <strong>${r.reparacion.length}</strong></span>
+                    <span style="color:#888;">🗑️ Dados de baja: <strong>${r.baja.length}</strong></span>
+                    <span style="color:var(--danger-color);">❌ Pendientes: <strong>${r.faltantes.length}</strong></span>
                     <span style="color:var(--warning-color);">⚠️ Fuera de lugar: <strong>${r.sobrantes.length}</strong></span>
                 `;
             } else if (resumenEl) {
                 resumenEl.innerHTML = '';
             }
 
-            if (scanResults.length === 0) {
-                container.innerHTML = `<p style="color:#888; text-align:center; padding:0.5rem;">Sin escaneos todavía</p>`;
-                return;
-            }
-            container.innerHTML = `
-                <div style="max-height:220px; overflow-y:auto; font-size:0.8rem;">
-                    ${scanResults.slice().reverse().map(r => `
+            const opciones = actual => ESTATUS_REVISION.map(e => `<option value="${e}"${e === actual ? ' selected' : ''}>${e}</option>`).join('');
+            const filas = scanResults.slice().reverse().map(it => {
+                const c = esc(it.code), cj = esc(JSON.stringify(it.code));
+                const ok = !it.alerta;
+                return `
+                <div class="scan-item ${ok ? '' : 'scan-item-alerta'}">
+                    <div class="scan-result-row">
+                        <span class="scan-result-main"><strong>${c}</strong> - ${esc(it.name)} ${it.centro && it.centro !== 'N/A' ? '· ' + esc(it.centro) : ''}
+                            ${it.manual ? '<span class="scan-tag">marcado a mano</span>' : ''}</span>
+                        <span class="scan-result-status">
+                            ${ok ? `<select class="scan-estatus" onchange='cambiarEstatusItem(${cj}, this.value)' title="Estatus de revisión">${opciones(estatusDe(it))}</select>`
+                                 : `<span style="color:var(--warning-color);">⚠️ Revisar</span>`}
+                            <small style="color:#999;">${esc(it.timestamp || '')}</small>
+                            <button class="btn-action scan-quitar" onclick='quitarItem(${cj})' title="Quitar de este inventario" aria-label="Quitar">✕</button>
+                        </span>
+                    </div>
+                    ${it.alerta ? `<div class="scan-alerta">${esc(it.alerta)}
+                        ${it.motivo === 'otra-categoria' && inv ? ` <button class="btn-action scan-fix" onclick='corregirCategoriaItem(${cj})'><i class="fas fa-wrench"></i> Cambiar a ${esc(nombreCategoria(inv.categoria))}</button>` : ''}</div>` : ''}
+                    <input class="scan-comentario" placeholder="Comentario (opcional)" value="${esc(it.comentario || '')}" maxlength="500"
+                        onchange='comentarItem(${cj}, this.value)'>
+                </div>`;
+            }).join('');
+            container.innerHTML = scanResults.length
+                ? `<div class="scan-lista">${filas}</div>`
+                : `<p style="color:#888; text-align:center; padding:0.5rem;">Sin escaneos todavía</p>`;
+
+            // Pendientes: activos del universo que aún no se revisan. Se pueden marcar sin escanear.
+            if (r && r.faltantes.length) {
+                const abierto = document.getElementById('scan-pendientes')?.open ? ' open' : '';
+                container.innerHTML += `
+                <details id="scan-pendientes" class="scan-pendientes"${abierto}>
+                    <summary>❌ Pendientes por revisar (${r.faltantes.length}) — márcalos si no tienen etiqueta, están en reparación o se dieron de baja</summary>
+                    ${r.faltantes.map(a => `
+                    <div class="scan-item">
                         <div class="scan-result-row">
-                            <span class="scan-result-main"><strong>${esc(r.code)}</strong> - ${esc(r.name)} ${r.centro && r.centro !== 'N/A' ? '· ' + esc(r.centro) : ''}</span>
+                            <span class="scan-result-main"><strong>${esc(a.activoFijo || a.codigo)}</strong> - ${esc(a.nombre)}${a.serie ? ' · Serie ' + esc(a.serie) : ''}</span>
                             <span class="scan-result-status">
-                                ${r.alerta ? '⚠️' : '✅'}
-                                <span style="color:${r.alerta ? 'var(--warning-color)' : 'var(--success-color)'};">${r.alerta ? 'Revisar' : 'Encontrado'}</span>
-                                <small style="color:#999; margin-left:6px;">${esc(r.timestamp)}</small>
+                                <button class="btn-action" onclick="marcarPendiente('${a.id}','Encontrado')" title="Está, pero sin etiqueta legible">✅ Encontrado</button>
+                                <button class="btn-action" onclick="marcarPendiente('${a.id}','En reparación')">🔧 Reparación</button>
+                                <button class="btn-action" onclick="marcarPendiente('${a.id}','Dado de baja')">🗑️ Baja</button>
                             </span>
                         </div>
-                        ${r.alerta ? `<div style="font-size:0.72rem; color:var(--warning-color); padding:0 6px 4px;">${esc(r.alerta)}</div>` : ''}
-                    `).join('')}
-                </div>
-            `;
+                        <input class="scan-comentario" id="pend-com-${a.id}" placeholder="Comentario (opcional, se guarda al marcarlo)" maxlength="500">
+                    </div>`).join('')}
+                </details>`;
+            }
         }
 
         function updateScanCount() {
@@ -3645,12 +4103,16 @@
             const r = inv.resumen || {};
             const faltantes = inv.faltantesList || [];
             const sobrantes = inv.sobrantesList || [];
-            const encontrados = (inv.items || []).filter(i => i.enUniverso !== undefined ? i.enUniverso : !i.alerta);
+            const encontrados = (inv.items || []).filter(i => (i.enUniverso !== undefined ? i.enUniverso : !i.alerta) && estatusDe(i) === 'Encontrado');
+            const reparacion = inv.reparacionList || [];
+            const baja = inv.bajaList || [];
             const fechaInicio = inv.fecha ? new Date(inv.fecha).toLocaleString('es-MX') : '-';
             const fechaFin = r.fechaFin ? new Date(r.fechaFin).toLocaleString('es-MX') : '-';
             const universoTotal = r.universoTotal ?? 0;
             const pct = universoTotal ? Math.round(((r.encontradosTotal || 0) / universoTotal) * 100) : 0;
-            return { inv, r, faltantes, sobrantes, encontrados, fechaInicio, fechaFin, pct };
+            // Conciliado: encontrados + justificados (en reparación o dados de baja).
+            const pctConciliado = universoTotal ? Math.round((((r.encontradosTotal || 0) + (r.reparacionTotal || 0) + (r.bajaTotal || 0)) / universoTotal) * 100) : 0;
+            return { inv, r, faltantes, sobrantes, encontrados, reparacion, baja, fechaInicio, fechaFin, pct, pctConciliado };
         }
 
         function descargarInformePDF(id) {
@@ -3684,9 +4146,12 @@
                 body: [
                     ['Universo esperado', String(d.r.universoTotal ?? 0)],
                     ['Activos encontrados', String(d.r.encontradosTotal ?? 0)],
+                    ['En reparación', String(d.r.reparacionTotal ?? 0)],
+                    ['Dados de baja', String(d.r.bajaTotal ?? 0)],
                     ['Activos faltantes', String(d.r.faltantesTotal ?? 0)],
                     ['Fuera de lugar / no reconocidos', String(d.r.sobrantesTotal ?? 0)],
-                    ['% de cumplimiento', d.pct + '%']
+                    ['% encontrados', d.pct + '%'],
+                    ['% conciliado (encontrados + en reparación + bajas)', d.pctConciliado + '%']
                 ],
                 styles: { fontSize: 9 }, headStyles: { fillColor: [127, 90, 240] }
             });
@@ -3696,11 +4161,26 @@
             doc.text('Activos encontrados', margin, y); y += 6; doc.setTextColor(0);
             doc.autoTable({
                 startY: y + 6, margin: { left: margin, right: margin }, theme: 'striped',
-                head: [['Código', 'Nombre', 'Hora']],
-                body: d.encontrados.length ? d.encontrados.map(i => [i.code, i.name, i.timestamp || '-']) : [['-', 'Sin activos encontrados', '-']],
+                head: [['Código', 'Nombre', 'Hora', 'Comentario']],
+                body: d.encontrados.length ? d.encontrados.map(i => [i.code, i.name, i.timestamp || '-', i.comentario || '']) : [['-', 'Sin activos encontrados', '-', '']],
                 styles: { fontSize: 8 }, headStyles: { fillColor: [44, 182, 125] }
             });
             y = doc.lastAutoTable.finalY + 20;
+
+            // En reparación / dados de baja: justificados, con su comentario.
+            [['En reparación', d.reparacion, [33, 150, 243]], ['Dados de baja', d.baja, [120, 120, 120]]].forEach(([titulo, lista, color]) => {
+                if (!lista.length) return;
+                if (y > 620) { doc.addPage(); y = margin; }
+                doc.setFontSize(11); doc.setFont(undefined, 'bold'); doc.setTextColor(color[0], color[1], color[2]);
+                doc.text(titulo, margin, y); y += 6; doc.setTextColor(0);
+                doc.autoTable({
+                    startY: y + 6, margin: { left: margin, right: margin }, theme: 'striped',
+                    head: [['Activo fijo', 'Nombre', 'Serie', 'Comentario']],
+                    body: lista.map(a => [a.activoFijo || a.codigo || '-', a.nombre, a.serie || '-', a.comentario || '']),
+                    styles: { fontSize: 8 }, headStyles: { fillColor: color }
+                });
+                y = doc.lastAutoTable.finalY + 20;
+            });
 
             if (y > 620) { doc.addPage(); y = margin; }
             doc.setFontSize(11); doc.setFont(undefined, 'bold'); doc.setTextColor(200, 0, 50);
@@ -3719,8 +4199,8 @@
                 doc.text('Activos fuera de lugar / a revisar', margin, y); y += 6; doc.setTextColor(0);
                 doc.autoTable({
                     startY: y + 6, margin: { left: margin, right: margin }, theme: 'striped',
-                    head: [['Código', 'Nombre', 'Observación']],
-                    body: d.sobrantes.map(s => [s.codigo || '-', s.nombre || '-', s.alerta || '-']),
+                    head: [['Código', 'Nombre', 'Observación', 'Comentario']],
+                    body: d.sobrantes.map(s => [s.codigo || '-', s.nombre || '-', s.alerta || '-', s.comentario || '']),
                     styles: { fontSize: 8 }, headStyles: { fillColor: [249, 168, 37] }
                 });
                 y = doc.lastAutoTable.finalY + 30;
@@ -3762,20 +4242,24 @@
                     <tr><td><strong>Fecha de finalización:</strong></td><td>${d.fechaFin}</td></tr>
                 </table>
                 <table>
-                    <tr><th>Universo</th><th>Encontrados</th><th>Faltantes</th><th>Fuera de lugar</th><th>% Cumplimiento</th></tr>
-                    <tr><td>${d.r.universoTotal ?? 0}</td><td>${d.r.encontradosTotal ?? 0}</td><td>${d.r.faltantesTotal ?? 0}</td><td>${d.r.sobrantesTotal ?? 0}</td><td>${d.pct}%</td></tr>
+                    <tr><th>Universo</th><th>Encontrados</th><th>En reparación</th><th>Dados de baja</th><th>Faltantes</th><th>Fuera de lugar</th><th>% Encontrados</th><th>% Conciliado</th></tr>
+                    <tr><td>${d.r.universoTotal ?? 0}</td><td>${d.r.encontradosTotal ?? 0}</td><td>${d.r.reparacionTotal ?? 0}</td><td>${d.r.bajaTotal ?? 0}</td><td>${d.r.faltantesTotal ?? 0}</td><td>${d.r.sobrantesTotal ?? 0}</td><td>${d.pct}%</td><td>${d.pctConciliado}%</td></tr>
                 </table>
                 <h2 style="color:#2cb67d;">Activos encontrados</h2>
-                <table><tr><th>Código</th><th>Nombre</th><th>Hora</th></tr>
-                    ${d.encontrados.length ? d.encontrados.map(i => `<tr><td>${esc(i.code)}</td><td>${esc(i.name)}</td><td>${esc(i.timestamp || '-')}</td></tr>`).join('') : '<tr><td colspan="3">Sin activos encontrados</td></tr>'}
+                <table><tr><th>Código</th><th>Nombre</th><th>Hora</th><th>Comentario</th></tr>
+                    ${d.encontrados.length ? d.encontrados.map(i => `<tr><td>${esc(i.code)}</td><td>${esc(i.name)}</td><td>${esc(i.timestamp || '-')}</td><td>${esc(i.comentario || '')}</td></tr>`).join('') : '<tr><td colspan="4">Sin activos encontrados</td></tr>'}
                 </table>
+                ${[['En reparación', d.reparacion, '#2196f3'], ['Dados de baja', d.baja, '#777']].filter(x => x[1].length).map(([t, l, c]) => `<h2 style="color:${c};">${t}</h2>
+                <table><tr><th>Activo fijo</th><th>Nombre</th><th>Serie</th><th>Comentario</th></tr>
+                    ${l.map(a => `<tr><td>${esc(a.activoFijo || a.codigo || '-')}</td><td>${esc(a.nombre)}</td><td>${esc(a.serie || '-')}</td><td>${esc(a.comentario || '')}</td></tr>`).join('')}
+                </table>`).join('')}
                 <h2 style="color:#ef476f;">Activos faltantes</h2>
                 <table><tr><th>Código</th><th>Activo fijo</th><th>Nombre</th><th>Serie</th></tr>
                     ${d.faltantes.length ? d.faltantes.map(a => `<tr><td>${esc(a.codigo || '-')}</td><td>${esc(a.activoFijo || '-')}</td><td>${esc(a.nombre)}</td><td>${esc(a.serie || '-')}</td></tr>`).join('') : '<tr><td colspan="4">No hay faltantes</td></tr>'}
                 </table>
                 ${d.sobrantes.length ? `<h2 style="color:#f9a825;">Activos fuera de lugar / a revisar</h2>
-                <table><tr><th>Código</th><th>Nombre</th><th>Observación</th></tr>
-                    ${d.sobrantes.map(s => `<tr><td>${esc(s.codigo || '-')}</td><td>${esc(s.nombre || '-')}</td><td>${esc(s.alerta || '-')}</td></tr>`).join('')}
+                <table><tr><th>Código</th><th>Nombre</th><th>Observación</th><th>Comentario</th></tr>
+                    ${d.sobrantes.map(s => `<tr><td>${esc(s.codigo || '-')}</td><td>${esc(s.nombre || '-')}</td><td>${esc(s.alerta || '-')}</td><td>${esc(s.comentario || '')}</td></tr>`).join('')}
                 </table>` : ''}
                 <br><br>
                 <table class="meta" style="margin-top:30px;">
@@ -3998,19 +4482,7 @@
                             }
                         }
 
-                        let categoria = 'otros';
-                        const nombreLower = denominacion.toLowerCase();
-                        if (nombreLower.includes('laptop') || nombreLower.includes('computadora') || nombreLower.includes('equipo de cómputo') || nombreLower.includes('monitor') || nombreLower.includes('impresora') || nombreLower.includes('switch') || nombreLower.includes('fotovoltaico')) {
-                            categoria = 'computo';
-                        } else if (nombreLower.includes('vehículo') || nombreLower.includes('vehiculo') || nombreLower.includes('montacargas') || nombreLower.includes('ford') || nombreLower.includes('nissan') || nombreLower.includes('chasis') || nombreLower.includes('camión') || nombreLower.includes('camion')) {
-                            categoria = 'vehiculos';
-                        } else if (nombreLower.includes('escritorio') || nombreLower.includes('silla') || nombreLower.includes('mueble') || nombreLower.includes('archivero') || nombreLower.includes('locker') || nombreLower.includes('anaquel') || nombreLower.includes('rack')) {
-                            categoria = 'mobiliario';
-                        } else if (nombreLower.includes('aire') || nombreLower.includes('refrigerador') || nombreLower.includes('minisplit') || nombreLower.includes('cond') || nombreLower.includes('cámara') || nombreLower.includes('camara')) {
-                            categoria = 'electrodomestico';
-                        } else if (nombreLower.includes('terreno') || nombreLower.includes('predio') || nombreLower.includes('lote') || nombreLower.includes('rancho') || nombreLower.includes('rústico') || nombreLower.includes('rustico') || nombreLower.includes('manzana')) {
-                            categoria = 'inmueble';
-                        }
+                        const categoria = categoriaPorNombre(denominacion);
 
                         const notas = `Importado/actualizado de Excel. Ce.coste: ${rawCentroCode || 'N/D'}.${denominacion2 ? ' Detalle: ' + denominacion2 + '.' : ''}`;
 
