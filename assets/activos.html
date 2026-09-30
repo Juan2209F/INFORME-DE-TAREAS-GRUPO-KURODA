@@ -1016,6 +1016,83 @@
         .scan-pendientes .btn-action { padding:2px 8px; font-size:0.7rem; }
         .scan-result-status { white-space:nowrap; }
 
+        /* ========== LEVANTAMIENTO v2 (teléfono y web) ==========
+           Mientras hay un inventario abierto la sección entra en "modo levantamiento":
+           se oculta la lista de inventarios y queda solo lo necesario para contar. */
+        #inventarios.lv-activo .lv-ocultar { display:none !important; }
+        #inventarios.lv-activo #scan-area { margin-top:0 !important; }
+        /* La barra de usuario deja de estar fija para que la barra de escaneo ocupe la parte superior */
+        body:has(#inventarios.lv-activo.active) .topbar-user { position:static; }
+        .lv-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:0.8rem; }
+        .lv-head h3 { margin:0; border:none; padding:0; flex:1; min-width:180px; font-size:1rem; line-height:1.25; }
+        .lv-head h3 small { display:block; font-size:0.72rem; font-weight:500; color:#8a8fa3; }
+        .lv-head-actions { display:flex; gap:8px; }
+        .lv-progress { margin-bottom:0.8rem; }
+        .lv-progress-txt { display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:4px; }
+        .lv-progress-txt b { font-size:1.05rem; }
+        .lv-bar { height:12px; border-radius:99px; background:var(--input-bg); border:1px solid var(--border-color); overflow:hidden; display:flex; }
+        .lv-bar span { display:block; height:100%; transition:width .25s; }
+        .lv-bar .b-ok { background:var(--success-color); }
+        .lv-bar .b-just { background:var(--info-color); }
+        .lv-scanbar { position:sticky; top:0; z-index:20; background:var(--card-bg); padding:8px 0; display:flex; gap:8px; align-items:stretch; }
+        .lv-scanbar input { flex:1; min-width:0; padding:12px 14px; font-size:1rem; border:2px solid var(--active-bg); border-radius:12px; background:var(--input-bg); color:var(--text-main); }
+        .lv-scanbar input:focus { outline:none; box-shadow:0 0 0 3px rgba(94,114,228,.25); }
+        .lv-scanbar button { flex:0 0 auto; padding:0 16px; border-radius:12px; font-size:1rem; }
+        .lv-cam-btn { background:linear-gradient(135deg, var(--active-bg), var(--active-bg2)); color:#fff; border:0; cursor:pointer; font-weight:600; }
+        .lv-last { border-radius:12px; padding:10px 12px; margin:6px 0 10px; font-size:0.85rem; border:1px solid var(--border-color); background:var(--input-bg); display:flex; gap:10px; align-items:center; }
+        .lv-last[hidden] { display:none; }
+        .lv-last .ico { font-size:1.4rem; line-height:1; }
+        .lv-last b { display:block; }
+        .lv-last small { color:inherit; opacity:.85; }
+        .lv-last.ok { background:rgba(45,206,137,.12); border-color:var(--success-color); }
+        .lv-last.alerta { background:rgba(251,99,64,.12); border-color:var(--warning-color); }
+        .lv-last.repetido { background:rgba(136,136,136,.12); border-color:#999; }
+        .lv-tabs { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:6px; margin-bottom:8px; }
+        .lv-tab { border:1px solid var(--border-color); background:var(--input-bg); color:var(--text-main); border-radius:10px; padding:8px 4px; cursor:pointer; font-size:0.72rem; line-height:1.2; text-align:center; }
+        .lv-tab b { display:block; font-size:1.15rem; }
+        .lv-tab.activo { border-color:var(--active-bg); box-shadow:inset 0 0 0 1px var(--active-bg); background:rgba(94,114,228,.08); }
+        .lv-tab.t-pend b { color:var(--danger-color); }
+        .lv-tab.t-ok b { color:var(--success-color); }
+        .lv-tab.t-just b { color:var(--info-color); }
+        .lv-tab.t-rev b { color:var(--warning-color); }
+        .lv-buscar { width:100%; padding:8px 12px; border:1px solid var(--border-color); border-radius:10px; background:var(--input-bg); color:var(--text-main); margin-bottom:8px; font-size:0.85rem; }
+        .lv-lista { display:flex; flex-direction:column; gap:6px; max-height:60vh; overflow-y:auto; padding-right:2px; }
+        .lv-card { border:1px solid var(--border-color); border-radius:12px; padding:8px 10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; background:var(--card-bg); }
+        .lv-card.alerta { border-color:var(--warning-color); background:rgba(251,99,64,.05); }
+        .lv-card-main { flex:1 1 220px; min-width:0; font-size:0.82rem; line-height:1.3; }
+        .lv-card-main small { display:block; color:#8a8fa3; font-size:0.72rem; }
+        .lv-card-main .lv-alerta { color:var(--warning-color); font-size:0.72rem; display:block; margin-top:2px; }
+        .lv-card-actions { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+        .lv-btn { border:1px solid var(--border-color); background:var(--input-bg); color:var(--text-main); border-radius:10px; padding:8px 12px; cursor:pointer; font-size:0.8rem; white-space:nowrap; }
+        .lv-btn.ok { background:var(--success-color); border-color:var(--success-color); color:#fff; font-weight:600; }
+        .lv-btn.peligro { color:var(--danger-color); }
+        .lv-card .scan-comentario { flex:1 1 100%; width:100%; margin:0; }
+        .lv-vacio { color:#888; text-align:center; padding:1rem; font-size:0.85rem; }
+        .inv-avance { display:inline-flex; align-items:center; gap:6px; }
+        .inv-avance .lv-bar { width:70px; height:8px; }
+        #modal-inv-universo { font-size:0.8rem; margin-top:8px; padding:8px 10px; border-radius:8px; background:rgba(94,114,228,.08); }
+        #camara-scan-status.ok { color:var(--success-color); font-weight:600; }
+        #camara-scan-status.alerta { color:var(--warning-color); font-weight:600; }
+        #camara-scan-status.repetido { color:#888; }
+        @media (max-width: 768px) {
+            .lv-head h3 { font-size:0.95rem; }
+            .lv-head-actions { width:100%; }
+            .lv-head-actions button { flex:1; }
+            .lv-scanbar { box-shadow:0 6px 10px -8px rgba(0,0,0,.25); }
+            .lv-tabs { gap:4px; }
+            .lv-tab { padding:6px 2px; font-size:0.58rem; overflow-wrap:normal; word-break:normal; }
+            .lv-card-actions .lv-btn { overflow-wrap:normal; word-break:normal; }
+            .lv-tab b { font-size:1rem; }
+            .lv-cam-txt { display:none; }
+            .lv-card-actions { width:100%; }
+            .lv-card-actions .lv-btn { flex:1 1 0; min-width:0; padding:10px 4px; font-size:0.68rem; white-space:normal; line-height:1.15; }
+            .lv-card-actions .lv-btn.peligro { flex:0 0 44px; }
+            .lv-card-actions .scan-estatus { flex:1 1 auto; padding:8px 6px; font-size:0.8rem; }
+            .lv-lista { max-height:none; }
+            #modalCamaraScan .modal-box { width:100%; max-width:100% !important; height:100%; border-radius:0; display:flex; flex-direction:column; }
+            #modalCamaraScan video { flex:1; max-height:none !important; }
+        }
+
         /* ========== RESPONSIVE ========== */
         @media (max-width: 768px) {
             .sidebar { width: 60px; padding: 0.8rem 0.4rem; font-size: 0.7rem; top: 8px; left: 8px; bottom: 8px; }
@@ -1348,9 +1425,9 @@
 
             <!-- ===== INVENTARIOS (Escaneo) ===== -->
             <section id="inventarios" class="section-view">
-                <h2>Módulo de Inventarios</h2>
-                <p class="subtitle">Realiza nuevos levantamientos o continúa borradores.</p>
-                <div class="toolbar">
+                <h2 class="lv-ocultar">Módulo de Inventarios</h2>
+                <p class="subtitle lv-ocultar">Realiza nuevos levantamientos o continúa borradores.</p>
+                <div class="toolbar lv-ocultar">
                     <button class="btn-primary" onclick="openModal('modalNuevoInventario')" id="btnNuevoLevantamiento"><i class="fas fa-plus"></i> Nuevo Levantamiento</button>
                     <div class="controls-group">
                         <select id="filtro-inventario" onchange="filtrarInventarios()">
@@ -1360,7 +1437,7 @@
                         </select>
                     </div>
                 </div>
-                <div id="lista-inventarios" class="widget-card">
+                <div id="lista-inventarios" class="widget-card lv-ocultar">
                     <h3>Inventarios guardados</h3>
                     <div id="inventarios-list" style="font-size:0.8rem;">
                         <p style="color:#888; text-align:center; padding:1rem;">No hay inventarios registrados.</p>
@@ -1368,25 +1445,31 @@
                 </div>
                 <div id="scan-area" style="display:none; margin-top:1.5rem;">
                     <div class="widget-card">
-                        <div class="scan-header">
-                            <h3 style="margin:0; border:none; padding:0;" id="scan-title">Inventario en curso</h3>
-                            <div class="scan-header-actions">
-                                <button class="btn-secondary" onclick="finalizarInventario()"><i class="fas fa-check"></i> Finalizar</button>
-                                <button class="btn-action" style="background:#dc3545; color:white;" onclick="cancelarInventario()"><i class="fas fa-times"></i> Cancelar</button>
+                        <!-- Encabezado: qué se está contando y cómo salir -->
+                        <div class="lv-head">
+                            <h3 id="scan-title">Inventario en curso</h3>
+                            <div class="lv-head-actions">
+                                <button class="btn-action" onclick="salirInventario()" title="Guardar y volver a la lista; se puede continuar después"><i class="fas fa-arrow-left"></i> Salir</button>
+                                <button class="btn-primary" onclick="finalizarInventario()"><i class="fas fa-flag-checkered"></i> Finalizar</button>
                             </div>
                         </div>
-                        <div class="scan-meta">
-                            <span><strong>Tienda:</strong> <span id="scan-tienda">-</span></span>
-                            <span><strong>Categoría:</strong> <span id="scan-categoria">-</span></span>
-                            <span><strong>Escaneados:</strong> <span id="scan-count">0</span></span>
+                        <!-- Datos de referencia (se conservan los ids que usa el resto del código) -->
+                        <div style="display:none;"><span id="scan-tienda"></span><span id="scan-categoria"></span><span id="scan-count">0</span></div>
+                        <!-- Avance: revisados (encontrados + justificados) contra el universo esperado -->
+                        <div class="lv-progress" id="lv-progress"></div>
+                        <!-- Paso 1: escanear (lector, cámara o teclado). Se queda fijo arriba al desplazarse. -->
+                        <div class="lv-scanbar">
+                            <input type="text" id="scan-input" placeholder="Escanear código" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done">
+                            <button class="btn-primary" onclick="registrarScanManual()" title="Agregar código" aria-label="Agregar código"><i class="fas fa-check"></i></button>
+                            <button class="lv-cam-btn" onclick="abrirCamaraScan()" title="Escanear con la cámara"><i class="fas fa-camera"></i><span class="lv-cam-txt"> Cámara</span></button>
                         </div>
-                        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
-                            <input type="text" id="scan-input" placeholder="Escanea con lector o escribe el código y presiona Enter" autocomplete="off" style="flex:1; min-width:260px; padding:10px 12px; border:1px solid var(--border-color); border-radius:8px; background:var(--input-bg); color:var(--text-main);">
-                            <button class="btn-primary" onclick="registrarScanManual()"><i class="fas fa-check"></i> Agregar</button>
-                            <button class="btn-secondary" onclick="abrirCamaraScan()"><i class="fas fa-camera"></i> Usar cámara</button>
-                        </div>
-                        <div id="scan-resumen-live" class="scan-resumen"></div>
-                        <div id="scan-results" style="margin-top:1rem;"></div>
+                        <!-- Resultado del último escaneo (grande, para ver sin leer notificaciones) -->
+                        <div class="lv-last" id="lv-last" hidden></div>
+                        <!-- Paso 2: revisar por listas -->
+                        <div class="lv-tabs" id="lv-tabs" role="tablist"></div>
+                        <input type="search" class="lv-buscar" id="lv-buscar" placeholder="Buscar en esta lista (nombre, activo fijo, serie)…" oninput="renderScanResults()">
+                        <div id="scan-resumen-live" style="display:none;"></div>
+                        <div id="scan-results"></div>
                         <div id="vehiculo-module" style="display:none;" class="vehiculo-docs">
                             <h4>🚗 Documentos del Vehículo</h4>
                             <div class="doc-checkboxes">
@@ -1579,15 +1662,13 @@
         <div class="modal-box">
             <h3><i class="fas fa-clipboard-list"></i> Nuevo Levantamiento</h3>
             <label>Tienda / Centro</label>
-            <select id="modal-tienda-inv"></select>
+            <select id="modal-tienda-inv" onchange="previewUniversoInventario()"></select>
             <label>Categoría</label>
-            <select id="modal-categoria-inv" onchange="toggleVehTipoField()">
+            <!-- Se llena con las mismas categorías del catálogo de activos + "Todas" (llenarCategoriasInventario) -->
+            <select id="modal-categoria-inv" onchange="toggleVehTipoField(); previewUniversoInventario()">
                 <option value="computo">Equipo de Cómputo</option>
-                <option value="mobiliario">Mobiliario</option>
-                <option value="herramienta">Herramienta</option>
-                <option value="vehiculos">Vehículos</option>
-                <option value="otros">Otros</option>
             </select>
+            <div id="modal-inv-universo"></div>
             <div id="modal-veh-tipo-wrap" style="display:none;">
                 <label>Tipo de levantamiento</label>
                 <select id="modal-veh-tipo">
@@ -1623,9 +1704,10 @@
         <div class="modal-box" style="max-width:min(420px,95vw);">
             <h3><i class="fas fa-camera"></i> Escanear con cámara</h3>
             <p class="sub" id="camara-scan-status">Apunta la cámara al código de barras o QR del activo.</p>
-            <video id="camara-scan-video" style="width:100%; border-radius:8px; background:#000; max-height:320px; object-fit:cover;" muted playsinline></video>
+            <video id="camara-scan-video" style="width:100%; border-radius:8px; background:#000; max-height:360px; object-fit:cover;" muted playsinline></video>
+            <p class="sub" style="margin-top:6px;">La cámara sigue abierta: escanea un activo tras otro. Leídos en esta sesión: <strong id="camara-scan-count">0</strong> · Avance: <strong id="camara-scan-avance">—</strong></p>
             <div class="modal-buttons">
-                <button class="btn-secondary" onclick="cerrarCamaraScan()">Cerrar</button>
+                <button class="btn-primary" onclick="cerrarCamaraScan()"><i class="fas fa-check"></i> Listo</button>
             </div>
         </div>
     </div>
@@ -2453,6 +2535,19 @@
                 const prev = ultimos.get(k);
                 if (!prev || String(f) > String(prev.fechaFin || prev.fecha || '')) ultimos.set(k, i);
             });
+            // Un levantamiento de "todas" las categorías ya incluye a los de cada categoría de esa
+            // tienda: los que son más viejos que él no se suman otra vez.
+            const fechaDe = i => String(i.fechaFin || i.fecha || '');
+            ultimos.forEach((i, k) => {
+                if (i.categoria === 'todas') return;
+                const total = ultimos.get((i.tienda || '') + '|todas');
+                if (total && fechaDe(total) >= fechaDe(i)) ultimos.delete(k);
+            });
+            ultimos.forEach((i, k) => {
+                if (i.categoria !== 'todas') return;
+                const masNuevo = [...ultimos.values()].some(o => o.categoria !== 'todas' && o.tienda === i.tienda && fechaDe(o) > fechaDe(i));
+                if (masNuevo) ultimos.delete(k);
+            });
             let found = 0, missing = 0;
             ultimos.forEach(i => { found += i.resumen.encontradosTotal || 0; missing += i.resumen.faltantesTotal || 0; });
             return { found, missing, finalizados: inventarios.filter(i => i.estado === 'finalizado').length };
@@ -2527,6 +2622,7 @@
                             <button type="button" class="asset-menu-item" role="menuitem" onclick="editAsset(${index})"><i class="fas fa-edit"></i> Editar</button>
                             ${fotoOk ? `<button type="button" class="asset-menu-item" role="menuitem" onclick="verFotoActivo(${index})"><i class="fas fa-expand"></i> Ver foto</button>` : ''}
                             <label class="asset-menu-item file-upload-wrapper" role="menuitem" title="Subir o cambiar foto"><i class="fas fa-camera"></i> ${asset.foto ? 'Cambiar foto' : 'Subir foto'}<input type="file" accept="image/*" onchange="uploadPhoto(${index}, event)"></label>
+                            ${asset.foto ? `<button type="button" class="asset-menu-item peligro" role="menuitem" onclick="eliminarFotoActivo(${index})" title="Quitar la foto de este activo"><i class="fas fa-image"></i> Eliminar foto</button>` : ''}
                             <button type="button" class="asset-menu-item" role="menuitem" onclick="imprimirEtiquetas([assets[${index}]])" title="Etiqueta con QR para el escaneo"><i class="fas fa-qrcode"></i> Imprimir etiqueta</button>
                             <div class="asset-menu-sep"></div>
                             ${asset.estado !== 'Dado de baja' ? `<button type="button" class="asset-menu-item peligro" role="menuitem" onclick="solicitarBajaActivo(${index})" title="Solicitar baja a auditoría"><i class="fas fa-ban"></i> Dar de baja</button>` : ''}
@@ -2662,6 +2758,29 @@
                 showNotification('No se pudo subir la foto: ' + (err.message || err), 'danger');
             } finally {
                 event.target.value = '';
+            }
+        }
+
+        // Quita la foto del activo; se borra de Storage solo después de guardar sin foto.
+        async function eliminarFotoActivo(index) {
+            const asset = assets[index];
+            if (!asset || !asset.foto) return;
+            if (!confirm(`¿Eliminar la foto de "${asset.nombre}"?`)) return;
+            const anterior = asset.foto;
+            try {
+                // Actualización directa: saveAllData no reporta errores y no debemos
+                // borrar el archivo si la tabla sigue apuntando a él.
+                const { data, error } = await supabaseClient.from('activos').update({ foto_url: null }).eq('id', asset.id).select('id');
+                if (error) throw error;
+                if (!data || !data.length) throw new Error('sin permiso para modificar este activo');
+                asset.foto = null;
+                renderAssets();
+                borrarFotoActivo(anterior);
+                showNotification('Foto eliminada', 'info', 2500);
+            } catch (err) {
+                asset.foto = anterior;
+                renderAssets();
+                showNotification('No se pudo eliminar la foto: ' + (err.message || err), 'danger');
             }
         }
 
@@ -3449,6 +3568,35 @@
             wrap.style.display = categoria === 'vehiculos' ? 'block' : 'none';
         }
 
+        // Categorías del levantamiento = las del catálogo de activos (antes era una lista fija
+        // sin "Electrodoméstico" ni "Inmueble", que no se podían inventariar) + "Todas", para
+        // recorrer una tienda completa en una sola pasada.
+        function llenarCategoriasInventario() {
+            const sel = document.getElementById('modal-categoria-inv');
+            if (!sel) return;
+            const previo = sel.value;
+            const cats = [...document.querySelectorAll('#activo-categoria option')].filter(o => o.value);
+            sel.innerHTML = cats.map(o => `<option value="${esc(o.value)}">${esc(o.textContent)}</option>`).join('') +
+                `<option value="todas">${esc(nombreCategoria('todas'))}</option>`;
+            sel.value = [...sel.options].some(o => o.value === previo) ? previo : (cats[0] ? cats[0].value : 'todas');
+        }
+
+        // Muestra cuántos activos se esperan antes de iniciar (evita levantamientos vacíos por
+        // elegir la tienda o categoría equivocada).
+        function previewUniversoInventario() {
+            const el = document.getElementById('modal-inv-universo');
+            if (!el) return;
+            const tienda = document.getElementById('modal-tienda-inv').value;
+            const categoria = document.getElementById('modal-categoria-inv').value;
+            if (!tienda) { el.textContent = ''; return; }
+            const n = calcularUniverso({ tienda, categoria }).length;
+            const borrador = inventarios.find(i => i.estado === 'borrador' && i.tienda === tienda && i.categoria === categoria);
+            el.innerHTML = n
+                ? `📦 Se esperan <strong>${n}</strong> activo(s) en esta tienda y categoría.`
+                : `⚠️ No hay activos registrados con esta tienda y categoría. Solo se podrán registrar "fuera de lugar".`;
+            if (borrador) el.innerHTML += `<br>ℹ️ Ya hay un borrador de esta tienda/categoría (${new Date(borrador.fecha).toLocaleDateString()}); puedes continuarlo desde la lista.`;
+        }
+
         function crearInventario() {
             const tienda = document.getElementById('modal-tienda-inv').value;
             const categoria = document.getElementById('modal-categoria-inv').value;
@@ -3475,7 +3623,7 @@
             renderInventariosList();
             abrirInventario(newInv.id);
             saveAllData();
-            showNotification(`Inventario creado en ${tienda} (${categoria})`, 'success');
+            showNotification(`Inventario creado en ${tienda} (${nombreCategoria(categoria)})`, 'success');
         }
 
         function abrirInventario(id) {
@@ -3484,10 +3632,17 @@
             inventarioActivo = id;
             const scanArea = document.getElementById('scan-area');
             scanArea.style.display = 'block';
+            document.getElementById('inventarios').classList.add('lv-activo');
             document.getElementById('scan-tienda').textContent = inv.tienda;
             document.getElementById('scan-categoria').textContent = inv.categoria;
             document.getElementById('scan-count').textContent = inv.items.length;
-            document.getElementById('scan-title').textContent = `📋 Inventario: ${inv.tienda} (${inv.categoria})`;
+            document.getElementById('scan-title').innerHTML = `📋 ${esc(inv.tienda)}<small>${esc(nombreCategoria(inv.categoria))} · Folio ${esc(inv.id.slice(0, 8).toUpperCase())} · ${esc(inv.responsable || '')}</small>`;
+            lvTab = 'pendientes';
+            const buscar = document.getElementById('lv-buscar');
+            if (buscar) buscar.value = '';
+            const last = document.getElementById('lv-last');
+            if (last) last.hidden = true;
+            recuperarRespaldoInventario(inv);
 
             const vehModule = document.getElementById('vehiculo-module');
             if (inv.categoria === 'vehiculos' && inv.vehTipo === 'documentos') {
@@ -3504,8 +3659,10 @@
             inv.items = scanResults.slice();
             renderScanResults();
             updateScanCount();
-            saveAllData();
-            setTimeout(() => document.getElementById('scan-input')?.focus(), 50);
+            guardarInventarioPronto();
+            scanArea.scrollIntoView({ block: 'start' });
+            // En teléfono no se enfoca solo: abriría el teclado encima de la lista.
+            if (!matchMedia('(pointer: coarse)').matches) setTimeout(() => document.getElementById('scan-input')?.focus(), 50);
         }
 
         function renderInventariosList() {
@@ -3517,17 +3674,27 @@
             else if (filtro === 'finalizado') filtered = inventarios.filter(i => i.estado === 'finalizado');
 
             if (filtered.length === 0) {
-                container.innerHTML = `<p style="color:#888; text-align:center; padding:1rem;">No hay inventarios.</p>`;
+                container.innerHTML = `<p style="color:#888; text-align:center; padding:1rem;">No hay inventarios. Usa "Nuevo Levantamiento" para empezar.</p>`;
                 return;
             }
-            let html = `<table><thead><tr><th>Tienda</th><th>Categoría</th><th>Fecha</th><th>Items</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>`;
+            let html = `<table><thead><tr><th>Tienda</th><th>Categoría</th><th>Fecha</th><th>Avance</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>`;
+            // Borradores primero (son los que hay que continuar), luego lo más reciente.
+            filtered = filtered.slice().sort((a, b) => (a.estado === 'borrador' ? 0 : 1) - (b.estado === 'borrador' ? 0 : 1) || String(b.fecha).localeCompare(String(a.fecha)));
             filtered.forEach(inv => {
                 const estadoCls = inv.estado === 'borrador' ? 'badge-process' : 'badge-done';
+                let avance;
+                if (inv.estado === 'borrador') {
+                    const p = avanceInventario(inv, inv.items || []);
+                    avance = `<span class="inv-avance" title="${p.revisados} de ${p.universo} revisados"><span class="lv-bar"><span class="b-ok" style="width:${p.pct}%"></span></span>${p.revisados}/${p.universo}</span>`;
+                } else {
+                    const r = inv.resumen || {};
+                    avance = r.universoTotal != null ? `${(r.encontradosTotal || 0) + (r.reparacionTotal || 0) + (r.bajaTotal || 0)}/${r.universoTotal} · ❌ ${r.faltantesTotal || 0}` : String((inv.items || []).length);
+                }
                 html += `<tr>
                     <td data-label="Tienda">${esc(inv.tienda)}</td>
-                    <td data-label="Categoría">${esc(inv.categoria)}</td>
+                    <td data-label="Categoría">${esc(nombreCategoria(inv.categoria))}</td>
                     <td data-label="Fecha">${new Date(inv.fecha).toLocaleDateString()}</td>
-                    <td data-label="Items">${inv.items.length}</td>
+                    <td data-label="Avance">${avance}</td>
                     <td data-label="Estado"><span class="status-badge ${estadoCls}">${esc(inv.estado)}</span></td>
                     <td data-label="Acciones">
                         ${inv.estado === 'borrador' ? `<button class="btn-primary" style="padding:2px 8px; font-size:0.7rem;" onclick="abrirInventario('${inv.id}')"><i class="fas fa-play"></i> Continuar</button>` : `
@@ -3544,9 +3711,11 @@
         function eliminarInventario(id) {
             if (confirm('¿Eliminar este inventario?')) {
                 inventarios = inventarios.filter(i => i.id !== id);
+                borrarRespaldoInventario(id);
                 if (inventarioActivo === id) {
                     inventarioActivo = null;
                     document.getElementById('scan-area').style.display = 'none';
+                    document.getElementById('inventarios').classList.remove('lv-activo');
                     scanResults = [];
                     renderScanResults();
                 }
@@ -3617,11 +3786,12 @@
             inv.estado = 'finalizado';
             inventarioActivo = null;
             document.getElementById('scan-area').style.display = 'none';
+            document.getElementById('inventarios').classList.remove('lv-activo');
             scanResults = [];
             renderScanResults();
             renderInventariosList();
             updateKPIs();
-            saveAllData();
+            guardarInventarioYa();
             showNotification('✅ Inventario finalizado', 'success');
             mostrarModalInformeFinal(inv.id);
         }
@@ -3632,7 +3802,7 @@
             window.__ultimoInventarioId = id;
             const r = inv.resumen || {};
             document.getElementById('informe-resumen-body').innerHTML = `
-                <p><strong>Tienda:</strong> ${esc(inv.tienda)} &nbsp; <strong>Categoría:</strong> ${esc(inv.categoria)}</p>
+                <p><strong>Tienda:</strong> ${esc(inv.tienda)} &nbsp; <strong>Categoría:</strong> ${esc(nombreCategoria(inv.categoria))}</p>
                 <div style="display:flex; gap:1.2rem; flex-wrap:wrap; margin-top:0.6rem;">
                     <div>📦 Universo<br><strong>${r.universoTotal ?? 0}</strong></div>
                     <div style="color:var(--success-color);">✅ Encontrados<br><strong>${r.encontradosTotal ?? 0}</strong></div>
@@ -3645,28 +3815,42 @@
             openModal('modalInformeAuditoria');
         }
 
-        function cancelarInventario() {
+        // Sale del levantamiento SIN perder nada: cada escaneo ya se guarda solo. Queda como
+        // borrador en la lista para continuarlo (en este u otro dispositivo).
+        function salirInventario() {
             if (!inventarioActivo) return;
-            if (confirm('¿Cancelar el inventario en curso? Los datos no guardados se perderán.')) {
-                inventarioActivo = null;
-                document.getElementById('scan-area').style.display = 'none';
-                scanResults = [];
-                renderScanResults();
-                showNotification('Inventario cancelado', 'info');
-            }
+            cerrarCamaraScan();
+            guardarInventarioYa();
+            inventarioActivo = null;
+            document.getElementById('scan-area').style.display = 'none';
+            document.getElementById('inventarios').classList.remove('lv-activo');
+            scanResults = [];
+            renderScanResults();
+            renderInventariosList();
+            showNotification('Levantamiento guardado como borrador; puedes continuarlo después', 'info');
         }
+        const cancelarInventario = salirInventario; // nombre anterior
 
         // ---- Universo de activos esperado para un levantamiento ----
+        // "todas" = la tienda completa. Los activos ya dados de baja no se esperan físicamente.
         function calcularUniverso(inv) {
-            return assets.filter(a => a.centro === inv.tienda && a.categoria === inv.categoria);
+            return assets.filter(a => a.centro === inv.tienda && (inv.categoria === 'todas' || a.categoria === inv.categoria) && a.estado !== 'Dado de baja');
         }
 
+        // Búsqueda tolerante: primero exacta; si no, ignora mayúsculas/minúsculas y espacios
+        // (códigos tecleados a mano o lectores que agregan espacios).
+        const normCodigo = v => String(v || '').trim().toUpperCase().replace(/\s+/g, '');
         function buscarActivoPorCodigo(code) {
             const c = String(code).trim();
             if (!c) return null;
-            return assets.find(a => a.codigo === c) ||
+            const exacto = assets.find(a => a.codigo === c) ||
                    assets.find(a => a.activoFijo === c) ||
-                   assets.find(a => a.serie === c) || null;
+                   assets.find(a => a.serie === c);
+            if (exacto) return exacto;
+            const n = normCodigo(c);
+            return assets.find(a => normCodigo(a.codigo) === n) ||
+                   assets.find(a => a.activoFijo && normCodigo(a.activoFijo) === n) ||
+                   assets.find(a => a.serie && normCodigo(a.serie) === n) || null;
         }
 
         // ---- Estatus de revisión de cada activo del inventario ----
@@ -3686,7 +3870,10 @@
             if (asset.centro !== inv.tienda) {
                 return { ...it, alerta: `⚠️ Este activo pertenece a otra sucursal: ${asset.centro}`, enUniverso: false, motivo: 'otra-sucursal' };
             }
-            if (asset.categoria !== inv.categoria) {
+            if (asset.estado === 'Dado de baja') {
+                return { ...it, alerta: '⚠️ En el catálogo este activo ya está dado de baja, pero se encontró físicamente', enUniverso: false, motivo: 'dado-de-baja' };
+            }
+            if (inv.categoria !== 'todas' && asset.categoria !== inv.categoria) {
                 return { ...it, alerta: `⚠️ En el catálogo está como "${nombreCategoria(asset.categoria)}", no como "${nombreCategoria(inv.categoria)}"`, enUniverso: false, motivo: 'otra-categoria' };
             }
             return { ...it, alerta: '', enUniverso: true, motivo: '' };
@@ -3694,6 +3881,7 @@
 
         // Nombre legible de una categoría (el de la lista de categorías del formulario de activos).
         function nombreCategoria(c) {
+            if (c === 'todas') return 'Todas las categorías (tienda completa)';
             const o = [...document.querySelectorAll('#activo-categoria option')].find(x => x.value === c);
             return o ? o.textContent : (c || '—');
         }
@@ -3735,33 +3923,28 @@
 
         // Registra un código real (leído por lector físico, cámara o
         // tecleado a mano) contra el inventario en curso.
+        // Devuelve 'ok' | 'alerta' | 'repetido' (la cámara lo usa para su mensaje).
         function registrarScan(code) {
             if (!inventarioActivo) {
                 showNotification('Primero inicia o continua un inventario', 'warning');
-                return;
+                return null;
             }
             const inv = inventarios.find(i => i.id === inventarioActivo);
-            if (!inv) return;
+            if (!inv) return null;
             const codigo = String(code).trim();
-            if (!codigo) return;
-
-            if (scanResults.some(r => r.code === codigo)) {
-                showNotification(`⚠️ ${codigo} ya fue escaneado en este inventario`, 'warning');
-                return;
-            }
+            if (!codigo) return null;
 
             const assetFound = buscarActivoPorCodigo(codigo);
-            const previo = assetFound && scanResults.find(r => r.assetId === assetFound.id);
+            const yaCodigo = scanResults.find(r => normCodigo(r.code) === normCodigo(codigo));
+            const previo = (assetFound && scanResults.find(r => r.assetId === assetFound.id)) || yaCodigo;
             if (previo) {
                 // Se había marcado a mano desde "Pendientes" y ahora sí se escaneó: queda como encontrado.
-                if (previo.manual) {
+                if (previo.manual && assetFound) {
                     previo.manual = false; previo.estatus = 'Encontrado'; previo.timestamp = new Date().toLocaleTimeString();
                     guardarRevision();
-                    showNotification(`✅ ${assetFound.nombre} escaneado (antes marcado a mano)`, 'success');
-                } else {
-                    showNotification(`⚠️ ${assetFound.nombre} ya fue escaneado en este inventario`, 'warning');
+                    return avisarEscaneo('ok', assetFound.nombre, `${codigo} · confirmado con escaneo (antes marcado a mano)`);
                 }
-                return;
+                return avisarEscaneo('repetido', (assetFound && assetFound.nombre) || previo.name || codigo, `${codigo} · ya estaba registrado a las ${previo.timestamp || '—'}`);
             }
             const item = evaluarItem(inv, { code: codigo, assetId: assetFound ? assetFound.id : null, found: true,
                 timestamp: new Date().toLocaleTimeString(), estatus: 'Encontrado', comentario: '' });
@@ -3770,20 +3953,103 @@
 
             renderScanResults();
             updateScanCount();
-            inv.items = scanResults.slice();
-            saveAllData();
-            let msg = alerta ? `${codigo} - ${name}` : `✅ ${codigo} - ${name}`;
-            if (alerta) msg += ' | ' + alerta;
-            showNotification(msg, alerta ? 'warning' : 'success');
+            guardarInventarioPronto();
+            const tipo = alerta ? 'alerta' : 'ok';
+            avisarEscaneo(tipo, name, alerta ? `${codigo} · ${alerta.replace(/^⚠️\s*/, '')}` : `${codigo}${item.centro ? ' · ' + item.centro : ''}`);
 
             // Variante "con documentos vehiculares": pide el responsable en un
             // modal propio (el prompt() nativo del navegador no funciona bien
             // dentro de la app). La variante "simple" no abre nada extra y se
             // comporta igual que un levantamiento de cómputo.
             if (inv.categoria === 'vehiculos' && inv.vehTipo === 'documentos') {
+                cerrarCamaraScan();
                 abrirModalResponsableVehiculo(name, inv.responsable || '');
             }
+            return tipo;
         }
+
+        // ---- Retroalimentación del escaneo: tarjeta grande + sonido + vibración ----
+        // Sustituye a las notificaciones flotantes, que se amontonaban al escanear rápido.
+        let _audioCtx = null;
+        function sonidoEscaneo(tipo) {
+            try { if (navigator.vibrate) navigator.vibrate(tipo === 'ok' ? 60 : [90, 60, 90]); } catch (e) { /* sin vibración */ }
+            try {
+                _audioCtx = _audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+                const o = _audioCtx.createOscillator(), g = _audioCtx.createGain();
+                o.type = 'sine';
+                o.frequency.value = tipo === 'ok' ? 1175 : tipo === 'alerta' ? 520 : 330;
+                g.gain.value = 0.07;
+                o.connect(g); g.connect(_audioCtx.destination);
+                o.start(); o.stop(_audioCtx.currentTime + (tipo === 'ok' ? 0.08 : 0.22));
+            } catch (e) { /* sin audio */ }
+        }
+        function avisarEscaneo(tipo, titulo, detalle) {
+            sonidoEscaneo(tipo);
+            const ico = { ok: '✅', alerta: '⚠️', repetido: '🔁' }[tipo] || 'ℹ️';
+            const el = document.getElementById('lv-last');
+            if (el) {
+                el.className = 'lv-last ' + tipo;
+                el.innerHTML = `<span class="ico">${ico}</span><span><b>${esc(titulo || '')}</b><small>${esc(detalle || '')}</small></span>`;
+                el.hidden = false;
+            }
+            const cam = document.getElementById('camara-scan-status');
+            if (cam) { cam.className = 'sub ' + tipo; cam.textContent = `${ico} ${titulo || ''} — ${detalle || ''}`; }
+            return tipo;
+        }
+
+        // ---- Avance del levantamiento ----
+        function avanceInventario(inv, items) {
+            const r = calcularResumen(inv, items);
+            const u = r.universo.length, ok = r.encontrados.length, just = r.reparacion.length + r.baja.length;
+            return { r, universo: u, encontrados: ok, justificados: just, revisados: ok + just,
+                     pct: u ? Math.round(((ok + just) / u) * 100) : 0,
+                     pctOk: u ? (ok / u) * 100 : 0, pctJust: u ? (just / u) * 100 : 0 };
+        }
+
+        // ---- Guardado del levantamiento ----
+        // Antes cada escaneo llamaba a saveAllData() de inmediato (compara TODAS las tablas),
+        // lo que en teléfono hacía lento escanear seguido. Ahora:
+        //   1) se respalda al instante en este dispositivo (sobrevive a cerrar la pestaña o
+        //      perder señal), y
+        //   2) se sube a Supabase 1.5 s después del último movimiento.
+        const INV_RESPALDO = id => 'inv-respaldo-' + id;
+        let _invSaveTimer = null;
+        function guardarInventarioPronto() {
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            if (inv) {
+                inv.items = scanResults.slice();
+                try { localStorage.setItem(INV_RESPALDO(inv.id), JSON.stringify({ t: Date.now(), items: inv.items })); } catch (e) { /* sin almacenamiento */ }
+            }
+            clearTimeout(_invSaveTimer);
+            _invSaveTimer = setTimeout(guardarInventarioYa, 1500);
+        }
+        async function guardarInventarioYa() {
+            clearTimeout(_invSaveTimer);
+            _invSaveTimer = null;
+            await saveAllData();
+            // El respaldo local solo se borra cuando Supabase ya tiene exactamente lo mismo.
+            inventarios.forEach(inv => {
+                const subido = _snap.inventarios && _snap.inventarios.get(inv.id);
+                if (subido && subido === JSON.stringify(invARow(inv))) borrarRespaldoInventario(inv.id);
+            });
+        }
+        function borrarRespaldoInventario(id) {
+            try { localStorage.removeItem(INV_RESPALDO(id)); } catch (e) { /* sin almacenamiento */ }
+        }
+        // Si quedaron escaneos en el teléfono que no alcanzaron a subir, se recuperan al abrir.
+        function recuperarRespaldoInventario(inv) {
+            let resp = null;
+            try { resp = JSON.parse(localStorage.getItem(INV_RESPALDO(inv.id)) || 'null'); } catch (e) { /* sin almacenamiento */ }
+            if (!resp || !Array.isArray(resp.items)) return;
+            const codigos = new Set((inv.items || []).map(i => normCodigo(i.code)));
+            const faltan = resp.items.filter(i => i && i.code && !codigos.has(normCodigo(i.code)));
+            if (!faltan.length) return;
+            inv.items = (inv.items || []).concat(faltan);
+            showNotification(`Se recuperaron ${faltan.length} registro(s) que no se habían sincronizado`, 'info', 5000);
+        }
+        window.addEventListener('beforeunload', e => {
+            if (_invSaveTimer) { guardarInventarioYa(); e.preventDefault(); e.returnValue = ''; }
+        });
 
         // ---- Responsable del vehículo (variante "con documentos") ----
         let vehiculoPendiente = null;
@@ -4092,7 +4358,11 @@
             openModal('modalCamaraScan');
             const video = document.getElementById('camara-scan-video');
             const statusEl = document.getElementById('camara-scan-status');
+            statusEl.className = 'sub';
             statusEl.textContent = 'Apunta la cámara al código de barras o QR del activo.';
+            let leidos = 0, ultimo = { code: '', t: 0 }, ocupado = false;
+            document.getElementById('camara-scan-count').textContent = '0';
+            actualizarAvanceCamara();
             try {
                 camaraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
                 video.srcObject = camaraStream;
@@ -4108,17 +4378,27 @@
                     const r = window.jsQR(g.getImageData(0, 0, lienzo.width, lienzo.height).data, lienzo.width, lienzo.height, { inversionAttempts: 'dontInvert' });
                     return r && r.data ? [{ rawValue: r.data }] : [];
                 };
+                // Modo continuo: la cámara NO se cierra tras cada lectura (antes había que volver a
+                // abrirla para cada activo). El mismo código se ignora 3 s para no registrarlo dos
+                // veces mientras sigue enfocado.
                 camaraDetectorInterval = setInterval(async () => {
+                    if (ocupado) return;
+                    ocupado = true;
                     try {
                         const codes = detector ? await detector.detect(video) : leerJsQR();
-                        if (codes.length > 0) {
-                            const value = codes[0].rawValue;
-                            statusEl.textContent = `Detectado: ${value}`;
-                            registrarScan(value);
-                            cerrarCamaraScan();
+                        const value = codes.length ? String(codes[0].rawValue || '').trim() : '';
+                        const ahora = Date.now();
+                        if (value && !(value === ultimo.code && ahora - ultimo.t < 3000)) {
+                            ultimo = { code: value, t: ahora };
+                            if (registrarScan(value) !== 'repetido') leidos++;
+                            document.getElementById('camara-scan-count').textContent = leidos;
+                            actualizarAvanceCamara();
+                        } else if (value) {
+                            ultimo.t = ahora; // sigue enfocado: se extiende la espera
                         }
                     } catch (err) { /* fotograma sin código legible, se ignora */ }
-                }, 400);
+                    ocupado = false;
+                }, 300);
             } catch (err) {
                 showNotification('No se pudo acceder a la cámara: ' + err.message, 'danger');
                 cerrarCamaraScan();
@@ -4130,6 +4410,13 @@
             if (camaraStream) { camaraStream.getTracks().forEach(t => t.stop()); camaraStream = null; }
             closeModal('modalCamaraScan');
         }
+        function actualizarAvanceCamara() {
+            const el = document.getElementById('camara-scan-avance');
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            if (!el || !inv) return;
+            const p = avanceInventario(inv, scanResults);
+            el.textContent = `${p.revisados}/${p.universo} (${p.pct}%)`;
+        }
 
         // Guarda la revisión en curso (estatus, comentarios, correcciones) y vuelve a pintar.
         function guardarRevision() {
@@ -4138,7 +4425,7 @@
             inv.items = scanResults.slice();
             renderScanResults();
             updateScanCount();
-            saveAllData();
+            guardarInventarioPronto();
         }
         const itemPorCodigo = code => scanResults.find(r => r.code === code);
 
@@ -4153,8 +4440,7 @@
             const it = itemPorCodigo(code);
             if (!it || it.comentario === texto) return;
             it.comentario = String(texto || '').slice(0, 500);
-            const inv = inventarios.find(i => i.id === inventarioActivo);
-            if (inv) { inv.items = scanResults.slice(); saveAllData(); }
+            guardarInventarioPronto();
         }
         function quitarItem(code) {
             const it = itemPorCodigo(code);
@@ -4188,75 +4474,112 @@
                 timestamp: new Date().toLocaleTimeString(), estatus, comentario
             }));
             guardarRevision();
+            avisarEscaneo('ok', asset.nombre, `${asset.activoFijo || asset.codigo || ''} · marcado a mano como "${estatus}"`);
         }
+
+        // ---- Pantalla del levantamiento ----
+        // Cuatro listas (pestañas) que cubren todo el universo, sin nada escondido:
+        //   Pendientes   → esperados que aún no se revisan (se marcan a mano si no tienen etiqueta)
+        //   Encontrados  → escaneados o marcados como presentes
+        //   Justificados → en reparación o dados de baja
+        //   A revisar    → escaneados que no corresponden (otra tienda/categoría, sin registro)
+        let lvTab = 'pendientes';
+        function cambiarTabLevantamiento(tab) {
+            lvTab = tab;
+            renderScanResults();
+        }
+        const LV_MAX = 300; // tope de tarjetas por lista; con la búsqueda se llega al resto
 
         function renderScanResults() {
             const container = document.getElementById('scan-results');
-            const resumenEl = document.getElementById('scan-resumen-live');
             if (!container) return;
             const inv = inventarios.find(i => i.id === inventarioActivo);
-
-            let r = null;
-            if (inv && resumenEl) {
-                r = calcularResumen(inv, scanResults);
-                resumenEl.innerHTML = `
-                    <span>📦 Universo: <strong>${r.universo.length}</strong></span>
-                    <span style="color:var(--success-color);">✅ Encontrados: <strong>${r.encontrados.length}</strong></span>
-                    <span style="color:var(--info-color);">🔧 En reparación: <strong>${r.reparacion.length}</strong></span>
-                    <span style="color:#888;">🗑️ Dados de baja: <strong>${r.baja.length}</strong></span>
-                    <span style="color:var(--danger-color);">❌ Pendientes: <strong>${r.faltantes.length}</strong></span>
-                    <span style="color:var(--warning-color);">⚠️ Fuera de lugar: <strong>${r.sobrantes.length}</strong></span>
-                `;
-            } else if (resumenEl) {
-                resumenEl.innerHTML = '';
+            const progEl = document.getElementById('lv-progress'), tabsEl = document.getElementById('lv-tabs');
+            if (!inv) {
+                container.innerHTML = '';
+                if (progEl) progEl.innerHTML = '';
+                if (tabsEl) tabsEl.innerHTML = '';
+                return;
+            }
+            const p = avanceInventario(inv, scanResults);
+            const r = p.r;
+            if (progEl) {
+                progEl.innerHTML = `
+                    <div class="lv-progress-txt"><span><b>${p.revisados}</b> de <b>${p.universo}</b> revisados</span><span><b>${p.pct}%</b></span></div>
+                    <div class="lv-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p.pct}">
+                        <span class="b-ok" style="width:${p.pctOk}%"></span><span class="b-just" style="width:${p.pctJust}%"></span>
+                    </div>`;
+            }
+            const validos = scanResults.filter(i => i.enUniverso !== undefined ? i.enUniverso : !i.alerta);
+            const listas = {
+                pendientes:   { lbl: 'Pendientes',   cls: 't-pend', n: r.faltantes.length },
+                encontrados:  { lbl: 'Encontrados',  cls: 't-ok',   n: r.encontrados.length },
+                justificados: { lbl: 'Justificados', cls: 't-just', n: r.reparacion.length + r.baja.length },
+                revisar:      { lbl: 'A revisar',    cls: 't-rev',  n: r.sobrantes.length }
+            };
+            if (tabsEl) {
+                tabsEl.innerHTML = Object.entries(listas).map(([k, t]) =>
+                    `<button type="button" role="tab" aria-selected="${k === lvTab}" class="lv-tab ${t.cls}${k === lvTab ? ' activo' : ''}" onclick="cambiarTabLevantamiento('${k}')"><b>${t.n}</b>${t.lbl}</button>`).join('');
             }
 
+            const q = (document.getElementById('lv-buscar')?.value || '').toLowerCase().trim();
+            const coincide = (...campos) => !q || campos.some(v => String(v || '').toLowerCase().includes(q));
             const opciones = actual => ESTATUS_REVISION.map(e => `<option value="${e}"${e === actual ? ' selected' : ''}>${e}</option>`).join('');
-            const filas = scanResults.slice().reverse().map(it => {
-                const c = esc(it.code), cj = esc(JSON.stringify(it.code));
+            const catTxt = a => inv.categoria === 'todas' && a ? ' · ' + esc(nombreCategoria(a.categoria)) : '';
+
+            // Tarjeta de un registro ya capturado (escaneado o marcado)
+            const tarjetaItem = it => {
+                const cj = esc(JSON.stringify(it.code));
+                const a = it.assetId ? assets.find(x => x.id === it.assetId) : null;
                 const ok = !it.alerta;
                 return `
-                <div class="scan-item ${ok ? '' : 'scan-item-alerta'}">
-                    <div class="scan-result-row">
-                        <span class="scan-result-main"><strong>${c}</strong> - ${esc(it.name)} ${it.centro && it.centro !== 'N/A' ? '· ' + esc(it.centro) : ''}
-                            ${it.manual ? '<span class="scan-tag">marcado a mano</span>' : ''}</span>
-                        <span class="scan-result-status">
-                            ${ok ? `<select class="scan-estatus" onchange='cambiarEstatusItem(${cj}, this.value)' title="Estatus de revisión">${opciones(estatusDe(it))}</select>`
-                                 : `<span style="color:var(--warning-color);">⚠️ Revisar</span>`}
-                            <small style="color:#999;">${esc(it.timestamp || '')}</small>
-                            <button class="btn-action scan-quitar" onclick='quitarItem(${cj})' title="Quitar de este inventario" aria-label="Quitar">✕</button>
-                        </span>
+                <div class="lv-card${ok ? '' : ' alerta'}">
+                    <div class="lv-card-main"><strong>${esc(it.name)}</strong>
+                        <small>${esc(it.code)}${a && a.serie && a.serie !== it.code ? ' · Serie ' + esc(a.serie) : ''}${catTxt(a)} · ${esc(it.timestamp || '')}${it.manual ? ' · marcado a mano' : ' · escaneado'}</small>
+                        ${it.alerta ? `<span class="lv-alerta">${esc(it.alerta)}</span>` : ''}
                     </div>
-                    ${it.alerta ? `<div class="scan-alerta">${esc(it.alerta)}
-                        ${it.motivo === 'otra-categoria' && inv ? ` <button class="btn-action scan-fix" onclick='corregirCategoriaItem(${cj})'><i class="fas fa-wrench"></i> Cambiar a ${esc(nombreCategoria(inv.categoria))}</button>` : ''}</div>` : ''}
-                    <input class="scan-comentario" placeholder="Comentario (opcional)" value="${esc(it.comentario || '')}" maxlength="500"
-                        onchange='comentarItem(${cj}, this.value)'>
+                    <div class="lv-card-actions">
+                        ${ok ? `<select class="scan-estatus" onchange='cambiarEstatusItem(${cj}, this.value)' title="Estatus de revisión" aria-label="Estatus">${opciones(estatusDe(it))}</select>` : ''}
+                        ${it.motivo === 'otra-categoria' ? `<button class="lv-btn" onclick='corregirCategoriaItem(${cj})'><i class="fas fa-wrench"></i> Pasar a ${esc(nombreCategoria(inv.categoria))}</button>` : ''}
+                        <button class="lv-btn peligro" onclick='quitarItem(${cj})' title="Quitar de este inventario" aria-label="Quitar">✕</button>
+                    </div>
+                    <input class="scan-comentario" placeholder="Comentario (opcional)" value="${esc(it.comentario || '')}" maxlength="500" onchange='comentarItem(${cj}, this.value)'>
                 </div>`;
-            }).join('');
-            container.innerHTML = scanResults.length
-                ? `<div class="scan-lista">${filas}</div>`
-                : `<p style="color:#888; text-align:center; padding:0.5rem;">Sin escaneos todavía</p>`;
+            };
+            // Tarjeta de un pendiente: se marca con un toque si no se puede escanear
+            const tarjetaPendiente = a => `
+                <div class="lv-card">
+                    <div class="lv-card-main"><strong>${esc(a.nombre)}</strong>
+                        <small>${esc(a.activoFijo || a.codigo || '')}${a.serie ? ' · Serie ' + esc(a.serie) : ''}${catTxt(a)}${a.asignado ? ' · ' + esc(a.asignado) : ''}</small>
+                    </div>
+                    <div class="lv-card-actions">
+                        <button class="lv-btn ok" onclick="marcarPendiente('${a.id}','Encontrado')" title="Está físicamente pero no se pudo escanear">✅ Está</button>
+                        <button class="lv-btn" onclick="marcarPendiente('${a.id}','En reparación')" title="En reparación">🔧 Reparación</button>
+                        <button class="lv-btn" onclick="marcarPendiente('${a.id}','Dado de baja')" title="Dado de baja">🗑️ Baja</button>
+                    </div>
+                </div>`;
 
-            // Pendientes: activos del universo que aún no se revisan. Se pueden marcar sin escanear.
-            if (r && r.faltantes.length) {
-                const abierto = document.getElementById('scan-pendientes')?.open ? ' open' : '';
-                container.innerHTML += `
-                <details id="scan-pendientes" class="scan-pendientes"${abierto}>
-                    <summary>❌ Pendientes por revisar (${r.faltantes.length}) — márcalos si no tienen etiqueta, están en reparación o se dieron de baja</summary>
-                    ${r.faltantes.map(a => `
-                    <div class="scan-item">
-                        <div class="scan-result-row">
-                            <span class="scan-result-main"><strong>${esc(a.activoFijo || a.codigo)}</strong> - ${esc(a.nombre)}${a.serie ? ' · Serie ' + esc(a.serie) : ''}</span>
-                            <span class="scan-result-status">
-                                <button class="btn-action" onclick="marcarPendiente('${a.id}','Encontrado')" title="Está, pero sin etiqueta legible">✅ Encontrado</button>
-                                <button class="btn-action" onclick="marcarPendiente('${a.id}','En reparación')">🔧 Reparación</button>
-                                <button class="btn-action" onclick="marcarPendiente('${a.id}','Dado de baja')">🗑️ Baja</button>
-                            </span>
-                        </div>
-                        <input class="scan-comentario" id="pend-com-${a.id}" placeholder="Comentario (opcional, se guarda al marcarlo)" maxlength="500">
-                    </div>`).join('')}
-                </details>`;
+            let lista, vacio, render;
+            if (lvTab === 'pendientes') {
+                lista = r.faltantes.filter(a => coincide(a.nombre, a.activoFijo, a.codigo, a.serie, a.marca, a.modelo, a.asignado))
+                    .sort((x, y) => String(x.nombre || '').localeCompare(String(y.nombre || '')));
+                vacio = r.universo.length ? '🎉 No quedan pendientes. Ya puedes finalizar el levantamiento.' : 'No hay activos esperados para esta tienda y categoría.';
+                render = tarjetaPendiente;
+            } else {
+                const filtro = {
+                    encontrados: i => validos.includes(i) && estatusDe(i) === 'Encontrado',
+                    justificados: i => validos.includes(i) && estatusDe(i) !== 'Encontrado',
+                    revisar: i => !validos.includes(i)
+                }[lvTab];
+                lista = scanResults.filter(filtro).filter(i => coincide(i.name, i.code, i.comentario)).reverse();
+                vacio = { encontrados: 'Aún no hay activos encontrados. Escanea el primero.', justificados: 'Sin activos en reparación o dados de baja.', revisar: 'Nada que revisar: todo lo escaneado pertenece a este levantamiento.' }[lvTab];
+                render = tarjetaItem;
             }
+            if (q && !lista.length) vacio = 'Sin coincidencias con la búsqueda.';
+            container.innerHTML = lista.length
+                ? `<div class="lv-lista">${lista.slice(0, LV_MAX).map(render).join('')}</div>` +
+                  (lista.length > LV_MAX ? `<p class="lv-vacio">Se muestran ${LV_MAX} de ${lista.length}; usa la búsqueda.</p>` : '')
+                : `<p class="lv-vacio">${vacio}</p>`;
         }
 
         function updateScanCount() {
@@ -4301,7 +4624,7 @@
             doc.setFontSize(9); doc.setTextColor(90);
             doc.text(`Folio: ${inv.id.slice(0, 8).toUpperCase()}`, margin, y); y += 14;
             doc.text(`Tienda / Centro: ${inv.tienda}`, margin, y); y += 14;
-            doc.text(`Categoría: ${inv.categoria}`, margin, y); y += 14;
+            doc.text(`Categoría: ${nombreCategoria(inv.categoria)}`, margin, y); y += 14;
             doc.text(`Responsable del levantamiento: ${inv.responsable}`, margin, y); y += 14;
             doc.text(`Fecha de inicio: ${d.fechaInicio}`, margin, y); y += 14;
             doc.text(`Fecha de finalización: ${d.fechaFin}`, margin, y); y += 20;
@@ -4403,7 +4726,7 @@
                 <table class="meta">
                     <tr><td><strong>Folio:</strong></td><td>${inv.id.slice(0, 8).toUpperCase()}</td></tr>
                     <tr><td><strong>Tienda / Centro:</strong></td><td>${esc(inv.tienda)}</td></tr>
-                    <tr><td><strong>Categoría:</strong></td><td>${esc(inv.categoria)}</td></tr>
+                    <tr><td><strong>Categoría:</strong></td><td>${esc(nombreCategoria(inv.categoria))}</td></tr>
                     <tr><td><strong>Responsable:</strong></td><td>${esc(inv.responsable)}</td></tr>
                     <tr><td><strong>Fecha de inicio:</strong></td><td>${d.fechaInicio}</td></tr>
                     <tr><td><strong>Fecha de finalización:</strong></td><td>${d.fechaFin}</td></tr>
@@ -4882,7 +5205,9 @@
             if (id === 'modalNuevoInventario') {
                 document.getElementById('modal-responsable-inv').value = currentUser ? currentUser.nombreCompleto || currentUser.username : 'admin';
                 actualizarSelectCentros();
+                llenarCategoriasInventario();
                 toggleVehTipoField();
+                previewUniversoInventario();
             }
             if (id === 'modalUsuario') {
                 actualizarSelectUsuarioCentro();
@@ -4895,7 +5220,10 @@
 
         document.querySelectorAll('.modal-overlay').forEach(overlay => {
             overlay.addEventListener('click', function(e) {
-                if (e.target === this) this.classList.remove('active');
+                if (e.target !== this) return;
+                // La cámara se apaga también al cerrar tocando fuera (antes quedaba encendida).
+                if (this.id === 'modalCamaraScan') cerrarCamaraScan();
+                else this.classList.remove('active');
             });
         });
 
