@@ -336,21 +336,6 @@ function tiendaVisible(tienda){
   if(!raz)return false; /* tienda no identificable: se oculta por seguridad */
   return rs.some(function(x){return razKey(x)===razKey(raz);});
 }
-/* Supabase entrega como máximo 1000 filas por consulta (aunque se pida .limit(5000)).
-   sbTodo trae la tabla completa en bloques de 1000, ordenando además por id para que
-   ningún registro se repita ni se salte entre bloques. armar() debe devolver una
-   consulta nueva cada vez: function(){return client.from('x').select('*').order(...);} */
-var SB_BLOQUE=1000;
-async function sbTodo(armar){
-  var todas=[];
-  for(var desde=0;;desde+=SB_BLOQUE){
-    var r=await armar().order('id',{ascending:true}).range(desde,desde+SB_BLOQUE-1);
-    if(r.error)return {data:null,error:r.error};
-    var d=r.data||[];
-    todas=todas.concat(d);
-    if(d.length<SB_BLOQUE)return {data:todas,error:null};
-  }
-}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 /* Normaliza el Estado de una tarea al importar desde Excel. Acepta tanto los
@@ -826,7 +811,7 @@ async function commitToSupabase(nuevas, actualizar, audStaged, omitidas, prevTar
       arows=arows2;
       /* traer existentes para emparejar por centro (no por nombre) */
       var exAud=[];
-      try{var re=await sbTodo(function(){return client.from('auditorias').select('id,razon,centro,fecha,clase');});if(!re.error)exAud=re.data||[];}catch(_e){}
+      try{var re=await client.from('auditorias').select('id,razon,centro,fecha,clase').limit(20000);if(!re.error)exAud=re.data||[];}catch(_e){}
       var exMap={};
       exAud.forEach(function(x){exMap[_kAud(x.razon,x.centro,x.fecha,x.clase)]=x.id;});
       for(var ai=0;ai<arows.length&&!err;ai++){
@@ -2048,16 +2033,67 @@ function renderTareasView(tareas){
   _tareasViewBase=tareas;
   applyTareasFilters();
 }
+/* ════════════════════════════════════════════════════════════════════
+   TAREAS SIN AUDITORÍA (huérfanas)
+   Una tarea está "vinculada" si alguna auditoría — vigente o archivada en
+   Finalizadas — la reclama con tareasRealesDeAuditoria() (misma regla que usan
+   Auditorías, Finalizadas y el diagnóstico: centro + tipo + mes ± 30 días).
+   Si ninguna la reclama, no suma en ningún cumplimiento: casi siempre falta
+   dar de alta la auditoría de ese mes o la tarea trae otro centro/tipo.
+   Mientras Finalizadas no ha cargado no se marca nada, para no señalar como
+   huérfanas tareas que pertenecen a auditorías ya archivadas. */
+function clavesTareasVinculadas(forzar){
+  if(!_finLoaded&&!forzar)return null;
+  var finComoAud=(FINALIZADAS||[]).filter(function(f){return f&&!f._pending;}).map(audEspejoDeFinalizada);
+  var ligadas={};
+  (STORE.auditorias||[]).concat(finComoAud).forEach(function(a){
+    tareasRealesDeAuditoria(a).forEach(function(t){ if(t.id!=null)ligadas[tareaKey(t.id,t.razon)]=true; });
+  });
+  return ligadas;
+}
+var _tareasLigadas=null;
+function tareaSinAuditoria(t){
+  return !!_tareasLigadas && t.id!=null && !_tareasLigadas[tareaKey(t.id,t.razon)];
+}
+/* Crea el filtro "Auditoría" junto al de Estado (así no depende de la versión del index.html). */
+function asegurarFiltroVinculo(){
+  if(document.getElementById('tar-f-vinc'))return;
+  var est=document.getElementById('tar-f-estado');
+  var fg=est&&est.closest('.fg');
+  if(!fg)return;
+  var nuevo=document.createElement('div');
+  nuevo.className='fg';
+  nuevo.innerHTML='<label>AUDITORÍA</label><select id="tar-f-vinc" onchange="applyTareasFilters()">'+
+    '<option value="ALL">Todas</option><option value="sin">⚠ Sin auditoría</option><option value="con">Vinculadas</option></select>';
+  fg.parentNode.insertBefore(nuevo,fg.nextSibling);
+}
+function verTareasSinAuditoria(){
+  asegurarFiltroVinculo();
+  var sel=document.getElementById('tar-f-vinc');
+  if(sel){sel.value='sin';applyTareasFilters();}
+}
+
 function applyTareasFilters(){
   let tareas=_tareasViewBase||[];
+  asegurarFiltroVinculo();
+  _tareasLigadas=clavesTareasVinculadas();
   const suc=document.getElementById('tar-f-tienda');
   const est=document.getElementById('tar-f-estado');
+  const vinc=document.getElementById('tar-f-vinc');
   if(suc&&suc.value&&suc.value!=='ALL')tareas=tareas.filter(t=>t.tienda===suc.value);
   if(est&&est.value&&est.value!=='ALL')tareas=tareas.filter(t=>tareaEstadoCat(t)===est.value);
+  if(vinc&&vinc.value==='sin')tareas=tareas.filter(tareaSinAuditoria);
+  else if(vinc&&vinc.value==='con')tareas=tareas.filter(t=>_tareasLigadas&&!tareaSinAuditoria(t));
   renderTareasTable(tareas);
 }
 function renderTareasTable(tareas){
-  document.getElementById('tareas-count').textContent=`${tareas.length} tarea(s)`;
+  const cnt=document.getElementById('tareas-count');
+  const nSin=tareas.filter(tareaSinAuditoria).length;
+  const vincSel=(document.getElementById('tar-f-vinc')||{}).value;
+  if(!document.getElementById('tareas-table'))return;
+  if(cnt)cnt.innerHTML=`${tareas.length} tarea(s)`+
+    (!_tareasLigadas?' <span style="color:var(--muted);font-weight:500">· verificando auditorías…</span>':
+     nSin&&vincSel!=='sin'?` · <a href="javascript:void(0)" onclick="verTareasSinAuditoria()" style="color:var(--k-red,#dc2626);font-weight:700;text-decoration:underline" title="Ver solo las tareas que ninguna auditoría reclama">⚠ ${nSin} sin auditoría</a>`:'');
   const el=document.getElementById('tareas-table');
   if(!tareas.length){el.innerHTML='<div class="empty">Sin tareas para el filtro actual.</div>';return;}
   const sorted=[...tareas].sort((a,b)=>(fromISO(b.fechaCreacion)||0)-(fromISO(a.fechaCreacion)||0));
@@ -2092,7 +2128,7 @@ function renderTareasTable(tareas){
           <div style="font-size:10px;color:var(--muted)">${t.centro||''}</div>
         </td>
         <td style="padding:5px 8px;font-size:11px;color:var(--muted);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.areaResp||'—'}</td>
-        <td style="padding:5px 8px;text-align:center"><span style="font-size:10px;font-weight:700;color:${tipoCls};background:${tipoCls}18;padding:2px 6px;border-radius:8px">${tipo}</span></td>
+        <td style="padding:5px 8px;text-align:center"><span style="font-size:10px;font-weight:700;color:${tipoCls};background:${tipoCls}18;padding:2px 6px;border-radius:8px">${tipo}</span>${tareaSinAuditoria(t)?`<div style="margin-top:3px"><span style="font-size:9.5px;font-weight:700;color:#dc2626;background:#dc262618;padding:1px 6px;border-radius:8px;white-space:nowrap;cursor:help" title="Sin auditoría: ninguna auditoría de ${(t.centro||'este centro').replace(/"/g,'&quot;')} del tipo ${tipo} y de un mes cercano a ${fmtDate(fromISO(t.fechaCreacion))||'su creación'} reclama esta tarea, así que no cuenta en ningún cumplimiento. Da de alta la auditoría de ese mes o corrige el centro/tipo de la tarea.">⚠ Sin auditoría</span></div>`:''}</td>
         <td style="padding:5px 8px;text-align:center"><span style="font-size:10px;font-weight:700;color:${estCol};background:${estCol}18;padding:2px 6px;border-radius:8px;white-space:nowrap">${estTxt}</span></td>
         <td style="padding:5px 8px;text-align:center;font-size:11px;color:${ftColor};white-space:nowrap">${fmtDate(fromISO(t.fechaTerm))||'—'}</td>
         <td style="padding:5px 8px;text-align:center;font-size:11px;color:var(--muted);white-space:nowrap">${fmtDate(fromISO(t.fechaCumpl))||'—'}</td>
@@ -4349,7 +4385,7 @@ async function loadActividades(){
   var client=getSbClient();
   if(!client){toast('⚠ Sin conexión a Supabase');return;}
   try{
-    var r=await sbTodo(function(){return client.from('actividades').select('*').order('est_inicio',{ascending:true});});
+    var r=await client.from('actividades').select('*').order('est_inicio',{ascending:true}).limit(5000);
     if(r.error){toast('⚠ '+r.error.message);return;}
     var _actRaw=r.data||[];
     var _actDec=await decArr(_actRaw,FIELDS.actividades);
@@ -5607,15 +5643,13 @@ async function diagnosticarOrfanas(){
   var todasAud=(STORE.auditorias||[]).map(function(a){return Object.assign({_origen:'Vigente'},a);}).concat(finComoAud);
 
   var audsSinTareas=[];
-  var tareasLigadas={};
   todasAud.forEach(function(a){
-    var tt=tareasRealesDeAuditoria(a);
-    if(!tt.length){
+    if(!tareasRealesDeAuditoria(a).length){
       audsSinTareas.push('['+a._origen+'] '+(a.centro||'¿centro?')+' — '+(a.tienda||'')+' · '+(a.mes||'')+' · '+(a.clase||''));
-    }else{
-      tt.forEach(function(t){ if(t.id!=null)tareasLigadas[tareaKey(t.id,t.razon)]=true; });
     }
   });
+  /* Misma regla que la etiqueta "⚠ Sin auditoría" de la pestaña Tareas */
+  var tareasLigadas=clavesTareasVinculadas(true);
 
   var tareasSinAud=(STORE.tareas||[]).filter(function(t){
     return t.id!=null && !tareasLigadas[tareaKey(t.id,t.razon)];
@@ -5703,7 +5737,7 @@ async function limpiarIlegibles(){
   var porTabla={}, respaldo={}, totalIleg=0;
   for(var t in TABLAS_CIFRADAS){
     var campos=FIELDS[t]; if(!campos||!campos.length)continue;
-    var r=await sbTodo(function(){return client.from(TABLAS_CIFRADAS[t]).select('*');});
+    var r=await client.from(TABLAS_CIFRADAS[t]).select('*').limit(20000);
     if(r.error){console.warn(t,r.error.message);continue;}
     var ileg=[];
     var filas=r.data||[];
@@ -5769,7 +5803,7 @@ async function migrarCifrado(){
   for(var t in TABLAS_CIFRADAS){
     var campos=FIELDS[t]; if(!campos)continue;
     try{
-      var r=await sbTodo(function(){return client.from(TABLAS_CIFRADAS[t]).select('*');});
+      var r=await client.from(TABLAS_CIFRADAS[t]).select('*').limit(5000);
       if(r.error){console.warn('Migración '+t+':',r.error.message);errores++;continue;}
       var filas=r.data||[];
       for(var i=0;i<filas.length;i++){
@@ -5856,7 +5890,7 @@ async function loadCargas(){
   var client=getSbClient();
   if(!client)return;
   try{
-    var r=await sbTodo(function(){return client.from('cargas_excel').select('*').order('fecha',{ascending:false});});
+    var r=await client.from('cargas_excel').select('*').order('fecha',{ascending:false}).limit(5000);
     if(r.error){console.warn('cargas_excel no disponible:',r.error.message);return;}
     CARGAS=r.data||[];
   }catch(e){console.warn('loadCargas:',e);}
@@ -6705,8 +6739,8 @@ async function loadDataFromSupabase(){
   try{
     toast('⏳ Cargando datos…');
     const [{data:aud},{data:tar}]=await Promise.all([
-      sbTodo(function(){return _sb.from('auditorias').select('*').order('fecha',{ascending:false});}),
-      sbTodo(function(){return _sb.from('tareas').select('*').order('fecha_term',{ascending:true});})
+      _sb.from('auditorias').select('*').order('fecha',{ascending:false}).limit(5000),
+      _sb.from('tareas').select('*').order('fecha_term',{ascending:true}).limit(10000)
     ]);
     /* Descifrar auditorias */
     var audDec=aud?await decArr(aud,FIELDS.auditorias):[];
@@ -7217,7 +7251,7 @@ async function loadAjustes(){
   var client=getSbClient();
   if(!client){toast('⚠ Sin Supabase');return;}
   try{
-    var r=await sbTodo(function(){return client.from('ajustes').select('*').order('fecha_correo',{ascending:true}).order('fecha_ajuste',{ascending:true});});
+    var r=await client.from('ajustes').select('*').order('fecha_correo',{ascending:true}).order('fecha_ajuste',{ascending:true}).limit(5000);
     if(r.error){toast('⚠ '+r.error.message);return;}
     var MN=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
       'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
@@ -7637,7 +7671,7 @@ async function commitAjustesExcel(rows){
     /* Traer existentes para actualizar en vez de duplicar. Clave: tienda +
        fecha_correo + fecha_ajuste (las fechas no están cifradas). */
     var ex=[];
-    try{var re=await sbTodo(function(){return client.from('ajustes').select('id,fecha_correo,fecha_ajuste,tienda');});if(!re.error)ex=re.data||[];}catch(_e){}
+    try{var re=await client.from('ajustes').select('id,fecha_correo,fecha_ajuste,tienda').limit(20000);if(!re.error)ex=re.data||[];}catch(_e){}
     var exDec=await decArr(ex,FIELDS.ajustes);
     var _k=function(t,fc,fa){return norm(t)+'|'+String(fc||'')+'|'+String(fa||'');};
     var exMap={};
@@ -7680,7 +7714,7 @@ async function loadMermas(){
   var client=getSbClient();
   if(!client){toast('⚠ Sin Supabase');return;}
   try{
-    var r=await sbTodo(function(){return client.from('mermas').select('*').order('fecha_autorizacion',{ascending:true}).order('fecha_validacion',{ascending:true});});
+    var r=await client.from('mermas').select('*').order('fecha_autorizacion',{ascending:true}).order('fecha_validacion',{ascending:true}).limit(5000);
     if(r.error){toast('⚠ '+r.error.message);return;}
     var _mrDataRaw=r.data||[];
     var _mrDataDec=await decArr(_mrDataRaw,FIELDS.mermas);
@@ -8079,7 +8113,7 @@ async function commitMermasExcel(rows){
     /* Traer existentes para actualizar en vez de duplicar. Clave: tienda +
        fecha_autorizacion + fecha_validacion (las fechas no están cifradas). */
     var ex=[];
-    try{var re=await sbTodo(function(){return client.from('mermas').select('id,fecha_autorizacion,fecha_validacion,tienda');});if(!re.error)ex=re.data||[];}catch(_e){}
+    try{var re=await client.from('mermas').select('id,fecha_autorizacion,fecha_validacion,tienda').limit(20000);if(!re.error)ex=re.data||[];}catch(_e){}
     var exDec=await decArr(ex,FIELDS.mermas);
     var _k=function(t,fa,fv){return norm(t)+'|'+String(fa||'')+'|'+String(fv||'');};
     var exMap={};
@@ -8138,8 +8172,8 @@ async function loadFinalizadas(){
   var client=getSbClient();
   if(!client){toast('⚠ Sin Supabase');return;}
   try{
-    var r=await sbTodo(function(){return client.from('tareas_finalizadas').select('*')
-      .order('fecha_finalizacion',{ascending:false});});
+    var r=await client.from('tareas_finalizadas').select('*')
+      .order('fecha_finalizacion',{ascending:false}).limit(5000);
     if(r.error){toast('⚠ '+r.error.message);return;}
     var _finRaw=r.data||[];
     var _finDec=await decArr(_finRaw,FIELDS.tareas_finalizadas);
@@ -8225,6 +8259,8 @@ async function loadFinalizadas(){
     reconciliarFinalizadas();
     _finLoaded=true;
     fillFinFilters();renderFinalizadas();
+    /* Con Finalizadas ya en memoria se puede marcar qué tareas no tienen auditoría */
+    if(_tareasViewBase&&_tareasViewBase.length)applyTareasFilters();
     if(typeof actualizarStrip==='function')actualizarStrip(); /* re-sincroniza Vigentes/Finalizadas */
     toast('\u2713 '+FINALIZADAS.length+' auditoría(s) finalizada(s)');
   }catch(e){toast('\u26a0 '+e.message);}
@@ -8656,6 +8692,10 @@ async function registrarFinalizada(a){
     var saved=Object.assign({},_finRowRaw);
     saved.id=(r.data&&r.data[0])?r.data[0].id:('tmp_'+Date.now());
     if((saved.pct_cumpl||0)>1)saved.pct_cumpl=saved.pct_cumpl/100;
+    /* Igual que loadFinalizadas: total/resueltas salen de tareas reales
+       (tareasDeAud), así que ya nace vinculada. Sin esto la fila recién
+       archivada mostraba ⚠ "Sin vincular" hasta recargar la página. */
+    saved._vinculada=totalTareas>0;
     if(ix>=0)FINALIZADAS[ix]=saved;
     delete _finRegistrandoEnVuelo[akm];
     if(VIEW==='auditorias'&&(document.getElementById('aud-f-estado')||{}).value==='finalizadas'){fillFinFilters();renderFinalizadas();}
