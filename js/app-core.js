@@ -6055,19 +6055,56 @@ function getAuditores(){
    comparten el mismo primer nombre, el prefijo queda ambiguo y NO se fusiona
    — se prefiere mostrarlos separados a adivinar mal y mezclar personas. */
 var _AUDITOR_ALIAS_NORM={};
+/* Clave de comparación de un nombre de auditor: sin acentos, minúsculas y sin
+   signos ("OSCAR A." → "oscar a"). */
+function _normAud(s){ return norm(s).replace(/[^a-z0-9ñ ]+/g,' ').replace(/\s+/g,' ').trim(); }
 function _buildAuditorAliasIndex(){
   _AUDITOR_ALIAS_NORM={};
-  var porPrefijo={};
-  (_AUDITORES_CONOCIDOS||[]).forEach(function(nombreCompleto){
-    var tokens=norm(nombreCompleto).split(' ').filter(Boolean);
-    for(var i=1;i<=tokens.length;i++){
-      var prefijo=tokens.slice(0,i).join(' ');
-      porPrefijo[prefijo]=porPrefijo[prefijo]||[];
-      if(porPrefijo[prefijo].indexOf(nombreCompleto)<0)porPrefijo[prefijo].push(nombreCompleto);
+  /* Nombres completos (2+ palabras) a los que se puede unir un nombre corto: los
+     auditores registrados y, además, los que aparecen escritos completos en los
+     propios registros. Así "OSCAR" se une con "Oscar Amavizca" aunque la lista de
+     usuarios todavía no haya cargado (o no se pueda consultar con esta sesión). */
+  var completos={}, registrados={};
+  function agregar(n,esRegistrado){
+    if(!n||pareceCifrado(n))return;
+    var k=_normAud(n); if(!k||k.split(' ').length<2)return;
+    if(esRegistrado){completos[k]=n;registrados[k]=true;}   /* se muestra como está registrado */
+    else if(!completos[k])completos[k]=n;
+  }
+  (_AUDITORES_CONOCIDOS||[]).forEach(function(n){agregar(n,true);});
+  var vistos=[];
+  function deDatos(n){ if(n&&!pareceCifrado(n)){vistos.push(n);agregar(n,false);} }
+  (AJUSTES||[]).forEach(function(a){deDatos(a.auditor);});
+  (MERMAS||[]).forEach(function(m){deDatos(m.auditor);});
+  (ACTIVIDADES||[]).forEach(function(a){auditoresDeActividad(a).forEach(deDatos);deDatos(a.creadoPor);});
+  /* "oscar" o "oscar a" coincide con "oscar amavizca": cada palabra igual o, si es
+     una sola letra, la inicial de la palabra correspondiente. */
+  function coincide(corto,largo){
+    if(corto.length>largo.length)return false;
+    for(var i=0;i<corto.length;i++){
+      var c=corto[i],l=largo[i];
+      if(c!==l&&!(c.length===1&&l.charAt(0)===c))return false;
     }
+    return true;
+  }
+  var largos=Object.keys(completos).map(function(k){return {k:k,t:k.split(' ')};});
+  /* Un nombre que solo abrevia a otro ("oscar a" de "oscar amavizca") no es un nombre
+     completo distinto: se descarta como destino (salvo que sea el registrado). */
+  largos=largos.filter(function(x){
+    return registrados[x.k]||!largos.some(function(y){return y.k!==x.k&&coincide(x.t,y.t);});
   });
-  Object.keys(porPrefijo).forEach(function(pref){
-    if(porPrefijo[pref].length===1)_AUDITOR_ALIAS_NORM[pref]=porPrefijo[pref][0];
+  var claves={};
+  vistos.concat(_AUDITORES_CONOCIDOS||[]).forEach(function(n){var k=_normAud(n);if(k)claves[k]=true;});
+  Object.keys(claves).forEach(function(k){
+    var t=k.split(' ');
+    var cand=largos.filter(function(x){return coincide(t,x.t);});
+    /* Si varios nombres completos coinciden (dos "Oscar"), solo se une si uno es
+       el auditor registrado; si no, se deja separado para no mezclar personas. */
+    if(cand.length>1){
+      var reg=cand.filter(function(x){return registrados[x.k];});
+      cand=reg.length===1?reg:[];
+    }
+    if(cand.length===1)_AUDITOR_ALIAS_NORM[k]=completos[cand[0].k];
   });
 }
 
@@ -6110,10 +6147,10 @@ function renderDesempeno(){
       if(conocido)k=conocido;
       else k='Auditor ('+k.substring(0,8)+'...)';
     }
-    var kn=norm(k);
-    /* Fusionar variante corta ("Fernando") con el nombre completo registrado
+    var kn=_normAud(k);
+    /* Fusionar variante corta ("Fernando", "OSCAR A.") con el nombre completo
        ("FERNANDO GUERRERO") si es inequívoco — ver _buildAuditorAliasIndex. */
-    if(_AUDITOR_ALIAS_NORM[kn]){ k=_AUDITOR_ALIAS_NORM[kn]; kn=norm(k); }
+    if(_AUDITOR_ALIAS_NORM[kn]){ k=_AUDITOR_ALIAS_NORM[kn]; kn=_normAud(k); }
     return {k:k,kn:kn};
   }
   /* actividadEnTiempoDesempeno() es global (compartida con la tabla de
@@ -6274,7 +6311,7 @@ function renderDesempeno(){
     if(c.revertida||!c.snapshot)return;
     var f=c.fecha?new Date(c.fecha):null;
     if(!f||isNaN(f))return;
-    if(!_ultCarga||f>_ultCarga.f)_ultCarga={id:c.id,f:f,audKn:norm(c.auditor||'')};
+    if(!_ultCarga||f>_ultCarga.f){var _ak=_normAud(c.auditor||'');_ultCarga={id:c.id,f:f,audKn:_normAud(_AUDITOR_ALIAS_NORM[_ak]||c.auditor||'')};}
   });
 
   /* ═══ BASE COMÚN DE CALIFICACIÓN (misma fórmula para todos) ═══
@@ -6407,7 +6444,7 @@ function renderDesempeno(){
               '</div>'+
               (d.cgUltima?'<div style="margin-left:auto;font-size:10px;color:var(--muted);font-weight:700">Última: '+fmtCargaFecha(d.cgUltima)+'</div>':'')+
             '</div>'+
-            ((isAdminDesp&&_ultCarga&&_ultCarga.audKn===norm(d.nombre))?
+            ((isAdminDesp&&_ultCarga&&_ultCarga.audKn===_normAud(d.nombre))?
               '<button class="btn-ghost" style="font-size:11px;padding:5px 11px;margin-top:10px;border-radius:8px" onclick="revertirCarga('+_ultCarga.id+')" title="Deshace la última importación y restaura el estado anterior">↩ Revertir última carga</button>'
               :'')+
         '</div>'+
