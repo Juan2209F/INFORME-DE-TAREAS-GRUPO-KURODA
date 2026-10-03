@@ -12,7 +12,8 @@
    Function "archivero" (preparar → subir páginas → confirmar).
    Para consultar se muestran las páginas y se puede descargar de nuevo como PDF (jsPDF).
    Acceso: mismo token de sesión que obtiene app-correos.js al iniciar sesión
-   (localStorage "kc_token"); si no hay, se pide la contraseña una sola vez.
+   (localStorage "kc_token"). Si no hay o venció, se renueva solo con la sesión ya iniciada
+   (RPC renovar_token_monitor, sin pedir contraseña; solo para la sesión vigente de la cuenta).
    Depende de: config/supabase-config.js (SB_URL, SB_KEY), js/app-core.js (_sb, _session,
    VIEW, setView, applyVistasRestriction, toast) y jsPDF (cargado en index.html). */
 (function () {
@@ -60,17 +61,25 @@
       return t && _session && t.u === _session.username ? t.t : null;
     } catch (e) { return null; }
   }
-  async function pedirToken(pass) {
-    var c = _sb || (typeof initSupabase === 'function' ? initSupabase() : null);
-    if (!c) return null;
-    var r = await c.rpc('crear_token_correos', { p_user: _session.username, p_pass: pass });
-    if (r.error || !r.data) return null;
-    try { localStorage.setItem(TOKEN_KEY, JSON.stringify({ u: _session.username, t: r.data })); } catch (e) {}
-    return r.data;
+  /* Token nuevo con la sesión de Supabase Auth ya iniciada (sin contraseña). Si varias
+     llamadas lo piden a la vez, comparten la misma renovación. */
+  var renovando = null;
+  function pedirToken() {
+    if (renovando) return renovando;
+    renovando = (async function () {
+      var c = _sb || (typeof initSupabase === 'function' ? initSupabase() : null);
+      if (!c || !_session) return null;
+      var r = await c.rpc('renovar_token_monitor');
+      if (r.error || !r.data) return null;
+      try { localStorage.setItem(TOKEN_KEY, JSON.stringify({ u: _session.username, t: r.data })); } catch (e) {}
+      return r.data;
+    })().catch(function () { return null; }).then(function (t) { renovando = null; return t; });
+    return renovando;
   }
+  var SIN_ACCESO = 'No se pudo activar el acceso al archivero. Pulsa "Reintentar" o cierra sesión y vuelve a entrar.';
 
   /* ---------- Edge Function ---------- */
-  async function api(accion, datos) {
+  async function api(accion, datos, reintento) {
     var r = await fetch(SB_URL + '/functions/v1/archivero', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: SB_KEY },
@@ -80,7 +89,12 @@
     if (r.status === 401) {
       st.token = null;
       try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
-      pintarAuth('Tu acceso venció. Confirma tu contraseña para continuar.');
+      /* El acceso venció: se renueva solo una vez y se repite la acción. */
+      if (!reintento) {
+        var nuevo = await pedirToken();
+        if (nuevo) { st.token = nuevo; st.sesTok = nuevo; return api(accion, datos, true); }
+      }
+      pintarAuth(SIN_ACCESO);
       throw new Error('No autorizado');
     }
     if (!r.ok || j.error) throw new Error(j.error || ('Error ' + r.status));
@@ -239,7 +253,6 @@
     $('arch-main').style.display = 'none';
     $('arch-auth').style.display = 'block';
     $('arch-err').textContent = err || '';
-    $('arch-pass').value = '';
   }
 
   /* ---------- Carga y acciones ---------- */
@@ -285,13 +298,16 @@
     if (st.token && st.cat === cat && !st.visor) pintar();
   }
 
+  /* Activa el acceso sin contraseña (al abrir el archivero o con "Reintentar"). */
   async function entrar() {
-    var p = $('arch-pass').value;
-    if (!p) { $('arch-err').textContent = 'Escribe tu contraseña'; return; }
-    $('arch-go').disabled = true;
-    var tok = await pedirToken(p).catch(function () { return null; });
-    $('arch-go').disabled = false;
-    if (!tok) { pintarAuth('Contraseña incorrecta'); return; }
+    var b = $('arch-go');
+    if (b) b.disabled = true;
+    $('arch-auth').style.display = 'none';
+    $('arch-main').style.display = 'block';
+    $('arch-body').innerHTML = '<p class="kc-empty">Cargando…</p>';
+    var tok = await pedirToken();
+    if (b) b.disabled = false;
+    if (!tok) { pintarAuth(SIN_ACCESO); return; }
     st.token = tok;
     await iniciar();
   }
@@ -384,7 +400,7 @@
     if (visible && !antes) {
       st.visor = null; st.q = ''; st.tiendaF = ''; st.razonF = ''; st.subiendo = '';
       st.token = leerToken();
-      if (st.token) iniciar(); else pintarAuth('');
+      if (st.token) iniciar(); else entrar();
     }
     if (!visible && antes) { st.docs = []; st.visor = null; }
   }
@@ -430,10 +446,8 @@
       '<div class="card kc-panel">' +
       '<div class="kc-hdr"><span style="font-size:18px">🗄️</span><h3>Archivero de responsivas</h3></div>' +
       '<div id="arch-auth" style="display:none;padding:22px 20px">' +
-      '<p style="font-size:13px;color:var(--muted);margin:0 0 10px">Confirma tu contraseña una sola vez para activar el acceso al archivero en este navegador.</p>' +
-      '<div class="kc-row"><input type="password" id="arch-pass" class="kc-in" placeholder="Contraseña" autocomplete="current-password" style="width:240px">' +
-      '<button id="arch-go" class="kc-btn kc-pri">Continuar</button></div>' +
-      '<div id="arch-err" style="font-size:12px;color:var(--red);min-height:18px;margin-top:8px"></div></div>' +
+      '<div id="arch-err" style="font-size:13px;color:var(--red);min-height:18px;margin:0 0 10px"></div>' +
+      '<div class="kc-row"><button id="arch-go" class="kc-btn kc-pri">Reintentar</button></div></div>' +
       '<div id="arch-main" style="display:none">' +
       '<div class="kc-bar"><div class="kc-tabs" id="arch-tabs"></div></div>' +
       '<div id="arch-body" class="kc-body" style="padding-top:14px"></div></div></div>';
@@ -468,9 +482,6 @@
     d.addEventListener('change', function (e) {
       if (e.target.id === 'arch-tf') { st.tiendaF = e.target.value; pintar(); }
       if (e.target.id === 'arch-rf') { st.razonF = e.target.value; pintar(); }
-    });
-    d.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && e.target.id === 'arch-pass') entrar();
     });
   }
 
