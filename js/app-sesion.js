@@ -11,6 +11,10 @@
       se verifica con verificar_sesion_monitor(): si la cuenta se abrió en otro equipo o
       navegador, esta sesión se cierra con un aviso. Gana siempre el inicio más reciente,
       así nadie queda bloqueado si cerró el navegador sin "Salir".
+   3) Una sola pestaña: las pestañas del mismo navegador comparten la sesión de Supabase,
+      así que el servidor no las distingue. Cada pestaña tiene su propio identificador y al
+      iniciar sesión se anota en localStorage como la pestaña vigente; las demás pestañas
+      abiertas con la sesión iniciada se cierran solas (sin tocar la sesión de la nueva).
    Depende de: js/app-core.js (_sb, _session, doLogout, showLoginErr, onLoginSuccess). */
 (function () {
   'use strict';
@@ -20,6 +24,8 @@
   var REVISAR_MS = 5000;            // revisión del temporizador
   var VERIFICAR_MS = 30000;         // verificación de sesión única
   var CLAVE = 'kg-ultima-actividad';
+  var CLAVE_PESTANA = 'kg-pestana-activa';
+  var PESTANA = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
   var EVENTOS = ['mousedown', 'mousemove', 'keydown', 'wheel', 'touchstart', 'scroll', 'pointerdown'];
 
   var ultimaLocal = Date.now(), ultimoGuardado = 0, verificando = false, ultimaVerificacion = 0, aviso = null;
@@ -103,13 +109,15 @@
   var MENSAJES = {
     inactividad: 'Tu sesión se cerró por 10 minutos de inactividad. Vuelve a ingresar.',
     otra: 'Tu cuenta se abrió en otro equipo o navegador, por eso se cerró esta sesión.',
+    pestana: 'Tu cuenta se abrió en otra pestaña, por eso se cerró aquí. Solo se permite una pestaña a la vez.',
     manual: ''
   };
   function cerrarSesion(motivo) {
     ocultarAviso();
     if (!sesionAbierta()) return;
-    /* Si la cuenta se abrió en otro lado, solo se cierra AQUÍ (no se revoca la sesión nueva). */
-    window.__kgSalidaLocal = (motivo === 'otra');
+    /* Si la cuenta se abrió en otro lado, solo se cierra AQUÍ (no se revoca la sesión nueva).
+       'pestana': además no se toca el almacenamiento compartido del navegador. */
+    window.__kgSalidaLocal = (motivo === 'otra' || motivo === 'pestana') ? motivo : false;
     try { if (typeof doLogout === 'function') doLogout(); } finally { window.__kgSalidaLocal = false; }
     var m = MENSAJES[motivo] || '';
     if (m && typeof showLoginErr === 'function') showLoginErr(m);
@@ -129,10 +137,24 @@
     finally { verificando = false; }
   }
 
+  /* ---------- Una sola pestaña ---------- */
+  function pestanaVigente() {
+    try { return (localStorage.getItem(CLAVE_PESTANA) || '').split('|')[0]; } catch (e) { return ''; }
+  }
+  function revisarPestana() {
+    var v = pestanaVigente();
+    if (v && v !== PESTANA && sesionAbierta()) { cerrarSesion('pestana'); return true; }
+    return false;
+  }
+  function marcarPestana() {
+    try { localStorage.setItem(CLAVE_PESTANA, PESTANA + '|' + Date.now()); } catch (e) { /* sin almacenamiento */ }
+  }
+
   /* ---------- Temporizador ---------- */
   function revisar() {
     engancharIframes();
     if (!sesionAbierta()) { ocultarAviso(); return; }
+    if (revisarPestana()) return;
     var inactivo = Date.now() - leerUltima();
     if (inactivo >= LIMITE_MS) return cerrarSesion('inactividad');
     if (inactivo >= LIMITE_MS - AVISO_MS) mostrarAviso(Math.ceil((LIMITE_MS - inactivo) / 1000));
@@ -146,7 +168,10 @@
   });
   window.addEventListener('focus', function () { verificarSesionUnica(true); });
   /* Otra pestaña cerró sesión o tuvo actividad: se refleja aquí. */
-  window.addEventListener('storage', function (e) { if (e.key === CLAVE) revisar(); });
+  window.addEventListener('storage', function (e) {
+    if (e.key === CLAVE_PESTANA) revisarPestana();
+    else if (e.key === CLAVE) revisar();
+  });
 
   /* ---------- Enganche al inicio de sesión ---------- */
   function enganchar() {
@@ -154,6 +179,8 @@
       var orig = window.onLoginSuccess;
       window.onLoginSuccess = function () {
         guardar(Date.now()); ultimaLocal = Date.now();
+        marcarPestana();   /* esta pestaña pasa a ser la vigente: las demás se cierran */
+        try { if (_sb && _sb.auth && _sb.auth.startAutoRefresh) _sb.auth.startAutoRefresh(); } catch (e) { /* sin cliente */ }
         var r = orig.apply(this, arguments);
         /* Sesión única también en Supabase Auth: revoca las demás sesiones de esta cuenta. */
         try { if (_sb && _sb.auth) _sb.auth.signOut({ scope: 'others' }).catch(function () {}); } catch (e) { /* sin cliente */ }
@@ -166,5 +193,5 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', enganchar); else enganchar();
 
   /* Para pruebas y diagnóstico. */
-  window.__kgSesion = { revisar: revisar, verificar: verificarSesionUnica, LIMITE_MS: LIMITE_MS, CLAVE: CLAVE };
+  window.__kgSesion = { revisar: revisar, verificar: verificarSesionUnica, pestana: PESTANA, LIMITE_MS: LIMITE_MS, CLAVE: CLAVE };
 })();
