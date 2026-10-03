@@ -6751,14 +6751,22 @@ function patchedFillFilters(){
 }
 
 function doLogout(){
-  localStorage.removeItem(SB_SESSION_KEY);
+  /* __kgSalidaLocal (js/app-sesion.js): 'otra' = la cuenta se abrió en otro equipo;
+     'pestana' = se abrió en otra pestaña de este navegador, que comparte el almacenamiento,
+     así que no se borra nada compartido ni se cierra la sesión de Supabase (es la de la nueva). */
+  var _modo=window.__kgSalidaLocal||'';
+  if(_modo!=='pestana')localStorage.removeItem(SB_SESSION_KEY);
   _session=null;
   _cryptoKey=null; _claveAnterior=null; /* Destruir claves de cifrado de memoria */
+  if(_modo==='pestana'){
+    /* Esta pestaña deja de renovar el token: lo renueva la pestaña vigente. */
+    try{if(_sb&&_sb.auth&&_sb.auth.stopAutoRefresh)_sb.auth.stopAutoRefresh();}catch(e){}
+  } else {
   /* Cerrar también la sesión de Supabase Auth (invalida su renovación en el servidor).
      Antes se libera la sesión única (cerrar_sesion_monitor). Si esta sesión se cerró porque la
-     cuenta se abrió en otro equipo (__kgSalidaLocal), solo se cierra aquí sin tocar la nueva.
+     cuenta se abrió en otro equipo, solo se cierra aquí sin tocar la nueva.
      La llave de Auth se borra al final: la RPC necesita el token para identificar al usuario. */
-  var _soloLocal=!!window.__kgSalidaLocal;
+  var _soloLocal=!!_modo;
   var _borrarAuth=function(){try{localStorage.removeItem('kuroda-monitor-auth');}catch(e){}};
   if(_sb&&_sb.auth){
     var _antes=_soloLocal?Promise.resolve():Promise.resolve(_sb.rpc('cerrar_sesion_monitor')).then(function(){},function(){});
@@ -6766,6 +6774,7 @@ function doLogout(){
       .catch(function(){}).then(_borrarAuth);
     setTimeout(_borrarAuth,5000); /* respaldo si no hay red */
   } else _borrarAuth();
+  }
   document.getElementById('login-page').classList.remove('hidden');
   document.getElementById('lp-pass').value='';
   showLoginErr('');
