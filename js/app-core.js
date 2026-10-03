@@ -6754,9 +6754,18 @@ function doLogout(){
   localStorage.removeItem(SB_SESSION_KEY);
   _session=null;
   _cryptoKey=null; _claveAnterior=null; /* Destruir claves de cifrado de memoria */
-  /* Cerrar también la sesión de Supabase Auth (invalida su renovación en el servidor). */
-  if(_sb&&_sb.auth)_sb.auth.signOut().catch(function(){});
-  try{localStorage.removeItem('kuroda-monitor-auth');}catch(e){}
+  /* Cerrar también la sesión de Supabase Auth (invalida su renovación en el servidor).
+     Antes se libera la sesión única (cerrar_sesion_monitor). Si esta sesión se cerró porque la
+     cuenta se abrió en otro equipo (__kgSalidaLocal), solo se cierra aquí sin tocar la nueva.
+     La llave de Auth se borra al final: la RPC necesita el token para identificar al usuario. */
+  var _soloLocal=!!window.__kgSalidaLocal;
+  var _borrarAuth=function(){try{localStorage.removeItem('kuroda-monitor-auth');}catch(e){}};
+  if(_sb&&_sb.auth){
+    var _antes=_soloLocal?Promise.resolve():Promise.resolve(_sb.rpc('cerrar_sesion_monitor')).then(function(){},function(){});
+    _antes.then(function(){return _sb.auth.signOut(_soloLocal?{scope:'local'}:undefined);})
+      .catch(function(){}).then(_borrarAuth);
+    setTimeout(_borrarAuth,5000); /* respaldo si no hay red */
+  } else _borrarAuth();
   document.getElementById('login-page').classList.remove('hidden');
   document.getElementById('lp-pass').value='';
   showLoginErr('');
