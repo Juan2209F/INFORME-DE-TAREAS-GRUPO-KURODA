@@ -1160,6 +1160,11 @@
         }
 
         /* ========== AJUSTES ========== */
+        .inf-firmas { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+        .inf-firma { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.7rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); }
+        .inf-firma strong { font-size: 0.8rem; color: var(--text-main); }
+        .inf-firma input { width: 100%; }
+        @media (max-width: 560px) { .inf-firmas { grid-template-columns: 1fr; } }
         .theme-selector {
             display: flex;
             gap: 1rem;
@@ -1714,10 +1719,23 @@
 
     <!-- Modal Informe Final de Auditoría -->
     <div class="modal-overlay" id="modalInformeAuditoria">
-        <div class="modal-box" style="max-width:min(480px,95vw);">
-            <h3><i class="fas fa-file-alt"></i> Auditoría finalizada</h3>
-            <p class="sub">Descarga el informe ejecutivo de este levantamiento.</p>
+        <div class="modal-box" style="max-width:min(560px,95vw);">
+            <h3><i class="fas fa-file-alt"></i> Informe de auditoría</h3>
+            <p class="sub">Descarga el informe de este levantamiento en PDF o Word.</p>
             <div id="informe-resumen-body" style="font-size:0.85rem; margin:1rem 0;"></div>
+            <div class="inf-firmas">
+                <div class="inf-firma">
+                    <strong>Realizó (Auditoría)</strong>
+                    <input type="text" id="inf-realiza-nombre" placeholder="Nombre completo">
+                    <input type="text" id="inf-realiza-puesto" placeholder="Puesto (p. ej. Auditor de activos)">
+                </div>
+                <div class="inf-firma">
+                    <strong>Atendió (Tienda)</strong>
+                    <input type="text" id="inf-atiende-nombre" placeholder="Nombre completo">
+                    <input type="text" id="inf-atiende-puesto" placeholder="Puesto (p. ej. Gerente de tienda)">
+                </div>
+            </div>
+            <p class="sub" style="margin-top:0.4rem;">Aparecen en las firmas del informe. Si se dejan vacíos, se imprime la línea para llenarlos a mano.</p>
             <div class="modal-buttons" style="justify-content:flex-start; flex-wrap:wrap; gap:0.5rem;">
                 <button class="btn-primary" onclick="descargarInformePDF(window.__ultimoInventarioId)"><i class="fas fa-file-pdf"></i> Descargar PDF</button>
                 <button class="btn-secondary" onclick="descargarInformeWord(window.__ultimoInventarioId)"><i class="fas fa-file-word"></i> Descargar Word</button>
@@ -3698,8 +3716,7 @@
                     <td data-label="Estado"><span class="status-badge ${estadoCls}">${esc(inv.estado)}</span></td>
                     <td data-label="Acciones">
                         ${inv.estado === 'borrador' ? `<button class="btn-primary" style="padding:2px 8px; font-size:0.7rem;" onclick="abrirInventario('${inv.id}')"><i class="fas fa-play"></i> Continuar</button>` : `
-                        <button class="btn-action" style="padding:2px 8px; font-size:0.7rem; color:var(--danger-color);" onclick="descargarInformePDF('${inv.id}')" title="Informe en PDF"><i class="fas fa-file-pdf"></i></button>
-                        <button class="btn-action" style="padding:2px 8px; font-size:0.7rem; color:var(--info-color);" onclick="descargarInformeWord('${inv.id}')" title="Informe en Word"><i class="fas fa-file-word"></i></button>`}
+                        <button class="btn-action" style="padding:2px 10px; font-size:0.7rem; color:var(--active-bg);" onclick="mostrarModalInformeFinal('${inv.id}')" title="Informe en PDF o Word (con nombre y puesto de quien firma)"><i class="fas fa-file-alt"></i> Informe</button>`}
                         <button class="btn-action" style="padding:2px 8px; font-size:0.7rem; color:var(--danger-color);" onclick="eliminarInventario('${inv.id}')"><i class="fas fa-trash"></i></button>
                     </td>
                 </tr>`;
@@ -3759,7 +3776,11 @@
             inv.faltantesList = r.faltantes.map(fila);
             inv.reparacionList = r.reparacion.map(fila);
             inv.bajaList = r.baja.map(fila);
-            inv.sobrantesList = r.sobrantes.map(s => ({ codigo: s.code, nombre: s.name, centro: s.centro, alerta: s.alerta, comentario: s.comentario || '' }));
+            inv.sobrantesList = r.sobrantes.map(s => {
+                const a = (s.assetId && assets.find(x => x.id === s.assetId)) || {};
+                return { codigo: s.code, nombre: s.name, centro: s.centro, alerta: s.alerta, motivo: s.motivo || '', assetId: s.assetId || null,
+                    activoFijo: a.activoFijo || '', serie: a.serie || '', comentario: s.comentario || '' };
+            });
 
             // El catálogo refleja lo revisado: "En reparación" cambia el estado del activo;
             // "Dado de baja" lo aplica un auditor directo y los demás usuarios generan una
@@ -3801,6 +3822,8 @@
             if (!inv) return;
             window.__ultimoInventarioId = id;
             const r = inv.resumen || {};
+            const sob = (inv.sobrantesList || []).map(x => motivoSobrante(x, inv));
+            const otra = sob.filter(m => m === 'otra-sucursal').length, obs = sob.length - otra;
             document.getElementById('informe-resumen-body').innerHTML = `
                 <p><strong>Tienda:</strong> ${esc(inv.tienda)} &nbsp; <strong>Categoría:</strong> ${esc(nombreCategoria(inv.categoria))}</p>
                 <div style="display:flex; gap:1.2rem; flex-wrap:wrap; margin-top:0.6rem;">
@@ -3809,9 +3832,15 @@
                     <div style="color:var(--info-color);">🔧 En reparación<br><strong>${r.reparacionTotal ?? 0}</strong></div>
                     <div style="color:#888;">🗑️ Dados de baja<br><strong>${r.bajaTotal ?? 0}</strong></div>
                     <div style="color:var(--danger-color);">❌ Faltantes<br><strong>${r.faltantesTotal ?? 0}</strong></div>
-                    <div style="color:var(--warning-color);">⚠️ Fuera de lugar<br><strong>${r.sobrantesTotal ?? 0}</strong></div>
+                    <div style="color:var(--warning-color);">🏬 En otra sucursal<br><strong>${otra}</strong></div>
+                    ${obs ? `<div style="color:#888;">⚠️ Otras observaciones<br><strong>${obs}</strong></div>` : ''}
                 </div>
             `;
+            const f = leerFirmas(inv);
+            document.getElementById('inf-realiza-nombre').value = f.realiza.nombre;
+            document.getElementById('inf-realiza-puesto').value = f.realiza.puesto;
+            document.getElementById('inf-atiende-nombre').value = f.atiende.nombre;
+            document.getElementById('inf-atiende-puesto').value = f.atiende.puesto;
             openModal('modalInformeAuditoria');
         }
 
@@ -4587,182 +4616,436 @@
         }
 
         // ============================================================
-        // INFORME EJECUTIVO DE AUDITORÍA (PDF / Word)
+        // INFORME DE AUDITORÍA DE INVENTARIO (PDF / Word)
+        // Mismo contenido en los dos formatos:
+        //   Datos generales · Resumen (indicadores y dictamen) ·
+        //   1) Activos encontrados · 2) Activos no encontrados (faltantes y justificados) ·
+        //   3) Activos registrados en otra sucursal · 4) Otras observaciones ·
+        //   Recomendaciones · Firmas.
+        // Se arma con lo congelado al finalizar (resumen y listas del inventario); el catálogo
+        // actual solo completa datos de referencia (activo fijo, serie, marca/modelo).
         // ============================================================
-        function construirDatosInforme(inv) {
-            const r = inv.resumen || {};
-            const faltantes = inv.faltantesList || [];
-            const sobrantes = inv.sobrantesList || [];
-            const encontrados = (inv.items || []).filter(i => (i.enUniverso !== undefined ? i.enUniverso : !i.alerta) && estatusDe(i) === 'Encontrado');
-            const reparacion = inv.reparacionList || [];
-            const baja = inv.bajaList || [];
-            const fechaInicio = inv.fecha ? new Date(inv.fecha).toLocaleString('es-MX') : '-';
-            const fechaFin = r.fechaFin ? new Date(r.fechaFin).toLocaleString('es-MX') : '-';
-            const universoTotal = r.universoTotal ?? 0;
-            const pct = universoTotal ? Math.round(((r.encontradosTotal || 0) / universoTotal) * 100) : 0;
-            // Conciliado: encontrados + justificados (en reparación o dados de baja).
-            const pctConciliado = universoTotal ? Math.round((((r.encontradosTotal || 0) + (r.reparacionTotal || 0) + (r.bajaTotal || 0)) / universoTotal) * 100) : 0;
-            return { inv, r, faltantes, sobrantes, encontrados, reparacion, baja, fechaInicio, fechaFin, pct, pctConciliado };
+        const INF_COLOR = {
+            marca: [26, 31, 60], acento: [94, 114, 228], verde: [45, 160, 110], rojo: [220, 53, 69],
+            azul: [33, 136, 220], ambar: [214, 140, 0], gris: [110, 118, 135], suave: [244, 246, 251]
+        };
+        const INF_OBS = {
+            'no-registrado': 'No está registrado en el catálogo',
+            'dado-de-baja': 'Dado de baja en el catálogo, pero se encontró físicamente',
+            'otra-categoria': 'Registrado en otra categoría'
+        };
+
+        // Motivo de un activo "fuera de lugar". Los inventarios cerrados antes de guardar el
+        // motivo se clasifican por el texto de su alerta.
+        function motivoSobrante(s, inv) {
+            if (s.motivo) return s.motivo;
+            const a = s.alerta || '';
+            if (/otra sucursal/i.test(a)) return 'otra-sucursal';
+            if (/dado de baja/i.test(a)) return 'dado-de-baja';
+            if (/no encontrado en el cat/i.test(a)) return 'no-registrado';
+            if (/categor/i.test(a)) return 'otra-categoria';
+            return s.centro && s.centro !== 'N/A' && s.centro !== inv.tienda ? 'otra-sucursal' : 'no-registrado';
         }
 
-        function descargarInformePDF(id) {
-            const inv = inventarios.find(i => i.id === id);
-            if (!inv) { showNotification('No se encontró el inventario', 'danger'); return; }
-            if (inv.estado !== 'finalizado') { showNotification('Solo se puede descargar el informe de una auditoría finalizada', 'warning'); return; }
-            if (!inv.resumen) { showNotification('Este inventario se cerró antes de guardarse su resumen; el informe no se puede reconstruir', 'warning', 5000); return; }
-            const d = construirDatosInforme(inv);
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF({ unit: 'pt', format: 'letter' });
-            const margin = 40;
-            let y = margin;
-
-            doc.setFontSize(16); doc.setFont(undefined, 'bold');
-            doc.text(razonSocial || 'Grupo Kuroda', margin, y); y += 18;
-            doc.setFontSize(12); doc.setFont(undefined, 'normal');
-            doc.text('Informe Ejecutivo de Auditoría de Inventario', margin, y); y += 22;
-
-            doc.setFontSize(9); doc.setTextColor(90);
-            doc.text(`Folio: ${inv.id.slice(0, 8).toUpperCase()}`, margin, y); y += 14;
-            doc.text(`Tienda / Centro: ${inv.tienda}`, margin, y); y += 14;
-            doc.text(`Categoría: ${nombreCategoria(inv.categoria)}`, margin, y); y += 14;
-            doc.text(`Responsable del levantamiento: ${inv.responsable}`, margin, y); y += 14;
-            doc.text(`Fecha de inicio: ${d.fechaInicio}`, margin, y); y += 14;
-            doc.text(`Fecha de finalización: ${d.fechaFin}`, margin, y); y += 20;
-            doc.setTextColor(0);
-
-            doc.autoTable({
-                startY: y, margin: { left: margin, right: margin }, theme: 'grid',
-                head: [['Indicador', 'Valor']],
-                body: [
-                    ['Universo esperado', String(d.r.universoTotal ?? 0)],
-                    ['Activos encontrados', String(d.r.encontradosTotal ?? 0)],
-                    ['En reparación', String(d.r.reparacionTotal ?? 0)],
-                    ['Dados de baja', String(d.r.bajaTotal ?? 0)],
-                    ['Activos faltantes', String(d.r.faltantesTotal ?? 0)],
-                    ['Fuera de lugar / no reconocidos', String(d.r.sobrantesTotal ?? 0)],
-                    ['% encontrados', d.pct + '%'],
-                    ['% conciliado (encontrados + en reparación + bajas)', d.pctConciliado + '%']
-                ],
-                styles: { fontSize: 9 }, headStyles: { fillColor: [127, 90, 240] }
-            });
-            y = doc.lastAutoTable.finalY + 20;
-
-            doc.setFontSize(11); doc.setFont(undefined, 'bold'); doc.setTextColor(44, 132, 90);
-            doc.text('Activos encontrados', margin, y); y += 6; doc.setTextColor(0);
-            doc.autoTable({
-                startY: y + 6, margin: { left: margin, right: margin }, theme: 'striped',
-                head: [['Código', 'Nombre', 'Hora', 'Comentario']],
-                body: d.encontrados.length ? d.encontrados.map(i => [i.code, i.name, i.timestamp || '-', i.comentario || '']) : [['-', 'Sin activos encontrados', '-', '']],
-                styles: { fontSize: 8 }, headStyles: { fillColor: [44, 182, 125] }
-            });
-            y = doc.lastAutoTable.finalY + 20;
-
-            // En reparación / dados de baja: justificados, con su comentario.
-            [['En reparación', d.reparacion, [33, 150, 243]], ['Dados de baja', d.baja, [120, 120, 120]]].forEach(([titulo, lista, color]) => {
-                if (!lista.length) return;
-                if (y > 620) { doc.addPage(); y = margin; }
-                doc.setFontSize(11); doc.setFont(undefined, 'bold'); doc.setTextColor(color[0], color[1], color[2]);
-                doc.text(titulo, margin, y); y += 6; doc.setTextColor(0);
-                doc.autoTable({
-                    startY: y + 6, margin: { left: margin, right: margin }, theme: 'striped',
-                    head: [['Activo fijo', 'Nombre', 'Serie', 'Comentario']],
-                    body: lista.map(a => [a.activoFijo || a.codigo || '-', a.nombre, a.serie || '-', a.comentario || '']),
-                    styles: { fontSize: 8 }, headStyles: { fillColor: color }
+        function construirDatosInforme(inv) {
+            const r = inv.resumen || {};
+            const delCatalogo = (id, code) => (id && assets.find(a => a.id === id)) || (code ? buscarActivoPorCodigo(code) : null) || {};
+            const marcaModelo = a => [a.marca, a.modelo].filter(Boolean).join(' ');
+            const encontrados = (inv.items || [])
+                .filter(i => (i.enUniverso !== undefined ? i.enUniverso : !i.alerta) && estatusDe(i) === 'Encontrado')
+                .map(i => {
+                    const a = delCatalogo(i.assetId, i.code);
+                    return { activoFijo: a.activoFijo || i.code || '-', nombre: a.nombre || i.name || '-', serie: a.serie || '',
+                        marca: marcaModelo(a), hora: i.timestamp || '', comentario: i.comentario || '' };
                 });
-                y = doc.lastAutoTable.finalY + 20;
+            const lista = l => (l || []).map(a => ({ ...a, marca: a.marca || a.modelo ? marcaModelo(a) : '' }));
+            const faltantes = lista(inv.faltantesList);
+            const reparacion = lista(inv.reparacionList);
+            const baja = lista(inv.bajaList);
+            const sobrantes = (inv.sobrantesList || []).map(s => {
+                const a = delCatalogo(s.assetId, s.codigo);
+                return { ...s, motivo: motivoSobrante(s, inv), activoFijo: s.activoFijo || a.activoFijo || s.codigo || '-',
+                    nombre: (s.nombre && s.nombre !== 'Código no registrado en el catálogo') ? s.nombre : (a.nombre || 'Sin registro'),
+                    serie: s.serie || a.serie || '',
+                    centro: (s.centro && s.centro !== 'N/A') ? s.centro : (a.centro || '') };
             });
+            const otraSucursal = sobrantes.filter(s => s.motivo === 'otra-sucursal');
+            const observaciones = sobrantes.filter(s => s.motivo !== 'otra-sucursal');
 
-            if (y > 620) { doc.addPage(); y = margin; }
-            doc.setFontSize(11); doc.setFont(undefined, 'bold'); doc.setTextColor(200, 0, 50);
-            doc.text('Activos faltantes', margin, y); y += 6; doc.setTextColor(0);
-            doc.autoTable({
-                startY: y + 6, margin: { left: margin, right: margin }, theme: 'striped',
-                head: [['Código', 'Activo fijo', 'Nombre', 'Serie']],
-                body: d.faltantes.length ? d.faltantes.map(a => [a.codigo || '-', a.activoFijo || '-', a.nombre, a.serie || '-']) : [['-', '-', 'No hay faltantes ✅', '-']],
-                styles: { fontSize: 8 }, headStyles: { fillColor: [239, 71, 111] }
-            });
-            y = doc.lastAutoTable.finalY + 20;
-
-            if (d.sobrantes.length > 0) {
-                if (y > 620) { doc.addPage(); y = margin; }
-                doc.setFontSize(11); doc.setFont(undefined, 'bold'); doc.setTextColor(180, 130, 0);
-                doc.text('Activos fuera de lugar / a revisar', margin, y); y += 6; doc.setTextColor(0);
-                doc.autoTable({
-                    startY: y + 6, margin: { left: margin, right: margin }, theme: 'striped',
-                    head: [['Código', 'Nombre', 'Observación', 'Comentario']],
-                    body: d.sobrantes.map(s => [s.codigo || '-', s.nombre || '-', s.alerta || '-', s.comentario || '']),
-                    styles: { fontSize: 8 }, headStyles: { fillColor: [249, 168, 37] }
-                });
-                y = doc.lastAutoTable.finalY + 30;
+            const universo = r.universoTotal ?? 0;
+            const nEnc = r.encontradosTotal ?? encontrados.length;
+            const nJust = (r.reparacionTotal ?? reparacion.length) + (r.bajaTotal ?? baja.length);
+            const nFalt = r.faltantesTotal ?? faltantes.length;
+            const pct = universo ? Math.round((nEnc / universo) * 100) : 0;
+            const pctConciliado = universo ? Math.round(((nEnc + nJust) / universo) * 100) : 0;
+            const fmt = f => f ? new Date(f).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }) : '-';
+            const ini = inv.fecha ? new Date(inv.fecha) : null, fin = r.fechaFin ? new Date(r.fechaFin) : null;
+            let duracion = '-';
+            if (ini && fin && fin > ini) {
+                const min = Math.round((fin - ini) / 60000);
+                duracion = min < 60 ? `${min} min` : min < 1440 ? `${Math.floor(min / 60)} h ${min % 60} min` : `${Math.round(min / 1440)} día(s)`;
             }
 
-            if (y > 680) { doc.addPage(); y = margin + 20; }
-            doc.setFontSize(9); doc.setTextColor(90);
-            doc.text('_____________________________', margin, y + 40);
-            doc.text('Firma del responsable del levantamiento', margin, y + 54);
-            doc.text('_____________________________', 320, y + 40);
-            doc.text('Vo.Bo. Administración', 320, y + 54);
+            // Dictamen: sobre lo conciliado (encontrados + justificados con su comentario).
+            const dictamen = !universo ? { txt: 'Sin universo', color: INF_COLOR.gris }
+                : pctConciliado >= 95 ? { txt: 'Satisfactorio', color: INF_COLOR.verde }
+                : pctConciliado >= 85 ? { txt: 'Aceptable con observaciones', color: INF_COLOR.ambar }
+                : { txt: 'No satisfactorio', color: INF_COLOR.rojo };
+            const cat = nombreCategoria(inv.categoria);
+            let conclusion = `Se revisaron ${universo} activo(s) registrados para ${inv.tienda} (${cat}). ` +
+                `Se localizaron físicamente ${nEnc} (${pct}%)`;
+            conclusion += nJust ? ` y ${nJust} más no están en piso pero están justificados (en reparación o dados de baja), con lo que se concilia el ${pctConciliado}% del universo. ` : '. ';
+            conclusion += nFalt ? `${nFalt} activo(s) no fueron localizados y requieren seguimiento. ` : 'No hay activos sin localizar. ';
+            if (otraSucursal.length) conclusion += `Además, se encontraron ${otraSucursal.length} activo(s) en esta tienda que en el catálogo están registrados en otra sucursal. `;
+            if (observaciones.length) conclusion += `${observaciones.length} escaneo(s) más tienen observaciones (sin registro, otra categoría o dados de baja).`;
 
-            doc.save(`Informe_Auditoria_${inv.tienda}_${inv.categoria}_${inv.id.slice(0, 6)}.pdf`);
+            const recomendaciones = [];
+            if (nFalt) recomendaciones.push(`Investigar la ubicación de los ${nFalt} activo(s) no encontrados con el personal de la tienda. Si no se localizan, documentar el caso e iniciar el trámite de baja o reporte que corresponda.`);
+            if (otraSucursal.length) recomendaciones.push(`Registrar en "Movimientos" la transferencia de los ${otraSucursal.length} activo(s) de otra sucursal a ${inv.tienda}, o regresarlos a su sucursal de origen, para que el catálogo coincida con la ubicación física.`);
+            const n = m => observaciones.filter(o => o.motivo === m).length;
+            if (n('no-registrado')) recomendaciones.push(`Dar de alta en el catálogo los ${n('no-registrado')} activo(s) encontrados sin registro.`);
+            if (n('otra-categoria')) recomendaciones.push(`Corregir la categoría de ${n('otra-categoria')} activo(s) registrados en una categoría distinta.`);
+            if (n('dado-de-baja')) recomendaciones.push(`Revisar ${n('dado-de-baja')} activo(s) que están dados de baja en el catálogo pero siguen físicamente en la tienda.`);
+            if (nJust) recomendaciones.push(`Dar seguimiento a los ${nJust} activo(s) justificados (en reparación o baja) hasta cerrar su trámite.`);
+            if (!recomendaciones.length) recomendaciones.push('Sin acciones pendientes: el inventario coincide con el catálogo.');
+
+            return { inv, r, cat, encontrados, faltantes, reparacion, baja, otraSucursal, observaciones,
+                universo, nEnc, nJust, nFalt, pct, pctConciliado, dictamen, conclusion, recomendaciones,
+                folio: inv.id.slice(0, 8).toUpperCase(), fechaInicio: fmt(inv.fecha), fechaFin: fmt(r.fechaFin), duracion,
+                generado: new Date().toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }) };
+        }
+
+        // Firmas: nombre y puesto de quien realizó el inventario (auditoría) y de quien lo atendió
+        // por la tienda. Se capturan en la ventana del informe y se recuerdan en este navegador.
+        const FIRMAS_KEY = 'act-informe-firmas';
+        function leerFirmas(inv) {
+            let todas = {};
+            try { todas = JSON.parse(localStorage.getItem(FIRMAS_KEY) || '{}') || {}; } catch (e) { /* sin almacenamiento */ }
+            const f = todas[inv.id] || {};
+            const ult = todas._ultimoAuditor || {};
+            return {
+                realiza: { nombre: (f.realiza && f.realiza.nombre) || inv.responsable || ult.nombre || '', puesto: (f.realiza && f.realiza.puesto) || ult.puesto || '' },
+                atiende: { nombre: (f.atiende && f.atiende.nombre) || '', puesto: (f.atiende && f.atiende.puesto) || '' }
+            };
+        }
+        function guardarFirmas(inv, f) {
+            try {
+                const todas = JSON.parse(localStorage.getItem(FIRMAS_KEY) || '{}') || {};
+                todas[inv.id] = f;
+                if (f.realiza.nombre || f.realiza.puesto) todas._ultimoAuditor = f.realiza;
+                localStorage.setItem(FIRMAS_KEY, JSON.stringify(todas));
+            } catch (e) { /* sin almacenamiento */ }
+        }
+        // Si la ventana del informe está abierta para este inventario, se toma lo capturado ahí.
+        function firmasInforme(inv) {
+            const f = leerFirmas(inv);
+            const v = id => { const el = document.getElementById(id); return el ? el.value.trim() : null; };
+            if (window.__ultimoInventarioId === inv.id && v('inf-realiza-nombre') !== null) {
+                f.realiza = { nombre: v('inf-realiza-nombre'), puesto: v('inf-realiza-puesto') };
+                f.atiende = { nombre: v('inf-atiende-nombre'), puesto: v('inf-atiende-puesto') };
+                guardarFirmas(inv, f);
+            }
+            return f;
+        }
+
+        function validarInforme(id) {
+            const inv = inventarios.find(i => i.id === id);
+            if (!inv) { showNotification('No se encontró el inventario', 'danger'); return null; }
+            if (inv.estado !== 'finalizado') { showNotification('Solo se puede descargar el informe de una auditoría finalizada', 'warning'); return null; }
+            if (!inv.resumen) { showNotification('Este inventario se cerró antes de guardarse su resumen; el informe no se puede reconstruir', 'warning', 5000); return null; }
+            return inv;
+        }
+        const nombreArchivoInforme = (inv, ext) =>
+            `Informe_Inventario_${inv.tienda}_${inv.categoria}_${inv.id.slice(0, 6)}`.replace(/[^\w\-]+/g, '_') + '.' + ext;
+
+        function descargarInformePDF(id) {
+            const inv = validarInforme(id);
+            if (!inv) return;
+            const d = construirDatosInforme(inv);
+            d.firmas = firmasInforme(inv);
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+            const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+            const M = 40, ANCHO = W - 2 * M, LIM = H - 70;
+            const C = INF_COLOR;
+            const color = (c, fn) => doc[fn](c[0], c[1], c[2]);
+
+            // Encabezado de la primera página
+            color(C.marca, 'setFillColor'); doc.rect(0, 0, W, 78, 'F');
+            color(C.acento, 'setFillColor'); doc.rect(0, 78, W, 4, 'F');
+            doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(17);
+            doc.text(razonSocial || 'Grupo Kuroda', M, 34);
+            doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
+            doc.text('Informe de Auditoría de Inventario de Activos', M, 54);
+            doc.setFontSize(9);
+            doc.text(`Folio ${d.folio}`, W - M, 34, { align: 'right' });
+            doc.text(d.fechaFin, W - M, 50, { align: 'right' });
+            let y = 104;
+
+            // Encabezado corto de las páginas siguientes
+            const encabezadoCorto = () => {
+                color(C.marca, 'setFillColor'); doc.rect(0, 0, W, 26, 'F');
+                doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+                doc.text(`${razonSocial || 'Grupo Kuroda'} · Informe de Auditoría de Inventario`, M, 17);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`Folio ${d.folio} · ${inv.tienda}`, W - M, 17, { align: 'right' });
+            };
+            const nuevaPagina = () => { doc.addPage(); encabezadoCorto(); return 46; };
+            const espacio = alto => { if (y + alto > LIM) y = nuevaPagina(); };
+            const tablaBase = {
+                margin: { left: M, right: M, top: 40, bottom: 60 }, theme: 'grid',
+                styles: { fontSize: 8, cellPadding: 4, lineColor: [225, 229, 238], lineWidth: 0.5, textColor: [40, 44, 60], overflow: 'linebreak' },
+                alternateRowStyles: { fillColor: C.suave },
+                didDrawPage: data => { if (data.pageNumber > 1 && data.cursor && data.table && data.pageCount > 1) {} }
+            };
+
+            // Datos generales
+            doc.setTextColor(40); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+            doc.text('Datos generales', M, y); y += 6;
+            doc.autoTable({
+                ...tablaBase, startY: y, theme: 'plain',
+                styles: { fontSize: 9, cellPadding: { top: 3, bottom: 3, left: 0, right: 6 }, textColor: [40, 44, 60] },
+                columnStyles: { 0: { fontStyle: 'bold', cellWidth: 92, textColor: [110, 118, 135] }, 2: { fontStyle: 'bold', cellWidth: 80, textColor: [110, 118, 135] } },
+                body: [
+                    ['Tienda / centro', inv.tienda || '-', 'Inicio', d.fechaInicio],
+                    ['Categoría', d.cat, 'Cierre', d.fechaFin],
+                    ['Responsable', inv.responsable || '-', 'Duración', d.duracion]
+                ]
+            });
+            y = doc.lastAutoTable.finalY + 18;
+
+            // Indicadores
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(40);
+            doc.text('Resumen de resultados', M, y); y += 10;
+            const kpis = [
+                ['Universo esperado', d.universo, C.marca],
+                ['Encontrados', d.nEnc, C.verde],
+                ['No encontrados', d.nFalt, C.rojo],
+                ['Justificados', d.nJust, C.azul],
+                ['En otra sucursal', d.otraSucursal.length, C.ambar]
+            ];
+            const gap = 8, bw = (ANCHO - gap * (kpis.length - 1)) / kpis.length, bh = 54;
+            kpis.forEach(([lbl, val, c], i) => {
+                const x = M + i * (bw + gap);
+                color(C.suave, 'setFillColor'); doc.roundedRect(x, y, bw, bh, 6, 6, 'F');
+                color(c, 'setFillColor'); doc.rect(x, y + 8, 3, bh - 16, 'F');
+                color(c, 'setTextColor'); doc.setFont('helvetica', 'bold'); doc.setFontSize(20);
+                doc.text(String(val), x + 12, y + 28);
+                doc.setTextColor(110); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5);
+                doc.text(lbl.toUpperCase(), x + 12, y + 43);
+            });
+            y += bh + 14;
+
+            // Barra de composición del universo
+            if (d.universo) {
+                const segs = [[d.nEnc, C.verde], [d.nJust, C.azul], [d.nFalt, C.rojo]];
+                let x = M;
+                color([230, 233, 241], 'setFillColor'); doc.roundedRect(M, y, ANCHO, 10, 5, 5, 'F');
+                segs.forEach(([v, c]) => { const w = ANCHO * v / d.universo; if (w > 0) { color(c, 'setFillColor'); doc.rect(x, y, w, 10, 'F'); x += w; } });
+                y += 22;
+                doc.setFontSize(8); doc.setTextColor(90);
+                doc.text(`Localizado: ${d.pct}%   ·   Conciliado (encontrados + justificados): ${d.pctConciliado}%   ·   Sin localizar: ${d.universo ? Math.round(d.nFalt / d.universo * 100) : 0}%`, M, y);
+                y += 16;
+            }
+
+            // Dictamen
+            const lineas = doc.setFontSize(9).splitTextToSize(d.conclusion, ANCHO - 24);
+            const dh = 34 + lineas.length * 12;
+            espacio(dh);
+            color(C.suave, 'setFillColor'); doc.roundedRect(M, y, ANCHO, dh, 6, 6, 'F');
+            color(d.dictamen.color, 'setFillColor'); doc.rect(M, y, 4, dh, 'F');
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(40);
+            doc.text('Dictamen:', M + 14, y + 18);
+            color(d.dictamen.color, 'setTextColor'); doc.text(d.dictamen.txt, M + 72, y + 18);
+            doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(60);
+            doc.text(lineas, M + 14, y + 34);
+            y += dh + 22;
+
+            // Secciones con tabla
+            let num = 0;
+            const seccion = (titulo, c, total, nota) => {
+                espacio(70);
+                num++;
+                color(c, 'setFillColor'); doc.roundedRect(M, y - 11, 18, 16, 3, 3, 'F');
+                doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+                doc.text(String(num), M + 9, y, { align: 'center' });
+                doc.setTextColor(40); doc.setFontSize(12);
+                doc.text(titulo, M + 26, y);
+                color(c, 'setTextColor'); doc.setFontSize(10);
+                doc.text(`${total} activo(s)`, W - M, y, { align: 'right' });
+                y += 6;
+                if (nota) { doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(110); doc.text(doc.splitTextToSize(nota, ANCHO), M, y + 9); y += 12 + 10 * doc.splitTextToSize(nota, ANCHO).length; }
+                y += 4;
+            };
+            const tabla = (head, body, c, vacio, colStyles) => {
+                doc.autoTable({
+                    ...tablaBase, startY: y, head: [head],
+                    body: body.length ? body : [[{ content: vacio, colSpan: head.length, styles: { halign: 'center', textColor: [110, 118, 135], fontStyle: 'italic' } }]],
+                    headStyles: { fillColor: c, textColor: 255, fontStyle: 'bold', fontSize: 8 },
+                    columnStyles: colStyles || {}
+                });
+                y = doc.lastAutoTable.finalY + 22;
+            };
+            const subtitulo = (t, c) => { espacio(50); color(c, 'setTextColor'); doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.text(t, M, y); y += 6; };
+            const anchosActivo = { 0: { cellWidth: 70 }, 2: { cellWidth: 90 } };
+
+            seccion('Activos encontrados', C.verde, d.encontrados.length);
+            tabla(['Activo fijo', 'Nombre', 'Serie', 'Marca / modelo', 'Hora', 'Comentario'],
+                d.encontrados.map(a => [a.activoFijo, a.nombre, a.serie || '-', a.marca || '-', a.hora || '-', a.comentario]),
+                C.verde, 'No se encontró ningún activo del universo', { ...anchosActivo, 4: { cellWidth: 46 } });
+
+            seccion('Activos no encontrados', C.rojo, d.nFalt + d.nJust,
+                'Activos registrados en esta tienda que no se localizaron en el levantamiento. Los justificados tienen un motivo documentado (en reparación o dados de baja).');
+            subtitulo(`Faltantes (sin localizar): ${d.faltantes.length}`, C.rojo);
+            tabla(['Activo fijo', 'Nombre', 'Serie', 'Marca / modelo', 'Comentario'],
+                d.faltantes.map(a => [a.activoFijo || a.codigo || '-', a.nombre, a.serie || '-', a.marca || '-', a.comentario || '']),
+                C.rojo, 'Sin faltantes: todos los activos se localizaron', anchosActivo);
+            if (d.reparacion.length || d.baja.length) {
+                subtitulo(`Justificados: ${d.reparacion.length + d.baja.length}`, C.azul);
+                tabla(['Activo fijo', 'Nombre', 'Serie', 'Situación', 'Comentario'],
+                    d.reparacion.map(a => [a.activoFijo || a.codigo || '-', a.nombre, a.serie || '-', 'En reparación', a.comentario || ''])
+                        .concat(d.baja.map(a => [a.activoFijo || a.codigo || '-', a.nombre, a.serie || '-', 'Dado de baja', a.comentario || ''])),
+                    C.azul, '', { ...anchosActivo, 3: { cellWidth: 70 } });
+            }
+
+            seccion('Activos registrados en otra sucursal', C.ambar, d.otraSucursal.length,
+                `Se encontraron físicamente en ${inv.tienda}, pero en el catálogo pertenecen a otra sucursal.`);
+            tabla(['Activo fijo', 'Nombre', 'Serie', 'Sucursal registrada', 'Comentario'],
+                d.otraSucursal.map(s => [s.activoFijo, s.nombre, s.serie || '-', s.centro || '-', s.comentario || '']),
+                C.ambar, 'No se encontraron activos de otras sucursales', { ...anchosActivo, 3: { cellWidth: 110, fontStyle: 'bold' } });
+
+            if (d.observaciones.length) {
+                seccion('Otras observaciones', C.gris, d.observaciones.length);
+                tabla(['Código escaneado', 'Nombre', 'Observación', 'Comentario'],
+                    d.observaciones.map(s => [s.activoFijo, s.nombre, INF_OBS[s.motivo] || s.alerta || '-', s.comentario || '']),
+                    C.gris, '', { 0: { cellWidth: 80 }, 2: { cellWidth: 150 } });
+            }
+
+            // Recomendaciones
+            espacio(60);
+            doc.setTextColor(40); doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
+            doc.text('Recomendaciones', M, y); y += 14;
+            doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(60);
+            d.recomendaciones.forEach((t, i) => {
+                const l = doc.splitTextToSize(t, ANCHO - 16);
+                espacio(l.length * 12 + 6);
+                doc.text(`${i + 1}.`, M, y); doc.text(l, M + 16, y);
+                y += l.length * 12 + 6;
+            });
+
+            // Firmas: nombre y puesto de ambas partes
+            if (y + 100 > H - 50) y = nuevaPagina(); else y += 18;
+            doc.setTextColor(40); doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
+            doc.text('Firmas de conformidad', M, y); y += 14;
+            const fw = (ANCHO - 40) / 2;
+            [['Realizó (Auditoría)', d.firmas.realiza], ['Atendió (Tienda)', d.firmas.atiende]].forEach(([t, f], i) => {
+                const x = M + i * (fw + 40), cx = x + fw / 2;
+                doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(110);
+                doc.text(t.toUpperCase(), cx, y + 6, { align: 'center' });
+                doc.setDrawColor(150); doc.setLineWidth(0.6); doc.line(x + 20, y + 50, x + fw - 20, y + 50);
+                doc.setFontSize(9.5); doc.setTextColor(40); doc.setFont('helvetica', 'bold');
+                doc.text(f.nombre || 'Nombre: ______________________', cx, y + 64, { align: 'center' });
+                doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(110);
+                doc.text(f.puesto || 'Puesto: ______________________', cx, y + 77, { align: 'center' });
+            });
+
+            // Pie en todas las páginas
+            const total = doc.getNumberOfPages();
+            for (let p = 1; p <= total; p++) {
+                doc.setPage(p);
+                doc.setDrawColor(220); doc.setLineWidth(0.5); doc.line(M, H - 34, W - M, H - 34);
+                doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(130);
+                doc.text(`${razonSocial || 'Grupo Kuroda'} · Folio ${d.folio} · Generado ${d.generado}`, M, H - 22);
+                doc.text(`Página ${p} de ${total}`, W - M, H - 22, { align: 'right' });
+            }
+
+            doc.save(nombreArchivoInforme(inv, 'pdf'));
         }
 
         function descargarInformeWord(id) {
-            const inv = inventarios.find(i => i.id === id);
-            if (!inv) { showNotification('No se encontró el inventario', 'danger'); return; }
-            if (inv.estado !== 'finalizado') { showNotification('Solo se puede descargar el informe de una auditoría finalizada', 'warning'); return; }
-            if (!inv.resumen) { showNotification('Este inventario se cerró antes de guardarse su resumen; el informe no se puede reconstruir', 'warning', 5000); return; }
+            const inv = validarInforme(id);
+            if (!inv) return;
             const d = construirDatosInforme(inv);
+            d.firmas = firmasInforme(inv);
+            const hex = c => '#' + c.map(v => v.toString(16).padStart(2, '0')).join('');
+            const C = Object.fromEntries(Object.entries(INF_COLOR).map(([k, v]) => [k, hex(v)]));
+            const th = (cols, c) => `<tr>${cols.map(t => `<th style="background:${c};color:#ffffff;">${t}</th>`).join('')}</tr>`;
+            const filas = (rows, n, vacio) => rows.length
+                ? rows.map((r, i) => `<tr>${r.map(v => `<td style="background:${i % 2 ? C.suave : '#ffffff'};">${esc(v)}</td>`).join('')}</tr>`).join('')
+                : `<tr><td colspan="${n}" style="text-align:center;color:${C.gris};font-style:italic;">${vacio}</td></tr>`;
+            let num = 0;
+            const seccion = (t, c, total, nota) => `<h2 style="color:${c};">${++num}. ${t} <span style="font-size:11pt;">(${total})</span></h2>` +
+                (nota ? `<p class="nota">${nota}</p>` : '');
+            const kpis = [['Universo esperado', d.universo, C.marca], ['Encontrados', d.nEnc, C.verde], ['No encontrados', d.nFalt, C.rojo],
+                ['Justificados', d.nJust, C.azul], ['En otra sucursal', d.otraSucursal.length, C.ambar]];
             const html = `<html><head><meta charset="utf-8"><style>
-                body{font-family:Calibri,Arial,sans-serif; color:#1e1e2f;}
-                h1{font-size:20px; margin-bottom:0;}
-                h2{font-size:14px; margin:18px 0 4px;}
-                table{border-collapse:collapse; width:100%; margin:6px 0 18px;}
-                th,td{border:1px solid #ccc; padding:6px 8px; font-size:11px; text-align:left;}
-                th{background:#7f5af0; color:#fff;}
-                .meta td{border:none; padding:2px 0; font-size:12px;}
+                body{font-family:Calibri,Arial,sans-serif;color:#282c3c;font-size:10.5pt;}
+                h1{font-size:18pt;margin:0;color:#ffffff;}
+                h2{font-size:13pt;margin:20px 0 4px;}
+                h3{font-size:10.5pt;margin:12px 0 4px;}
+                table{border-collapse:collapse;width:100%;margin:4px 0 12px;}
+                th,td{border:1px solid #e1e5ee;padding:5px 7px;font-size:9pt;text-align:left;vertical-align:top;}
+                th{font-weight:bold;}
+                .meta td{border:none;padding:3px 6px 3px 0;font-size:10pt;}
+                .lbl{color:${C.gris};font-weight:bold;}
+                .nota{color:${C.gris};font-size:9pt;margin:0 0 6px;}
+                .kpi td{border:none;text-align:center;padding:10px 4px;}
             </style></head><body>
-                <h1>${esc(razonSocial || 'Grupo Kuroda')}</h1>
-                <p style="color:#555;">Informe Ejecutivo de Auditoría de Inventario</p>
+                <table style="margin:0 0 14px;"><tr><td style="background:${C.marca};border:none;padding:14px 18px;">
+                    <h1>${esc(razonSocial || 'Grupo Kuroda')}</h1>
+                    <p style="color:#ffffff;margin:4px 0 0;font-size:11pt;">Informe de Auditoría de Inventario de Activos</p></td>
+                    <td style="background:${C.marca};border:none;padding:14px 18px;text-align:right;color:#ffffff;font-size:9.5pt;width:30%;">Folio ${d.folio}<br>${esc(d.fechaFin)}</td></tr></table>
+                <h2 style="color:${C.marca};margin-top:4px;">Datos generales</h2>
                 <table class="meta">
-                    <tr><td><strong>Folio:</strong></td><td>${inv.id.slice(0, 8).toUpperCase()}</td></tr>
-                    <tr><td><strong>Tienda / Centro:</strong></td><td>${esc(inv.tienda)}</td></tr>
-                    <tr><td><strong>Categoría:</strong></td><td>${esc(nombreCategoria(inv.categoria))}</td></tr>
-                    <tr><td><strong>Responsable:</strong></td><td>${esc(inv.responsable)}</td></tr>
-                    <tr><td><strong>Fecha de inicio:</strong></td><td>${d.fechaInicio}</td></tr>
-                    <tr><td><strong>Fecha de finalización:</strong></td><td>${d.fechaFin}</td></tr>
+                    <tr><td class="lbl">Tienda / centro</td><td>${esc(inv.tienda)}</td><td class="lbl">Inicio</td><td>${esc(d.fechaInicio)}</td></tr>
+                    <tr><td class="lbl">Categoría</td><td>${esc(d.cat)}</td><td class="lbl">Cierre</td><td>${esc(d.fechaFin)}</td></tr>
+                    <tr><td class="lbl">Responsable</td><td>${esc(inv.responsable || '-')}</td><td class="lbl">Duración</td><td>${esc(d.duracion)}</td></tr>
                 </table>
-                <table>
-                    <tr><th>Universo</th><th>Encontrados</th><th>En reparación</th><th>Dados de baja</th><th>Faltantes</th><th>Fuera de lugar</th><th>% Encontrados</th><th>% Conciliado</th></tr>
-                    <tr><td>${d.r.universoTotal ?? 0}</td><td>${d.r.encontradosTotal ?? 0}</td><td>${d.r.reparacionTotal ?? 0}</td><td>${d.r.bajaTotal ?? 0}</td><td>${d.r.faltantesTotal ?? 0}</td><td>${d.r.sobrantesTotal ?? 0}</td><td>${d.pct}%</td><td>${d.pctConciliado}%</td></tr>
-                </table>
-                <h2 style="color:#2cb67d;">Activos encontrados</h2>
-                <table><tr><th>Código</th><th>Nombre</th><th>Hora</th><th>Comentario</th></tr>
-                    ${d.encontrados.length ? d.encontrados.map(i => `<tr><td>${esc(i.code)}</td><td>${esc(i.name)}</td><td>${esc(i.timestamp || '-')}</td><td>${esc(i.comentario || '')}</td></tr>`).join('') : '<tr><td colspan="4">Sin activos encontrados</td></tr>'}
-                </table>
-                ${[['En reparación', d.reparacion, '#2196f3'], ['Dados de baja', d.baja, '#777']].filter(x => x[1].length).map(([t, l, c]) => `<h2 style="color:${c};">${t}</h2>
-                <table><tr><th>Activo fijo</th><th>Nombre</th><th>Serie</th><th>Comentario</th></tr>
-                    ${l.map(a => `<tr><td>${esc(a.activoFijo || a.codigo || '-')}</td><td>${esc(a.nombre)}</td><td>${esc(a.serie || '-')}</td><td>${esc(a.comentario || '')}</td></tr>`).join('')}
-                </table>`).join('')}
-                <h2 style="color:#ef476f;">Activos faltantes</h2>
-                <table><tr><th>Código</th><th>Activo fijo</th><th>Nombre</th><th>Serie</th></tr>
-                    ${d.faltantes.length ? d.faltantes.map(a => `<tr><td>${esc(a.codigo || '-')}</td><td>${esc(a.activoFijo || '-')}</td><td>${esc(a.nombre)}</td><td>${esc(a.serie || '-')}</td></tr>`).join('') : '<tr><td colspan="4">No hay faltantes</td></tr>'}
-                </table>
-                ${d.sobrantes.length ? `<h2 style="color:#f9a825;">Activos fuera de lugar / a revisar</h2>
-                <table><tr><th>Código</th><th>Nombre</th><th>Observación</th><th>Comentario</th></tr>
-                    ${d.sobrantes.map(s => `<tr><td>${esc(s.codigo || '-')}</td><td>${esc(s.nombre || '-')}</td><td>${esc(s.alerta || '-')}</td><td>${esc(s.comentario || '')}</td></tr>`).join('')}
-                </table>` : ''}
-                <br><br>
-                <table class="meta" style="margin-top:30px;">
-                    <tr><td style="width:50%;">_____________________________<br>Firma del responsable del levantamiento</td>
-                        <td>_____________________________<br>Vo.Bo. Administración</td></tr>
-                </table>
+                <h2 style="color:${C.marca};">Resumen de resultados</h2>
+                <table class="kpi"><tr>${kpis.map(([l, v, c]) => `<td style="background:${C.suave};border-left:4px solid ${c};">
+                    <span style="font-size:20pt;font-weight:bold;color:${c};">${v}</span><br><span style="font-size:8pt;color:${C.gris};">${l.toUpperCase()}</span></td>`).join('')}</tr></table>
+                <p style="font-size:9.5pt;color:#555;">Localizado: <b>${d.pct}%</b> · Conciliado (encontrados + justificados): <b>${d.pctConciliado}%</b></p>
+                <table><tr><td style="background:${C.suave};border:none;border-left:5px solid ${hex(d.dictamen.color)};padding:10px 14px;">
+                    <b>Dictamen: <span style="color:${hex(d.dictamen.color)};">${d.dictamen.txt}</span></b><br>${esc(d.conclusion)}</td></tr></table>
+
+                ${seccion('Activos encontrados', C.verde, d.encontrados.length)}
+                <table>${th(['Activo fijo', 'Nombre', 'Serie', 'Marca / modelo', 'Hora', 'Comentario'], C.verde)}
+                    ${filas(d.encontrados.map(a => [a.activoFijo, a.nombre, a.serie || '-', a.marca || '-', a.hora || '-', a.comentario]), 6, 'No se encontró ningún activo del universo')}</table>
+
+                ${seccion('Activos no encontrados', C.rojo, d.nFalt + d.nJust, 'Activos registrados en esta tienda que no se localizaron en el levantamiento. Los justificados tienen un motivo documentado (en reparación o dados de baja).')}
+                <h3 style="color:${C.rojo};">Faltantes (sin localizar): ${d.faltantes.length}</h3>
+                <table>${th(['Activo fijo', 'Nombre', 'Serie', 'Marca / modelo', 'Comentario'], C.rojo)}
+                    ${filas(d.faltantes.map(a => [a.activoFijo || a.codigo || '-', a.nombre, a.serie || '-', a.marca || '-', a.comentario || '']), 5, 'Sin faltantes: todos los activos se localizaron')}</table>
+                ${d.reparacion.length || d.baja.length ? `<h3 style="color:${C.azul};">Justificados: ${d.reparacion.length + d.baja.length}</h3>
+                <table>${th(['Activo fijo', 'Nombre', 'Serie', 'Situación', 'Comentario'], C.azul)}
+                    ${filas(d.reparacion.map(a => [a.activoFijo || a.codigo || '-', a.nombre, a.serie || '-', 'En reparación', a.comentario || ''])
+                        .concat(d.baja.map(a => [a.activoFijo || a.codigo || '-', a.nombre, a.serie || '-', 'Dado de baja', a.comentario || ''])), 5, '')}</table>` : ''}
+
+                ${seccion('Activos registrados en otra sucursal', C.ambar, d.otraSucursal.length, `Se encontraron físicamente en ${esc(inv.tienda)}, pero en el catálogo pertenecen a otra sucursal.`)}
+                <table>${th(['Activo fijo', 'Nombre', 'Serie', 'Sucursal registrada', 'Comentario'], C.ambar)}
+                    ${filas(d.otraSucursal.map(s => [s.activoFijo, s.nombre, s.serie || '-', s.centro || '-', s.comentario || '']), 5, 'No se encontraron activos de otras sucursales')}</table>
+
+                ${d.observaciones.length ? `${seccion('Otras observaciones', C.gris, d.observaciones.length)}
+                <table>${th(['Código escaneado', 'Nombre', 'Observación', 'Comentario'], C.gris)}
+                    ${filas(d.observaciones.map(s => [s.activoFijo, s.nombre, INF_OBS[s.motivo] || s.alerta || '-', s.comentario || '']), 4, '')}</table>` : ''}
+
+                <h2 style="color:${C.marca};">Recomendaciones</h2>
+                <ol>${d.recomendaciones.map(t => `<li style="margin-bottom:4px;">${esc(t)}</li>`).join('')}</ol>
+                <h2 style="color:${C.marca};">Firmas de conformidad</h2>
+                <table class="meta"><tr>
+                    ${[['Realizó (Auditoría)', d.firmas.realiza], ['Atendió (Tienda)', d.firmas.atiende]].map(([t, f]) =>
+                        `<td style="text-align:center;width:50%;"><span style="color:${C.gris};font-size:8pt;font-weight:bold;">${t.toUpperCase()}</span><br><br><br><br>
+                        _______________________________<br><b>${esc(f.nombre) || 'Nombre: ____________________'}</b><br>
+                        <span style="color:${C.gris};">${esc(f.puesto) || 'Puesto: ____________________'}</span></td>`).join('')}
+                </tr></table>
+                <p style="color:${C.gris};font-size:8pt;margin-top:24px;">${esc(razonSocial || 'Grupo Kuroda')} · Folio ${d.folio} · Generado ${esc(d.generado)}</p>
             </body></html>`;
 
             const blob = htmlDocx.asBlob(html);
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `Informe_Auditoria_${esc(inv.tienda)}_${esc(inv.categoria)}_${inv.id.slice(0, 6)}.docx`;
+            a.download = nombreArchivoInforme(inv, 'docx');
             document.body.appendChild(a);
             a.click();
             a.remove();
