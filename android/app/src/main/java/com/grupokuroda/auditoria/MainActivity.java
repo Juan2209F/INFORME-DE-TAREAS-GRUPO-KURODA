@@ -27,6 +27,7 @@ import android.webkit.JavascriptInterface;
 import android.webkit.JsPromptResult;
 import android.webkit.JsResult;
 import android.webkit.MimeTypeMap;
+import android.webkit.PermissionRequest;
 import android.webkit.URLUtil;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -38,6 +39,9 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.ProgressBar;
 import android.widget.Toast;
+
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.messaging.FirebaseMessaging;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -66,6 +70,8 @@ public class MainActivity extends Activity {
 
     private static final int REQ_ARCHIVO = 10;
     private static final int REQ_PERMISO_ESCRITURA = 11;
+    private static final int REQ_CAMARA = 12;
+    private static final int REQ_AVISOS = 13;
     private static final long REVISAR_CADA_MS = 6L * 3600 * 1000;
 
     private static final String PAGINA_SIN_CONEXION = "<!DOCTYPE html><html lang='es'><head><meta charset='UTF-8'>"
@@ -91,6 +97,8 @@ public class MainActivity extends Activity {
 
     private final Map<String, Recepcion> enCurso = new HashMap<>();
     private Recepcion pendienteDePermiso;
+    private PermissionRequest camaraPendiente;   /* la página pidió la cámara y Android aún no da permiso */
+    private String seccionPendiente;             /* sección a abrir al tocar una notificación */
 
     /* Archivo que la página está mandando en trozos (base64) para guardarlo. */
     private static final class Recepcion {
@@ -114,6 +122,9 @@ public class MainActivity extends Activity {
         hostApp = Uri.parse(BuildConfig.URL_APP).getHost();
         aplicarBarras();
         limpiarArchivosViejos();
+        Avisos.crearCanal(this);
+        obtenerTokenPush();
+        seccionPendiente = getIntent().getStringExtra("seccion");
 
         FrameLayout raiz = new FrameLayout(this);
         raiz.setBackgroundColor(Color.parseColor("#0A0E23"));
@@ -165,6 +176,35 @@ public class MainActivity extends Activity {
             actualizador.alVolver();
             /* App que se queda abierta en segundo plano: vuelve a revisar cada 6 horas. */
             if (paginaCargada && SystemClock.elapsedRealtime() - ultimaRevision > REVISAR_CADA_MS) revisarActualizacion(false);
+        }
+    }
+
+    /* Se tocó una notificación con la app ya abierta. */
+    @Override
+    protected void onNewIntent(Intent i) {
+        super.onNewIntent(i);
+        setIntent(i);
+        String s = i.getStringExtra("seccion");
+        if (s != null) { seccionPendiente = s; if (paginaCargada) abrirSeccionPendiente(); }
+    }
+
+    /* Abre en la página la sección de la notificación (cuando ya inició sesión). */
+    private void abrirSeccionPendiente() {
+        if (seccionPendiente == null || web == null) return;
+        String s = seccionPendiente.replaceAll("[^a-z_]", "");
+        seccionPendiente = null;
+        web.evaluateJavascript("(function(){var n=0,f=function(){if(window.GKApk&&GKApk.ir&&GKApk.ir('" + s + "'))return;"
+                + "if(++n<20)setTimeout(f,1000)};f()})()", null);
+    }
+
+    /* Dirección de este teléfono para las notificaciones (Firebase). La página la registra en Supabase. */
+    private void obtenerTokenPush() {
+        try {
+            if (FirebaseApp.getApps(this).isEmpty() && FirebaseApp.initializeApp(this) == null) return;   /* sin google-services.json */
+            FirebaseMessaging.getInstance().getToken().addOnSuccessListener(t ->
+                    getSharedPreferences(Avisos.PREFS, MODE_PRIVATE).edit().putString(Avisos.TOKEN, t).apply());
+        } catch (Exception ignorado) {
+            /* Firebase no configurado: la app funciona igual, sin notificaciones. */
         }
     }
 
@@ -289,6 +329,7 @@ public class MainActivity extends Activity {
                 /* Al abrir la app: revisar si hay una versión nueva en Supabase. */
                 if (!paginaCargada) revisarActualizacion(false);
                 paginaCargada = true;
+                abrirSeccionPendiente();
             }
         }
 
@@ -323,6 +364,28 @@ public class MainActivity extends Activity {
                 aviso("No hay una app para elegir archivos");
                 return false;
             }
+        }
+
+        /* Cámara para el escáner de Activos (getUserMedia). Solo para páginas del Monitor. */
+        @Override
+        public void onPermissionRequest(PermissionRequest r) {
+            runOnUiThread(() -> {
+                boolean video = false;
+                for (String s : r.getResources()) if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(s)) video = true;
+                if (!video || !esDeLaApp(r.getOrigin())) { r.deny(); return; }
+                if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                    r.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});
+                } else {
+                    if (camaraPendiente != null) camaraPendiente.deny();
+                    camaraPendiente = r;
+                    requestPermissions(new String[]{Manifest.permission.CAMERA}, REQ_CAMARA);
+                }
+            });
+        }
+
+        @Override
+        public void onPermissionRequestCanceled(PermissionRequest r) {
+            if (camaraPendiente == r) camaraPendiente = null;
         }
 
         @Override
@@ -451,8 +514,17 @@ public class MainActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int req, String[] permisos, int[] resultados) {
         super.onRequestPermissionsResult(req, permisos, resultados);
-        if (req != REQ_PERMISO_ESCRITURA) return;
         boolean ok = resultados.length > 0 && resultados[0] == PackageManager.PERMISSION_GRANTED;
+        if (req == REQ_CAMARA) {
+            PermissionRequest p = camaraPendiente;
+            camaraPendiente = null;
+            if (p != null) {
+                if (ok) p.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});
+                else { p.deny(); aviso("Para escanear, permite la cámara en Ajustes › Apps › Auditoría Kuroda › Permisos"); }
+            }
+            return;
+        }
+        if (req != REQ_PERMISO_ESCRITURA) return;
         final Recepcion r = pendienteDePermiso;
         pendienteDePermiso = null;
         if (r == null) return;
@@ -630,5 +702,21 @@ public class MainActivity extends Activity {
         /* Botón "Buscar actualizaciones" del menú Más. */
         @JavascriptInterface
         public void buscarActualizacion() { runOnUiThread(() -> revisarActualizacion(true)); }
+
+        /* Notificaciones: dirección de este teléfono en Firebase ("" si aún no hay o no está configurado). */
+        @JavascriptInterface
+        public String tokenPush() {
+            String t = getSharedPreferences(Avisos.PREFS, MODE_PRIVATE).getString(Avisos.TOKEN, "");
+            if (t.isEmpty()) runOnUiThread(MainActivity.this::obtenerTokenPush);
+            return t;
+        }
+
+        /* Android 13 o más: pedir permiso para mostrar notificaciones (una vez, al iniciar sesión). */
+        @JavascriptInterface
+        public void pedirPermisoAvisos() {
+            if (Build.VERSION.SDK_INT >= 33
+                    && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+                runOnUiThread(() -> requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_AVISOS));
+        }
     }
 }
