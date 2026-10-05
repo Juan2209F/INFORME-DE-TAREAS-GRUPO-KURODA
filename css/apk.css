@@ -1,5 +1,49 @@
 /* App Android (APK) — Grupo Kuroda
-   La app se ve igual que el Monitor en el navegador del teléfono (css/movil.css), así que aquí no
-   se cambia el diseño. Se probó en un emulador Android: con el estilo tal cual, la página se
-   desplaza bien con el dedo dentro del WebView. Si algún día hace falta un ajuste solo para la
-   app, va aquí colgado de html.gk-apk (la clase la pone js/app-apk.js). */
+   Mismo estilo que el Monitor (colores, tarjetas, letra y logo de css/main.css y css/movil.css);
+   aquí solo se acomoda la ESTRUCTURA para que se sienta como app de teléfono:
+   barra superior fija con el nombre de la sección, menú inferior fijo, ventanas que suben desde
+   abajo con animación, inicio de sesión abierto y "deslizar hacia abajo para recargar".
+   Todo cuelga de html.gk-apk (lo pone js/app-apk.js solo dentro de la app).
+
+   IMPORTANTE — desplazamiento: en el WebView de Android la página NO se desplazaba con el dedo
+   cuando html y body quedaban como contenedores de desplazamiento (overflow-x:hidden de movil.css).
+   Con "clip" se recorta igual pero hay un solo desplazamiento (el de la ventana); se comprobó en
+   Android que así sí baja. No cambiar estas dos líneas. */
+html.gk-apk, html.gk-apk body { zoom: 1 !important; height: auto !important; overflow-x: clip !important; overflow-y: visible !important; }
+.gk-apk body { -webkit-tap-highlight-color: transparent; }
+
+/* ── Barra superior fija (misma tarjeta blanca/oscura del Monitor, pegada arriba) ── */
+.gk-apk .topbar { position: sticky; top: 0; z-index: 70; margin: 0 !important; border-radius: 0 !important;
+  box-shadow: 0 2px 10px rgba(20, 30, 60, .08); }
+.gk-apk .topbar-title h1 { line-height: 1.15; }
+.gk-apk #apk-seccion { display: block; font-size: 11px; font-weight: 700; color: var(--blue);
+  text-transform: uppercase; letter-spacing: .06em; margin-top: 1px; }
+
+/* ── Contenido entre las dos barras ── */
+.gk-apk .content { padding-top: 12px !important; }
+
+/* ── Menú inferior fijo (mismo menú del Monitor) respetando la barra de gestos del teléfono ── */
+.gk-apk nav.sidebar { padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)) !important; }
+.gk-apk nav.sidebar .nav-item { -webkit-user-select: none; user-select: none; }
+
+/* ── Ventanas emergentes: suben desde abajo (movil.css ya las pone como hoja) ── */
+@keyframes apkSube { from { transform: translateY(40px); opacity: .4; } to { transform: none; opacity: 1; } }
+@keyframes apkFondo { from { opacity: 0; } to { opacity: 1; } }
+.gk-apk .modal-overlay.show, .gk-apk .kpi-cfg-overlay.show, .gk-apk .usr-overlay.show, .gk-apk .mv-hoja.abierta { animation: apkFondo .2s ease both; }
+.gk-apk .modal-overlay.show .modal, .gk-apk .kpi-cfg-overlay.show .kpi-cfg-modal,
+.gk-apk .usr-overlay.show .kpi-cfg-modal, .gk-apk .mv-hoja.abierta .mv-hoja-caja { animation: apkSube .28s cubic-bezier(.2, .8, .25, 1) both; }
+@media (prefers-reduced-motion: reduce) { .gk-apk * { animation-duration: .001ms !important; } }
+
+/* ── Inicio de sesión como pantalla de app: formulario abierto (sin "toca para ingresar") ── */
+.gk-apk .lp-card { max-height: none !important; cursor: default !important; }
+.gk-apk .lp-card > * { opacity: 1 !important; }
+.gk-apk .lp-sub::after { content: '' !important; }
+
+/* ── Deslizar hacia abajo para recargar (js/app-apk.js) ── */
+.gk-apk .apk-ptr { position: fixed; top: 8px; left: 50%; z-index: 95; width: 40px; height: 40px; margin-left: -20px;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center; pointer-events: none;
+  background: var(--white); color: var(--blue); font-size: 20px; font-weight: 800; box-shadow: var(--shadow-lg);
+  opacity: 0; transform: translateY(-60px); }
+.gk-apk .apk-ptr.listo { color: #fff; background: linear-gradient(135deg, var(--blue), var(--blue2)); }
+.gk-apk .apk-ptr.cargando span { animation: apkGira .8s linear infinite; }
+@keyframes apkGira { to { transform: rotate(360deg); } }
