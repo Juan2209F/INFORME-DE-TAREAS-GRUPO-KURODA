@@ -503,6 +503,7 @@
         .badge-done { background: var(--success-color); }
         .badge-process { background: var(--warning-color); color: #333; }
         .badge-admin { background: var(--active-bg); }
+        .badge-danger { background: var(--danger-color); }
         .badge-user { background: var(--info-color); }
 
         /* ========== CONTROLES ========== */
@@ -813,6 +814,44 @@
             width: 16px; height: 16px;
             cursor: pointer;
         }
+        .veh-doc-ayuda { font-size: 0.75rem; color: #888; margin: -0.3rem 0 0.6rem; }
+        .veh-doc-resumen { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.8rem; font-size: 0.78rem; }
+        .veh-doc-resumen span { padding: 3px 10px; border-radius: 999px; background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-main); }
+        .veh-doc-lista { display: flex; flex-direction: column; gap: 0.45rem; margin-top: 0.3rem; }
+        .veh-doc-fila { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; padding: 0.5rem 0.6rem;
+            border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); background: var(--input-bg); }
+        .veh-doc-fila.si { border-color: rgba(45,206,137,.6); }
+        .veh-doc-fila.no { border-color: rgba(245,54,92,.6); }
+        .veh-doc-fila span { font-size: 0.82rem; font-weight: 600; color: var(--text-main); }
+        .veh-doc-btns { display: flex; gap: 0.35rem; flex-shrink: 0; }
+        .veh-doc-btns button { border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main); border-radius: 8px;
+            padding: 6px 10px; font-size: 0.75rem; font-weight: 700; cursor: pointer; font-family: inherit; }
+        .veh-doc-btns button.on-si { background: var(--success-color); border-color: var(--success-color); color: #fff; }
+        .veh-doc-btns button.on-no { background: var(--danger-color); border-color: var(--danger-color); color: #fff; }
+        .veh-doc-todos { margin-top: 0.5rem; width: 100%; border: 1px dashed var(--success-color); background: transparent; color: var(--success-color);
+            border-radius: var(--border-radius-sm); padding: 7px; font-size: 0.78rem; font-weight: 700; cursor: pointer; font-family: inherit; }
+        .veh-doc-err { color: var(--danger-color); font-size: 0.78rem; min-height: 1rem; margin-top: 0.4rem; }
+        #vehiculo-tbody tr { cursor: pointer; }
+        /* Teléfono: cada vehículo como tarjeta, con sus 4 documentos a la vista. */
+        @media (max-width: 600px) {
+            #vehiculo-table thead { display: none; }
+            #vehiculo-table, #vehiculo-table tbody { display: block; width: 100%; min-width: 0 !important; }
+            #vehiculo-tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; margin-bottom: 0.6rem; padding: 0.6rem 0.7rem;
+                border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); background: var(--card-bg); }
+            #vehiculo-tbody td { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 2px 0 !important;
+                border: 0 !important; text-align: left !important; font-size: 0.78rem; min-width: 0; }
+            #vehiculo-tbody td::before { content: attr(data-label); font-size: 0.66rem; font-weight: 700; color: #888; text-transform: uppercase;
+                flex: 1 1 auto; min-width: 0; line-height: 1.2; overflow-wrap: normal; }
+            #vehiculo-tbody td > * { flex-shrink: 0; }
+            #vehiculo-tbody td[data-label="Hora"] { display: none; }
+            #vehiculo-tbody td[data-label="Responsable"], #vehiculo-tbody td[data-label="Estatus"] { grid-column: 1 / -1; }
+            #vehiculo-tbody td.veh-td-nombre { grid-column: 1 / -1; display: block; padding-bottom: 4px !important; border-bottom: 1px solid var(--border-color) !important; }
+            #vehiculo-tbody td.veh-td-nombre::before { display: none; }
+            #vehiculo-tbody td[colspan] { grid-column: 1 / -1; }
+            #vehiculo-tbody td[colspan]::before { display: none; }
+        }
+        .veh-doc-ok { color: var(--success-color); font-weight: 700; }
+        .veh-doc-x { color: var(--danger-color); font-weight: 700; }
         .vehiculo-table-wrap {
             overflow-x: auto;
             margin-top: 1rem;
@@ -1476,18 +1515,14 @@
                         <div id="scan-resumen-live" style="display:none;"></div>
                         <div id="scan-results"></div>
                         <div id="vehiculo-module" style="display:none;" class="vehiculo-docs">
-                            <h4>🚗 Documentos del Vehículo</h4>
-                            <div class="doc-checkboxes">
-                                <label><input type="checkbox" class="doc-check" data-doc="carta"> Carta responsiva</label>
-                                <label><input type="checkbox" class="doc-check" data-doc="poliza"> Póliza de seguro</label>
-                                <label><input type="checkbox" class="doc-check" data-doc="licencia"> Licencia</label>
-                                <label><input type="checkbox" class="doc-check" data-doc="tarjeta"> Tarjeta de circulación</label>
-                            </div>
+                            <h4>🚗 Documentos de los vehículos</h4>
+                            <p class="veh-doc-ayuda">Después de cada escaneo o captura se pregunta qué documentos tiene el vehículo. Toca un renglón para corregirlo.</p>
+                            <div id="veh-doc-resumen" class="veh-doc-resumen"></div>
                             <button class="btn-success" onclick="exportarExcelVehiculos()"><i class="fas fa-file-excel"></i> Exportar Excel</button>
                             <div class="vehiculo-table-wrap">
                                 <table id="vehiculo-table">
-                                    <thead><tr><th>Fecha</th><th>Equipo</th><th>Responsable</th><th>Póliza</th><th>Tarjeta</th><th>Licencia</th><th>Estatus</th></tr></thead>
-                                    <tbody id="vehiculo-tbody"><tr><td colspan="7" style="color:#888;">Sin registros</td></tr></tbody>
+                                    <thead><tr><th>Hora</th><th>Vehículo</th><th>Responsable</th><th>Tarjeta</th><th>Póliza</th><th>Licencia</th><th>Carta resp.</th><th>Estatus</th></tr></thead>
+                                    <tbody id="vehiculo-tbody"><tr><td colspan="8" style="color:#888;">Sin registros</td></tr></tbody>
                                 </table>
                             </div>
                         </div>
@@ -1678,7 +1713,7 @@
                 <label>Tipo de levantamiento</label>
                 <select id="modal-veh-tipo">
                     <option value="simple">Simple (igual que cómputo)</option>
-                    <option value="documentos">Con documentos vehiculares</option>
+                    <option value="documentos">Con documentos (en cada escaneo pregunta qué documentos tiene)</option>
                 </select>
             </div>
             <label>Responsable</label>
@@ -1692,13 +1727,19 @@
 
     <!-- Modal Responsable del Vehículo (variante con documentos) -->
     <div class="modal-overlay" id="modalResponsableVehiculo">
-        <div class="modal-box" style="max-width:min(380px,95vw);">
-            <h3><i class="fas fa-user"></i> Responsable del vehículo</h3>
-            <p class="sub">Se guardará en la tabla de documentos vehiculares.</p>
-            <label>Nombre del responsable</label>
-            <input type="text" id="veh-resp-input" placeholder="Nombre completo" onkeypress="if(event.key==='Enter') confirmarResponsableVehiculo()">
+        <div class="modal-box" style="max-width:min(460px,95vw);">
+            <h3><i class="fas fa-car"></i> Documentos del vehículo</h3>
+            <p class="sub" id="veh-doc-equipo"></p>
+            <label>Responsable del vehículo</label>
+            <input type="text" id="veh-resp-input" placeholder="Nombre completo">
+            <label style="margin-top:0.6rem;">¿Cuenta con estos documentos?</label>
+            <div id="veh-doc-lista" class="veh-doc-lista"></div>
+            <button type="button" class="veh-doc-todos" onclick="vehDocsTodos()"><i class="fas fa-check-double"></i> Marcar todos como presentes</button>
+            <label style="margin-top:0.6rem;">Comentario (opcional)</label>
+            <input type="text" id="veh-doc-com" placeholder="Ej. póliza vencida, licencia en trámite…">
+            <div id="veh-doc-err" class="veh-doc-err"></div>
             <div class="modal-buttons">
-                <button class="btn-secondary" onclick="closeModal('modalResponsableVehiculo')">Cancelar</button>
+                <button class="btn-secondary" onclick="omitirDocsVehiculo()">Revisar después</button>
                 <button class="btn-primary" onclick="confirmarResponsableVehiculo()"><i class="fas fa-check"></i> Guardar</button>
             </div>
         </div>
@@ -3753,6 +3794,12 @@
             if (scanResults.length === 0) {
                 if (!confirm('El inventario está vacío. ¿Finalizar de todos modos?')) return;
             }
+            // Con documentos: avisa si quedan vehículos escaneados sin revisar sus documentos.
+            if (esLevantamientoConDocs(inv)) {
+                const conRegistro = new Set(vehiculos.filter(v => estatusDocs(docsDe(v)) !== 'Sin revisar').map(v => normCodigo(v.codigo || '')));
+                const sinDocs = scanResults.filter(i => estatusDe(i) === 'Encontrado' && !conRegistro.has(normCodigo(i.code || '')));
+                if (sinDocs.length && !confirm(`${sinDocs.length} vehículo(s) no tienen revisados sus documentos. ¿Finalizar de todos modos?`)) return;
+            }
             inv.items = scanResults.slice();
             if (inv.categoria === 'vehiculos') {
                 inv.vehiculos = vehiculos.slice();
@@ -3973,7 +4020,9 @@
                     guardarRevision();
                     return avisarEscaneo('ok', assetFound.nombre, `${codigo} · confirmado con escaneo (antes marcado a mano)`);
                 }
-                return avisarEscaneo('repetido', (assetFound && assetFound.nombre) || previo.name || codigo, `${codigo} · ya estaba registrado a las ${previo.timestamp || '—'}`);
+                const rep = avisarEscaneo('repetido', (assetFound && assetFound.nombre) || previo.name || codigo, `${codigo} · ya estaba registrado a las ${previo.timestamp || '—'}`);
+                if (esLevantamientoConDocs(inv)) pedirDocsVehiculo(previo);
+                return rep;
             }
             const item = evaluarItem(inv, { code: codigo, assetId: assetFound ? assetFound.id : null, found: true,
                 timestamp: new Date().toLocaleTimeString(), estatus: 'Encontrado', comentario: '' });
@@ -3986,14 +4035,9 @@
             const tipo = alerta ? 'alerta' : 'ok';
             avisarEscaneo(tipo, name, alerta ? `${codigo} · ${alerta.replace(/^⚠️\s*/, '')}` : `${codigo}${item.centro ? ' · ' + item.centro : ''}`);
 
-            // Variante "con documentos vehiculares": pide el responsable en un
-            // modal propio (el prompt() nativo del navegador no funciona bien
-            // dentro de la app). La variante "simple" no abre nada extra y se
-            // comporta igual que un levantamiento de cómputo.
-            if (inv.categoria === 'vehiculos' && inv.vehTipo === 'documentos') {
-                cerrarCamaraScan();
-                abrirModalResponsableVehiculo(name, inv.responsable || '');
-            }
+            // Variante "con documentos vehiculares": después de cada escaneo se pregunta qué
+            // documentos tiene el vehículo (la variante "simple" se comporta igual que cómputo).
+            if (esLevantamientoConDocs(inv)) pedirDocsVehiculo(item);
             return tipo;
         }
 
@@ -4080,36 +4124,117 @@
             if (_invSaveTimer) { guardarInventarioYa(); e.preventDefault(); e.returnValue = ''; }
         });
 
-        // ---- Responsable del vehículo (variante "con documentos") ----
+        // ---- Documentos de vehículos (variante "con documentos") ----
+        // Después de cada escaneo o captura se abre una ventana con el vehículo: responsable y,
+        // por cada documento, "Sí está" / "No está". Un registro por vehículo (si se vuelve a
+        // escanear, se corrige el mismo). "Revisar después" lo deja como "Sin revisar".
+        const VEH_DOCS = [
+            ['tarjeta', 'Tarjeta de circulación'],
+            ['poliza', 'Póliza de seguro'],
+            ['licencia', 'Licencia de conducir'],
+            ['carta', 'Carta responsiva']
+        ];
+        const esLevantamientoConDocs = inv => !!inv && inv.categoria === 'vehiculos' && inv.vehTipo === 'documentos';
+        // Registros anteriores guardaban "OK"/"X" sueltos y no tenían carta responsiva.
+        function docsDe(v) {
+            if (v.docs) return v.docs;
+            const d = {};
+            ['tarjeta', 'poliza', 'licencia', 'carta'].forEach(k => { if (v[k] === 'OK') d[k] = true; else if (v[k] === 'X') d[k] = false; });
+            return d;
+        }
+        function estatusDocs(docs) {
+            const r = VEH_DOCS.map(([k]) => docs[k]);
+            if (r.some(x => x === undefined || x === null)) return 'Sin revisar';
+            return r.every(Boolean) ? 'Completo' : 'Incompleto';
+        }
+        const faltanDocs = docs => VEH_DOCS.filter(([k]) => docs[k] === false).map(([, l]) => l);
+
         let vehiculoPendiente = null;
-        function abrirModalResponsableVehiculo(equipoNombre, responsableSugerido) {
-            vehiculoPendiente = { equipo: equipoNombre };
-            document.getElementById('veh-resp-input').value = responsableSugerido;
+        function pedirDocsVehiculo(item) {
+            if (!item) return;
+            const asset = (item.assetId && assets.find(a => a.id === item.assetId)) || null;
+            const codigo = String(item.code || (asset && (asset.activoFijo || asset.codigo)) || '');
+            const idx = vehiculos.findIndex(v => v.codigo && normCodigo(v.codigo) === normCodigo(codigo));
+            const previo = idx >= 0 ? vehiculos[idx] : null;
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            vehiculoPendiente = {
+                idx, codigo, equipo: (asset && asset.nombre) || item.name || codigo,
+                activoFijo: (asset && asset.activoFijo) || codigo, serie: (asset && asset.serie) || '',
+                docs: previo ? { ...docsDe(previo) } : {},
+                reabrirCamara: !!camaraStream
+            };
+            if (camaraStream) cerrarCamaraScan();
+            document.getElementById('veh-doc-equipo').textContent =
+                `${vehiculoPendiente.equipo} · ${vehiculoPendiente.activoFijo}${vehiculoPendiente.serie ? ' · Serie ' + vehiculoPendiente.serie : ''}`;
+            document.getElementById('veh-resp-input').value = previo ? (previo.responsable === 'N/A' ? '' : previo.responsable || '') : '';
+            document.getElementById('veh-doc-com').value = previo ? previo.comentario || '' : '';
+            document.getElementById('veh-doc-err').textContent = '';
+            pintarDocsVehiculo();
             openModal('modalResponsableVehiculo');
-            setTimeout(() => document.getElementById('veh-resp-input').focus(), 50);
+        }
+        // Nombre anterior (la llamada original pedía solo el responsable).
+        function abrirModalResponsableVehiculo(equipoNombre) { pedirDocsVehiculo({ code: equipoNombre, name: equipoNombre }); }
+
+        function pintarDocsVehiculo() {
+            const d = vehiculoPendiente ? vehiculoPendiente.docs : {};
+            document.getElementById('veh-doc-lista').innerHTML = VEH_DOCS.map(([k, l]) => `
+                <div class="veh-doc-fila ${d[k] === true ? 'si' : d[k] === false ? 'no' : ''}">
+                    <span>${l}</span>
+                    <div class="veh-doc-btns">
+                        <button type="button" class="${d[k] === true ? 'on-si' : ''}" onclick="marcarDocVehiculo('${k}', true)">✓ Sí está</button>
+                        <button type="button" class="${d[k] === false ? 'on-no' : ''}" onclick="marcarDocVehiculo('${k}', false)">✗ No está</button>
+                    </div>
+                </div>`).join('');
+        }
+        function marcarDocVehiculo(k, v) {
+            if (!vehiculoPendiente) return;
+            vehiculoPendiente.docs[k] = v;
+            document.getElementById('veh-doc-err').textContent = '';
+            pintarDocsVehiculo();
+        }
+        function vehDocsTodos() {
+            if (!vehiculoPendiente) return;
+            VEH_DOCS.forEach(([k]) => { vehiculoPendiente.docs[k] = true; });
+            pintarDocsVehiculo();
         }
 
-        function confirmarResponsableVehiculo() {
-            if (!vehiculoPendiente) { closeModal('modalResponsableVehiculo'); return; }
-            const responsable = document.getElementById('veh-resp-input').value.trim() || 'N/A';
-            const poliza = document.querySelector('.doc-check[data-doc="poliza"]')?.checked ? 'OK' : 'X';
-            const tarjeta = document.querySelector('.doc-check[data-doc="tarjeta"]')?.checked ? 'OK' : 'X';
-            const licencia = document.querySelector('.doc-check[data-doc="licencia"]')?.checked ? 'OK' : 'X';
-            const estatus = (poliza === 'OK' && tarjeta === 'OK' && licencia === 'OK') ? 'Completo' : 'Incompleto';
-            vehiculos.push({
-                fecha: new Date().toLocaleDateString('es-MX'),
-                equipo: vehiculoPendiente.equipo,
-                responsable: responsable,
-                poliza: poliza,
-                tarjeta: tarjeta,
-                licencia: licencia,
-                estatus: estatus
-            });
+        function guardarDocsVehiculo(sinRevisar) {
+            const p = vehiculoPendiente;
+            if (!p) { closeModal('modalResponsableVehiculo'); return; }
+            if (!sinRevisar && VEH_DOCS.some(([k]) => p.docs[k] !== true && p.docs[k] !== false)) {
+                document.getElementById('veh-doc-err').textContent = 'Marca en cada documento si está o no está.';
+                return;
+            }
+            const docs = sinRevisar ? (p.idx >= 0 ? docsDe(vehiculos[p.idx]) : {}) : { ...p.docs };
+            const ahora = new Date();
+            const reg = {
+                fecha: ahora.toLocaleDateString('es-MX'), hora: ahora.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+                codigo: p.codigo, activoFijo: p.activoFijo, serie: p.serie, equipo: p.equipo,
+                responsable: document.getElementById('veh-resp-input').value.trim() || 'N/A',
+                comentario: document.getElementById('veh-doc-com').value.trim(),
+                docs, estatus: estatusDocs(docs)
+            };
+            // Columnas anteriores (OK / X) para compatibilidad con exportaciones viejas.
+            VEH_DOCS.forEach(([k]) => { reg[k] = docs[k] === true ? 'OK' : docs[k] === false ? 'X' : ''; });
+            if (p.idx >= 0) vehiculos[p.idx] = { ...vehiculos[p.idx], ...reg };
+            else vehiculos.push(reg);
             renderVehiculosTabla(vehiculos);
             const inv = inventarios.find(i => i.id === inventarioActivo);
-            if (inv) { inv.vehiculos = vehiculos.slice(); saveAllData(); }
+            if (inv) { inv.vehiculos = vehiculos.slice(); guardarInventarioPronto(); }
             vehiculoPendiente = null;
             closeModal('modalResponsableVehiculo');
+            if (!sinRevisar) {
+                const f = faltanDocs(docs);
+                showNotification(f.length ? `🚗 ${reg.equipo}: faltan ${f.join(', ')}` : `🚗 ${reg.equipo}: documentos completos`, f.length ? 'warning' : 'success', 3500);
+            }
+            if (p.reabrirCamara) setTimeout(() => abrirCamaraScan(), 250);
+        }
+        function confirmarResponsableVehiculo() { guardarDocsVehiculo(false); }
+        function omitirDocsVehiculo() { guardarDocsVehiculo(true); }
+        function editarDocsVehiculo(i) {
+            const v = vehiculos[i];
+            if (!v || !inventarioActivo) return;
+            pedirDocsVehiculo({ code: v.codigo || v.equipo, name: v.equipo, assetId: (buscarActivoPorCodigo(v.codigo || '') || {}).id });
         }
 
         // ============================================================
@@ -4504,6 +4629,7 @@
             }));
             guardarRevision();
             avisarEscaneo('ok', asset.nombre, `${asset.activoFijo || asset.codigo || ''} · marcado a mano como "${estatus}"`);
+            if (estatus === 'Encontrado' && esLevantamientoConDocs(inv)) pedirDocsVehiculo(scanResults[scanResults.length - 1]);
         }
 
         // ---- Pantalla del levantamiento ----
@@ -4699,6 +4825,14 @@
             if (otraSucursal.length) conclusion += `Además, se encontraron ${otraSucursal.length} activo(s) en esta tienda que en el catálogo están registrados en otra sucursal. `;
             if (observaciones.length) conclusion += `${observaciones.length} escaneo(s) más tienen observaciones (sin registro, otra categoría o dados de baja).`;
 
+            // Documentos de vehículos (levantamiento "con documentos")
+            const vehDocs = (inv.vehiculos || []).map(v => {
+                const docs = docsDe(v);
+                return { ...v, docs, est: v.docs ? estatusDocs(docs) : (v.estatus || 'Sin revisar'), faltan: faltanDocs(docs) };
+            });
+            const vehIncompletos = vehDocs.filter(v => v.est === 'Incompleto');
+            if (vehDocs.length) conclusion += ` En documentos vehiculares: ${vehDocs.filter(v => v.est === 'Completo').length} de ${vehDocs.length} vehículo(s) tienen sus documentos completos.`;
+
             const recomendaciones = [];
             if (nFalt) recomendaciones.push(`Investigar la ubicación de los ${nFalt} activo(s) no encontrados con el personal de la tienda. Si no se localizan, documentar el caso e iniciar el trámite de baja o reporte que corresponda.`);
             if (otraSucursal.length) recomendaciones.push(`Registrar en "Movimientos" la transferencia de los ${otraSucursal.length} activo(s) de otra sucursal a ${inv.tienda}, o regresarlos a su sucursal de origen, para que el catálogo coincida con la ubicación física.`);
@@ -4706,10 +4840,14 @@
             if (n('no-registrado')) recomendaciones.push(`Dar de alta en el catálogo los ${n('no-registrado')} activo(s) encontrados sin registro.`);
             if (n('otra-categoria')) recomendaciones.push(`Corregir la categoría de ${n('otra-categoria')} activo(s) registrados en una categoría distinta.`);
             if (n('dado-de-baja')) recomendaciones.push(`Revisar ${n('dado-de-baja')} activo(s) que están dados de baja en el catálogo pero siguen físicamente en la tienda.`);
+            if (vehIncompletos.length) recomendaciones.push(`Regularizar los documentos faltantes de ${vehIncompletos.length} vehículo(s): ` +
+                vehIncompletos.map(v => `${v.equipo} (${v.faltan.join(', ')})`).join('; ') + '.');
+            const vehSinRevisar = vehDocs.filter(v => v.est === 'Sin revisar');
+            if (vehSinRevisar.length) recomendaciones.push(`Completar la revisión de documentos de ${vehSinRevisar.length} vehículo(s) que quedaron sin revisar: ${vehSinRevisar.map(v => v.equipo).join(', ')}.`);
             if (nJust) recomendaciones.push(`Dar seguimiento a los ${nJust} activo(s) justificados (en reparación o baja) hasta cerrar su trámite.`);
             if (!recomendaciones.length) recomendaciones.push('Sin acciones pendientes: el inventario coincide con el catálogo.');
 
-            return { inv, r, cat, encontrados, faltantes, reparacion, baja, otraSucursal, observaciones,
+            return { inv, r, cat, vehDocs, encontrados, faltantes, reparacion, baja, otraSucursal, observaciones,
                 universo, nEnc, nJust, nFalt, pct, pctConciliado, dictamen, conclusion, recomendaciones,
                 folio: inv.id.slice(0, 8).toUpperCase(), fechaInicio: fmt(inv.fecha), fechaFin: fmt(r.fechaFin), duracion,
                 generado: new Date().toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }) };
@@ -4921,6 +5059,29 @@
                     C.gris, '', { 0: { cellWidth: 80 }, 2: { cellWidth: 150 } });
             }
 
+            if (d.vehDocs.length) {
+                const sn = v => v === true ? 'Sí' : v === false ? 'No' : '-';
+                seccion('Documentos de vehículos', C.acento, d.vehDocs.length,
+                    'Revisión de documentos en cada vehículo escaneado o capturado durante el levantamiento.');
+                doc.autoTable({
+                    ...tablaBase, startY: y,
+                    head: [['Activo fijo', 'Vehículo', 'Responsable'].concat(VEH_DOCS.map(([, l]) => l), ['Estatus'])],
+                    body: d.vehDocs.map(v => [v.activoFijo || v.codigo || '-', v.equipo + (v.comentario ? '\n' + v.comentario : ''), v.responsable || '-']
+                        .concat(VEH_DOCS.map(([k]) => sn(v.docs[k])), [v.est])),
+                    headStyles: { fillColor: C.acento, textColor: 255, fontStyle: 'bold', fontSize: 7.5 },
+                    columnStyles: { 3: { halign: 'center' }, 4: { halign: 'center' }, 5: { halign: 'center' }, 6: { halign: 'center' } },
+                    didParseCell: c => {
+                        if (c.section !== 'body') return;
+                        if (c.column.index >= 3 && c.column.index <= 6) {
+                            if (c.cell.raw === 'Sí') c.cell.styles.textColor = C.verde;
+                            if (c.cell.raw === 'No') { c.cell.styles.textColor = C.rojo; c.cell.styles.fontStyle = 'bold'; }
+                        }
+                        if (c.column.index === 7) c.cell.styles.textColor = c.cell.raw === 'Completo' ? C.verde : c.cell.raw === 'Incompleto' ? C.rojo : C.gris;
+                    }
+                });
+                y = doc.lastAutoTable.finalY + 22;
+            }
+
             // Recomendaciones
             espacio(60);
             doc.setTextColor(40); doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
@@ -5029,6 +5190,12 @@
                 <table>${th(['Código escaneado', 'Nombre', 'Observación', 'Comentario'], C.gris)}
                     ${filas(d.observaciones.map(s => [s.activoFijo, s.nombre, INF_OBS[s.motivo] || s.alerta || '-', s.comentario || '']), 4, '')}</table>` : ''}
 
+                ${d.vehDocs.length ? `${seccion('Documentos de vehículos', C.acento, d.vehDocs.length, 'Revisión de documentos en cada vehículo escaneado o capturado durante el levantamiento.')}
+                <table>${th(['Activo fijo', 'Vehículo', 'Responsable'].concat(VEH_DOCS.map(([, l]) => l), ['Estatus']), C.acento)}
+                    ${d.vehDocs.map((v, i) => `<tr>${[v.activoFijo || v.codigo || '-', v.equipo + (v.comentario ? ' — ' + v.comentario : ''), v.responsable || '-'].map(t => `<td style="background:${i % 2 ? C.suave : '#ffffff'};">${esc(t)}</td>`).join('')}
+                        ${VEH_DOCS.map(([k]) => { const x = v.docs[k]; return `<td style="text-align:center;font-weight:bold;color:${x === true ? C.verde : x === false ? C.rojo : C.gris};background:${i % 2 ? C.suave : '#ffffff'};">${x === true ? 'Sí' : x === false ? 'No' : '-'}</td>`; }).join('')}
+                        <td style="font-weight:bold;color:${v.est === 'Completo' ? C.verde : v.est === 'Incompleto' ? C.rojo : C.gris};background:${i % 2 ? C.suave : '#ffffff'};">${v.est}</td></tr>`).join('')}</table>` : ''}
+
                 <h2 style="color:${C.marca};">Recomendaciones</h2>
                 <ol>${d.recomendaciones.map(t => `<li style="margin-bottom:4px;">${esc(t)}</li>`).join('')}</ol>
                 <h2 style="color:${C.marca};">Firmas de conformidad</h2>
@@ -5054,22 +5221,30 @@
 
         function renderVehiculosTabla(data) {
             const tbody = document.getElementById('vehiculo-tbody');
+            const res = document.getElementById('veh-doc-resumen');
             if (!tbody) return;
-            if (!data || data.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" style="color:#888;">Sin registros de vehículos</td></tr>`;
+            const lista = data || [];
+            if (res) {
+                const n = est => lista.filter(v => (v.docs ? estatusDocs(v.docs) : v.estatus) === est).length;
+                res.innerHTML = lista.length ? `<span>🚗 ${lista.length} vehículo(s)</span><span class="veh-doc-ok">✓ ${n('Completo')} completos</span>` +
+                    `<span class="veh-doc-x">✗ ${n('Incompleto')} incompletos</span>${n('Sin revisar') ? `<span>⏳ ${n('Sin revisar')} sin revisar</span>` : ''}` : '';
+            }
+            if (!lista.length) {
+                tbody.innerHTML = `<tr><td colspan="8" style="color:#888;">Sin registros de vehículos</td></tr>`;
                 return;
             }
-            tbody.innerHTML = data.map(v => `
-                <tr>
-                    <td>${esc(v.fecha)}</td>
-                    <td>${esc(v.equipo)}</td>
-                    <td>${esc(v.responsable)}</td>
-                    <td>${esc(v.poliza)}</td>
-                    <td>${esc(v.tarjeta)}</td>
-                    <td>${esc(v.licencia)}</td>
-                    <td><span class="status-badge ${v.estatus === 'Completo' ? 'badge-done' : 'badge-process'}">${esc(v.estatus)}</span></td>
-                </tr>
-            `).join('');
+            const celda = v => v === true ? '<span class="veh-doc-ok" title="Sí está">✓</span>' : v === false ? '<span class="veh-doc-x" title="No está">✗</span>' : '<span style="color:#888;">—</span>';
+            tbody.innerHTML = lista.map((v, i) => {
+                const d = docsDe(v), est = v.docs ? estatusDocs(v.docs) : (v.estatus || 'Sin revisar');
+                const cls = est === 'Completo' ? 'badge-done' : est === 'Incompleto' ? 'badge-danger' : 'badge-process';
+                return `<tr onclick="editarDocsVehiculo(${i})" title="Tocar para corregir">
+                    <td data-label="Hora">${esc(v.hora || v.fecha || '')}</td>
+                    <td data-label="Vehículo" class="veh-td-nombre"><strong>${esc(v.equipo)}</strong>${v.activoFijo ? `<br><small style="color:#888;">${esc(v.activoFijo)}</small>` : ''}${v.comentario ? `<br><small style="color:#888;">💬 ${esc(v.comentario)}</small>` : ''}</td>
+                    <td data-label="Responsable">${esc(v.responsable)}</td>
+                    ${VEH_DOCS.map(([k, l]) => `<td data-label="${l}" class="veh-td-doc" style="text-align:center;">${celda(d[k])}</td>`).join('')}
+                    <td data-label="Estatus"><span class="status-badge ${cls}">${esc(est)}</span></td>
+                </tr>`;
+            }).join('');
         }
 
         // Genera un .xlsx con los activos de una sucursal (o todos, si nombreCentro es null)
@@ -5099,11 +5274,15 @@
                 showNotification('No hay datos de vehículos para exportar', 'warning');
                 return;
             }
-            let csv = 'Fecha,Equipo de transporte,Responsable,Póliza,Tarjeta,Licencia,Estatus\n';
+            const q = t => `"${String(t ?? '').replace(/"/g, '""')}"`;
+            const sn = v => v === true ? 'Sí' : v === false ? 'No' : 'Sin revisar';
+            let csv = ['Fecha', 'Hora', 'Activo fijo', 'Vehículo', 'Responsable'].concat(VEH_DOCS.map(([, l]) => l), ['Faltan', 'Estatus', 'Comentario']).map(q).join(',') + '\n';
             vehiculos.forEach(v => {
-                csv += `${v.fecha},"${v.equipo}","${v.responsable}",${v.poliza},${v.tarjeta},${v.licencia},"${v.estatus}"\n`;
+                const d = docsDe(v);
+                csv += [v.fecha, v.hora || '', v.activoFijo || v.codigo || '', v.equipo, v.responsable].concat(VEH_DOCS.map(([k]) => sn(d[k])),
+                    [faltanDocs(d).join('; '), v.docs ? estatusDocs(v.docs) : v.estatus, v.comentario || '']).map(q).join(',') + '\n';
             });
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
             link.download = `vehiculos_${new Date().toISOString().slice(0,10)}.csv`;
