@@ -109,6 +109,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle guardado) {
         super.onCreate(guardado);
+        /* Solo el APK de prueba (debug) permite inspeccionar el WebView; el publicado no. */
+        if (BuildConfig.DEBUG) WebView.setWebContentsDebuggingEnabled(true);
         hostApp = Uri.parse(BuildConfig.URL_APP).getHost();
         aplicarBarras();
         limpiarArchivosViejos();
