@@ -158,11 +158,12 @@
     if (!A || typeof A.tokenPush !== 'function') return;     /* app sin notificaciones (v1.1.0 o anterior) */
     var sb = sbCliente(), ses = sesion();
     if (!sb || !ses) return;
-    try { A.pedirPermisoAvisos(); } catch (e) {}
     var intentos = 0;
     (function probar() {
       var t = tokenPush();
+      /* Sin Firebase configurado no hay token: no se pide permiso ni se registra nada. */
       if (!t) { if (++intentos < 15) setTimeout(probar, 3000); return; }
+      try { A.pedirPermisoAvisos(); } catch (e) {}
       if (registrado === t + '|' + ses.username) return;
       var raz = ses.razones_permitidas;
       if (typeof raz === 'string') raz = raz.split(/[,;\s]+/);
