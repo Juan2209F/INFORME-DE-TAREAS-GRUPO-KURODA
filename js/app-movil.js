@@ -151,17 +151,20 @@
         var tr = filas[r];
         if (tr.dataset.mv) continue;
         tr.dataset.mv = '1';
-        var cs = tr.cells, titulo = false;
+        var cs = tr.cells, titulo = false, conControl = false;
         for (var c = 0; c < cs.length; c++) {
           var td = cs[c];
           if (cs.length !== eti.length || (td.colSpan || 1) > 1) { td.classList.add('mv-completa'); continue; }
           td.setAttribute('data-label', eti[c] === '✎' ? '' : eti[c]);
           /* Celdas con controles o listas (campos, selectores, chips de correo, varios botones):
              a todo lo ancho de la tarjeta, si no se aprietan en una columna. */
-          if (td.querySelector('input:not([type=checkbox]):not([type=radio]), select, textarea, .kc-chip') ||
-              td.querySelectorAll('button').length > 1) td.classList.add('mv-ancha');
+          var controles = td.querySelectorAll('input:not([type=checkbox]):not([type=radio]), select').length;
+          if (td.querySelector('textarea, .kc-chip') || controles > 1 || td.querySelectorAll('button').length > 1) td.classList.add('mv-ancha');
+          /* Un solo campo editable (estado, categoría, fecha…): media tarjeta, la tabla va en 2 columnas. */
+          else if (controles === 1) { td.classList.add('mv-control'); conControl = true; }
           if (!titulo && TITULO.test(eti[c]) && td.textContent.trim().length > 12) { td.classList.add('mv-titulo'); titulo = true; }
         }
+        if (conControl) tabla.classList.add('mv-form');
       }
     }
     tabla.classList.add('mv-tarjetas');
