@@ -1,0 +1,48 @@
+# Crea la llave de firma de la app (UNA SOLA VEZ, solo si no tienes la de la v1.0).
+# Antes de correrlo crea los secretos ANDROID_KEYSTORE_PASSWORD (la contraseña que quieras)
+# y ANDROID_KEY_ALIAS (ej. kuroda). El resultado queda 1 día como artefacto de esta ejecución:
+# descárgalo, copia el contenido de kuroda.jks.base64.txt en el secreto ANDROID_KEYSTORE_BASE64
+# y guarda kuroda.jks en un lugar seguro (si se pierde, no se podrán publicar actualizaciones).
+# Córrelo con el repositorio en PRIVADO.
+name: APK Android — crear llave de firma
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmar:
+        description: 'Escribe CREAR para confirmar (reemplazar la llave rompe las actualizaciones)'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  llave:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirmación
+        if: ${{ inputs.confirmar != 'CREAR' }}
+        run: echo "::error::No se confirmó (escribe CREAR)"; exit 1
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Generar llave
+        env:
+          KP: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KA: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          [ -z "$KP" ] || [ -z "$KA" ] && { echo "::error::Crea antes los secretos ANDROID_KEYSTORE_PASSWORD y ANDROID_KEY_ALIAS"; exit 1; }
+          mkdir llave
+          keytool -genkeypair -keystore llave/kuroda.jks -storetype PKCS12 -alias "$KA" -keyalg RSA -keysize 4096 \
+            -validity 10950 -storepass "$KP" -keypass "$KP" -dname "CN=Auditoria Kuroda, O=Grupo Kuroda, C=MX"
+          base64 -w0 llave/kuroda.jks > llave/kuroda.jks.base64.txt
+          keytool -list -v -keystore llave/kuroda.jks -storepass "$KP" | grep -E 'Alias|SHA256|Válido|Valid'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: llave-firma-kuroda
+          path: llave/
+          retention-days: 1
