@@ -1,0 +1,15 @@
+/* Ajustes para la app Android dentro de las herramientas en iframe (Generador, Documentos,
+   Activos). js/app-apk.js lo agrega solo dentro de la APK. Son reglas generales y suaves:
+   cada herramienta conserva su diseño, solo se evita el desplazamiento lateral y se agrandan
+   los controles para el dedo. */
+html.gk-apk, html.gk-apk body { zoom: 1 !important; max-width: 100vw; overflow-x: hidden; -webkit-tap-highlight-color: transparent; }
+.gk-apk img, .gk-apk canvas, .gk-apk video { max-width: 100%; height: auto; }
+.gk-apk input:not([type=checkbox]):not([type=radio]):not([type=range]), .gk-apk select, .gk-apk textarea {
+  font-size: 16px !important; min-height: 44px; max-width: 100%; box-sizing: border-box;
+}
+.gk-apk button, .gk-apk .btn { min-height: 40px; }
+.gk-apk table { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+@keyframes apkSubeF { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+.gk-apk [class*="modal"]:not([class*="overlay"]):not([class*="backdrop"]), .gk-apk [role="dialog"] {
+  max-width: calc(100vw - 16px) !important; max-height: 90vh; overflow-y: auto; animation: apkSubeF .28s ease both;
+}

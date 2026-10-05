@@ -1,0 +1,292 @@
+/* Diseño de la app Android (APK) — Grupo Kuroda
+   Todo cuelga de html.gk-apk, que solo pone js/app-apk.js dentro de la app: en el navegador
+   (computadora o teléfono) este archivo no cambia nada. Se carga después de css/movil.css y
+   ajusta su vista de teléfono para que se sienta como app nativa:
+   barra superior fija, menú inferior con píldora, tarjetas, campos a tamaño de dedo y TODAS
+   las ventanas emergentes como hojas que suben desde abajo (con animación de entrada). */
+
+.gk-apk {
+  --apk-nav: 68px;
+  --apk-r: 16px;
+  --apk-sombra: 0 1px 2px rgba(20, 30, 60, .05), 0 6px 16px -6px rgba(20, 30, 60, .10);
+  --apk-sheet: #ffffff;
+  --apk-barra: #ffffff;
+  --apk-ov: rgba(10, 14, 35, .52);
+  -webkit-tap-highlight-color: transparent;
+}
+.gk-apk[data-theme="dark"] {
+  --apk-sombra: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 18px -8px rgba(0, 0, 0, .5);
+  --apk-sheet: #161b38;
+  --apk-barra: #0f1430;
+  --apk-ov: rgba(3, 5, 15, .66);
+}
+
+/* Sin el zoom de 90% de la versión de escritorio: en el teléfono todo a tamaño real. */
+html.gk-apk, html.gk-apk body { zoom: 1 !important; -moz-transform: none !important; }
+.gk-apk body { overscroll-behavior-y: none; text-rendering: optimizeLegibility; }
+.gk-apk[data-theme="dark"] body { background: #0a0e23 !important; }
+
+/* Animaciones de entrada */
+@keyframes apkSube { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes apkFondo { from { background: rgba(0, 0, 0, 0); } }
+@keyframes apkAparece { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .gk-apk *, .gk-apk *::before { animation-duration: .001ms !important; }
+}
+
+/* ═════════ 1) Barra superior ═════════ */
+.gk-apk .topbar {
+  position: sticky; top: 0; z-index: 70;
+  margin: 0 !important; border-radius: 0 !important; min-height: 60px;
+  padding: 8px 12px 8px 14px !important; gap: 8px !important;
+  background: var(--apk-barra) !important; backdrop-filter: none !important;
+  border: 0 !important; border-bottom: 1px solid var(--border) !important; box-shadow: none !important;
+}
+.gk-apk .topbar-title, .gk-apk .topbar img[alt="Tikito"], .gk-apk .topbar .btn-ghost { display: none !important; }
+.gk-apk .apk-marca { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 auto; }
+.gk-apk .apk-marca img { width: 34px; height: 34px; border-radius: 10px; object-fit: contain; background: #fff; padding: 3px; flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(224, 33, 40, .18); }
+.gk-apk #apk-tit { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+.gk-apk #apk-tit small { font-size: 10.5px; font-weight: 600; color: var(--muted); letter-spacing: .02em; white-space: nowrap; }
+.gk-apk #apk-tit b { font-size: 17px; font-weight: 800; color: var(--txt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  animation: apkAparece .25s ease both; }
+.gk-apk .topbar-gap { display: none; }
+.gk-apk .topbar > div[style] { flex: 0 0 auto; }
+.gk-apk .live-pill { padding: 0 !important; width: 10px; height: 10px; background: none !important; justify-content: center; }
+.gk-apk .theme-toggle { width: 38px !important; height: 38px !important; font-size: 16px; background: var(--soft); }
+.gk-apk #apk-perfil {
+  width: 38px; height: 38px; border-radius: 50%; border: 0; flex-shrink: 0; cursor: pointer;
+  background: linear-gradient(135deg, var(--blue), var(--blue2)); color: #fff;
+  font: 800 13px/1 inherit; letter-spacing: .02em; box-shadow: var(--shadow-colored);
+}
+.gk-apk #apk-perfil:empty::before { content: '☰'; font-size: 15px; }
+
+/* ═════════ 2) Menú inferior ═════════ */
+.gk-apk nav.sidebar {
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px)) !important; min-height: var(--apk-nav);
+  background: var(--apk-barra) !important; border-top: 1px solid var(--border) !important;
+  box-shadow: 0 -6px 18px rgba(20, 30, 60, .06) !important;
+}
+.gk-apk nav.sidebar .nav-item {
+  background: none !important; box-shadow: none !important; color: var(--muted) !important;
+  max-width: 88px; padding: 4px 2px !important; gap: 4px !important; font-size: 19px;
+}
+.gk-apk nav.sidebar .nav-item .apk-ico {
+  display: flex; align-items: center; justify-content: center; width: 56px; height: 30px; border-radius: 16px;
+  font-size: 18px; line-height: 1; transition: background .2s ease, transform .2s ease;
+}
+.gk-apk nav.sidebar .nav-item.active .apk-ico { background: var(--blue-soft); transform: scale(1.04); }
+.gk-apk[data-theme="dark"] nav.sidebar .nav-item.active .apk-ico { background: rgba(124, 92, 255, .28); }
+.gk-apk nav.sidebar .nav-item span.nav-lbl { font-size: 10.5px !important; font-weight: 600 !important; color: var(--muted) !important; }
+.gk-apk nav.sidebar .nav-item.active span.nav-lbl { color: var(--blue) !important; font-weight: 800 !important; }
+.gk-apk[data-theme="dark"] nav.sidebar .nav-item.active span.nav-lbl { color: #b9a6ff !important; }
+.gk-apk nav.sidebar .nav-item:active .apk-ico { transform: scale(.92); }
+
+/* ═════════ Contenido ═════════ */
+.gk-apk .content { padding: 14px 12px calc(var(--apk-nav) + 28px + env(safe-area-inset-bottom, 0px)) !important; gap: 14px !important; }
+.gk-apk .module-desc { display: none; }
+.gk-apk .slbl { font-size: 15px; font-weight: 800; margin-top: 4px; }
+.gk-apk .slbl > span[style] { display: none; }   /* textos de ayuda junto al título */
+.gk-apk .kpi-gear-btn { padding: 7px 12px; font-size: 12px; }
+.gk-apk .card, .gk-apk .kpi-card, .gk-apk .insight-card, .gk-apk .data-strip, .gk-apk .filters {
+  border-radius: var(--apk-r) !important; box-shadow: var(--apk-sombra) !important;
+}
+.gk-apk[data-theme="dark"] .card, .gk-apk[data-theme="dark"] .kpi-card, .gk-apk[data-theme="dark"] .insight-card,
+.gk-apk[data-theme="dark"] .data-strip, .gk-apk[data-theme="dark"] .filters { background: #141936 !important; backdrop-filter: none !important; }
+.gk-apk .card:hover, .gk-apk .kpi-card:hover, .gk-apk .insight-card:hover { transform: none; }
+.gk-apk .card { padding: 14px; }
+.gk-apk .card-title { font-size: 14px; }
+.gk-apk .chart-wrap { height: 210px; }
+
+/* Indicadores: 2 por renglón, legibles */
+.gk-apk .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px !important; }
+.gk-apk .kpi-card { padding: 12px 13px !important; }
+.gk-apk .kpi-lbl { font-size: 10px !important; }
+.gk-apk .kpi-val { font-size: 23px !important; }
+.gk-apk .kpi-sub { font-size: 10.5px !important; }
+
+/* Franja de datos: 6 números en mosaicos de 3 y botones de 2 en 2 */
+.gk-apk .data-strip { gap: 8px !important; padding: 12px !important; }
+.gk-apk .data-strip .stat { background: var(--soft); border-radius: 12px; padding: 9px 10px !important; }
+.gk-apk .data-strip .stat b { font-size: 19px; }
+.gk-apk .data-strip .stat span { font-size: 9.5px; }
+
+/* Filtros plegables */
+.gk-apk .filters { padding: 12px 14px !important; }
+.gk-apk .mv-filtros-btn { min-height: 34px; font-size: 14px; }
+
+/* Botones y campos a tamaño de dedo */
+.gk-apk .btn { min-height: 44px; padding: 10px 14px; border-radius: 13px; font-size: 13px; justify-content: center; }
+.gk-apk .btn:active { transform: scale(.97); }
+.gk-apk .qbtn { min-height: 36px; padding: 8px 14px; }
+.gk-apk .icon-btn { width: 38px; height: 36px; border-radius: 11px; font-size: 15px; }
+.gk-apk .fg select, .gk-apk .fg input:not([type=checkbox]):not([type=radio]),
+.gk-apk .form-field input, .gk-apk .form-field select, .gk-apk .form-field textarea {
+  min-height: 46px; font-size: 16px !important; border-radius: 13px; padding: 10px 13px;
+}
+.gk-apk .fg label, .gk-apk .form-field label { font-size: 10.5px; }
+.gk-apk input[type=checkbox], .gk-apk input[type=radio] { min-width: 18px; min-height: 18px; }
+
+/* Tablas en tarjetas (js/app-movil.js) */
+.gk-apk table.mv-tarjetas tr { border-radius: 14px; padding: 11px 13px; box-shadow: var(--apk-sombra); border-color: var(--border); }
+.gk-apk[data-theme="dark"] table.mv-tarjetas tr { background: #141936; }
+.gk-apk table.mv-tarjetas td { font-size: 12.5px; }
+.gk-apk table.mv-tarjetas td::before { font-size: 9px; }
+.gk-apk table.mv-tarjetas td.mv-titulo { font-size: 14px; }
+.gk-apk .ajustes-table-wrap { max-height: none; border: 0; }
+
+/* Vistas con herramienta en iframe: a todo lo ancho */
+.gk-apk #view-generador iframe, .gk-apk #view-documentos iframe, .gk-apk #iframe-activos { width: 100% !important; border-radius: 12px; }
+
+/* ═════════ Ventanas emergentes como hojas ═════════ */
+.gk-apk .modal-overlay, .gk-apk .kpi-cfg-overlay, .gk-apk .usr-overlay, .gk-apk .mv-hoja, .gk-apk .kg-aviso-sesion,
+.gk-apk #plantilla-overlay, .gk-apk .apk-ov {
+  align-items: flex-end !important; justify-content: center !important; padding: 0 !important;
+  background: var(--apk-ov) !important; backdrop-filter: blur(2px);
+}
+.gk-apk .modal-overlay.show, .gk-apk .kpi-cfg-overlay.show, .gk-apk .usr-overlay.show, .gk-apk .mv-hoja.abierta,
+.gk-apk .kg-aviso-sesion, .gk-apk #plantilla-overlay, .gk-apk .apk-ov { animation: apkFondo .22s ease both; }
+
+/* La caja de cada ventana */
+.gk-apk .modal-overlay .modal, .gk-apk .kpi-cfg-overlay .kpi-cfg-modal, .gk-apk .usr-overlay .kpi-cfg-modal,
+.gk-apk .mv-hoja-caja, .gk-apk .kg-aviso-sesion .caja, .gk-apk #plantilla-overlay > div, .gk-apk .apk-sheet {
+  position: relative; width: 100% !important; max-width: 100% !important; margin: 0 !important;
+  max-height: 92vh !important; max-height: 92dvh !important;
+  border-radius: 26px 26px 0 0 !important; border: 0 !important;
+  background: var(--apk-sheet) !important; backdrop-filter: none !important; color: var(--txt) !important;
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, .28) !important;
+  animation: apkSube .32s cubic-bezier(.2, .85, .25, 1) both !important;
+}
+/* Asa para indicar que es una hoja */
+.gk-apk .modal-overlay .modal::before, .gk-apk .kpi-cfg-overlay .kpi-cfg-modal::before, .gk-apk .usr-overlay .kpi-cfg-modal::before,
+.gk-apk .kg-aviso-sesion .caja::before, .gk-apk #plantilla-overlay > div::before {
+  content: ''; position: absolute; top: 8px; left: 50%; width: 40px; height: 4px; margin-left: -20px;
+  border-radius: 4px; background: var(--border); z-index: 2;
+}
+.gk-apk[data-theme="dark"] .modal-overlay .modal::before, .gk-apk[data-theme="dark"] .kpi-cfg-modal::before,
+.gk-apk[data-theme="dark"] .kg-aviso-sesion .caja::before, .gk-apk[data-theme="dark"] #plantilla-overlay > div::before,
+.gk-apk[data-theme="dark"] .mv-hoja-asa, .gk-apk[data-theme="dark"] .apk-asa { background: rgba(255, 255, 255, .22); }
+
+/* Encabezado, cuerpo y pie de las ventanas */
+.gk-apk .modal-hdr, .gk-apk .kpi-cfg-hdr { padding: 22px 18px 12px !important; border-bottom: 1px solid var(--border); gap: 10px; }
+.gk-apk .modal-hdr h2, .gk-apk .kpi-cfg-hdr h3 { font-size: 17px !important; font-weight: 800 !important; line-height: 1.25; }
+.gk-apk .modal-close, .gk-apk .kpi-cfg-hdr .btn-ghost {
+  width: 38px !important; height: 38px !important; min-height: 38px !important; padding: 0 !important; border-radius: 50% !important;
+  background: var(--soft) !important; border: 0 !important; flex-shrink: 0; font-size: 15px !important; margin-left: auto;
+}
+.gk-apk .modal-body, .gk-apk .kpi-cfg-body { padding: 16px 18px !important; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.gk-apk .modal-foot, .gk-apk .kpi-cfg-ftr {
+  padding: 12px 18px calc(14px + env(safe-area-inset-bottom, 0px)) !important; gap: 10px !important;
+  border-top: 1px solid var(--border); background: var(--apk-sheet);
+}
+.gk-apk .modal-foot .btn, .gk-apk .kpi-cfg-ftr .btn { flex: 1 1 0; min-height: 50px; font-size: 14px; border-radius: 15px; }
+.gk-apk .kpi-cfg-ftr { flex-wrap: wrap; }
+.gk-apk .kpi-cfg-ftr .btn-ghost { flex-basis: calc(50% - 5px); }
+.gk-apk .kpi-cfg-ftr .btn-blue { flex-basis: 100%; }
+.gk-apk .kpi-cfg-item { padding: 13px 14px; border-radius: 14px; }
+.gk-apk .form-grid { grid-template-columns: 1fr !important; gap: 12px; }
+.gk-apk .usr-overlay .kpi-cfg-body > div[style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+
+/* Gestión de usuarios (sección, no ventana): tarjeta normal */
+.gk-apk .usr-view .kpi-cfg-modal.usr-panel { border-radius: var(--apk-r) !important; box-shadow: var(--apk-sombra) !important; }
+.gk-apk[data-theme="dark"] .usr-view .kpi-cfg-modal.usr-panel { background: #141936 !important; }
+
+/* Menú "Más" (js/app-movil.js + js/app-apk.js) */
+.gk-apk .mv-hoja-caja { padding: 10px 16px calc(18px + env(safe-area-inset-bottom, 0px)) !important; }
+.gk-apk .mv-hoja-asa { margin-bottom: 14px; }
+.gk-apk .mv-hoja-usr { justify-content: flex-start !important; gap: 12px !important; padding: 2px 2px 14px !important; }
+.gk-apk .apk-avatar { width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--blue), var(--blue2)); color: #fff; font-weight: 800; font-size: 15px; }
+.gk-apk .mv-hoja-usr b { font-size: 15.5px !important; }
+.gk-apk .mv-hoja-grid { grid-template-columns: repeat(4, 1fr) !important; gap: 8px !important; }
+.gk-apk .mv-hoja-grid:empty { display: none; }
+.gk-apk .mv-hoja-grid button { padding: 12px 2px !important; border-radius: 16px !important; font-size: 10.5px !important; min-height: 74px; }
+.gk-apk .apk-opciones { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; }
+.gk-apk .apk-opciones button {
+  display: flex; align-items: center; gap: 14px; width: 100%; min-height: 50px; padding: 0 8px; border: 0; border-radius: 14px;
+  background: none; color: var(--txt); font: 600 14.5px/1 inherit; text-align: left; cursor: pointer;
+}
+.gk-apk .apk-opciones button:active { background: var(--soft); }
+.gk-apk .apk-opciones button span { width: 36px; height: 36px; border-radius: 12px; background: var(--soft);
+  display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.gk-apk .apk-opciones .apk-salir { color: var(--red); }
+.gk-apk .apk-opciones .apk-salir span { background: var(--red-soft); }
+.gk-apk .apk-version { text-align: center; font-size: 11px; color: var(--muted); padding: 10px 0 2px; }
+
+/* Aviso de sesión por inactividad */
+.gk-apk .kg-aviso-sesion .caja { padding: 30px 20px calc(18px + env(safe-area-inset-bottom, 0px)) !important; }
+.gk-apk .kg-aviso-sesion .bts { flex-wrap: nowrap !important; }
+.gk-apk .kg-aviso-sesion button { flex: 1 1 0; min-height: 50px; border-radius: 15px !important; font-size: 14px !important; }
+
+/* Selector de plantillas (lo arma app-core.js con estilos en línea) */
+.gk-apk #plantilla-overlay > div { padding: 28px 18px calc(16px + env(safe-area-inset-bottom, 0px)) !important; }
+.gk-apk #plantilla-overlay > div > div { color: var(--txt) !important; }
+.gk-apk #plantilla-overlay > div > div + div { color: var(--muted) !important; }
+.gk-apk #plantilla-overlay button { background: var(--soft) !important; border: 1px solid var(--border) !important; color: var(--txt) !important;
+  border-radius: 15px !important; padding: 14px 16px !important; }
+.gk-apk #plantilla-overlay button div { color: var(--muted) !important; }
+.gk-apk #plantilla-overlay button:last-child { background: none !important; border: 0 !important; color: var(--muted) !important; min-height: 48px; }
+
+/* Aviso de actualización para la app v1.0 (js/app-apk.js) */
+.gk-apk .apk-ov { position: fixed; inset: 0; z-index: 6000; display: flex; }
+.gk-apk .apk-sheet { padding: 12px 20px calc(18px + env(safe-area-inset-bottom, 0px)); overflow-y: auto; }
+.gk-apk .apk-asa { width: 40px; height: 4px; border-radius: 4px; background: var(--border); margin: 0 auto 18px; }
+.gk-apk .apk-sheet-hdr { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+.gk-apk .apk-sheet-ico { width: 50px; height: 50px; border-radius: 50%; background: var(--blue-soft); display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+.gk-apk .apk-sheet-hdr small { display: block; font-size: 11px; font-weight: 800; color: var(--blue); text-transform: uppercase; letter-spacing: .08em; }
+.gk-apk .apk-sheet-hdr b { font-size: 19px; }
+.gk-apk .apk-sheet p { font-size: 14px; line-height: 1.5; color: var(--muted); margin: 8px 0; }
+.gk-apk .apk-sheet ul { margin: 6px 0 8px 20px; font-size: 14px; line-height: 1.6; }
+.gk-apk .apk-sheet .apk-nota { font-size: 12.5px; padding: 10px 12px; border-radius: 12px; background: var(--soft); }
+.gk-apk .apk-sheet-bts { display: flex; gap: 10px; margin-top: 16px; }
+.gk-apk .apk-sheet-bts .btn { flex: 1 1 0; min-height: 52px; font-size: 14.5px; border-radius: 16px; }
+
+/* ═════════ Avisos ═════════ */
+/* Toast como "snackbar" sobre el menú inferior */
+.gk-apk .toast {
+  left: 12px !important; right: 12px !important; width: auto !important; max-width: none !important;
+  bottom: calc(var(--apk-nav) + 14px + env(safe-area-inset-bottom, 0px)) !important;
+  transform: translateY(12px) !important; text-align: left !important; white-space: normal !important;
+  padding: 14px 16px !important; border-radius: 14px !important; font-size: 13.5px !important; line-height: 1.4 !important;
+  background: #1f2440 !important; color: #fff !important; box-shadow: 0 10px 30px rgba(0, 0, 0, .3) !important;
+}
+.gk-apk .toast.show { transform: none !important; }
+/* "Hay una versión nueva del dashboard" (app-usuarios.js): arriba del menú, a lo ancho */
+.gk-apk body > div[style*="bottom:16px;left:16px"] {
+  left: 12px !important; right: 12px !important; text-align: center;
+  bottom: calc(var(--apk-nav) + 14px + env(safe-area-inset-bottom, 0px)) !important;
+  padding: 14px 16px !important; border-radius: 14px !important; animation: apkAparece .3s ease both;
+}
+
+/* ═════════ Inicio de sesión ═════════ */
+.gk-apk #login-page { flex-direction: column !important; overflow-y: auto !important; background: linear-gradient(165deg, var(--blue), var(--blue2)) !important; }
+.gk-apk .lp-panel { width: 100% !important; min-width: 0 !important; flex: 0 0 auto !important; flex-direction: column !important;
+  align-items: center !important; justify-content: center !important; gap: 0 !important; background: transparent !important;
+  padding: calc(env(safe-area-inset-top, 0px) + 52px) 24px 34px !important; }
+.gk-apk .lp-panel-logo { width: 100px !important; height: 100px !important; min-width: 100px !important; margin-bottom: 16px !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .25) !important; animation: apkAparece .5s ease both; }
+.gk-apk .lp-panel-logo img { width: 88px !important; height: 88px !important; }
+.gk-apk .lp-panel-name { font-size: 25px !important; letter-spacing: .16em !important; margin-bottom: 8px !important; }
+.gk-apk .lp-panel-div, .gk-apk .lp-panel-tag { display: block !important; }
+.gk-apk .lp-panel-tag { font-size: 12.5px !important; }
+.gk-apk .lp-panel-foot { display: none !important; }
+.gk-apk .lp-right { flex: 1 1 auto !important; display: block !important; padding: 0 !important; background: var(--bg) !important;
+  border-radius: 30px 30px 0 0 !important; box-shadow: 0 -10px 30px rgba(0, 0, 0, .25) !important; animation: apkSube .45s cubic-bezier(.2, .85, .25, 1) both; }
+.gk-apk .lp-card { max-height: none !important; max-width: 520px !important; margin: 0 auto !important; background: transparent !important;
+  padding: 32px 24px calc(env(safe-area-inset-bottom, 0px) + 24px) !important; box-shadow: none !important; cursor: default !important; overflow: visible !important; }
+.gk-apk .lp-card::before, .gk-apk .lp-card::after { display: none !important; }
+.gk-apk .lp-card > * { opacity: 1 !important; }
+.gk-apk .lp-sub::after { content: '' !important; }
+.gk-apk .lp-title { font-size: 28px !important; font-weight: 800 !important; }
+.gk-apk .lp-sub { font-size: 14px !important; }
+.gk-apk .lp-badge, .gk-apk .lp-show { display: none !important; }
+.gk-apk .lp-divider { margin: 22px 0 !important; }
+.gk-apk .lp-field { margin-bottom: 16px !important; gap: 7px !important; }
+.gk-apk .lp-field label { font-size: 11.5px !important; }
+.gk-apk .lp-field input { width: 100% !important; min-height: 56px !important; font-size: 16px !important; padding: 15px 16px !important; border-radius: 15px !important; }
+.gk-apk .lp-pass-wrap input { padding-right: 56px !important; }
+.gk-apk .lp-eye { right: 6px !important; width: 44px !important; height: 44px !important; font-size: 18px !important; }
+.gk-apk .lp-btn { min-height: 56px !important; margin-top: 6px !important; font-size: 16px !important; border-radius: 15px !important; }
+.gk-apk .lp-err { font-size: 13px !important; }
+.gk-apk .lp-foot { margin-top: 24px !important; justify-content: center !important; gap: 8px !important; }
+.gk-apk[data-theme="dark"] #login-page { background: linear-gradient(165deg, #2a1a8f, #0a0e23 70%) !important; }
