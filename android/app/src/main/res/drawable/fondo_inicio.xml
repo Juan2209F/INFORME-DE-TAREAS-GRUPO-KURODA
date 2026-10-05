@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pantalla mientras abre la app (Android 8 a 11; en 12+ el sistema usa el ícono). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/kuroda_fondo" />
+    <item
+        android:width="112dp"
+        android:height="112dp"
+        android:drawable="@drawable/logo_kuroda"
+        android:gravity="center" />
+</layer-list>
