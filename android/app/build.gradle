@@ -2,6 +2,12 @@ plugins {
     id 'com.android.application'
 }
 
+/* Notificaciones (Firebase Cloud Messaging): el workflow escribe app/google-services.json desde el
+   secreto GOOGLE_SERVICES_JSON. Sin ese archivo la app se compila igual, solo sin notificaciones. */
+if (file('google-services.json').exists()) {
+    apply plugin: 'com.google.gms.google-services'
+}
+
 /* Versión: la pone el workflow de GitHub (.github/workflows/android-apk.yml) con
    APK_VERSION_NAME. El versionCode se calcula de la versión: 1.2.3 -> 10203, así cada
    versión nueva siempre es mayor que la anterior y Android acepta la actualización. */
@@ -56,4 +62,9 @@ android {
     buildFeatures {
         buildConfig true
     }
+}
+
+dependencies {
+    implementation platform('com.google.firebase:firebase-bom:33.5.1')
+    implementation 'com.google.firebase:firebase-messaging'
 }
