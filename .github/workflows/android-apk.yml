@@ -133,11 +133,15 @@ jobs:
           set -euo pipefail
           AUTH=(-H "Authorization: Bearer $SB_KEY" -H "apikey: $SB_KEY")
 
-          # 1) Bucket público (se crea la primera vez; si ya existe no pasa nada).
+          # 1) Bucket público (se crea la primera vez; si ya existe no pasa nada). Sin límite propio:
+          #    usa el límite de archivo del proyecto (50 MB en el plan gratuito; el APK pesa mucho menos).
           C=$(curl -s -o crear.json -w '%{http_code}' -X POST "$SUPABASE_URL/storage/v1/bucket" "${AUTH[@]}" \
             -H 'Content-Type: application/json' \
-            -d "{\"id\":\"$BUCKET\",\"name\":\"$BUCKET\",\"public\":true,\"file_size_limit\":209715200}")
+            -d "{\"id\":\"$BUCKET\",\"name\":\"$BUCKET\",\"public\":true}")
           echo "Bucket: HTTP $C $(cat crear.json)"
+          if ! curl -sS --fail -o /dev/null "$SUPABASE_URL/storage/v1/bucket/$BUCKET" "${AUTH[@]}"; then
+            echo "::error::No se pudo crear el bucket $BUCKET en Supabase (respuesta: $(cat crear.json))"; exit 1
+          fi
 
           # 2) El APK
           curl -sS --fail-with-body -X POST "$SUPABASE_URL/storage/v1/object/$BUCKET/$ARCHIVO" "${AUTH[@]}" \
