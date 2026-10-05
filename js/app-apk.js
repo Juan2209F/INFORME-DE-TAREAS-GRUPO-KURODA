@@ -6,6 +6,8 @@
    3) Tema claro/oscuro: avisa a la app para pintar las barras del sistema igual (GKAndroid.tema).
    4) "Buscar actualizaciones" (GKApk.buscarActualizacion) y, para la app v1.0 que no se actualiza
       sola, un aviso con la ventana normal del Monitor para descargar la versión nueva.
+   5) Nombre de la sección en la barra superior.  6) Deslizar hacia abajo para recargar.
+   7) Notificaciones: registra el teléfono en Supabase al iniciar sesión y abre la sección avisada.
    En el navegador no hace nada. */
 (function () {
   'use strict';
@@ -144,10 +146,64 @@
     }, { passive: true });
   }
 
+  /* ---------- 7) Notificaciones de cambios ----------
+     Al iniciar sesión se registra este teléfono en Supabase (función registrar_dispositivo) con el
+     usuario y sus razones sociales; al cerrar sesión se quita. La Edge Function notificar-push avisa
+     a todos los teléfonos registrados menos al de quien hizo el cambio. */
+  var sbCliente = function () { return typeof _sb !== 'undefined' ? _sb : null; };
+  var sesion = function () { return typeof _session !== 'undefined' ? _session : null; };
+  var tokenPush = function () { try { return A && A.tokenPush ? A.tokenPush() : ''; } catch (e) { return ''; } };
+  var registrado = '';
+  function registrarAvisos() {
+    if (!A || typeof A.tokenPush !== 'function') return;     /* app sin notificaciones (v1.1.0 o anterior) */
+    var sb = sbCliente(), ses = sesion();
+    if (!sb || !ses) return;
+    try { A.pedirPermisoAvisos(); } catch (e) {}
+    var intentos = 0;
+    (function probar() {
+      var t = tokenPush();
+      if (!t) { if (++intentos < 15) setTimeout(probar, 3000); return; }
+      if (registrado === t + '|' + ses.username) return;
+      var raz = ses.razones_permitidas;
+      if (typeof raz === 'string') raz = raz.split(/[,;\s]+/);
+      raz = Array.isArray(raz) ? raz.map(function (x) { return String(x).trim(); }).filter(Boolean) : [];
+      sb.rpc('registrar_dispositivo', { p_token: t, p_usuario: ses.username || null, p_razones: raz })
+        .then(function (r) { if (!r.error) registrado = t + '|' + ses.username; });
+    })();
+  }
+  function quitarAvisos() {
+    var sb = sbCliente(), t = tokenPush();
+    registrado = '';
+    if (sb && t) try { sb.rpc('quitar_dispositivo', { p_token: t }); } catch (e) {}
+  }
+  function engancharSalida() {
+    if (typeof window.doLogout !== 'function' || window.doLogout.__apk) return;
+    var salir = window.doLogout;
+    window.doLogout = function () { quitarAvisos(); return salir.apply(this, arguments); };
+    window.doLogout.__apk = true;
+  }
+  /* Al tocar una notificación: ir a su sección (la llama la app). */
+  function ir(sec) {
+    var login = $('login-page');
+    if (!login || !login.classList.contains('hidden')) return false;
+    var mapa = { tareas: 'nav-tareas', auditorias: 'nav-auditorias', actividades: 'nav-actividades',
+      ajustes: 'nav-ajustes', mermas: 'nav-mermas', activos: 'nav-activos' };
+    var n = $(mapa[sec] || '');
+    if (!n || n.style.display === 'none') return true;
+    n.click();
+    window.scrollTo(0, 0);
+    return true;
+  }
+
   function init() {
     avisarTema();
     seccion();
     montarRecarga();
+    engancharSalida();
+    var loginAv = $('login-page');
+    var alEntrar = function () { if (loginAv && loginAv.classList.contains('hidden')) setTimeout(registrarAvisos, 1500); };
+    if (loginAv) new MutationObserver(alEntrar).observe(loginAv, { attributes: true, attributeFilter: ['class'] });
+    setTimeout(alEntrar, 3000);
     var nav = document.querySelector('nav.sidebar');
     if (nav) new MutationObserver(seccion).observe(nav, { subtree: true, attributes: true, attributeFilter: ['class'] });
     var usr = $('usr-overlay');
@@ -161,5 +217,5 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 
-  window.GKApk = { atras: atras, buscarActualizacion: buscarActualizacion, version: versionApp };
+  window.GKApk = { atras: atras, buscarActualizacion: buscarActualizacion, version: versionApp, ir: ir };
 })();
