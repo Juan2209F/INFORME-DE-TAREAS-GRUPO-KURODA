@@ -1,3 +1,5 @@
 plugins {
     id 'com.android.application' version '8.5.2' apply false
+    /* Firebase (notificaciones). Solo se aplica en la app si existe app/google-services.json. */
+    id 'com.google.gms.google-services' version '4.4.2' apply false
 }
