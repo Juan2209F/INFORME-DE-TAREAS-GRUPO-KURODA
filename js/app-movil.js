@@ -14,6 +14,8 @@
   /* Misma condición que css/movil.css: teléfonos, tabletas chicas y teléfono acostado. */
   var MEDIA = '(max-width: 768px), (max-height: 500px) and (max-width: 1024px)';
   var mq = window.matchMedia(MEDIA);
+  /* En la app Android (js/app-apk.js pone "gk-apk") siempre es vista de teléfono. */
+  var esApk = function () { return document.documentElement.classList.contains('gk-apk'); };
   var PRINCIPALES = 4;
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) {
@@ -31,8 +33,9 @@
   function permitido(n) { return n.style.display !== 'none'; }
   function partes(n) {
     var lbl = n.querySelector('.nav-lbl');
-    var ico = '';
-    for (var i = 0; i < n.childNodes.length; i++) {
+    var ico = '', ap = n.querySelector('.apk-ico');   /* ícono envuelto por js/app-apk.js */
+    if (ap) ico = ap.textContent.trim();
+    for (var i = 0; !ico && i < n.childNodes.length; i++) {
       if (n.childNodes[i].nodeType === 3 && n.childNodes[i].textContent.trim()) { ico = n.childNodes[i].textContent.trim(); break; }
     }
     return { ico: ico || '•', lbl: lbl ? lbl.textContent.trim() : (n.title || '') };
@@ -198,7 +201,7 @@
     pendiente = true;
     requestAnimationFrame(function () {
       pendiente = false;
-      if (!mq.matches) return;
+      if (!mq.matches && !esApk()) return;
       organizarMenu();
       montarFiltros();
       revisarTablas();
