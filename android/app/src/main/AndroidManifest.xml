@@ -7,6 +7,11 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
     <!-- Para instalar las actualizaciones descargadas desde Supabase. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Escáner de códigos de Activos. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Notificaciones de cambios (Android 13 o más pide permiso). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="false"
@@ -36,5 +41,20 @@
             android:authorities="com.grupokuroda.auditoria.archivos"
             android:exported="false"
             android:grantUriPermissions="true" />
+
+        <!-- Recibe las notificaciones de Firebase (aunque la app esté cerrada). -->
+        <service
+            android:name=".Avisos"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="cambios" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notificacion" />
     </application>
 </manifest>
