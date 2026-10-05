@@ -129,10 +129,14 @@
   function etiquetas(tabla) {
     var filas = tabla.tHead ? tabla.tHead.rows : null;
     if (!filas || !filas.length) return null;
-    var ths = filas[filas.length - 1].cells, out = [];
+    var ths = filas[filas.length - 1].cells, out = [], vistos = {};
     for (var i = 0; i < ths.length; i++) {
       if ((ths[i].colSpan || 1) > 1) return null;   /* encabezados combinados: se deja como tabla */
-      out.push(ths[i].textContent.replace(/\s+/g, ' ').trim());
+      var t = ths[i].textContent.replace(/\s+/g, ' ').trim();
+      /* Dos columnas con el mismo título (p. ej. "Para" en Correos): la segunda es el total. */
+      if (t && vistos[t]) t += ' (total)';
+      vistos[t] = true;
+      out.push(t);
     }
     return out;
   }
@@ -152,6 +156,10 @@
           var td = cs[c];
           if (cs.length !== eti.length || (td.colSpan || 1) > 1) { td.classList.add('mv-completa'); continue; }
           td.setAttribute('data-label', eti[c] === '✎' ? '' : eti[c]);
+          /* Celdas con controles o listas (campos, selectores, chips de correo, varios botones):
+             a todo lo ancho de la tarjeta, si no se aprietan en una columna. */
+          if (td.querySelector('input:not([type=checkbox]):not([type=radio]), select, textarea, .kc-chip') ||
+              td.querySelectorAll('button').length > 1) td.classList.add('mv-ancha');
           if (!titulo && TITULO.test(eti[c]) && td.textContent.trim().length > 12) { td.classList.add('mv-titulo'); titulo = true; }
         }
       }

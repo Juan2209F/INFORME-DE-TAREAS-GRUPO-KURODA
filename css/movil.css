@@ -124,7 +124,15 @@
   table.mv-tarjetas td.mv-titulo { grid-column: 1 / -1; order: -1; font-size: 13px; font-weight: 600;
     padding-bottom: 6px !important; border-bottom: 1px solid var(--border) !important; }
   table.mv-tarjetas td.mv-titulo::before { display: none; }
-  /* Botones de acción (columna sin título, como ✎): juntos al final. */
+  /* Celdas con campos, selectores o listas de correos: a todo lo ancho, etiqueta arriba. */
+  table.mv-tarjetas td.mv-ancha { grid-column: 1 / -1; display: block; }
+  table.mv-tarjetas td.mv-ancha::before { display: block; margin-bottom: 4px; }
+  table.mv-tarjetas td.mv-ancha .kc-chip { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  table.mv-tarjetas td.mv-ancha .kc-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  table.mv-tarjetas td.mv-ancha .kc-mail { min-width: 0; flex: 1 1 180px; }
+  table.mv-tarjetas td.mv-ancha .kc-sel { max-width: 100%; }
+  .kc-wrap { overflow-x: visible; }
+    /* Botones de acción (columna sin título, como ✎): juntos al final. */
   table.mv-tarjetas td[data-label=""] { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px; }
   table.mv-tarjetas td:empty { display: none; }
   table.mv-tarjetas td > * { max-width: 100%; }
