@@ -13,6 +13,7 @@
 #   ANDROID_KEY_ALIAS           alias dentro de la llave (ej. kuroda)
 #   ANDROID_KEY_PASSWORD        opcional; si no existe se usa ANDROID_KEYSTORE_PASSWORD
 #   SUPABASE_SERVICE_ROLE_KEY   llave service_role (o secret key sb_secret_…) de Supabase
+#   GOOGLE_SERVICES_JSON        contenido de google-services.json de Firebase (notificaciones)
 name: APK Android — publicar versión
 
 on:
@@ -87,6 +88,17 @@ jobs:
         run: |
           echo "$KS" | base64 -d > "$RUNNER_TEMP/kuroda.jks"
           echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/kuroda.jks" >> "$GITHUB_ENV"
+
+      - name: Configuración de Firebase (notificaciones)
+        env:
+          GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GS" ]; then
+            printf '%s' "$GS" > android/app/google-services.json
+            echo "Firebase configurado: la app tendrá notificaciones"
+          else
+            echo "::warning::Falta el secreto GOOGLE_SERVICES_JSON: la app se compila SIN notificaciones"
+          fi
 
       - uses: actions/setup-java@v4
         with:
