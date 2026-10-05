@@ -166,6 +166,20 @@
     });
   }
 
+  /* ---------- 4) Filtros de cada sección en renglón ----------
+     Cuadrículas cuyos hijos son solo campos de filtro (.fg con un select): en vez de uno
+     debajo de otro (regla general de main.css) se acomodan lado a lado. */
+  function filtrosEnRenglon() {
+    document.querySelectorAll('.content [style*="grid-template-columns"]:not(.mv-filtros-fila)').forEach(function (g) {
+      var hijos = g.children;
+      if (hijos.length < 2) return;
+      for (var i = 0; i < hijos.length; i++) {
+        if (!hijos[i].classList.contains('fg') || !hijos[i].querySelector('select')) return;
+      }
+      g.classList.add('mv-filtros-fila');
+    });
+  }
+
   /* ---------- Coordinación ---------- */
   var pendiente = false;
   function programar() {
@@ -177,6 +191,7 @@
       organizarMenu();
       montarFiltros();
       revisarTablas();
+      filtrosEnRenglon();
     });
   }
   function init() {

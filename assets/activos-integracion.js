@@ -36,6 +36,7 @@
     E + '.nav-item i{width:auto;font-size:.9rem}' +
     E + '.nav-item .badge{background:rgba(94,114,228,.15);color:var(--active-bg)}' +
     E + '.nav-item.active .badge{background:rgba(255,255,255,.25);color:#fff}' +
+    E + 'body.dark-mode .nav-item:not(.active) .badge{background:rgba(140,160,255,.22);color:#d3daff}' +
     E + '.main-content{margin-left:0!important;width:100%!important;height:auto!important;flex:1;min-height:0;padding:0 2px 16px!important;background:transparent!important}' +
     E + '.topbar-user{display:none!important}' +
     E + '.sidebar .topbar-actions{position:relative}' +
@@ -67,6 +68,9 @@
     oscuro = !!dark;
     if (typeof setTheme === 'function') setTheme(oscuro ? 'dark' : 'light');
     else document.body.classList.toggle('dark-mode', oscuro);
+    /* Mismo esquema de color que el Monitor: si no coinciden, el navegador pinta un fondo
+       blanco opaco detrás del iframe y en modo oscuro el texto claro quedaba sobre blanco. */
+    document.documentElement.style.colorScheme = oscuro ? 'dark' : 'light';
   }
   function aPadre(msg) { try { window.parent.postMessage(msg, location.origin); } catch (e) {} }
 
