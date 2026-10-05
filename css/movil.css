@@ -1,12 +1,34 @@
 /* Vista para teléfonos — Grupo Kuroda
-   Todo lo de este archivo aplica SOLO en pantallas de 768 px o menos: en computadora la app
-   se ve exactamente igual. Trabaja junto con js/app-movil.js (menú "Más", filtros plegables
+   Todo lo de este archivo aplica SOLO en teléfonos y tabletas chicas: pantallas de 768 px de
+   ancho o menos, o teléfonos acostados (poca altura). En computadora la app se ve igual. Trabaja junto con js/app-movil.js (menú "Más", filtros plegables
    y tablas en tarjetas). */
 
 /* Elementos que solo existen en teléfono: ocultos en computadora. */
 #nav-mas, .mv-filtros-btn, .mv-hoja { display: none; }
 
-@media (max-width: 768px) {
+/* Misma condición en js/app-movil.js (MEDIA). */
+@media (max-width: 768px), (max-height: 500px) and (max-width: 1024px) {
+  /* Base del menú inferior (en main.css solo llega a 768 px; aquí también cubre el teléfono
+     acostado, donde el menú lateral no cabe a lo alto). */
+  body { flex-direction: column; }
+  nav.sidebar { width: 100%; height: auto; flex-direction: row; align-items: center; margin: 0; border-radius: 0;
+    position: fixed; bottom: 0; left: 0; right: 0; order: 2; z-index: 80; }
+  nav.sidebar .logo, .nav-sep { display: none; }
+  nav.sidebar .nav-item { flex-direction: column; width: auto; min-height: auto; gap: 3px; border-radius: 12px; }
+  nav.sidebar .nav-item::before { display: none; }
+  .main-area { order: 1; }
+
+  /* Menú anclado al borde: fondo sólido (en modo oscuro era casi transparente y parecía
+     flotar sobre el contenido) y una línea superior que lo separa. */
+  nav.sidebar { background: var(--white) !important; backdrop-filter: none !important;
+    border: 0 !important; border-top: 1px solid var(--border) !important;
+    box-shadow: 0 -6px 20px rgba(20, 30, 60, .10) !important; }
+  [data-theme="dark"] nav.sidebar { background: #0f1430 !important; box-shadow: 0 -6px 20px rgba(0, 0, 0, .45) !important; }
+
+  /* Aviso (toast) arriba del menú, en una o dos líneas y a lo ancho que necesite. */
+  .toast { width: max-content; max-width: calc(100vw - 24px); white-space: normal; font-size: 12px; line-height: 1.35;
+    padding: 9px 14px; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+
   /* ── Desplazamiento de página completa (en vez de un recuadro interno) ──
      El navegador del teléfono puede ocultar su barra de direcciones y se gana pantalla. */
   html, body { height: auto; min-height: 100%; overflow: visible; overflow-x: hidden; }
@@ -17,6 +39,7 @@
   /* ── Barra superior compacta: una sola línea ── */
   .topbar { margin: 8px 8px 0; padding: 8px 10px 8px 14px; gap: 8px; flex-wrap: nowrap; border-radius: 14px; }
   .topbar-title { min-width: 0; }
+  .topbar-title p { display: none; }
   .topbar-title h1 { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .topbar-gap { flex: 1; }
   .topbar > div[style] { gap: 6px !important; flex-shrink: 0; }
@@ -58,7 +81,8 @@
   /* app-core pone style.display="flex" al cambiar de vista: se respeta solo cuando está oculta. */
   .data-strip:not([style*="none"]) { display: grid !important; }
   .data-strip { grid-template-columns: repeat(6, 1fr); gap: 10px 8px; padding: 12px; }
-  .data-strip .stat { grid-column: span 2; min-width: 0; }
+  .data-strip .stat { grid-column: span 2; min-width: 0; padding: 0; border-right: none; }
+  .data-strip .filters-spacer { display: none; }
   .data-strip .stat b { font-size: 18px; }
   .data-strip .stat span { font-size: 9px; line-height: 1.2; }
   .data-strip .btn { grid-column: span 3; padding: 9px 6px; font-size: 11.5px; }
@@ -80,35 +104,64 @@
   .filters.mv-abierto .filters-spacer { display: none; }
   .quick-row { flex-wrap: wrap; }
 
-  /* ── Tablas en tarjetas (clase puesta por app-movil.js) ── */
+  /* ── Tablas en tarjetas compactas (clase puesta por app-movil.js) ──
+     El texto largo (tarea, nombre) va como título a todo lo ancho y el resto de los datos en
+     3 columnas, con la etiqueta chica arriba del valor: cada tarjeta ocupa la mitad de alto. */
   table.mv-tarjetas, table.mv-tarjetas tbody { display: block; width: 100% !important; min-width: 0 !important; }
   table.mv-tarjetas thead { display: none; }
-  table.mv-tarjetas tr { display: block; margin: 0 0 10px; padding: 8px 12px; border: 1px solid var(--border);
-    border-radius: 12px; background: var(--white); box-shadow: 0 2px 6px rgba(20, 30, 60, .06); }
-  table.mv-tarjetas td { display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 5px 0 !important; border: 0 !important; text-align: right !important; white-space: normal !important;
-    max-width: none !important; width: auto !important; overflow-wrap: anywhere; }
-  table.mv-tarjetas td + td { border-top: 1px dashed var(--border) !important; }
-  table.mv-tarjetas td::before { content: attr(data-label); flex-shrink: 0; max-width: 42%; text-align: left;
-    font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  table.mv-tarjetas tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 10px;
+    margin: 0 0 8px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 12px;
+    background: var(--white); box-shadow: 0 2px 6px rgba(20, 30, 60, .06); }
+  table.mv-tarjetas td { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 1px;
+    min-width: 0; padding: 0 !important; border: 0 !important; text-align: left !important; white-space: normal !important;
+    max-width: none !important; width: auto !important; font-size: 12px; line-height: 1.3; overflow-wrap: anywhere; }
+  table.mv-tarjetas td::before { content: attr(data-label); font-size: 8.5px; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .05em; line-height: 1.2; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; max-width: 100%; }
   table.mv-tarjetas td[data-label=""]::before, table.mv-tarjetas td.mv-completa::before { display: none; }
-  table.mv-tarjetas td[data-label=""], table.mv-tarjetas td.mv-completa { justify-content: flex-start; text-align: left !important; }
-  /* La primera celda con texto largo (tarea, nombre) se lee mejor como título de la tarjeta. */
-  table.mv-tarjetas td.mv-titulo { display: block; text-align: left !important; font-size: 13px; }
-  table.mv-tarjetas td.mv-titulo::before { display: block; margin-bottom: 2px; max-width: none; }
+  table.mv-tarjetas td.mv-completa { grid-column: 1 / -1; }
+  /* Título de la tarjeta: primero y a todo lo ancho, sin etiqueta. */
+  table.mv-tarjetas td.mv-titulo { grid-column: 1 / -1; order: -1; font-size: 13px; font-weight: 600;
+    padding-bottom: 6px !important; border-bottom: 1px solid var(--border) !important; }
+  table.mv-tarjetas td.mv-titulo::before { display: none; }
+  /* Celdas con campos, selectores o listas de correos: a todo lo ancho, etiqueta arriba. */
+  table.mv-tarjetas td.mv-ancha { grid-column: 1 / -1; display: block; }
+  table.mv-tarjetas td.mv-ancha::before { display: block; margin-bottom: 4px; }
+  table.mv-tarjetas td.mv-ancha .kc-chip { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  table.mv-tarjetas td.mv-ancha .kc-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  table.mv-tarjetas td.mv-ancha .kc-mail { min-width: 0; flex: 1 1 180px; }
+  table.mv-tarjetas td.mv-ancha .kc-sel { max-width: 100%; }
+  .kc-wrap { overflow-x: visible; }
+    /* Botones de acción (columna sin título, como ✎): juntos al final. */
+  table.mv-tarjetas td[data-label=""] { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px; }
   table.mv-tarjetas td:empty { display: none; }
   table.mv-tarjetas td > * { max-width: 100%; }
+  /* Píldoras de estado/tipo más chicas para que quepan en su columna. */
+  table.mv-tarjetas td span[style*="border-radius"], table.mv-tarjetas td .badge, table.mv-tarjetas td [class*="pill"] { font-size: 10px !important; padding: 2px 7px !important; }
   .tbl-scroll { overflow-x: visible; }
 
+  /* ── Filtros de cada sección lado a lado (clase puesta por app-movil.js) ── */
+  .content .mv-filtros-fila[style] { grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)) !important; gap: 8px !important; max-width: none !important; }
+  .mv-filtros-fila .fg label { font-size: 9px; }
+  .mv-filtros-fila .fg select { min-height: 36px; padding: 6px 8px; }
+  .card:has(> .mv-filtros-fila) { padding: 8px 10px !important; }
+
   /* ── Tarjetas de indicadores más compactas ── */
-  .kpi-grid { gap: 8px; }
-  .kpi-card { padding: 10px 12px; }
-  .kpi-val { font-size: 20px; }
-  .kpi-card .kpi-ico { width: 30px; height: 30px; font-size: 14px; border-radius: 9px; }
-  .kpi-lbl { font-size: 9.5px; }
+  /* 3 por renglón, sin ícono (el título ya dice qué es) y con números más chicos. */
+  .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 6px; }
+  .kpi-card { padding: 8px 9px !important; border-radius: 12px; }
+  .kpi-card .kpi-ico { display: none; }
+  .kpi-lbl { font-size: 8.5px; line-height: 1.25; letter-spacing: .03em; }
+  .kpi-val { font-size: 18px !important; margin-top: 4px; }
+  .kpi-sub { font-size: 9.5px; margin-top: 2px; line-height: 1.25; }
   .module-desc { font-size: 11px; }
   /* Subtítulos de ayuda de una línea junto a los títulos: ocupan espacio en teléfono. */
   #view-tareas > div:first-child > span + span { display: none; }
+
+  /* ── Desempeño: los 4 indicadores de cada auditor en 2 × 2 (no uno debajo de otro) ── */
+  #view-desempeno [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr 1fr !important; gap: 8px !important; padding-left: 10px !important; padding-right: 10px !important; }
+  #view-desempeno [style*="grid-template-columns:1fr 1fr"] > div { padding: 9px !important; min-width: 0; }
+  #view-desempeno [style*="font-size:26px"], #view-desempeno [style*="font-size:28px"] { font-size: 20px !important; }
 
   /* ── Ventanas emergentes como hoja desde abajo ── */
   .modal-overlay, .kpi-cfg-overlay { align-items: flex-end !important; padding: 0 !important; }
@@ -120,4 +173,19 @@
   /* Botones y campos con tamaño cómodo para el dedo; 16px evita el zoom automático de iOS. */
   .fg select, .fg input, .modal input, .modal select, .modal textarea { font-size: 16px; min-height: 40px; }
   .qbtn { padding: 8px 12px; }
+}
+
+/* Teléfono acostado y tabletas chicas (600 px o más de ancho): se aprovecha el ancho con
+   2 tarjetas por renglón y 3 indicadores por renglón. */
+@media (min-width: 600px) and (max-width: 768px), (min-width: 600px) and (max-height: 500px) and (max-width: 1024px) {
+  table.mv-tarjetas tbody { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: start; }
+  table.mv-tarjetas tr { margin: 0; }
+  table.mv-tarjetas tr:has(> td.mv-completa:only-child) { grid-column: 1 / -1; }
+  .kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+  /* Franja de datos: los 6 números en un renglón y los 4 botones en otro. */
+  .data-strip { grid-template-columns: repeat(12, 1fr); }
+  .data-strip .stat { grid-column: span 2; }
+  .data-strip .btn { grid-column: span 3; }
+  .mv-hoja-caja { max-width: 560px; margin: 0 auto; }
+  .mv-hoja-grid { grid-template-columns: repeat(4, 1fr); }
 }
