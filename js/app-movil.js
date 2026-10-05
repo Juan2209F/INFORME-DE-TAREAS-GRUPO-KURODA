@@ -1,5 +1,5 @@
 /* Vista para teléfonos — Grupo Kuroda
-   Complementa css/movil.css. Solo actúa en pantallas de 768 px o menos; en computadora no
+   Complementa css/movil.css. Solo actúa en teléfonos y tabletas chicas (ver MEDIA); en computadora no
    cambia nada (lo que agrega queda oculto por CSS).
    1) Menú inferior: muestra los primeros 4 accesos visibles para el rol y un botón "Más"
       que abre una hoja con el resto (respeta las vistas permitidas de cada usuario).
@@ -11,7 +11,9 @@
 (function () {
   'use strict';
 
-  var mq = window.matchMedia('(max-width: 768px)');
+  /* Misma condición que css/movil.css: teléfonos, tabletas chicas y teléfono acostado. */
+  var MEDIA = '(max-width: 768px), (max-height: 500px) and (max-width: 1024px)';
+  var mq = window.matchMedia(MEDIA);
   var PRINCIPALES = 4;
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) {
@@ -127,10 +129,14 @@
   function etiquetas(tabla) {
     var filas = tabla.tHead ? tabla.tHead.rows : null;
     if (!filas || !filas.length) return null;
-    var ths = filas[filas.length - 1].cells, out = [];
+    var ths = filas[filas.length - 1].cells, out = [], vistos = {};
     for (var i = 0; i < ths.length; i++) {
       if ((ths[i].colSpan || 1) > 1) return null;   /* encabezados combinados: se deja como tabla */
-      out.push(ths[i].textContent.replace(/\s+/g, ' ').trim());
+      var t = ths[i].textContent.replace(/\s+/g, ' ').trim();
+      /* Dos columnas con el mismo título (p. ej. "Para" en Correos): la segunda es el total. */
+      if (t && vistos[t]) t += ' (total)';
+      vistos[t] = true;
+      out.push(t);
     }
     return out;
   }
@@ -150,6 +156,10 @@
           var td = cs[c];
           if (cs.length !== eti.length || (td.colSpan || 1) > 1) { td.classList.add('mv-completa'); continue; }
           td.setAttribute('data-label', eti[c] === '✎' ? '' : eti[c]);
+          /* Celdas con controles o listas (campos, selectores, chips de correo, varios botones):
+             a todo lo ancho de la tarjeta, si no se aprietan en una columna. */
+          if (td.querySelector('input:not([type=checkbox]):not([type=radio]), select, textarea, .kc-chip') ||
+              td.querySelectorAll('button').length > 1) td.classList.add('mv-ancha');
           if (!titulo && TITULO.test(eti[c]) && td.textContent.trim().length > 12) { td.classList.add('mv-titulo'); titulo = true; }
         }
       }
@@ -164,6 +174,20 @@
     });
   }
 
+  /* ---------- 4) Filtros de cada sección en renglón ----------
+     Cuadrículas cuyos hijos son solo campos de filtro (.fg con un select): en vez de uno
+     debajo de otro (regla general de main.css) se acomodan lado a lado. */
+  function filtrosEnRenglon() {
+    document.querySelectorAll('.content [style*="grid-template-columns"]:not(.mv-filtros-fila)').forEach(function (g) {
+      var hijos = g.children;
+      if (hijos.length < 2) return;
+      for (var i = 0; i < hijos.length; i++) {
+        if (!hijos[i].classList.contains('fg') || !hijos[i].querySelector('select')) return;
+      }
+      g.classList.add('mv-filtros-fila');
+    });
+  }
+
   /* ---------- Coordinación ---------- */
   var pendiente = false;
   function programar() {
@@ -175,6 +199,7 @@
       organizarMenu();
       montarFiltros();
       revisarTablas();
+      filtrosEnRenglon();
     });
   }
   function init() {
