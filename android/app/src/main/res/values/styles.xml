@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@drawable/fondo_inicio</item>
+        <item name="android:statusBarColor">@color/kuroda_fondo</item>
+        <item name="android:navigationBarColor">@color/kuroda_fondo</item>
+        <item name="android:colorAccent">@color/kuroda_azul</item>
+        <item name="android:colorPrimary">@color/kuroda_azul</item>
+    </style>
+</resources>

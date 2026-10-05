@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="kuroda_azul">#5E72E4</color>
+    <color name="kuroda_rojo">#E02128</color>
+    <color name="kuroda_fondo">#0A0E23</color>
+    <color name="icono_fondo">#FFFFFF</color>
+</resources>
