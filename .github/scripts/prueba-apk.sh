@@ -7,44 +7,37 @@ APK=android/app/build/outputs/apk/debug/app-debug.apk
 PKG=com.grupokuroda.auditoria
 mkdir -p capturas
 cap() { adb exec-out screencap -p > "capturas/$1.png"; }
-js() { node .github/scripts/cdp.mjs "$1"; }
-deslizar() { adb shell input swipe 540 1900 540 700 500; sleep 2; }
+conectar() {
+  PID=$(adb shell pidof "$PKG" | tr -d '\r')
+  echo "pid app: ${PID:-NO CORRE}"
+  adb forward --remove-all >/dev/null 2>&1
+  [ -n "$PID" ] && adb forward tcp:9222 "localabstract:webview_devtools_remote_$PID" >/dev/null
+}
+js() { conectar >/dev/null; node .github/scripts/cdp.mjs "$1"; }
+deslizar() { adb shell input swipe 540 1700 540 600 400; sleep 2; }
+abrir() { adb shell am force-stop "$PKG"; adb shell am start -n "$PKG/.MainActivity" >/dev/null; sleep 25; }
 
-adb install -r "$APK"
-adb shell am start -n "$PKG/.MainActivity"
-sleep 30
-cap 1-abre
-PID=$(adb shell pidof "$PKG" | tr -d '\r')
-adb forward tcp:9222 "localabstract:webview_devtools_remote_$PID"
-sleep 2
-
-MEDIR='({ancho:innerWidth, alto:innerHeight, scrollY:Math.round(scrollY), largo:document.scrollingElement.scrollHeight, apk:document.documentElement.className, zoom:getComputedStyle(document.body).zoom, html:getComputedStyle(document.documentElement).overflowY, body:getComputedStyle(document.body).overflowY})'
+MEDIR='({ancho:innerWidth, alto:innerHeight, scrollY:Math.round(scrollY), largo:document.scrollingElement.scrollHeight, apk:document.documentElement.className, zoom:getComputedStyle(document.body).zoom, html:getComputedStyle(document.documentElement).overflowY, body:getComputedStyle(document.body).overflowY, bajoDedo:(function(){var e=document.elementFromPoint(innerWidth/2, innerHeight*0.55);return e?e.tagName+"."+String(e.className).slice(0,40):null})(), ventanas:document.querySelectorAll(".modal-overlay.show,.kpi-cfg-overlay.show,.usr-overlay.show,.mv-hoja.abierta,.apk-ov,#plantilla-overlay").length})'
 ENTRAR="document.getElementById('login-page').classList.add('hidden'); scrollTo(0,0); 'ok'"
 
-echo "== A) Como está publicado hoy =="
-js "$ENTRAR"
-js "$MEDIR"
-cap 2-inicio
-deslizar
-echo "RESULTADO A:"; js "$MEDIR"
-cap 3-tras-deslizar
-deslizar
-js "$MEDIR"
-cap 4-tras-deslizar-2
+prueba() { # $1 nombre, $2 js de preparación
+  echo "== $1 =="
+  abrir
+  js "$ENTRAR"
+  [ -n "$2" ] && js "$2"
+  sleep 1
+  echo "antes:";  js "$MEDIR"
+  cap "$1-antes"
+  deslizar
+  echo "RESULTADO $1 (después de deslizar):"; js "$MEDIR"
+  cap "$1-despues"
+}
 
-echo "== B) Página web tal cual, sin el diseño de la app =="
-js "document.documentElement.classList.remove('gk-apk'); document.querySelectorAll('link[href*=\"apk.css\"]').forEach(l=>l.remove()); scrollTo(0,0); 'ok'"
-sleep 2
-js "$MEDIR"
-deslizar
-echo "RESULTADO B:"; js "$MEDIR"
-cap 5-web-tras-deslizar
-
-echo "== C) Página web con el arreglo de desplazamiento =="
-js "var s=document.createElement('style'); s.textContent='html,body{zoom:1!important;height:auto!important;overflow-x:clip!important;overflow-y:visible!important}'; document.head.appendChild(s); scrollTo(0,0); 'ok'"
-sleep 2
-js "$MEDIR"
-deslizar
-echo "RESULTADO C:"; js "$MEDIR"
-cap 6-arreglo-tras-deslizar
+adb install -r "$APK"
+prueba A-publicado ""
+prueba B-web-sin-diseno "document.documentElement.classList.remove('gk-apk'); var l=document.querySelector('link[href*=\"apk.css\"]'); if(l) l.disabled=true; scrollTo(0,0); 'ok'"
+prueba C-arreglo-clip "var s=document.createElement('style'); s.textContent='html,body{zoom:1!important;height:auto!important;overflow-x:clip!important;overflow-y:visible!important}'; document.head.appendChild(s); scrollTo(0,0); 'ok'"
+prueba D-web-con-arreglo "document.documentElement.classList.remove('gk-apk'); var l=document.querySelector('link[href*=\"apk.css\"]'); if(l) l.disabled=true; var s=document.createElement('style'); s.textContent='html,body{zoom:1!important;height:auto!important;overflow-x:clip!important;overflow-y:visible!important}'; document.head.appendChild(s); scrollTo(0,0); 'ok'"
+echo "== errores de la app =="
+adb logcat -d -s AndroidRuntime:E | tail -n 30
 exit 0
