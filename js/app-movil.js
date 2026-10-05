@@ -1,5 +1,5 @@
 /* Vista para teléfonos — Grupo Kuroda
-   Complementa css/movil.css. Solo actúa en pantallas de 768 px o menos; en computadora no
+   Complementa css/movil.css. Solo actúa en teléfonos y tabletas chicas (ver MEDIA); en computadora no
    cambia nada (lo que agrega queda oculto por CSS).
    1) Menú inferior: muestra los primeros 4 accesos visibles para el rol y un botón "Más"
       que abre una hoja con el resto (respeta las vistas permitidas de cada usuario).
@@ -11,7 +11,9 @@
 (function () {
   'use strict';
 
-  var mq = window.matchMedia('(max-width: 768px)');
+  /* Misma condición que css/movil.css: teléfonos, tabletas chicas y teléfono acostado. */
+  var MEDIA = '(max-width: 768px), (max-height: 500px) and (max-width: 1024px)';
+  var mq = window.matchMedia(MEDIA);
   var PRINCIPALES = 4;
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) {
