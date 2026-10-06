@@ -25,14 +25,33 @@
     })();
   }
 
-  function instalar(win) {
+  /* window.print() no hace nada dentro del WebView de Android. Se manda el HTML de la página
+     a la app, que lo abre en el diálogo de impresión de Android (ahí se elige "Guardar como PDF").
+     Así funcionan "Imprimir / Guardar PDF" de Documentos y las etiquetas QR de Activos. */
+  function imprimir(win) {
     try {
-      if (!win || win.__gkPuente) return;
-      win.__gkPuente = true;
+      if (!GKAndroid.imprimir) return; /* APK anterior sin impresión */
+      var d = win.document;
+      var html = '<!DOCTYPE html>' + d.documentElement.outerHTML;
+      var titulo = d.title || (win.top && win.top.document.title) || 'Documento';
+      GKAndroid.imprimir(html, d.baseURI || win.location.href, titulo);
+    } catch (e) {}
+  }
+
+  function instalar(win) {
+    var Ancla;
+    try {
+      /* La marca va en el prototipo (no en window): al cargar un iframe, su ventana inicial
+         about:blank puede reutilizarse con prototipos nuevos y hay que volver a instalar. */
+      Ancla = win && win.HTMLAnchorElement && win.HTMLAnchorElement.prototype;
+      if (!Ancla || Ancla.__gkPuente) return;
+      Ancla.__gkPuente = true;
     } catch (e) { return; } /* iframe de otro origen */
 
-    var doc = win.document, URL_ = win.URL, Ancla = win.HTMLAnchorElement.prototype;
+    var doc = win.document, URL_ = win.URL;
     var blobs = {};
+
+    win.print = function () { imprimir(win); };
 
     /* Se guarda el Blob de cada URL: la página suele revocarla justo después del clic. */
     var crear = URL_.createObjectURL;
