@@ -236,7 +236,16 @@
   var aviso = function (t) { if (typeof toast === 'function') toast(t); };
   var conHuella = function () { return !!(A && typeof A.huellaDisponible === 'function'); };
   var huellaDisp = function () { try { return conHuella() && A.huellaDisponible(); } catch (e) { return false; } };
-  var huellaUsuario = function () { try { return conHuella() ? (A.huellaUsuario() || '') : ''; } catch (e) { return ''; } };
+  /* La app no entrega el usuario guardado (va cifrado); solo dice si hay uno y si es el de esta cuenta. */
+  var hayHuella = function () {
+    try {
+      if (!conHuella()) return false;
+      return typeof A.huellaGuardada === 'function' ? !!A.huellaGuardada() : !!A.huellaUsuario();
+    } catch (e) { return false; }
+  };
+  var huellaEsDe = function (u) {
+    try { return typeof A.huellaEsDe === 'function' ? !!A.huellaEsDe(u) : A.huellaUsuario() === u; } catch (e) { return false; }
+  };
   var entrandoConHuella = false;
   var entro = function () { var l = $('login-page'); return !!(l && l.classList.contains('hidden')); };
 
@@ -264,7 +273,7 @@
       }
       return;
     }
-    if (porHuella || !u || !p || !huellaDisp() || huellaUsuario() === u) return;
+    if (porHuella || !u || !p || !huellaDisp() || huellaEsDe(u)) return;
     try { if (localStorage.getItem('gk-huella-no') === u) return; } catch (e) {}
     ofrecerHuella(u, p);
   }
@@ -283,7 +292,7 @@
   /* Botón "Entrar con huella" debajo de "Ingresar". */
   function botonHuella() {
     var btn = $('lp-btn'), h = $('apk-huella');
-    if (!btn || !huellaUsuario() || !huellaDisp()) { if (h) h.remove(); return; }
+    if (!btn || !hayHuella() || !huellaDisp()) { if (h) h.remove(); return; }
     if (!h) {
       h = document.createElement('button');
       h.type = 'button';
@@ -315,7 +324,7 @@
     Promise.resolve(window.doLogin()).then(function () { lp.value = ''; }, function () { lp.value = ''; });
   }
   function alternarHuella() {
-    if (huellaUsuario()) { try { A.quitarHuella(); } catch (e) {} aviso('Inicio con huella desactivado'); return; }
+    if (hayHuella()) { try { A.quitarHuella(); } catch (e) {} aviso('Inicio con huella desactivado'); return; }
     var ses = sesion(), u = ses && ses.username ? ses.username : '';
     var p = window.prompt('Escribe tu contraseña para activar el inicio con huella');
     if (u && p) try { A.activarHuella(u, p); } catch (e) {}
@@ -327,7 +336,7 @@
     var login = $('login-page');
     if (login) new MutationObserver(botonHuella).observe(login, { attributes: true, attributeFilter: ['class'] });
     /* Al abrir la app con huella guardada: se pide de una vez. */
-    if (!entro() && huellaUsuario() && huellaDisp()) setTimeout(pedirHuella, 700);
+    if (!entro() && hayHuella() && huellaDisp()) setTimeout(pedirHuella, 700);
   }
 
   /* ---------- 10) Menú lateral ----------
@@ -367,7 +376,7 @@
     }).join('');
     /* Opciones de la app al final de la lista; abajo fijo solo "Cerrar sesión" (como en la foto). */
     lista += '<div class="apk-menu-sep">Ajustes de la app</div>';
-    if (huellaDisp()) lista += '<button type="button" data-ir="huella"><i>👆</i><span>' + (huellaUsuario() ? 'Quitar inicio con huella' : 'Activar inicio con huella') + '</span></button>';
+    if (huellaDisp()) lista += '<button type="button" data-ir="huella"><i>👆</i><span>' + (hayHuella() ? 'Quitar inicio con huella' : 'Activar inicio con huella') + '</span></button>';
     lista += '<button type="button" data-ir="tema"><i>' + (oscuro ? '☀️' : '🌙') + '</i><span>' + (oscuro ? 'Modo claro' : 'Modo oscuro') + '</span></button>';
     lista += '<button type="button" data-ir="actualizar"><i>⬆️</i><span>Buscar actualizaciones</span></button>';
     menu.querySelector('.apk-menu-lista').innerHTML = lista;
