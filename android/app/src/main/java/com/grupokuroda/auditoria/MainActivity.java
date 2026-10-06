@@ -17,6 +17,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.SystemClock;
+import android.print.PrintAttributes;
+import android.print.PrintManager;
 import android.provider.MediaStore;
 import android.util.Base64;
 import android.view.View;
@@ -86,6 +88,7 @@ public class MainActivity extends Activity {
             + "Revisa tu conexión a internet e inténtalo de nuevo.</p><a href='" + BuildConfig.URL_APP + "'>Reintentar</a></body></html>";
 
     private WebView web;
+    private WebView webImpresion;   /* página que se está imprimiendo / guardando como PDF */
     private ProgressBar barra;
     private ValueCallback<Uri[]> respuestaArchivo;
     private Actualizador actualizador;
@@ -623,6 +626,41 @@ public class MainActivity extends Activity {
         }
     }
 
+    /* ---------- Imprimir / Guardar PDF ----------
+       El WebView ignora window.print(). Se carga el HTML que mandó la página en un WebView
+       aparte (sin JavaScript, solo para dibujarlo) y se abre el diálogo de impresión de
+       Android, que permite "Guardar como PDF" o mandar a una impresora. */
+    private void imprimirHtml(String html, String base, String titulo) {
+        if (isFinishing() || isDestroyed()) return;
+        final WebView w = new WebView(this);
+        w.getSettings().setJavaScriptEnabled(false);
+        w.getSettings().setAllowFileAccess(false);
+        w.getSettings().setAllowContentAccess(false);
+        w.setWebViewClient(new WebViewClient() {
+            private boolean enviado;
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest req) { return true; }
+
+            @Override
+            public void onPageFinished(WebView v, String url) {
+                if (enviado) return;
+                enviado = true;
+                String nombre = nombreSeguro(titulo == null ? "" : titulo);
+                try {
+                    PrintManager pm = (PrintManager) getSystemService(PRINT_SERVICE);
+                    pm.print(nombre, v.createPrintDocumentAdapter(nombre), new PrintAttributes.Builder().build());
+                } catch (Exception e) {
+                    aviso("No se pudo abrir la impresión");
+                }
+            }
+        });
+        /* Referencia viva hasta que termine el trabajo de impresión (si no, se pierde). */
+        webImpresion = w;
+        String b = base != null && esDeLaApp(Uri.parse(base)) ? base : BuildConfig.URL_APP;
+        w.loadDataWithBaseURL(b, html, "text/html", "UTF-8", null);
+    }
+
     /* Copias para Abrir/Compartir: se borran al día siguiente. */
     private void limpiarArchivosViejos() {
         File[] fs = ArchivoProvider.carpeta(this, ArchivoProvider.ARCHIVOS).listFiles();
@@ -682,6 +720,13 @@ public class MainActivity extends Activity {
             synchronized (enCurso) { r = enCurso.remove(id); }
             if (r != null) try { r.salida.close(); } catch (IOException ignorado) { }
             return r;
+        }
+
+        /* window.print() de la página (assets/puente.js): Imprimir / Guardar PDF. */
+        @JavascriptInterface
+        public void imprimir(String html, String base, String titulo) {
+            if (html == null || html.isEmpty()) return;
+            runOnUiThread(() -> imprimirHtml(html, base, titulo));
         }
 
         /* Información de la app para js/app-apk.js. */
