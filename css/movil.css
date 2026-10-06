@@ -171,6 +171,13 @@
   #view-desempeno [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr 1fr !important; gap: 8px !important; padding-left: 10px !important; padding-right: 10px !important; }
   #view-desempeno [style*="grid-template-columns:1fr 1fr"] > div { padding: 9px !important; min-width: 0; }
   #view-desempeno [style*="font-size:26px"], #view-desempeno [style*="font-size:28px"] { font-size: 20px !important; }
+  /* Encabezado de cada auditor: los % (AJU, MER, ACT…) y el Global pasan a su propio renglón
+     debajo del nombre; antes ocupaban 220 px fijos y el nombre quedaba cortado ("FER…") y
+     "Octubre · 14 registros" partido en 3 líneas. */
+  #view-desempeno .card > [style*="padding:14px 18px;display:flex"] { flex-wrap: wrap; row-gap: 12px; padding: 14px 14px !important; }
+  #view-desempeno [style*="min-width:220px"] { min-width: 0 !important; flex: 1 1 100% !important; flex-direction: row !important; align-items: stretch; }
+  #view-desempeno [style*="min-width:220px"] > div:first-child { justify-content: flex-start !important; align-content: center; }
+  #view-desempeno [style*="min-width:220px"] > div:last-child { flex: 1; display: flex; flex-direction: column; justify-content: center; }
 
   /* ── Ventanas emergentes como hoja desde abajo ── */
   .modal-overlay, .kpi-cfg-overlay { align-items: flex-end !important; padding: 0 !important; }

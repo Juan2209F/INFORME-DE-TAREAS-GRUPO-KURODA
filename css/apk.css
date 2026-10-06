@@ -18,6 +18,8 @@ html.gk-apk, html.gk-apk body { zoom: 1 !important; height: auto !important; ove
 .gk-apk .topbar-title h1 { line-height: 1.15; }
 .gk-apk #apk-seccion { display: block; font-size: 11px; font-weight: 700; color: var(--blue);
   text-transform: uppercase; letter-spacing: .06em; margin-top: 1px; }
+/* En oscuro el azul casi no se leía sobre la barra. */
+html.gk-apk[data-theme="dark"] #apk-seccion { color: #a5b4fc; }
 
 /* ── Contenido entre las dos barras ── */
 .gk-apk .content { padding-top: 12px !important; }
