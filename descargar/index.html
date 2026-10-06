@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Descargar app — Auditoría Kuroda</title>
+<!-- Página corta para instalar la app en otros teléfonos: /descargar
+     Lee latest.json (el mismo que usa la app para actualizarse) y descarga siempre la última
+     versión, sin tener que escribir la dirección larga de Supabase. -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { --blue: #4318ff; --blue2: #9f7aea; --bg: #0a0e23; --card: #1a1f3c; --txt: #f1f2f8; --muted: #a3aed0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px;
+    background: radial-gradient(circle at top, #1b1f4a, var(--bg) 60%); color: var(--txt); font-family: Poppins, system-ui, sans-serif; }
+  .caja { width: 100%; max-width: 420px; background: var(--card); border: 1px solid rgba(255,255,255,.1); border-radius: 24px;
+    padding: 28px 22px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,.45); }
+  .logo { width: 76px; height: 76px; margin: 0 auto 14px; border-radius: 22px; display: flex; align-items: center; justify-content: center;
+    font-size: 36px; font-weight: 800; color: #fff; background: linear-gradient(135deg, var(--blue), var(--blue2)); }
+  h1 { font-size: 21px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13.5px; margin: 0 0 20px; }
+  .ver { display: inline-block; padding: 4px 12px; border-radius: 20px; background: rgba(67,24,255,.2); color: #c7d2fe; font-size: 12.5px; font-weight: 700; }
+  .notas { text-align: left; margin: 16px 0 0; padding: 0 0 0 18px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+  .btn { display: block; margin: 22px 0 0; padding: 16px; border-radius: 16px; color: #fff; text-decoration: none; font-weight: 800; font-size: 16px;
+    background: linear-gradient(135deg, var(--blue), var(--blue2)); box-shadow: 0 10px 26px rgba(67,24,255,.35); }
+  .btn[aria-disabled="true"] { opacity: .5; pointer-events: none; }
+  .pasos { text-align: left; margin: 22px 0 0; padding: 16px 16px 6px; border-radius: 16px; background: rgba(255,255,255,.04); font-size: 13px; line-height: 1.55; }
+  .pasos b { display: block; margin-bottom: 6px; font-size: 13.5px; }
+  .pasos ol { margin: 0; padding-left: 18px; color: var(--muted); }
+  .pasos li { margin-bottom: 8px; }
+  .err { color: #ffb4b4; font-size: 13px; margin-top: 14px; }
+</style>
+</head>
+<body>
+  <main class="caja">
+    <div class="logo">K</div>
+    <h1>Auditoría Kuroda</h1>
+    <p class="sub">Monitor de Cumplimiento para Android</p>
+    <span class="ver" id="ver">Buscando la última versión…</span>
+    <ul class="notas" id="notas" hidden></ul>
+    <a class="btn" id="btn" href="#" aria-disabled="true">⬇️ Descargar app</a>
+    <div class="err" id="err" hidden></div>
+    <div class="pasos">
+      <b>Cómo instalarla</b>
+      <ol>
+        <li>Toca <b style="display:inline">Descargar app</b>. Si el teléfono avisa que el archivo puede ser dañino, elige <b style="display:inline">Descargar de todas formas</b>.</li>
+        <li>Abre el archivo descargado (en la notificación o en la carpeta Descargas).</li>
+        <li>Si Android lo pide, permite <b style="display:inline">Instalar apps desconocidas</b> para tu navegador y vuelve atrás.</li>
+        <li>Toca <b style="display:inline">Instalar</b>. Después la app se actualiza sola.</li>
+      </ol>
+    </div>
+  </main>
+<script>
+(function () {
+  'use strict';
+  var INFO = 'https://xlygkolfmetytowixtnb.supabase.co/storage/v1/object/public/app-releases/latest.json';
+  var $ = function (id) { return document.getElementById(id); };
+  fetch(INFO + '?t=' + Date.now(), { cache: 'no-store' })
+    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function (j) {
+      if (!j || !j.url) throw new Error('sin enlace');
+      $('ver').textContent = 'Versión ' + j.versionName + (j.tamano ? ' · ' + Math.round(j.tamano / 1024) + ' KB' : '');
+      var notas = Array.isArray(j.notas) ? j.notas : [];
+      if (notas.length) {
+        notas.forEach(function (n) { var li = document.createElement('li'); li.textContent = n; $('notas').appendChild(li); });
+        $('notas').hidden = false;
+      }
+      var b = $('btn');
+      b.href = j.url;
+      b.setAttribute('download', 'AuditoriaKuroda-v' + j.versionName + '.apk');
+      b.removeAttribute('aria-disabled');
+    })
+    .catch(function () {
+      $('ver').textContent = 'Sin conexión';
+      $('err').textContent = 'No se pudo consultar la última versión. Revisa tu conexión a internet y vuelve a abrir esta página.';
+      $('err').hidden = false;
+    });
+})();
+</script>
+</body>
+</html>
