@@ -8,6 +8,7 @@
       sola, un aviso con la ventana normal del Monitor para descargar la versión nueva.
    5) Nombre de la sección en la barra superior.  6) Deslizar hacia abajo para recargar.
    7) Notificaciones: registra el teléfono en Supabase al iniciar sesión y abre la sección avisada.
+   8) Pantallas anchas y teléfono girado: siempre el diseño de teléfono, escalado a la pantalla.
    En el navegador no hace nada. */
 (function () {
   'use strict';
@@ -180,6 +181,30 @@
     })();
   }
 
+  /* ---------- 8) Pantallas anchas (tabletas, plegables, teléfonos acostados muy anchos) ----------
+     La app siempre usa el menú y las tablas de teléfono (js/app-movil.js), pero el diseño de
+     teléfono (css/movil.css) solo aplica hasta 768 px, o 1024 px acostado. En pantallas más
+     anchas se mezclaban los dos diseños. Ahí se fija la página en 768 px de ancho y Android
+     la escala para llenar la pantalla; se vuelve a revisar al girar el teléfono. */
+  var MEDIA_MOVIL = '(max-width: 768px), (max-height: 500px) and (max-width: 1024px)';
+  var ANCHO_MAX = 768, NORMAL = 'width=device-width, initial-scale=1.0';
+  function ajustarAncho() {
+    var m = document.querySelector('meta[name="viewport"]');
+    if (!m || !window.matchMedia) return;
+    if (m.getAttribute('content') !== NORMAL) {
+      m.setAttribute('content', NORMAL);
+      setTimeout(ajustarAncho, 250);   /* medir con el ancho real del dispositivo */
+      return;
+    }
+    if (!window.matchMedia(MEDIA_MOVIL).matches) m.setAttribute('content', 'width=' + ANCHO_MAX);
+  }
+  function vigilarGiro() {
+    ajustarAncho();
+    var alGirar = function () { setTimeout(ajustarAncho, 300); };
+    if (window.screen && screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', alGirar);
+    else window.addEventListener('orientationchange', alGirar);
+  }
+
   /* ---------- 7) Notificaciones de cambios ----------
      Al iniciar sesión se registra este teléfono en Supabase (función registrar_dispositivo) con el
      usuario y sus razones sociales; al cerrar sesión se quita. La Edge Function notificar-push avisa
@@ -231,6 +256,7 @@
   }
 
   function init() {
+    vigilarGiro();
     avisarTema();
     seccion();
     montarRecarga();

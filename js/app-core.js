@@ -1673,7 +1673,8 @@ function renderTareasInsight(tareas){
 
   const grid=document.getElementById('insight-row');
   if(grid){
-    grid.style.gridTemplateColumns='repeat(3,1fr)';
+    /* Columnas: las pone .insight-grid en css (3 en computadora, 1 en pantallas chicas). */
+    grid.style.gridTemplateColumns='';
     grid.innerHTML=`
       <div class="insight-card">
         <div class="insight-card-hdr"><span class="ico">🔁</span><span class="ttl">Tareas más frecuentes</span></div>
