@@ -165,9 +165,9 @@ final class Huella {
 
                         @Override
                         public void onAuthenticationError(int codigo, CharSequence msg) {
+                            /* "Usar contraseña" lo atiende setNegativeButton; aquí solo cancelaciones y fallas. */
                             boolean cancelado = codigo == BiometricPrompt.BIOMETRIC_ERROR_USER_CANCELED
-                                    || codigo == BiometricPrompt.BIOMETRIC_ERROR_CANCELED
-                                    || codigo == BiometricPrompt.BIOMETRIC_ERROR_NEGATIVE_BUTTON;
+                                    || codigo == BiometricPrompt.BIOMETRIC_ERROR_CANCELED;
                             r.error(cancelado ? "" : String.valueOf(msg), false);
                         }
                     });
