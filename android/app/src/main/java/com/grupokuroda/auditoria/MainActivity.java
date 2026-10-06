@@ -42,6 +42,8 @@ import android.widget.FrameLayout;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 
+import org.json.JSONObject;
+
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.messaging.FirebaseMessaging;
 
@@ -92,6 +94,7 @@ public class MainActivity extends Activity {
     private ProgressBar barra;
     private ValueCallback<Uri[]> respuestaArchivo;
     private Actualizador actualizador;
+    private Huella huella;
     private String puenteJs = "";
     private String hostApp = "";
     private long ultimaRevision;
@@ -168,6 +171,7 @@ public class MainActivity extends Activity {
         web.setDownloadListener(this::descargarPorUrl);
 
         actualizador = new Actualizador(this);
+        huella = new Huella(this);
         if (guardado == null || web.restoreState(guardado) == null) web.loadUrl(BuildConfig.URL_APP);
     }
 
@@ -626,6 +630,29 @@ public class MainActivity extends Activity {
         }
     }
 
+    /* ---------- Huella: respuesta a la página ---------- */
+    private Huella.Resultado resultadoHuella(String accion) {
+        return new Huella.Resultado() {
+            @Override
+            public void ok(String usuario, String clave) {
+                llamarPagina("GKApk.huella(" + JSONObject.quote(accion) + ",true," + JSONObject.quote(usuario) + ","
+                        + JSONObject.quote(clave) + ",false)");
+            }
+
+            @Override
+            public void error(String mensaje, boolean borrada) {
+                llamarPagina("GKApk.huella(" + JSONObject.quote(accion) + ",false,''," + JSONObject.quote(mensaje) + ","
+                        + borrada + ")");
+            }
+        };
+    }
+
+    private void llamarPagina(String js) {
+        runOnUiThread(() -> {
+            if (web != null) web.evaluateJavascript("(function(){try{if(window.GKApk&&GKApk.huella)" + js + "}catch(e){}})()", null);
+        });
+    }
+
     /* ---------- Imprimir / Guardar PDF ----------
        El WebView ignora window.print(). Se carga el HTML que mandó la página en un WebView
        aparte (sin JavaScript, solo para dibujarlo) y se abre el diálogo de impresión de
@@ -728,6 +755,25 @@ public class MainActivity extends Activity {
             if (html == null || html.isEmpty()) return;
             runOnUiThread(() -> imprimirHtml(html, base, titulo));
         }
+
+        /* Entrar con huella (Huella.java). El resultado llega a la página en GKApk.huella(...). */
+        @JavascriptInterface
+        public boolean huellaDisponible() { return huella.disponible(); }
+
+        @JavascriptInterface
+        public String huellaUsuario() { return huella.usuario(); }
+
+        @JavascriptInterface
+        public void activarHuella(String usuario, String clave) {
+            if (usuario == null || usuario.isEmpty() || clave == null || clave.isEmpty()) return;
+            runOnUiThread(() -> huella.activar(usuario, clave, resultadoHuella("activar")));
+        }
+
+        @JavascriptInterface
+        public void entrarConHuella() { runOnUiThread(() -> huella.entrar(resultadoHuella("entrar"))); }
+
+        @JavascriptInterface
+        public void quitarHuella() { huella.quitar(); }
 
         /* Información de la app para js/app-apk.js. */
         @JavascriptInterface
