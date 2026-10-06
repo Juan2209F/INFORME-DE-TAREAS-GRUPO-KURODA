@@ -24,9 +24,12 @@ html.gk-apk[data-theme="dark"] #apk-seccion { color: #a5b4fc; }
 /* ── Contenido entre las dos barras ── */
 .gk-apk .content { padding-top: 12px !important; }
 
-/* ── Menú inferior fijo (mismo menú del Monitor) respetando la barra de gestos del teléfono ── */
-.gk-apk nav.sidebar { padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)) !important; }
-.gk-apk nav.sidebar .nav-item { -webkit-user-select: none; user-select: none; }
+/* ── Sin menú inferior: las secciones se abren desde el menú lateral (☰). El menú sigue en la
+   página (oculto) porque el menú lateral toma de ahí las secciones y sus permisos. ── */
+.gk-apk nav.sidebar { display: none !important; }
+.gk-apk .content { padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)) !important; }
+.gk-apk .main-area { padding-bottom: 0 !important; }
+.gk-apk .toast { bottom: calc(18px + env(safe-area-inset-bottom, 0px)) !important; }
 
 /* ── Ventanas emergentes: suben desde abajo (movil.css ya las pone como hoja) ── */
 @keyframes apkSube { from { transform: translateY(40px); opacity: .4; } to { transform: none; opacity: 1; } }
