@@ -16,6 +16,11 @@
   document.documentElement.classList.add('act-embed');
 
   var E = 'html.act-embed ';
+  /* ¿Dentro de la app Android? (js/app-apk.js marca el Monitor con html.gk-apk) */
+  var APK = false;
+  try { APK = window.parent.document.documentElement.classList.contains('gk-apk'); } catch (e) {}
+  if (APK) document.documentElement.classList.add('act-apk');
+  var A = 'html.act-embed.act-apk ';
   var css = document.createElement('style');
   css.textContent =
     E + 'body{--text-main:#344767;background:transparent!important}' +
@@ -46,6 +51,47 @@
     E + '#act-estado div{background:var(--card-bg);color:var(--text-main);border:1px solid var(--border-color);border-radius:18px;padding:22px 26px;font-size:13px;max-width:420px;text-align:center;box-shadow:var(--shadow)}' +
     E + '#act-estado.err div{color:var(--danger-color)}' +
     '@media(max-width:768px){' + E + '.nav-item span:not(.badge){display:none!important}}' +
+    /* App Android: pestañas en una sola franja que se desliza con el dedo, con ícono y nombre
+       (como las pestañas de una app), contadores como globito y la campana al final. */
+    A + '.sidebar{flex-wrap:nowrap!important;overflow-x:auto!important;overflow-y:hidden!important;gap:8px!important;padding:8px!important;' +
+      'margin:0 0 14px!important;border-radius:18px;scrollbar-width:none;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity}' +
+    A + '.sidebar::-webkit-scrollbar{display:none}' +
+    A + '.sidebar-separator{display:none!important}' +
+    A + '.nav-item{flex:0 0 auto;flex-direction:column!important;align-items:center;justify-content:center;position:relative;min-width:76px;' +
+      'padding:10px 10px 8px!important;gap:5px!important;border:0!important;border-radius:14px;background:rgba(94,114,228,.07);font-size:11px!important;' +
+      'font-weight:700;scroll-snap-align:start}' +
+    A + '.nav-item.active{background:linear-gradient(135deg,var(--active-bg),var(--active-bg2,var(--active-bg)))!important;color:#fff!important;box-shadow:0 6px 16px rgba(67,24,255,.25)!important}' +
+    A + '.nav-item span:not(.badge){display:block!important;white-space:nowrap;line-height:1.1}' +
+    A + '.nav-item i{font-size:18px!important;line-height:1}' +
+    A + '.nav-item .badge{position:absolute;top:4px;right:6px;min-width:18px;height:18px;padding:0 5px;margin:0!important;border-radius:9px;' +
+      'font-size:10px;line-height:18px;text-align:center;background:var(--active-bg)!important;color:#fff!important}' +
+    A + '.nav-item.active .badge{background:#fff!important;color:var(--active-bg)!important}' +
+    A + '.nav-item .badge.act-cero{display:none!important}' +
+    A + 'body.dark-mode .nav-item:not(.active){background:rgba(255,255,255,.06)}' +
+    A + '.sidebar .topbar-actions{flex:0 0 auto;display:flex;align-items:center;margin-left:auto;padding-left:4px}' +
+    A + '.notif-bell{width:46px;height:46px;border-radius:14px!important}' +
+    /* Indicadores de Inicio en 2 × 2 (antes uno por renglón). */
+    A + '.kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}' +
+    A + '.kpi-card{flex-direction:column!important;align-items:flex-start!important;gap:8px!important;padding:14px!important;min-width:0}' +
+    A + '.kpi-card .kpi-icon{width:38px!important;height:38px!important;font-size:16px!important}' +
+    A + '.kpi-info{min-width:0}' +
+    /* Tablas en tarjetas (como las tablas del Monitor en el teléfono): cada dato con su título. */
+    A + 'table.act-tarjetas,' + A + 'table.act-tarjetas tbody{display:block;width:100%!important;min-width:0!important}' +
+    A + 'table.act-tarjetas thead{display:none}' +
+    A + 'table.act-tarjetas tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;margin:0 0 10px;padding:12px 14px;' +
+      'border:1px solid var(--border-color);border-radius:14px;background:var(--card-bg);box-shadow:0 2px 6px rgba(20,30,60,.06)}' +
+    A + 'table.act-tarjetas td{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;padding:0!important;border:0!important;' +
+      'white-space:normal!important;overflow-wrap:anywhere;text-align:left!important;font-size:12.5px;line-height:1.3}' +
+    A + 'table.act-tarjetas td::before{content:attr(data-label);font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;opacity:.6}' +
+    A + 'table.act-tarjetas td[data-label=""]::before{display:none}' +
+    A + 'table.act-tarjetas td:first-child{grid-column:1/-1;font-size:13.5px;font-weight:700}' +
+    A + 'table.act-tarjetas td.act-completa{grid-column:1/-1;align-items:center}' +
+    A + 'table.act-tarjetas td.act-completa::before{display:none}' +
+    A + 'table.act-tarjetas td:empty{display:none}' +
+    A + 'table.act-tarjetas tr:hover{transform:none}' +
+    /* El panel no puede quedar dentro de la franja (se recortaría): se muestra fijo debajo. */
+    A + '.sidebar .notif-panel{position:fixed!important;top:76px!important;left:10px!important;right:10px!important;width:auto!important;' +
+      'max-height:70vh;overflow-y:auto;z-index:1000}' +
     /* Solo consulta (viewer del Monitor): sin controles que crean, modifican o borran. La base de
        datos también lo impide (RLS es_editor_activos), esto solo evita botones que fallarían. */
     [ '[onclick^="resetAssetForm"]', '#btnNuevoLevantamiento', '[onclick^="finalizarInventario"]', '[onclick^="cancelarInventario"]',
@@ -80,6 +126,56 @@
     if (a && s && a.parentNode !== s) s.appendChild(a);
   }
 
+  /* App Android: contadores en 0 ocultos y la pestaña elegida siempre a la vista en la franja. */
+  function afinarApk() {
+    if (!APK) return;
+    var s = document.querySelector('.sidebar');
+    if (!s || s.__gkApk) return;
+    s.__gkApk = true;
+    var ceros = function () {
+      Array.prototype.forEach.call(s.querySelectorAll('.nav-item .badge'), function (b) {
+        b.classList.toggle('act-cero', !b.textContent.trim() || b.textContent.trim() === '0');
+      });
+    };
+    ceros();
+    new MutationObserver(ceros).observe(s, { subtree: true, childList: true, characterData: true });
+    var verActiva = function () {
+      var a = s.querySelector('.nav-item.active');
+      if (a && a.scrollIntoView) a.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+    };
+    /* Tablas de 3 columnas o más → tarjetas; también las filas que se dibujan después. */
+    var tarjetas = function () {
+      Array.prototype.forEach.call(document.querySelectorAll('#dashboard table'), function (t) {
+        if (!t.tHead || !t.tHead.rows.length) return;
+        var tit = Array.prototype.map.call(t.tHead.rows[0].cells, function (c) { return c.textContent.trim(); });
+        if (tit.length < 3) return;
+        t.classList.add('act-tarjetas');
+        Array.prototype.forEach.call(t.tBodies, function (tb) {
+          Array.prototype.forEach.call(tb.rows, function (tr) {
+            Array.prototype.forEach.call(tr.cells, function (td, i) {
+              if (td.hasAttribute('data-label')) return;
+              if ((td.colSpan || 1) > 1 || tr.cells.length !== tit.length) { td.classList.add('act-completa'); td.setAttribute('data-label', ''); }
+              else td.setAttribute('data-label', tit[i] || '');
+            });
+          });
+        });
+      });
+    };
+    var pendiente = false;
+    var programar = function () {
+      if (pendiente) return;
+      pendiente = true;
+      requestAnimationFrame(function () { pendiente = false; tarjetas(); });
+    };
+    tarjetas();
+    new MutationObserver(programar).observe(document.getElementById('dashboard') || document.body, { childList: true, subtree: true });
+    if (typeof window.switchTab === 'function') {
+      var cambiar = window.switchTab;
+      window.switchTab = function () { var r = cambiar.apply(this, arguments); setTimeout(verActiva, 50); return r; };
+    }
+    setTimeout(verActiva, 300);
+  }
+
   async function entrar(m) {
     if (entrando) return;
     entrando = true;
@@ -105,6 +201,7 @@
         var sr = document.getElementById('session-rol'); if (sr) sr.textContent = 'Consulta';
       }
       moverCampana();
+      afinarApk();
       aplicarTema(oscuro);
       estado(null);
     } catch (e) {
