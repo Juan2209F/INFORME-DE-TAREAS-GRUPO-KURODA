@@ -2781,22 +2781,6 @@ function sendRazonesToGenerador(){
   var activa=(razones&&razones.length)?razones[0]:null;
   try{ifr.contentWindow.postMessage({type:'gen-config',razones:razones,activa:activa},'*');}catch(e){}
 }
-/* Reconstruye el .pptx que el generador entrega en base64 (vía postMessage,
-   porque desde dentro del iframe la descarga directa no siempre es fiable)
-   y dispara la descarga real desde el dashboard, que sí tiene origen propio. */
-function descargarPptxDesdeGenerador(b64,fileName){
-  try{
-    var bin=atob(b64);
-    var bytes=new Uint8Array(bin.length);
-    for(var i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
-    var blob=new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.presentationml.presentation'});
-    var url=URL.createObjectURL(blob);
-    var a=document.createElement('a');
-    a.href=url;a.download=fileName||'dashboard.pptx';
-    document.body.appendChild(a);a.click();a.remove();
-    setTimeout(function(){URL.revokeObjectURL(url);},4000);
-  }catch(e){console.warn('descargarPptxDesdeGenerador:',e);toast('⚠ No se pudo descargar el archivo');}
-}
 /* Avisa al módulo Documentos (que ya sabe escuchar {type:'theme'}) cuál es
    el tema activo, para que no se vea "distinto" del resto del dashboard. */
 function syncDocsTheme(){
@@ -2818,7 +2802,8 @@ function syncGeneradorTheme(){
 window.addEventListener('message',function(ev){
   var d=ev.data;if(!d||typeof d!=='object')return;
   if(d.type==='gen-ready'){sendRazonesToGenerador();syncGeneradorTheme();}
-  else if(d.type==='gen-download')descargarPptxDesdeGenerador(d.b64,d.fileName);
+  /* 'gen-download' lo atiende js/app-usuarios.js (verifica que venga del iframe del
+     generador). Atenderlo también aquí descargaba el archivo dos veces. */
 });
 /* Si el tema cambia mientras Documentos o Generador ya están abiertos, se
    les avisa en vivo (independientemente de qué botón haya disparado el
