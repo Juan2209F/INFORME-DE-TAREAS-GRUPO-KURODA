@@ -164,6 +164,21 @@
   .kpi-val { font-size: 18px !important; margin-top: 4px; }
   .kpi-sub { font-size: 9.5px; margin-top: 2px; line-height: 1.25; }
   .module-desc { font-size: 11px; }
+
+  /* ── Listas de Inicio (más frecuentes / peor / mejor calificadas): el texto completo en
+     varias líneas; antes iba en una sola línea y estiraba la tarjeta fuera de la pantalla. ── */
+  .insight-grid { grid-template-columns: minmax(0, 1fr) !important; gap: 10px; }
+  .insight-card { min-width: 0; padding: 12px 14px; }
+  .insight-card-hdr { flex-wrap: wrap; row-gap: 2px; }
+  .insight-row { align-items: flex-start; }
+  .insight-name { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: break-word;
+    font-size: 12px; line-height: 1.35; padding-top: 2px; }
+
+  /* ── Nada más ancho que la pantalla: tarjetas y columnas pueden encogerse y el texto
+     largo (sin espacios) se parte en vez de empujar todo hacia la derecha. ── */
+  .content > *, .content .card, .kpi-grid > *, .grid2 > *, .content [style*="display:grid"] > * { min-width: 0; max-width: 100%; }
+  .content img, .content canvas, .content video { max-width: 100%; }
+  .content .card, .content .insight-card, .content .kpi-card { overflow-wrap: break-word; }
   /* Subtítulos de ayuda de una línea junto a los títulos: ocupan espacio en teléfono. */
   #view-tareas > div:first-child > span + span { display: none; }
 
@@ -198,6 +213,7 @@
   table.mv-tarjetas tr { margin: 0; }
   table.mv-tarjetas tr:has(> td.mv-completa:only-child) { grid-column: 1 / -1; }
   .kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+  .insight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
   /* Franja de datos: los 6 números en un renglón y los 4 botones en otro. */
   .data-strip { grid-template-columns: repeat(12, 1fr); }
   .data-strip .stat { grid-column: span 2; }
