@@ -142,15 +142,37 @@
     document.addEventListener('touchend', function () {
       if (y0 === null) return;
       y0 = null;
-      if (dy >= UMBRAL) { ind.classList.add('cargando'); setTimeout(recargar, 150); }
+      if (dy >= UMBRAL) {
+        ind.classList.add('cargando');
+        setTimeout(function () { recargar(function () { ind.classList.remove('cargando'); ocultar(); }); }, 150);
+      }
       else ocultar();
     }, { passive: true });
   }
 
-  /* Recargar sin perder el lugar: se guarda la sección abierta y, al volver a cargar (cuando la
-     sesión ya está restaurada), se abre la misma sección en vez de Inicio. */
+  /* Recargar sin salir de la sección. Recargar la página completa cerraba la sesión (al abrir,
+     el Monitor pide otra vez la contraseña para descifrar los datos) y todo volvía al inicio.
+     Con la sesión abierta se traen los datos nuevos de Supabase (recargarDatos de app-core.js)
+     y se vuelve a dibujar la misma sección. */
+  function recargar(listo) {
+    var act = document.querySelector('nav.sidebar .nav-item.active:not(#nav-mas)');
+    if (sesion() && typeof window.recargarDatos === 'function') {
+      Promise.resolve().then(function () { return window.recargarDatos(); })
+        .catch(function () { if (typeof toast === 'function') toast('⚠ No se pudo recargar. Revisa tu conexión.'); })
+        .then(function () {
+          /* Inicio ya se redibuja con los datos nuevos; las demás secciones cargan los suyos al abrirse. */
+          if (act && act.id !== 'nav-dash') act.click();
+          listo();
+        });
+      return;
+    }
+    recargarPagina();
+  }
+
+  /* Sin sesión abierta (o Monitor sin recargarDatos): recarga completa; se guarda la sección
+     abierta y se vuelve a abrir cuando la sesión esté iniciada otra vez. */
   var VOLVER = 'gk-apk-volver';
-  function recargar() {
+  function recargarPagina() {
     try {
       var usr = $('usr-overlay');
       var n = document.querySelector('nav.sidebar .nav-item.active:not(#nav-mas)');
@@ -165,7 +187,7 @@
     if (!sec || sec === 'nav-dash') return;
     var intentos = 0, abierta = 0;
     (function probar() {
-      if (++intentos > 60) return;                       /* ~30 s: sesión no restaurada, se queda en Inicio */
+      if (++intentos > 1200) return;                     /* ~10 min esperando a que se inicie sesión */
       var login = $('login-page');
       var n = sec === 'usuarios' ? $('nav-dash') : $(sec);
       if ((login && !login.classList.contains('hidden')) || !n || n.style.display === 'none') { setTimeout(probar, 500); return; }
