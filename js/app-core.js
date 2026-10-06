@@ -5841,7 +5841,15 @@ async function decObj(obj,fields){
 /* Descifrar array */
 async function decArr(arr,fields){
   var res=[];
-  for(var obj of arr)res.push(await decObj(obj,fields));
+  if(!window.GKAndroid){
+    for(var obj of arr)res.push(await decObj(obj,fields));
+    return res;
+  }
+  /* App Android: se descifran 250 registros a la vez en vez de uno por uno (mucho más rápido). */
+  for(var i=0;i<arr.length;i+=250){
+    var parte=await Promise.all(arr.slice(i,i+250).map(function(o){return decObj(o,fields);}));
+    for(var j=0;j<parte.length;j++)res.push(parte[j]);
+  }
   return res;
 }
 
@@ -6775,16 +6783,111 @@ async function recargarDatos(){
   await loadDataFromSupabase();
   if(btn){btn.disabled=false;btn.textContent='🔄 Recargar';}
 }
+/* ── Copia local de tareas y auditorías (solo app Android) ──
+   Los registros ya descifrados se guardan en el teléfono (IndexedDB) cifrados en un solo bloque
+   con la clave de la organización (_cryptoKey), así que solo se pueden leer con la sesión
+   iniciada. En cada carga se pide a Supabase solo la lista de id + updated_at y se descargan
+   completos únicamente los registros nuevos o modificados; los borrados desaparecen porque ya
+   no vienen en la lista. Cada 12 h se descarga todo de nuevo por seguridad. Si la tabla no tiene
+   updated_at, la clave cambió o algo falla, se descarga todo como antes. */
+var COPIA_DB='gk-copia', COPIA_TABLA='datos', COPIA_COMPLETA_MS=12*3600*1000;
+function _copiaDb(){
+  return new Promise(function(ok,mal){
+    var r=indexedDB.open(COPIA_DB,1);
+    r.onupgradeneeded=function(){r.result.createObjectStore(COPIA_TABLA);};
+    r.onsuccess=function(){ok(r.result);};
+    r.onerror=function(){mal(r.error);};
+  });
+}
+async function _copiaLeer(k){
+  var db=await _copiaDb();
+  return new Promise(function(ok){
+    var q=db.transaction(COPIA_TABLA).objectStore(COPIA_TABLA).get(k);
+    q.onsuccess=function(){ok(q.result||null);};
+    q.onerror=function(){ok(null);};
+  });
+}
+async function _copiaGuardar(k,v){
+  var db=await _copiaDb();
+  return new Promise(function(ok){
+    var tx=db.transaction(COPIA_TABLA,'readwrite');
+    tx.objectStore(COPIA_TABLA).put(v,k);
+    tx.oncomplete=function(){ok(true);};
+    tx.onerror=function(){ok(false);};
+  });
+}
+/* Trae una tabla completa usando la copia anterior: solo baja lo nuevo o modificado. */
+async function _tablaConCopia(tabla,anteriores,ordenar){
+  var campos=FIELDS[tabla];
+  if(anteriores&&anteriores.length){
+    var lista=await ordenar(_sb.from(tabla).select('id,updated_at'));
+    var antes={},cambiadas=[];
+    if(!lista.error&&lista.data){
+      anteriores.forEach(function(f){antes[f.id]=f;});
+      cambiadas=lista.data.filter(function(x){var p=antes[x.id];return !p||!x.updated_at||p.updated_at!==x.updated_at;})
+        .map(function(x){return x.id;});
+    }
+    /* Si cambió más de la mitad, conviene una sola consulta completa. */
+    if(!lista.error&&lista.data&&cambiadas.length<=lista.data.length/2){
+      var nuevas={};
+      for(var i=0;i<cambiadas.length;i+=150){
+        var r=await _sb.from(tabla).select('*').in('id',cambiadas.slice(i,i+150));
+        if(r.error)throw r.error;
+        (await decArr(r.data||[],campos)).forEach(function(f){nuevas[f.id]=f;});
+      }
+      /* Mismo orden y mismos registros que la consulta completa. */
+      return {filas:lista.data.map(function(x){return nuevas[x.id]||antes[x.id];}).filter(Boolean),bajadas:cambiadas.length};
+    }
+  }
+  var todo=await ordenar(_sb.from(tabla).select('*'));
+  if(todo.error)throw todo.error;
+  var filas=await decArr(todo.data||[],campos);
+  return {filas:filas,bajadas:filas.length};
+}
+async function _filasConCopiaLocal(){
+  if(!window.indexedDB||!_sb||!_session)return null;
+  if(!_cryptoKey&&!(await initSharedKey()))return null;
+  var clave='v1:'+String(_session.username||'');
+  var copia=null;
+  try{
+    var b=await _copiaLeer(clave);
+    if(b){
+      var pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:b.iv},_cryptoKey,b.ct);
+      copia=JSON.parse(new TextDecoder().decode(pt));
+    }
+  }catch(e){copia=null;}   /* clave nueva u otra versión: se baja todo */
+  var ahora=Date.now();
+  if(copia&&!(ahora-(copia.completa||0)<COPIA_COMPLETA_MS))copia=null;
+  var res=await Promise.all([
+    _tablaConCopia('auditorias',copia&&copia.auditorias,function(q){return q.order('fecha',{ascending:false}).limit(5000);}),
+    _tablaConCopia('tareas',copia&&copia.tareas,function(q){return q.order('fecha_term',{ascending:true}).limit(10000);})
+  ]);
+  var nueva={completa:copia?copia.completa:ahora,auditorias:res[0].filas,tareas:res[1].filas};
+  try{
+    var iv=crypto.getRandomValues(new Uint8Array(12));
+    var ct=await crypto.subtle.encrypt({name:'AES-GCM',iv:iv},_cryptoKey,new TextEncoder().encode(JSON.stringify(nueva)));
+    await _copiaGuardar(clave,{iv:iv,ct:ct,fecha:ahora});
+  }catch(e){console.warn('No se pudo guardar la copia local:',e);}
+  console.info('Copia local: '+res[0].bajadas+' auditorías y '+res[1].bajadas+' tareas descargadas');
+  return {auditorias:nueva.auditorias,tareas:nueva.tareas};
+}
 async function loadDataFromSupabase(){
   if(!_sb){STORE={auditorias:[],tareas:[]};refreshAll();return;}
   try{
     toast('⏳ Cargando datos…');
-    const [{data:aud},{data:tar}]=await Promise.all([
-      _sb.from('auditorias').select('*').order('fecha',{ascending:false}).limit(5000),
-      _sb.from('tareas').select('*').order('fecha_term',{ascending:true}).limit(10000)
-    ]);
-    /* Descifrar auditorias */
-    var audDec=aud?await decArr(aud,FIELDS.auditorias):[];
+    var audDec,tarDec;
+    /* App Android: copia local + solo lo que cambió (ver _filasConCopiaLocal). */
+    var local=window.GKAndroid?await _filasConCopiaLocal().catch(function(e){console.warn('copia local:',e);return null;}):null;
+    if(local){ audDec=local.auditorias; tarDec=local.tareas; }
+    else{
+      const [{data:aud},{data:tar}]=await Promise.all([
+        _sb.from('auditorias').select('*').order('fecha',{ascending:false}).limit(5000),
+        _sb.from('tareas').select('*').order('fecha_term',{ascending:true}).limit(10000)
+      ]);
+      audDec=aud?await decArr(aud,FIELDS.auditorias):[];
+      tarDec=tar?await decArr(tar,FIELDS.tareas):[];
+    }
+    /* Auditorías */
     STORE.auditorias=audDec.map(function(a){
       function safe(v){return(v&&!pareceCifrado(v))?v:'';}
       return{
@@ -6796,8 +6899,7 @@ async function loadDataFromSupabase(){
         clase:safe(a.clase)||''
       };
     });
-    /* Descifrar tareas */
-    var tarDec=tar?await decArr(tar,FIELDS.tareas):[];
+    /* Tareas */
     STORE.tareas=tarDec.map(function(t){
       function safe(v){return(v&&!pareceCifrado(v))?v:'';}
       return{

@@ -9,6 +9,7 @@
    5) Nombre de la sección en la barra superior.  6) Deslizar hacia abajo para recargar.
    7) Notificaciones: registra el teléfono en Supabase al iniciar sesión y abre la sección avisada.
    8) Pantallas anchas y teléfono girado: siempre el diseño de teléfono, escalado a la pantalla.
+   9) Entrar con huella.  10) Menú lateral con todas las secciones.
    En el navegador no hace nada. */
 (function () {
   'use strict';
@@ -35,6 +36,7 @@
 
   /* ---------- 2) Botón Atrás ---------- */
   function atras() {
+    if (menu && menu.classList.contains('abierto')) { cerrarMenu(); return true; }
     if (document.querySelector('.mv-hoja.abierta') && window.__kgMovil) { window.__kgMovil.cerrarHoja(); return true; }
     var pl = $('plantilla-overlay');
     if (pl) { pl.remove(); return true; }
@@ -113,7 +115,7 @@
     document.body.appendChild(ind);
     var bloqueado = function (t) {
       if (window.scrollY > 0) return true;
-      if (document.querySelector('.modal-overlay.show, .kpi-cfg-overlay.show, .usr-overlay.show, .mv-hoja.abierta, #plantilla-overlay')) return true;
+      if (document.querySelector('.modal-overlay.show, .kpi-cfg-overlay.show, .usr-overlay.show, .mv-hoja.abierta, #plantilla-overlay, .apk-menu.abierto')) return true;
       var login = $('login-page');
       if (login && !login.classList.contains('hidden')) return true;
       return !!(t && t.closest && t.closest('iframe, textarea, select, input, .tbl-scroll, .ajustes-table-wrap'));
@@ -227,6 +229,197 @@
     else window.addEventListener('orientationchange', alGirar);
   }
 
+  /* ---------- 9) Entrar con huella ----------
+     La app (Huella.java) guarda la contraseña cifrada con una llave del teléfono que solo se abre
+     con la huella. Al entrar con contraseña se ofrece activarla; después, al abrir la app se pide
+     la huella y se entra con el mismo inicio de sesión normal (doLogin). */
+  var aviso = function (t) { if (typeof toast === 'function') toast(t); };
+  var conHuella = function () { return !!(A && typeof A.huellaDisponible === 'function'); };
+  var huellaDisp = function () { try { return conHuella() && A.huellaDisponible(); } catch (e) { return false; } };
+  var huellaUsuario = function () { try { return conHuella() ? (A.huellaUsuario() || '') : ''; } catch (e) { return ''; } };
+  var entrandoConHuella = false;
+  var entro = function () { var l = $('login-page'); return !!(l && l.classList.contains('hidden')); };
+
+  function engancharLogin() {
+    if (!conHuella() || typeof window.doLogin !== 'function' || window.doLogin.__huella) return;
+    var entrar = window.doLogin;
+    window.doLogin = function () {
+      var u = (($('lp-user') || {}).value || '').trim(), p = ($('lp-pass') || {}).value || '';
+      var r = entrar.apply(this, arguments);
+      Promise.resolve(r).then(function () { alTerminarLogin(u, p); p = null; });
+      return r;
+    };
+    window.doLogin.__huella = true;
+  }
+  function alTerminarLogin(u, p) {
+    var porHuella = entrandoConHuella;
+    entrandoConHuella = false;
+    if (!entro()) {
+      /* La contraseña guardada ya no sirve (se cambió): se borra y se entra con la nueva. */
+      if (porHuella && /incorrect/i.test(($('lp-err') || {}).textContent || '')) {
+        try { A.quitarHuella(); } catch (e) {}
+        var err = $('lp-err');
+        if (err) err.textContent = 'Tu contraseña cambió: entra con la nueva y vuelve a activar la huella.';
+        botonHuella();
+      }
+      return;
+    }
+    if (porHuella || !u || !p || !huellaDisp() || huellaUsuario() === u) return;
+    try { if (localStorage.getItem('gk-huella-no') === u) return; } catch (e) {}
+    ofrecerHuella(u, p);
+  }
+  function ofrecerHuella(u, p) {
+    if (typeof openModal !== 'function') return;
+    setTimeout(function () {
+      openModal('👆 Entrar con huella',
+        '<p style="font-size:13.5px;line-height:1.55">¿Quieres entrar con tu huella las próximas veces, sin escribir la contraseña?</p>' +
+        '<p style="font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.5">Tu contraseña se guarda cifrada en este teléfono y solo se abre con tu huella. Puedes quitarla cuando quieras desde el menú.</p>',
+        [{ label: 'Ahora no', cls: 'btn-ghost', fn: function () { closeModal(); try { localStorage.setItem('gk-huella-no', u); } catch (e) {} p = null; } },
+         { label: 'Activar', cls: 'btn-blue', fn: function () { closeModal(); try { A.activarHuella(u, p); } catch (e) {} p = null; } }],
+        { maxWidth: '420px' });
+    }, 1500);
+  }
+  function pedirHuella() { try { A.entrarConHuella(); } catch (e) {} }
+  /* Botón "Entrar con huella" debajo de "Ingresar". */
+  function botonHuella() {
+    var btn = $('lp-btn'), h = $('apk-huella');
+    if (!btn || !huellaUsuario() || !huellaDisp()) { if (h) h.remove(); return; }
+    if (!h) {
+      h = document.createElement('button');
+      h.type = 'button';
+      h.id = 'apk-huella';
+      h.className = 'lp-btn apk-huella-btn';
+      h.innerHTML = '<span aria-hidden="true">👆</span> Entrar con huella';
+      h.addEventListener('click', function (e) { e.stopPropagation(); pedirHuella(); });
+      btn.parentNode.insertBefore(h, btn.nextSibling);
+    }
+  }
+  /* Respuesta de la app: accion 'activar' | 'entrar'. */
+  function huella(accion, ok, usuario, valor, borrada) {
+    if (accion === 'activar') {
+      if (ok) { aviso('✓ Inicio con huella activado'); try { localStorage.removeItem('gk-huella-no'); } catch (e) {} }
+      else if (valor) aviso('⚠ ' + valor);
+      return;
+    }
+    if (!ok) {
+      var err = $('lp-err');
+      if (valor && err) err.textContent = valor;
+      if (borrada) botonHuella();
+      return;
+    }
+    var lu = $('lp-user'), lp = $('lp-pass');
+    if (!lu || !lp || entro() || typeof window.doLogin !== 'function') return;
+    lu.value = usuario;
+    lp.value = valor;
+    entrandoConHuella = true;
+    Promise.resolve(window.doLogin()).then(function () { lp.value = ''; }, function () { lp.value = ''; });
+  }
+  function alternarHuella() {
+    if (huellaUsuario()) { try { A.quitarHuella(); } catch (e) {} aviso('Inicio con huella desactivado'); return; }
+    var ses = sesion(), u = ses && ses.username ? ses.username : '';
+    var p = window.prompt('Escribe tu contraseña para activar el inicio con huella');
+    if (u && p) try { A.activarHuella(u, p); } catch (e) {}
+  }
+  function montarHuella() {
+    if (!conHuella()) return;
+    engancharLogin();
+    botonHuella();
+    var login = $('login-page');
+    if (login) new MutationObserver(botonHuella).observe(login, { attributes: true, attributeFilter: ['class'] });
+    /* Al abrir la app con huella guardada: se pide de una vez. */
+    if (!entro() && huellaUsuario() && huellaDisp()) setTimeout(pedirHuella, 700);
+  }
+
+  /* ---------- 10) Menú lateral ----------
+     Se abre con el botón ☰ de la barra superior o con "Más" del menú inferior. Lista todas las
+     secciones que la cuenta puede ver, con los colores del Monitor. */
+  var menu = null;
+  var itemsNav = function () {
+    return Array.prototype.filter.call(document.querySelectorAll('nav.sidebar .nav-item'), function (n) {
+      return n.id && n.id !== 'nav-mas' && n.style.display !== 'none';
+    });
+  };
+  function icono(n) {
+    var ap = n.querySelector('.apk-ico');
+    if (ap) return ap.textContent.trim();
+    for (var i = 0; i < n.childNodes.length; i++) {
+      var c = n.childNodes[i];
+      if (c.nodeType === 3 && c.textContent.trim()) return c.textContent.trim();
+    }
+    return '•';
+  }
+  function etiqueta(n) { var l = n.querySelector('.nav-lbl'); return l ? l.textContent.trim() : (n.title || ''); }
+  function abrirMenu() {
+    if (!menu || !entro()) return;
+    var u = $('topbar-user'), sp = u ? u.querySelectorAll('span') : [];
+    var nombre = (sp[0] ? sp[0].textContent : (u ? u.textContent : '')).trim();
+    var rol = sp[1] ? sp[1].textContent.trim() : '';
+    var ses = sesion(), correo = ses && (ses.email || ses.correo) ? (ses.email || ses.correo) : '';
+    var oscuro = html.getAttribute('data-theme') === 'dark';
+    menu.querySelector('.apk-menu-hdr').innerHTML =
+      '<div class="apk-menu-av">' + esc((nombre || '?').charAt(0).toUpperCase()) + '</div>' +
+      '<div class="apk-menu-quien"><b>' + esc(nombre) + '</b>' + (rol ? '<small>' + esc(rol) + '</small>' : '') +
+      (correo ? '<span>' + esc(correo) + '</span>' : '') + '</div>' +
+      '<button type="button" class="apk-menu-cerrar" aria-label="Cerrar menú">‹</button>';
+    var lista = itemsNav().map(function (n) {
+      return '<button type="button" data-ir="' + esc(n.id) + '"' + (n.classList.contains('active') ? ' class="activo"' : '') +
+        '><i>' + esc(icono(n)) + '</i><span>' + esc(etiqueta(n)) + '</span></button>';
+    }).join('');
+    /* Opciones de la app al final de la lista; abajo fijo solo "Cerrar sesión" (como en la foto). */
+    lista += '<div class="apk-menu-sep">Ajustes de la app</div>';
+    if (huellaDisp()) lista += '<button type="button" data-ir="huella"><i>👆</i><span>' + (huellaUsuario() ? 'Quitar inicio con huella' : 'Activar inicio con huella') + '</span></button>';
+    lista += '<button type="button" data-ir="tema"><i>' + (oscuro ? '☀️' : '🌙') + '</i><span>' + (oscuro ? 'Modo claro' : 'Modo oscuro') + '</span></button>';
+    lista += '<button type="button" data-ir="actualizar"><i>⬆️</i><span>Buscar actualizaciones</span></button>';
+    menu.querySelector('.apk-menu-lista').innerHTML = lista;
+    menu.querySelector('.apk-menu-pie').innerHTML =
+      '<button type="button" data-ir="salir" class="apk-menu-salir"><i>🚪</i><span>Cerrar sesión</span><small>v' + esc(versionApp()) + '</small></button>';
+    menu.classList.add('abierto');
+  }
+  function cerrarMenu() { if (menu) menu.classList.remove('abierto'); }
+  function accionMenu(ir) {
+    if (ir === 'salir') { if (typeof window.doLogout === 'function') window.doLogout(); return; }
+    if (ir === 'tema') { var t = document.querySelector('.theme-toggle'); if (t) t.click(); return; }
+    if (ir === 'actualizar') { buscarActualizacion(); return; }
+    if (ir === 'huella') { alternarHuella(); return; }
+    var n = $(ir);
+    if (n) { n.click(); window.scrollTo(0, 0); }
+  }
+  function montarMenuLateral() {
+    menu = document.createElement('div');
+    menu.id = 'apk-menu';
+    menu.className = 'apk-menu';
+    menu.innerHTML = '<div class="apk-menu-fondo"></div><aside class="apk-menu-panel" role="dialog" aria-label="Menú">' +
+      '<div class="apk-menu-hdr"></div><nav class="apk-menu-lista"></nav><div class="apk-menu-pie"></div></aside>';
+    document.body.appendChild(menu);
+    menu.addEventListener('click', function (e) {
+      var t = e.target;
+      if (t.classList.contains('apk-menu-fondo') || t.closest('.apk-menu-cerrar')) { cerrarMenu(); return; }
+      var b = t.closest('[data-ir]');
+      if (!b) return;
+      var ir = b.getAttribute('data-ir');
+      cerrarMenu();
+      setTimeout(function () { accionMenu(ir); }, 200);   /* después de la animación de cierre */
+    });
+    var barra = document.querySelector('.topbar');
+    if (barra && !$('apk-hamb')) {
+      var h = document.createElement('button');
+      h.type = 'button';
+      h.id = 'apk-hamb';
+      h.className = 'apk-hamb';
+      h.setAttribute('aria-label', 'Abrir menú');
+      h.innerHTML = '<span></span><span></span><span></span>';
+      h.addEventListener('click', abrirMenu);
+      barra.insertBefore(h, barra.firstChild);
+    }
+    /* "Más" del menú inferior abre este menú (en vez de la hoja de js/app-movil.js). */
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest || !e.target.closest('#nav-mas')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      abrirMenu();
+    }, true);
+  }
+
   /* ---------- 7) Notificaciones de cambios ----------
      Al iniciar sesión se registra este teléfono en Supabase (función registrar_dispositivo) con el
      usuario y sus razones sociales; al cerrar sesión se quita. La Edge Function notificar-push avisa
@@ -279,6 +472,8 @@
 
   function init() {
     vigilarGiro();
+    montarMenuLateral();
+    montarHuella();
     avisarTema();
     seccion();
     montarRecarga();
@@ -301,5 +496,6 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 
-  window.GKApk = { atras: atras, buscarActualizacion: buscarActualizacion, version: versionApp, ir: ir };
+  window.GKApk = { atras: atras, buscarActualizacion: buscarActualizacion, version: versionApp, ir: ir,
+    huella: huella, abrirMenu: abrirMenu, cerrarMenu: cerrarMenu };
 })();
