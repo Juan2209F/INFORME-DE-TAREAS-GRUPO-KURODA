@@ -3736,9 +3736,41 @@
                 container.innerHTML = `<p style="color:#888; text-align:center; padding:1rem;">No hay inventarios. Usa "Nuevo Levantamiento" para empezar.</p>`;
                 return;
             }
-            let html = `<table><thead><tr><th>Tienda</th><th>Categoría</th><th>Fecha</th><th>Avance</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>`;
             // Borradores primero (son los que hay que continuar), luego lo más reciente.
             filtered = filtered.slice().sort((a, b) => (a.estado === 'borrador' ? 0 : 1) - (b.estado === 'borrador' ? 0 : 1) || String(b.fecha).localeCompare(String(a.fecha)));
+            // App Android: tarjetas grandes y claras (en lugar de la tabla).
+            if (document.documentElement.classList.contains('act-apk')) {
+                container.innerHTML = '<div class="inv-tarjetas">' + filtered.map(inv => {
+                    const enCurso = inv.estado === 'borrador';
+                    let cuerpo;
+                    if (enCurso) {
+                        const p = avanceInventario(inv, inv.items || []);
+                        cuerpo = `<div class="inv-tarj-avance"><span class="lv-bar"><span class="b-ok" style="width:${p.pct}%"></span></span>
+                            <span><b>${p.revisados}</b> de <b>${p.universo}</b> revisados · ${p.pct}%</span></div>`;
+                    } else {
+                        const r = inv.resumen || {};
+                        cuerpo = r.universoTotal != null
+                            ? `<div class="inv-tarj-res"><span class="ok">✅ ${(r.encontradosTotal || 0) + (r.reparacionTotal || 0) + (r.bajaTotal || 0)} encontrados</span><span class="mal">❌ ${r.faltantesTotal || 0} faltantes</span><span>de ${r.universoTotal}</span></div>`
+                            : `<div class="inv-tarj-res"><span>${(inv.items || []).length} escaneados</span></div>`;
+                    }
+                    return `<div class="inv-tarj ${enCurso ? 'en-curso' : 'final'}">
+                        <div class="inv-tarj-top">
+                            <div class="inv-tarj-tit"><b>${esc(inv.tienda)}</b>
+                                <small>${esc(nombreCategoria(inv.categoria))} · ${new Date(inv.fecha).toLocaleDateString()}${inv.responsable ? ' · ' + esc(inv.responsable) : ''}</small></div>
+                            <span class="status-badge ${enCurso ? 'badge-process' : 'badge-done'}">${enCurso ? 'En curso' : 'Finalizado'}</span>
+                        </div>
+                        ${cuerpo}
+                        <div class="inv-tarj-acc">
+                            ${enCurso
+                                ? `<button class="btn-primary inv-tarj-main" onclick="abrirInventario('${inv.id}')"><i class="fas fa-play"></i> Continuar levantamiento</button>`
+                                : `<button class="btn-action inv-tarj-main" onclick="mostrarModalInformeFinal('${inv.id}')"><i class="fas fa-file-alt"></i> Ver informe</button>`}
+                            <button class="btn-action inv-tarj-borrar" onclick="eliminarInventario('${inv.id}')" title="Eliminar" aria-label="Eliminar"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>`;
+                }).join('') + '</div>';
+                return;
+            }
+            let html = `<table><thead><tr><th>Tienda</th><th>Categoría</th><th>Fecha</th><th>Avance</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>`;
             filtered.forEach(inv => {
                 const estadoCls = inv.estado === 'borrador' ? 'badge-process' : 'badge-done';
                 let avance;

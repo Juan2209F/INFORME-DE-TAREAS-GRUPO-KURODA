@@ -75,6 +75,40 @@
     A + '.kpi-card{flex-direction:column!important;align-items:flex-start!important;gap:8px!important;padding:14px!important;min-width:0}' +
     A + '.kpi-card .kpi-icon{width:38px!important;height:38px!important;font-size:16px!important}' +
     A + '.kpi-info{min-width:0}' +
+    /* Títulos de cada sección a tamaño de teléfono. */
+    A + '.section-view > h2{font-size:20px!important;line-height:1.2;margin-bottom:4px!important}' +
+    A + '.section-view > .subtitle{font-size:12.5px!important;margin-bottom:12px!important}' +
+    /* Inventarios guardados: tarjetas (las arma renderInventariosList en la app). */
+    A + '.inv-tarjetas{display:flex;flex-direction:column;gap:10px}' +
+    A + '.inv-tarj{border:1px solid var(--border-color);border-radius:16px;padding:14px;background:var(--card-bg);' +
+      'box-shadow:0 2px 8px rgba(20,30,60,.06);display:flex;flex-direction:column;gap:12px;font-size:13px}' +
+    A + '.inv-tarj.en-curso{border-left:4px solid var(--active-bg)}' +
+    A + '.inv-tarj-top{display:flex;align-items:flex-start;gap:10px}' +
+    A + '.inv-tarj-tit{flex:1;min-width:0}' +
+    A + '.inv-tarj-tit b{display:block;font-size:15px;line-height:1.25;overflow-wrap:anywhere}' +
+    A + '.inv-tarj-tit small{display:block;margin-top:3px;font-size:12px;opacity:.7}' +
+    A + '.inv-tarj .status-badge{flex-shrink:0;font-size:11px;padding:4px 10px}' +
+    A + '.inv-tarj-avance{display:flex;flex-direction:column;gap:6px;font-size:12.5px}' +
+    A + '.inv-tarj-avance .lv-bar{width:100%;height:10px}' +
+    A + '.inv-tarj-res{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;font-weight:600}' +
+    A + '.inv-tarj-res .ok{color:var(--success-color)}' + A + '.inv-tarj-res .mal{color:var(--danger-color)}' +
+    A + '.inv-tarj-acc{display:flex;gap:8px}' +
+    A + '.inv-tarj-main{flex:1 1 auto!important;width:auto!important;justify-content:center;padding:12px!important;font-size:14px!important;border-radius:12px!important}' +
+    A + '.inv-tarj.final .inv-tarj-main{color:var(--active-bg)!important;border:1px solid var(--border-color)!important}' +
+    A + '.inv-tarj-borrar{flex:0 0 52px!important;width:52px!important;min-width:0!important;padding:0!important;justify-content:center;color:var(--danger-color)!important;border:1px solid var(--border-color)!important;border-radius:12px!important}' +
+    A + '#inventarios .toolbar{display:flex;flex-direction:column;align-items:stretch;gap:8px}' +
+    A + '#btnNuevoLevantamiento{justify-content:center;padding:14px!important;font-size:15px!important;border-radius:14px!important}' +
+    /* Levantamiento en curso: toda la pantalla para contar (sin pestañas arriba; "Salir" regresa). */
+    A + '#dashboard:has(#inventarios.lv-activo.active) .sidebar{display:none!important}' +
+    A + '.lv-guia{display:flex;gap:6px;margin:0 0 10px;font-size:11.5px;line-height:1.3}' +
+    A + '.lv-guia span{flex:1;padding:7px 6px;border-radius:10px;background:var(--input-bg);border:1px solid var(--border-color);text-align:center}' +
+    A + '.lv-guia b{display:block;font-size:13px;color:var(--active-bg)}' +
+    A + '.lv-scanbar{flex-wrap:wrap}' +
+    A + '#scan-input{flex:1 1 0;min-width:0;font-size:16px}' +
+    A + '.lv-cam-btn{flex:1 1 100%;order:3;padding:13px!important;border-radius:12px;font-size:15px}' +
+    A + '.lv-cam-txt{display:inline!important}' +
+    A + '.lv-tab{font-size:11px!important;padding:8px 2px!important}' +
+    A + '.lv-tab b,' + A + '.lv-tab strong{font-size:17px}' +
     /* Tablas en tarjetas (como las tablas del Monitor en el teléfono): cada dato con su título. */
     A + 'table.act-tarjetas,' + A + 'table.act-tarjetas tbody{display:block;width:100%!important;min-width:0!important}' +
     A + 'table.act-tarjetas thead{display:none}' +
@@ -146,7 +180,7 @@
     /* Tablas de 3 columnas o más → tarjetas; también las filas que se dibujan después. */
     var tarjetas = function () {
       Array.prototype.forEach.call(document.querySelectorAll('#dashboard table'), function (t) {
-        if (!t.tHead || !t.tHead.rows.length) return;
+        if (!t.tHead || !t.tHead.rows.length || t.closest('#inventarios-list')) return;
         var tit = Array.prototype.map.call(t.tHead.rows[0].cells, function (c) { return c.textContent.trim(); });
         if (tit.length < 3) return;
         t.classList.add('act-tarjetas');
@@ -168,6 +202,16 @@
       requestAnimationFrame(function () { pendiente = false; tarjetas(); });
     };
     tarjetas();
+    /* Guía de 3 pasos del levantamiento, debajo del avance. */
+    var prog = document.getElementById('lv-progress');
+    if (prog && !document.querySelector('.lv-guia')) {
+      var g = document.createElement('div');
+      g.className = 'lv-guia';
+      g.innerHTML = '<span><b>1</b>Escanea cada activo</span><span><b>2</b>Revisa los pendientes</span><span><b>3</b>Toca Finalizar</span>';
+      prog.parentNode.insertBefore(g, prog.nextSibling);
+    }
+    /* La lista de inventarios se vuelve a dibujar como tarjetas. */
+    if (typeof window.renderInventariosList === 'function') try { window.renderInventariosList(); } catch (e) {}
     new MutationObserver(programar).observe(document.getElementById('dashboard') || document.body, { childList: true, subtree: true });
     if (typeof window.switchTab === 'function') {
       var cambiar = window.switchTab;
