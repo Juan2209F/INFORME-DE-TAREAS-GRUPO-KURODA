@@ -761,7 +761,14 @@ public class MainActivity extends Activity {
         public boolean huellaDisponible() { return huella.disponible(); }
 
         @JavascriptInterface
-        public String huellaUsuario() { return huella.usuario(); }
+        public boolean huellaGuardada() { return huella.guardada(); }
+
+        @JavascriptInterface
+        public boolean huellaEsDe(String usuario) { return huella.esDe(usuario); }
+
+        /* Compatibilidad con la página anterior: ya no entrega el usuario (no se guarda en claro). */
+        @JavascriptInterface
+        public String huellaUsuario() { return huella.guardada() ? "•" : ""; }
 
         @JavascriptInterface
         public void activarHuella(String usuario, String clave) {

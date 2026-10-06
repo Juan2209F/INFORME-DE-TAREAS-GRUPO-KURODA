@@ -22,10 +22,11 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 
 /* Inicio de sesión con huella (Android 9 o más).
-   La contraseña se guarda cifrada con una llave del almacén seguro de Android (AndroidKeyStore)
-   que solo se puede usar después de poner la huella: sin huella no hay forma de leerla, ni
-   siquiera para la propia app. Si en el teléfono se agrega o quita una huella, Android anula la
-   llave y hay que volver a entrar con la contraseña. */
+   Usuario y contraseña se guardan cifrados (AES-256-GCM) con una llave del almacén seguro de
+   Android (AndroidKeyStore; en el chip StrongBox si el teléfono lo tiene) que solo se puede usar
+   con el teléfono desbloqueado y después de poner la huella: sin huella no hay forma de leerlos,
+   ni siquiera para la propia app. La llave nunca sale del almacén. Si en el teléfono se agrega o
+   quita una huella, Android anula la llave y hay que volver a entrar con la contraseña. */
 final class Huella {
 
     interface Resultado {
@@ -36,11 +37,21 @@ final class Huella {
     private interface Paso { void con(Cipher c) throws Exception; }
 
     private static final String ALIAS = "gk-huella";
-    private static final String PREFS = "gk-huella", USUARIO = "usuario", DATOS = "datos", IV = "iv";
+    /* En el teléfono solo queda: DATOS = usuario + contraseña cifrados juntos (AES-256-GCM con la
+       llave de la huella), IV del cifrado y CUENTA = huella SHA-256 del usuario (para saber de
+       quién es sin poder leerlo). Nada se guarda en claro. */
+    private static final String PREFS = "gk-huella", DATOS = "datos", IV = "iv", CUENTA = "cuenta";
+    private static final String USUARIO_V1 = "usuario";   /* formato anterior (usuario en claro) */
+    private static final char SEPARADOR = '\u0000';
 
     private final MainActivity act;
 
-    Huella(MainActivity act) { this.act = act; }
+    Huella(MainActivity act) {
+        this.act = act;
+        /* Formato anterior (1.2.3): el usuario estaba en claro. Se borra; se vuelve a activar
+           la próxima vez que se entre con contraseña. */
+        if (prefs().contains(USUARIO_V1)) quitar();
+    }
 
     @SuppressWarnings("deprecation")
     boolean disponible() {
@@ -61,8 +72,24 @@ final class Huella {
         }
     }
 
-    /* Cuenta con huella activada en este teléfono ("" si no hay). */
-    String usuario() { return prefs().getString(DATOS, null) == null ? "" : prefs().getString(USUARIO, ""); }
+    /* ¿Hay una cuenta guardada con huella? */
+    boolean guardada() { return prefs().getString(DATOS, null) != null && prefs().getString(CUENTA, null) != null; }
+
+    /* ¿La cuenta guardada es la de este usuario? (compara huellas SHA-256, no el usuario) */
+    boolean esDe(String usuario) {
+        String c = prefs().getString(CUENTA, null);
+        return c != null && usuario != null && c.equals(resumen(usuario));
+    }
+
+    private static String resumen(String usuario) {
+        try {
+            byte[] h = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(("gk-huella:" + usuario.trim().toLowerCase(java.util.Locale.ROOT)).getBytes(StandardCharsets.UTF_8));
+            return Base64.encodeToString(h, Base64.NO_WRAP);
+        } catch (Exception e) {
+            return "";
+        }
+    }
 
     void quitar() {
         prefs().edit().clear().apply();
@@ -86,13 +113,13 @@ final class Huella {
             return;
         }
         pedir(c, "Activar inicio con huella", "Pon tu dedo para guardar tu acceso en este teléfono", cifrado -> {
-            byte[] ct = cifrado.doFinal(clave.getBytes(StandardCharsets.UTF_8));
+            byte[] ct = cifrado.doFinal((usuario + SEPARADOR + clave).getBytes(StandardCharsets.UTF_8));
             prefs().edit()
-                    .putString(USUARIO, usuario)
                     .putString(DATOS, Base64.encodeToString(ct, Base64.NO_WRAP))
                     .putString(IV, Base64.encodeToString(cifrado.getIV(), Base64.NO_WRAP))
+                    .putString(CUENTA, resumen(usuario))
                     .apply();
-            r.ok(usuario, "");
+            r.ok("", "");
         }, r);
     }
 
@@ -100,7 +127,7 @@ final class Huella {
     @TargetApi(28)
     void entrar(Resultado r) {
         SharedPreferences p = prefs();
-        String datos = p.getString(DATOS, null), iv = p.getString(IV, null), u = p.getString(USUARIO, "");
+        String datos = p.getString(DATOS, null), iv = p.getString(IV, null);
         if (datos == null || iv == null || !disponible()) { r.error("", true); return; }
         final Cipher c;
         try {
@@ -115,9 +142,11 @@ final class Huella {
             r.error("No se pudo leer el acceso guardado. Entra con tu contraseña.", true);
             return;
         }
-        pedir(c, "Entrar con huella", u, cifrado -> {
-            String clave = new String(cifrado.doFinal(Base64.decode(datos, Base64.NO_WRAP)), StandardCharsets.UTF_8);
-            r.ok(u, clave);
+        pedir(c, "Entrar con huella", "Monitor de Cumplimiento", cifrado -> {
+            String todo = new String(cifrado.doFinal(Base64.decode(datos, Base64.NO_WRAP)), StandardCharsets.UTF_8);
+            int i = todo.indexOf(SEPARADOR);
+            if (i <= 0) throw new IllegalStateException("formato");
+            r.ok(todo.substring(0, i), todo.substring(i + 1));
         }, r);
     }
 
@@ -139,7 +168,21 @@ final class Huella {
                 .setUserAuthenticationRequired(true)
                 .setInvalidatedByBiometricEnrollment(true);
         if (Build.VERSION.SDK_INT >= 30) b.setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG);
+        /* Solo se puede usar con el teléfono desbloqueado. */
+        if (Build.VERSION.SDK_INT >= 28) b.setUnlockedDeviceRequired(true);
         KeyGenerator kg = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+        /* Si el teléfono tiene chip de seguridad (StrongBox), la llave vive ahí; si no, en el
+           almacén seguro normal de Android. */
+        if (Build.VERSION.SDK_INT >= 28) {
+            try {
+                b.setIsStrongBoxBacked(true);
+                kg.init(b.build());
+                return kg.generateKey();
+            } catch (Exception sinChip) {
+                b.setIsStrongBoxBacked(false);
+                if (ks.containsAlias(ALIAS)) ks.deleteEntry(ALIAS);
+            }
+        }
         kg.init(b.build());
         return kg.generateKey();
     }
