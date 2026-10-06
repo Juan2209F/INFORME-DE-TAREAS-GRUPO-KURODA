@@ -38,17 +38,48 @@
     } catch (e) {}
   }
 
+  /* Iframes (Documentos, Generador, Activos…): los que ya existen y los que se agreguen o
+     recarguen después. Corre en cada inyección aunque el puente ya esté instalado: la app
+     inyecta este archivo al empezar a cargar la página, cuando el documento aún está vacío
+     y no hay dónde vigilar; las inyecciones siguientes deben completar la vigilancia. */
+  function revisar(f) {
+    try { instalar(f.contentWindow); } catch (e) {}
+    if (!f.__gkCarga) {
+      f.__gkCarga = true;
+      f.addEventListener('load', function () { try { instalar(f.contentWindow); } catch (e) {} });
+    }
+  }
+
+  function vigilar(win) {
+    var doc = win.document;
+    function revisarTodos() { Array.prototype.forEach.call(doc.querySelectorAll('iframe'), revisar); }
+    revisarTodos();
+    if (doc.__gkVigila) return;
+    if (!doc.documentElement) {
+      doc.addEventListener('DOMContentLoaded', function () { vigilar(win); });
+      return;
+    }
+    doc.__gkVigila = true;
+    new win.MutationObserver(revisarTodos).observe(doc.documentElement, { childList: true, subtree: true });
+    /* Respaldo: el 'load' de cualquier iframe llega a la ventana en la fase de captura. */
+    win.addEventListener('load', function (e) {
+      var t = e.target;
+      if (t && t.tagName === 'IFRAME') revisar(t);
+    }, true);
+  }
+
   function instalar(win) {
     var Ancla;
     try {
       /* La marca va en el prototipo (no en window): al cargar un iframe, su ventana inicial
          about:blank puede reutilizarse con prototipos nuevos y hay que volver a instalar. */
       Ancla = win && win.HTMLAnchorElement && win.HTMLAnchorElement.prototype;
-      if (!Ancla || Ancla.__gkPuente) return;
+      if (!Ancla) return;
+      if (Ancla.__gkPuente) { vigilar(win); return; }
       Ancla.__gkPuente = true;
     } catch (e) { return; } /* iframe de otro origen */
 
-    var doc = win.document, URL_ = win.URL;
+    var URL_ = win.URL;
     var blobs = {};
 
     win.print = function () { imprimir(win); };
@@ -87,24 +118,13 @@
       if (e && e.type === 'click' && interceptar(this)) return true;
       return despachar.apply(this, arguments);
     };
-    doc.addEventListener('click', function (e) {
+    /* En la ventana (no en el documento): sigue funcionando si la página hace document.open(). */
+    win.addEventListener('click', function (e) {
       var a = e.target && e.target.closest && e.target.closest('a[download]');
       if (a && interceptar(a)) e.preventDefault();
     }, true);
 
-    /* Iframes: los que ya existen y los que se agreguen o recarguen después. */
-    function revisar(f) {
-      try { instalar(f.contentWindow); } catch (e) {}
-      if (!f.__gkCarga) {
-        f.__gkCarga = true;
-        f.addEventListener('load', function () { try { instalar(f.contentWindow); } catch (e) {} });
-      }
-    }
-    function revisarTodos() { Array.prototype.forEach.call(doc.querySelectorAll('iframe'), revisar); }
-    revisarTodos();
-    if (doc.documentElement) {
-      new win.MutationObserver(revisarTodos).observe(doc.documentElement, { childList: true, subtree: true });
-    }
+    vigilar(win);
   }
 
   instalar(window);
