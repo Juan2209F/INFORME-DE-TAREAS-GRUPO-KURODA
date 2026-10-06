@@ -375,6 +375,8 @@ table.seg tbody tr:hover{background:var(--soft)}
   padding:12px 22px;border-radius:14px;font-size:13px;font-weight:600;z-index:400;opacity:0;
   transition:opacity .25s,transform .25s;pointer-events:none;box-shadow:var(--shadow-lg)}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
+/* En oscuro --txt es casi blanco: el aviso quedaba blanco con letra blanca (no se leía). */
+[data-theme="dark"] .toast{background:#fff;color:#1b254b;font-weight:700}
 
 #png-stage{position:fixed;left:-99999px;top:0}
 
