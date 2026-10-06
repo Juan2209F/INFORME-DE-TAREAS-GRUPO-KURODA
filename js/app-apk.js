@@ -141,9 +141,43 @@
     document.addEventListener('touchend', function () {
       if (y0 === null) return;
       y0 = null;
-      if (dy >= UMBRAL) { ind.classList.add('cargando'); setTimeout(function () { location.reload(); }, 150); }
+      if (dy >= UMBRAL) { ind.classList.add('cargando'); setTimeout(recargar, 150); }
       else ocultar();
     }, { passive: true });
+  }
+
+  /* Recargar sin perder el lugar: se guarda la sección abierta y, al volver a cargar (cuando la
+     sesión ya está restaurada), se abre la misma sección en vez de Inicio. */
+  var VOLVER = 'gk-apk-volver';
+  function recargar() {
+    try {
+      var usr = $('usr-overlay');
+      var n = document.querySelector('nav.sidebar .nav-item.active:not(#nav-mas)');
+      var sec = usr && usr.classList.contains('show') ? 'usuarios' : (n && n.id ? n.id : '');
+      sessionStorage.setItem(VOLVER, sec);
+    } catch (e) {}
+    location.reload();
+  }
+  function volverASeccion() {
+    var sec = '';
+    try { sec = sessionStorage.getItem(VOLVER) || ''; sessionStorage.removeItem(VOLVER); } catch (e) {}
+    if (!sec || sec === 'nav-dash') return;
+    var intentos = 0, abierta = 0;
+    (function probar() {
+      if (++intentos > 60) return;                       /* ~30 s: sesión no restaurada, se queda en Inicio */
+      var login = $('login-page');
+      var n = sec === 'usuarios' ? $('nav-dash') : $(sec);
+      if ((login && !login.classList.contains('hidden')) || !n || n.style.display === 'none') { setTimeout(probar, 500); return; }
+      if (sec === 'usuarios') {
+        if (typeof window.openUsuarios === 'function') window.openUsuarios();
+        return;
+      }
+      /* Al terminar de entrar, el Monitor abre Inicio: se insiste unos segundos hasta que la
+         sección quede abierta. */
+      var act = document.querySelector('nav.sidebar .nav-item.active:not(#nav-mas)');
+      if (!act || act.id === 'nav-dash') { n.click(); window.scrollTo(0, 0); abierta = 0; }
+      if (++abierta < 6) setTimeout(probar, 500);
+    })();
   }
 
   /* ---------- 7) Notificaciones de cambios ----------
@@ -200,6 +234,7 @@
     avisarTema();
     seccion();
     montarRecarga();
+    volverASeccion();
     engancharSalida();
     var loginAv = $('login-page');
     var alEntrar = function () { if (loginAv && loginAv.classList.contains('hidden')) setTimeout(registrarAvisos, 1500); };
