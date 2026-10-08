@@ -828,6 +828,38 @@
             padding: 6px 10px; font-size: 0.75rem; font-weight: 700; cursor: pointer; font-family: inherit; }
         .veh-doc-btns button.on-si { background: var(--success-color); border-color: var(--success-color); color: #fff; }
         .veh-doc-btns button.on-no { background: var(--danger-color); border-color: var(--danger-color); color: #fff; }
+        .veh-doc-btns button.on-na { background: #6c757d; border-color: #6c757d; color: #fff; }
+        .veh-doc-fila.na { border-color: rgba(108,117,125,.6); }
+        .veh-doc-acciones { display: flex; gap: 0.4rem; }
+        .veh-doc-acciones .veh-doc-todos { flex: 1 1 0; }
+        .veh-doc-todos.na { border-color: #8a94a6; color: #8a94a6; }
+        .veh-ubic { display: flex; gap: 0.35rem; margin-top: 0.3rem; }
+        .veh-ubic button { flex: 1 1 0; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main); border-radius: 8px;
+            padding: 8px 6px; font-size: 0.78rem; font-weight: 700; cursor: pointer; font-family: inherit; }
+        .veh-ubic button.on { background: var(--active-bg); border-color: var(--active-bg); color: #fff; }
+        .veh-check { display: flex; align-items: center; gap: 6px; font-weight: 400; font-size: 0.8rem; margin-top: 0.4rem; cursor: pointer; }
+        .veh-check input { width: auto; }
+        .veh-codigos { display: flex; gap: 0.35rem; margin-top: 0.3rem; }
+        .veh-codigos button { flex: 1 1 0; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main); border-radius: 8px;
+            padding: 7px 4px; font-size: 0.8rem; font-weight: 800; cursor: pointer; font-family: inherit; }
+        .veh-codigos button.on { background: var(--danger-color); border-color: var(--danger-color); color: #fff; }
+        .veh-codigos button.on.ok { background: var(--success-color); border-color: var(--success-color); }
+        .veh-leyenda { font-size: 0.72rem; color: #888; margin-top: 0.3rem; line-height: 1.35; }
+        .mov-lista { max-height: 45vh; overflow-y: auto; display: flex; flex-direction: column; gap: 0.4rem; margin: 0.6rem 0; }
+        .mov-fila { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.5rem 0.6rem; border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-sm); background: var(--input-bg); font-size: 0.8rem; cursor: pointer; font-weight: 400; }
+        .mov-fila input { width: auto; margin-top: 3px; }
+        .mov-fila small { display: block; color: #888; }
+        .mov-tipo { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.7rem; font-weight: 700; white-space: nowrap; }
+        .mov-tipo.inv { background: rgba(94,114,228,.15); color: var(--active-bg); }
+        .mov-tipo.man { background: rgba(136,136,136,.15); color: #888; }
+        .orz-lista { display: flex; flex-direction: column; gap: 0.4rem; margin: 0.5rem 0; }
+        .orz-item { display: flex; justify-content: space-between; gap: 0.5rem; align-items: center; padding: 0.45rem 0.6rem; border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-sm); background: var(--input-bg); font-size: 0.8rem; }
+        .orz-item small { display: block; color: #888; }
+        .orz-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 0.6rem; }
+        .orz-grid .full { grid-column: 1 / -1; }
+        @media (max-width: 600px) { .orz-grid { grid-template-columns: 1fr; } }
         .veh-doc-todos { margin-top: 0.5rem; width: 100%; border: 1px dashed var(--success-color); background: transparent; color: var(--success-color);
             border-radius: var(--border-radius-sm); padding: 7px; font-size: 0.78rem; font-weight: 700; cursor: pointer; font-family: inherit; }
         .veh-doc-err { color: var(--danger-color); font-size: 0.78rem; min-height: 1rem; margin-top: 0.4rem; }
@@ -1519,6 +1551,7 @@
                             <p class="veh-doc-ayuda">Después de cada escaneo o captura se pregunta qué documentos tiene el vehículo. Toca un renglón para corregirlo.</p>
                             <div id="veh-doc-resumen" class="veh-doc-resumen"></div>
                             <button class="btn-success" onclick="exportarExcelVehiculos()"><i class="fas fa-file-excel"></i> Exportar Excel</button>
+                            <button class="btn-secondary" onclick="abrirOtraRazon(false)"><i class="fas fa-building"></i> Unidades de otra razón social <span id="orz-n"></span></button>
                             <div class="vehiculo-table-wrap">
                                 <table id="vehiculo-table">
                                     <thead><tr><th>Hora</th><th>Vehículo</th><th>Responsable</th><th>Tarjeta</th><th>Póliza</th><th>Licencia</th><th>Carta resp.</th><th>Estatus</th></tr></thead>
@@ -1605,7 +1638,7 @@
                 </div>
                 <div class="widget-card">
                     <table>
-                        <thead><tr><th>Activo</th><th>Serie</th><th>Origen</th><th>Destino</th><th>Fecha</th><th>Usuario</th></tr></thead>
+                        <thead><tr><th>Activo</th><th>Serie</th><th>Origen</th><th>Destino</th><th>Fecha y hora</th><th>Tipo</th><th>Usuario</th></tr></thead>
                         <tbody id="movimientos-body"></tbody>
                     </table>
                 </div>
@@ -1648,6 +1681,16 @@
                     <label>Razón social</label>
                     <input type="text" id="razon-social" placeholder="Industrias Meridiano" style="max-width:400px;">
                     <button class="btn-primary" style="margin-top:0.5rem;" onclick="guardarRazonSocial()"><i class="fas fa-save"></i> Guardar</button>
+                </div>
+
+                <!-- Leyenda del estatus de documentos vehiculares -->
+                <div class="widget-card settings-group">
+                    <h3 style="border:none; padding:0; margin-bottom:0.5rem;">Estatus de documentos vehiculares</h3>
+                    <p class="help-text" style="margin-bottom:0.5rem;">Significado de cada estatus. Aparece en la ventana de documentos, en el informe final y en la leyenda "Estatus:" del Excel. Solo el administrador lo cambia.</p>
+                    <label>OK</label><input type="text" id="leyenda-OK" style="max-width:400px;">
+                    <label>A</label><input type="text" id="leyenda-A" style="max-width:400px;">
+                    <label>B</label><input type="text" id="leyenda-B" style="max-width:400px;">
+                    <button class="btn-primary" style="margin-top:0.5rem;" onclick="guardarLeyendaEstatus()"><i class="fas fa-save"></i> Guardar</button>
                 </div>
 
                 <!-- Sesión -->
@@ -1730,11 +1773,29 @@
         <div class="modal-box" style="max-width:min(460px,95vw);">
             <h3><i class="fas fa-car"></i> Documentos del vehículo</h3>
             <p class="sub" id="veh-doc-equipo"></p>
-            <label>Responsable del vehículo</label>
+            <label>¿Dónde está la unidad?</label>
+            <div class="veh-ubic" id="veh-ubic">
+                <button type="button" data-u="aqui" onclick="vehUbicacion('aqui')">📍 En esta sucursal</button>
+                <button type="button" data-u="otra" onclick="vehUbicacion('otra')">🏬 En otra sucursal</button>
+            </div>
+            <div id="veh-ubic-otra" style="display:none;">
+                <label style="margin-top:0.5rem;">Sucursal donde está</label>
+                <select id="veh-ubic-sucursal"></select>
+                <p class="veh-leyenda">Al cerrar el levantamiento se preguntará si quieres registrar el cambio de sucursal de una vez.</p>
+            </div>
+            <label style="margin-top:0.6rem;">Responsable del vehículo</label>
             <input type="text" id="veh-resp-input" placeholder="Nombre completo">
+            <label class="veh-check"><input type="checkbox" id="veh-sin-resp" onchange="vehSinResponsable(this.checked)"> Sin responsable asignado (NO ASIGNADO)</label>
             <label style="margin-top:0.6rem;">¿Cuenta con estos documentos?</label>
             <div id="veh-doc-lista" class="veh-doc-lista"></div>
-            <button type="button" class="veh-doc-todos" onclick="vehDocsTodos()"><i class="fas fa-check-double"></i> Marcar todos como presentes</button>
+            <div class="veh-doc-acciones">
+                <button type="button" class="veh-doc-todos" onclick="vehDocsTodos(true)"><i class="fas fa-check-double"></i> Todos presentes</button>
+                <button type="button" class="veh-doc-todos na" onclick="vehDocsTodos('na')">N/A a todos</button>
+            </div>
+            <p class="veh-leyenda">Usa <b>N/A</b> cuando el documento no aplica o no se puede revisar (unidad no localizada o en otra sucursal).</p>
+            <label style="margin-top:0.6rem;">Estatus</label>
+            <div class="veh-codigos" id="veh-codigos"></div>
+            <div class="veh-leyenda" id="veh-leyenda"></div>
             <label style="margin-top:0.6rem;">Comentario (opcional)</label>
             <input type="text" id="veh-doc-com" placeholder="Ej. póliza vencida, licencia en trámite…">
             <div id="veh-doc-err" class="veh-doc-err"></div>
@@ -1742,6 +1803,62 @@
                 <button class="btn-secondary" onclick="omitirDocsVehiculo()">Revisar después</button>
                 <button class="btn-primary" onclick="confirmarResponsableVehiculo()"><i class="fas fa-check"></i> Guardar</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Modal: activo pendiente que está en otra sucursal -->
+    <div class="modal-overlay" id="modalOtraSucursal">
+        <div class="modal-box" style="max-width:min(420px,95vw);">
+            <h3><i class="fas fa-store"></i> Está en otra sucursal</h3>
+            <p class="sub" id="osuc-activo"></p>
+            <label>¿En qué sucursal está?</label>
+            <select id="osuc-sucursal"></select>
+            <label style="margin-top:0.6rem;">Comentario (opcional)</label>
+            <input type="text" id="osuc-com" placeholder="Ej. la usa el gerente de la sucursal Norte">
+            <p class="veh-leyenda">Cuenta como justificado. Al cerrar el levantamiento se preguntará si quieres registrar el cambio de sucursal de una vez.</p>
+            <div class="modal-buttons">
+                <button class="btn-secondary" onclick="closeModal('modalOtraSucursal')">Cancelar</button>
+                <button class="btn-primary" onclick="confirmarOtraSucursal()"><i class="fas fa-check"></i> Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: al cerrar, registrar los cambios de sucursal detectados -->
+    <div class="modal-overlay" id="modalMovimientosCierre">
+        <div class="modal-box" style="max-width:min(560px,95vw);">
+            <h3><i class="fas fa-exchange-alt"></i> Cambios de sucursal detectados</h3>
+            <p class="sub">¿Quieres registrar el cambio de sucursal de una vez? Los marcados se guardan en <b>Movimientos</b> como "Inventario de activos" y aparecen en el informe final.</p>
+            <div class="mov-lista" id="mov-cierre-lista"></div>
+            <div class="modal-buttons">
+                <button class="btn-secondary" onclick="resolverMovimientosCierre(false)">Ahora no</button>
+                <button class="btn-primary" onclick="resolverMovimientosCierre(true)"><i class="fas fa-check"></i> Registrar marcados y cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: unidades de otra razón social (no registradas en el catálogo) -->
+    <div class="modal-overlay" id="modalOtraRazon">
+        <div class="modal-box" style="max-width:min(560px,95vw);">
+            <h3><i class="fas fa-building"></i> Unidades de otra razón social</h3>
+            <p class="sub" id="orz-intro">¿Hay en esta sucursal unidades de otra razón social? Regístralas aquí: aparecen en el informe final y en el Excel como "NO REGISTRADAS".</p>
+            <div class="orz-lista" id="orz-lista"></div>
+            <div id="orz-form" style="border-top:1px solid var(--border-color); padding-top:0.6rem;">
+                <input type="hidden" id="orz-idx" value="-1">
+                <div class="orz-grid">
+                    <div class="full"><label>Equipo de transporte</label><input type="text" id="orz-equipo" placeholder="Ej. SAVEIRO 2023 NS-PP058097"></div>
+                    <div><label>Fecha</label><input type="date" id="orz-fecha"></div>
+                    <div><label>Razón social</label><input type="text" id="orz-razon" placeholder="Ej. KNO, KSC, KSA…" list="orz-razones"><datalist id="orz-razones"><option value="KNO"><option value="KSC"><option value="KSA"></datalist></div>
+                    <div class="full"><label>Responsable</label><input type="text" id="orz-resp" placeholder="Nombre completo (vacío = NO ASIGNADO)"></div>
+                </div>
+                <div id="orz-docs" class="veh-doc-lista" style="margin-top:0.5rem;"></div>
+                <label style="margin-top:0.5rem;">Estatus</label>
+                <div class="veh-codigos" id="orz-codigos"></div>
+                <label style="margin-top:0.5rem;">Comentario (opcional)</label>
+                <input type="text" id="orz-com" placeholder="Ej. unidad prestada por KSC">
+                <div id="orz-err" class="veh-doc-err"></div>
+                <button type="button" class="btn-primary" style="width:100%; margin-top:0.3rem;" onclick="guardarOtraRazon()"><i class="fas fa-plus"></i> <span id="orz-btn-txt">Agregar unidad</span></button>
+            </div>
+            <div class="modal-buttons" id="orz-botones"></div>
         </div>
     </div>
 
@@ -1780,6 +1897,7 @@
             <div class="modal-buttons" style="justify-content:flex-start; flex-wrap:wrap; gap:0.5rem;">
                 <button class="btn-primary" onclick="descargarInformePDF(window.__ultimoInventarioId)"><i class="fas fa-file-pdf"></i> Descargar PDF</button>
                 <button class="btn-secondary" onclick="descargarInformeWord(window.__ultimoInventarioId)"><i class="fas fa-file-word"></i> Descargar Word</button>
+                <button class="btn-success" id="inf-btn-excel" style="display:none;" onclick="exportarExcelVehiculos(window.__ultimoInventarioId)"><i class="fas fa-file-excel"></i> Excel de documentos</button>
             </div>
             <div class="modal-buttons">
                 <button class="btn-secondary" onclick="closeModal('modalInformeAuditoria')">Cerrar</button>
@@ -2287,7 +2405,9 @@
                 datos: {
                     items: i.items || [], vehiculos: i.vehiculos || [], vehTipo: i.vehTipo || null,
                     resumen: i.resumen || null, faltantesList: i.faltantesList || [], sobrantesList: i.sobrantesList || [],
-                    reparacionList: i.reparacionList || [], bajaList: i.bajaList || []
+                    reparacionList: i.reparacionList || [], bajaList: i.bajaList || [],
+                    otraSucursalList: i.otraSucursalList || [], movimientosList: i.movimientosList || [],
+                    otraRazon: i.otraRazon || [], otraRazonRevisada: !!i.otraRazonRevisada
                 }
             };
         }
@@ -2300,7 +2420,9 @@
                 items: datos.items || [], vehiculos: datos.vehiculos || [], vehTipo: datos.vehTipo || null,
                 fechaFin: r.fecha_fin || null, resumen: datos.resumen || undefined,
                 faltantesList: datos.faltantesList || [], sobrantesList: datos.sobrantesList || [],
-                reparacionList: datos.reparacionList || [], bajaList: datos.bajaList || []
+                reparacionList: datos.reparacionList || [], bajaList: datos.bajaList || [],
+                otraSucursalList: datos.otraSucursalList || [], movimientosList: datos.movimientosList || [],
+                otraRazon: datos.otraRazon || [], otraRazonRevisada: !!datos.otraRazonRevisada
             };
         }
 
@@ -2387,6 +2509,8 @@
             (cfgData || []).forEach(r => { cfg[r.key] = r.value; });
             razonSocial = cfg.razon_social || 'Grupo Kuroda';
             document.getElementById('razon-social').value = razonSocial;
+            try { leyendaEstatus = { ...LEYENDA_DEF, ...(cfg.veh_estatus_leyenda ? JSON.parse(cfg.veh_estatus_leyenda) : {}) }; } catch (e) { leyendaEstatus = { ...LEYENDA_DEF }; }
+            ['OK', 'A', 'B'].forEach(k => { const el = document.getElementById('leyenda-' + k); if (el) el.value = leyendaEstatus[k] || ''; });
 
             if (e3) throw e3;
             if (e4) throw e4;
@@ -3320,21 +3444,54 @@
             if (!tbody) return;
             tbody.innerHTML = '';
             if (movimientos.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" style="color:#888; text-align:center;">No hay movimientos registrados.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" style="color:#888; text-align:center;">No hay movimientos registrados.</td></tr>`;
                 return;
             }
+            const deInventario = inventarioDeMovimientos();
             movimientosRecientes().forEach(m => {
+                const inv = deInventario.get(m.id);
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${esc(m.activoNombre || m.serie)}</td>
-                    <td><strong>${esc(m.serie)}</strong></td>
-                    <td>${esc(m.origen)}</td>
-                    <td>${esc(m.destino)}</td>
-                    <td>${new Date(m.fecha).toLocaleDateString()}</td>
-                    <td>${esc(m.usuario)}</td>
+                    <td data-label="Activo">${esc(m.activoNombre || m.serie)}</td>
+                    <td data-label="Serie"><strong>${esc(m.serie)}</strong></td>
+                    <td data-label="Origen">${esc(m.origen)}</td>
+                    <td data-label="Destino">${esc(m.destino)}</td>
+                    <td data-label="Fecha y hora">${esc(fechaHora(m.fecha))}</td>
+                    <td data-label="Tipo">${inv
+                        ? `<span class="mov-tipo inv" title="${esc(inv.tienda)}">Inventario de activos · ${esc(inv.id.slice(0, 8).toUpperCase())}</span>`
+                        : '<span class="mov-tipo man">Cambio manual</span>'}</td>
+                    <td data-label="Usuario">${esc(m.usuario)}</td>
                 `;
                 tbody.appendChild(row);
             });
+        }
+
+        const fechaHora = f => f ? new Date(f).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+        // Los movimientos hechos al cerrar un inventario quedan anotados en ese inventario
+        // (datos.movimientosList); así se sabe su origen sin cambiar la tabla de movimientos.
+        function inventarioDeMovimientos() {
+            const m = new Map();
+            inventarios.forEach(inv => (inv.movimientosList || []).forEach(x => { if (x.id) m.set(x.id, inv); }));
+            return m;
+        }
+
+        // Registra el traslado de un activo y actualiza su sucursal en el catálogo.
+        function crearMovimiento(asset, origen, destino) {
+            const movimiento = {
+                id: crypto.randomUUID(),
+                activoId: asset.id,
+                serie: asset.serie || asset.activoFijo || '',
+                activoNombre: asset.nombre,
+                origen: origen,
+                destino: destino,
+                fecha: new Date().toISOString(),
+                usuario: currentUser ? currentUser.nombreCompleto || currentUser.username : 'admin'
+            };
+            movimientos.push(movimiento);
+            asset.centro = destino;
+            const cDest = centros.find(c => c.nombre === destino);
+            if (cDest) { asset.centroCodigo = cDest.codigo; asset.razonSocial = cDest.razonSocial; }
+            return movimiento;
         }
 
         function abrirModalMovimiento() {
@@ -3373,20 +3530,7 @@
                 alert('No se encontró un activo con esa serie');
                 return;
             }
-            const movimiento = {
-                id: crypto.randomUUID(),
-                activoId: asset.id,
-                serie: serie,
-                activoNombre: asset.nombre,
-                origen: origen,
-                destino: destino,
-                fecha: new Date().toISOString(),
-                usuario: currentUser ? currentUser.nombreCompleto || currentUser.username : 'admin'
-            };
-            movimientos.push(movimiento);
-            asset.centro = destino;
-            const cDest = centros.find(c => c.nombre === destino);
-            if (cDest) { asset.centroCodigo = cDest.codigo; asset.razonSocial = cDest.razonSocial; }
+            crearMovimiento(asset, origen, destino).serie = serie;
             closeModal('modalMovimiento');
             renderMovimientos();
             updateKPIs();
@@ -3712,6 +3856,7 @@
                 vehModule.style.display = 'none';
                 vehiculos = [];
             }
+            pintarListaOtraRazon();
             // Los escaneos guardados se vuelven a comparar con el catálogo ACTUAL: si un activo se
             // corrigió (categoría o sucursal) después de escanearlo, deja de marcarse "a revisar".
             scanResults = (inv.items || []).map(i => evaluarItem(inv, i));
@@ -3750,7 +3895,7 @@
                     } else {
                         const r = inv.resumen || {};
                         cuerpo = r.universoTotal != null
-                            ? `<div class="inv-tarj-res"><span class="ok">✅ ${(r.encontradosTotal || 0) + (r.reparacionTotal || 0) + (r.bajaTotal || 0)} encontrados</span><span class="mal">❌ ${r.faltantesTotal || 0} faltantes</span><span>de ${r.universoTotal}</span></div>`
+                            ? `<div class="inv-tarj-res"><span class="ok">✅ ${(r.encontradosTotal || 0) + (r.reparacionTotal || 0) + (r.bajaTotal || 0) + (r.otraSucursalTotal || 0)} encontrados</span><span class="mal">❌ ${r.faltantesTotal || 0} faltantes</span><span>de ${r.universoTotal}</span></div>`
                             : `<div class="inv-tarj-res"><span>${(inv.items || []).length} escaneados</span></div>`;
                     }
                     return `<div class="inv-tarj ${enCurso ? 'en-curso' : 'final'}">
@@ -3779,7 +3924,7 @@
                     avance = `<span class="inv-avance" title="${p.revisados} de ${p.universo} revisados"><span class="lv-bar"><span class="b-ok" style="width:${p.pct}%"></span></span>${p.revisados}/${p.universo}</span>`;
                 } else {
                     const r = inv.resumen || {};
-                    avance = r.universoTotal != null ? `${(r.encontradosTotal || 0) + (r.reparacionTotal || 0) + (r.bajaTotal || 0)}/${r.universoTotal} · ❌ ${r.faltantesTotal || 0}` : String((inv.items || []).length);
+                    avance = r.universoTotal != null ? `${(r.encontradosTotal || 0) + (r.reparacionTotal || 0) + (r.bajaTotal || 0) + (r.otraSucursalTotal || 0)}/${r.universoTotal} · ❌ ${r.faltantesTotal || 0}` : String((inv.items || []).length);
                 }
                 html += `<tr>
                     <td data-label="Tienda">${esc(inv.tienda)}</td>
@@ -3836,17 +3981,66 @@
             if (inv.categoria === 'vehiculos') {
                 inv.vehiculos = vehiculos.slice();
             }
+            const r0 = calcularResumen(inv, inv.items);
+            if (r0.faltantes.length && !confirm(`Quedan ${r0.faltantes.length} activo(s) pendientes de revisar; se registrarán como FALTANTES. ¿Finalizar?`)) return;
 
+            // Paso 1 (vehículos): ¿hay unidades de otra razón social? Se registran antes de cerrar.
+            // Paso 2: si hay activos en otra sucursal, ¿se registra el cambio de sucursal de una vez?
+            const paso2 = () => {
+                const cand = candidatosMovimiento(inv, calcularResumen(inv, inv.items));
+                if (!cand.length) { cerrarInventario(inv, []); return; }
+                pedirMovimientosCierre(cand, elegidos => cerrarInventario(inv, cand, elegidos));
+            };
+            if (inv.categoria === 'vehiculos') abrirOtraRazon(ok => { if (ok) paso2(); });
+            else paso2();
+        }
+
+        // Cambios de sucursal detectados en el levantamiento:
+        //   • del universo, localizados en otra sucursal  → de esta tienda a esa sucursal
+        //   • escaneados aquí, registrados en otra sucursal → de esa sucursal a esta tienda
+        function candidatosMovimiento(inv, r) {
+            const lista = [];
+            r.otraSuc.forEach(a => {
+                const i = r.itemDe(a) || {};
+                if (i.sucursalReal && i.sucursalReal !== a.centro) lista.push({ assetId: a.id, origen: a.centro, destino: i.sucursalReal, motivo: 'Localizado en otra sucursal' });
+            });
+            r.sobrantes.forEach(s => {
+                const a = s.assetId && assets.find(x => x.id === s.assetId);
+                if (a && s.motivo === 'otra-sucursal' && a.centro !== inv.tienda) lista.push({ assetId: a.id, origen: a.centro, destino: inv.tienda, motivo: 'Encontrado en esta sucursal' });
+            });
+            return lista.map(c => { const a = assets.find(x => x.id === c.assetId) || {}; return { ...c, nombre: a.nombre || '', activoFijo: a.activoFijo || a.codigo || '', serie: a.serie || '' }; });
+        }
+        let _movCierre = null;
+        function pedirMovimientosCierre(cand, listo) {
+            _movCierre = { cand, listo };
+            document.getElementById('mov-cierre-lista').innerHTML = cand.map((c, i) => `
+                <label class="mov-fila"><input type="checkbox" data-i="${i}" checked>
+                    <span><b>${esc(c.nombre)}</b> <small>${esc(c.activoFijo)}${c.serie ? ' · Serie ' + esc(c.serie) : ''} · ${esc(c.motivo)}</small>
+                    <small>${esc(c.origen || '—')} → <b>${esc(c.destino)}</b></small></span></label>`).join('');
+            openModal('modalMovimientosCierre');
+        }
+        function resolverMovimientosCierre(registrar) {
+            const m = _movCierre;
+            _movCierre = null;
+            closeModal('modalMovimientosCierre');
+            if (!m) return;
+            const elegidos = registrar ? [...document.querySelectorAll('#mov-cierre-lista input:checked')].map(x => m.cand[+x.dataset.i]) : [];
+            m.listo(elegidos);
+        }
+
+        function cerrarInventario(inv, candidatos, elegidos) {
+            if (!inv || inv.estado === 'finalizado') return;
+            elegidos = elegidos || [];
             // Congela el resultado de la auditoría en el momento del cierre,
             // así el informe ejecutivo siempre refleja lo que pasó ese día,
             // aunque el catálogo de activos cambie después.
             const r = calcularResumen(inv, inv.items);
-            if (r.faltantes.length && !confirm(`Quedan ${r.faltantes.length} activo(s) pendientes de revisar; se registrarán como FALTANTES. ¿Finalizar?`)) return;
             inv.resumen = {
                 universoTotal: r.universo.length,
                 encontradosTotal: r.encontrados.length,
                 reparacionTotal: r.reparacion.length,
                 bajaTotal: r.baja.length,
+                otraSucursalTotal: r.otraSuc.length,
                 faltantesTotal: r.faltantes.length,
                 sobrantesTotal: r.sobrantes.length,
                 fechaFin: new Date().toISOString()
@@ -3855,6 +4049,17 @@
             inv.faltantesList = r.faltantes.map(fila);
             inv.reparacionList = r.reparacion.map(fila);
             inv.bajaList = r.baja.map(fila);
+            inv.otraSucursalList = r.otraSuc.map(a => ({ ...fila(a), assetId: a.id, sucursal: (r.itemDe(a) || {}).sucursalReal || '' }));
+
+            // Cambios de sucursal: los elegidos se registran en Movimientos (y en el catálogo);
+            // los demás quedan anotados como pendientes en el informe.
+            inv.movimientosList = (candidatos || []).map(c => {
+                const a = assets.find(x => x.id === c.assetId);
+                const base = { activoId: c.assetId, activoFijo: c.activoFijo, nombre: c.nombre, serie: c.serie, origen: c.origen, destino: c.destino, motivo: c.motivo };
+                if (!a || !elegidos.includes(c)) return { ...base, registrado: false };
+                const m = crearMovimiento(a, c.origen, c.destino);
+                return { ...base, id: m.id, fecha: m.fecha, usuario: m.usuario, registrado: true };
+            });
             inv.sobrantesList = r.sobrantes.map(s => {
                 const a = (s.assetId && assets.find(x => x.id === s.assetId)) || {};
                 return { codigo: s.code, nombre: s.name, centro: s.centro, alerta: s.alerta, motivo: s.motivo || '', assetId: s.assetId || null,
@@ -3880,7 +4085,10 @@
                 });
             });
             renderAssets();
+            renderMovimientos();
             renderNotificaciones();
+            const nMov = inv.movimientosList.filter(m => m.registrado).length;
+            if (nMov) showNotification(`🔁 ${nMov} cambio(s) de sucursal registrados en Movimientos`, 'info', 4000);
 
             inv.fechaFin = inv.resumen.fechaFin;
             inv.estado = 'finalizado';
@@ -3911,10 +4119,15 @@
                     <div style="color:var(--info-color);">🔧 En reparación<br><strong>${r.reparacionTotal ?? 0}</strong></div>
                     <div style="color:#888;">🗑️ Dados de baja<br><strong>${r.bajaTotal ?? 0}</strong></div>
                     <div style="color:var(--danger-color);">❌ Faltantes<br><strong>${r.faltantesTotal ?? 0}</strong></div>
-                    <div style="color:var(--warning-color);">🏬 En otra sucursal<br><strong>${otra}</strong></div>
+                    ${r.otraSucursalTotal ? `<div style="color:var(--warning-color);">🏬 Ubicados en otra sucursal<br><strong>${r.otraSucursalTotal}</strong></div>` : ''}
+                    <div style="color:var(--warning-color);">🏬 De otra sucursal (aquí)<br><strong>${otra}</strong></div>
                     ${obs ? `<div style="color:#888;">⚠️ Otras observaciones<br><strong>${obs}</strong></div>` : ''}
+                    ${(inv.movimientosList || []).length ? `<div style="color:var(--active-bg);">🔁 Cambios de sucursal<br><strong>${inv.movimientosList.filter(m => m.registrado).length} de ${inv.movimientosList.length}</strong></div>` : ''}
+                    ${(inv.otraRazon || []).length ? `<div style="color:var(--active-bg);">🏢 Otra razón social<br><strong>${inv.otraRazon.length}</strong></div>` : ''}
                 </div>
             `;
+            document.getElementById('inf-btn-excel').style.display =
+                inv.categoria === 'vehiculos' && ((inv.vehiculos || []).length || (inv.otraRazon || []).length || inv.vehTipo === 'documentos') ? '' : 'none';
             const f = leerFirmas(inv);
             document.getElementById('inf-realiza-nombre').value = f.realiza.nombre;
             document.getElementById('inf-realiza-puesto').value = f.realiza.puesto;
@@ -3962,8 +4175,9 @@
         }
 
         // ---- Estatus de revisión de cada activo del inventario ----
-        // Encontrado: está físicamente. En reparación / Dado de baja: no está, pero está justificado.
-        const ESTATUS_REVISION = ['Encontrado', 'En reparación', 'Dado de baja'];
+        // Encontrado: está físicamente. En reparación / Dado de baja / En otra sucursal: no está,
+        // pero está justificado (en otra sucursal se guarda cuál en item.sucursalReal).
+        const ESTATUS_REVISION = ['Encontrado', 'En reparación', 'Dado de baja', 'En otra sucursal'];
         const estatusDe = i => ESTATUS_REVISION.includes(i.estatus) ? i.estatus : 'Encontrado';
 
         // Compara un escaneo con el catálogo actual (sucursal y categoría del inventario).
@@ -4008,9 +4222,10 @@
             const encontrados = con('Encontrado');
             const reparacion = con('En reparación');
             const baja = con('Dado de baja');
+            const otraSuc = con('En otra sucursal');
             const faltantes = universo.filter(a => !itemDe(a));
             const sobrantes = items.filter(i => i.enUniverso !== undefined ? !i.enUniverso : !!i.alerta);
-            return { universo, encontrados, reparacion, baja, faltantes, sobrantes, itemDe };
+            return { universo, encontrados, reparacion, baja, otraSuc, faltantes, sobrantes, itemDe };
         }
 
         function registrarScanManual() {
@@ -4105,7 +4320,7 @@
         // ---- Avance del levantamiento ----
         function avanceInventario(inv, items) {
             const r = calcularResumen(inv, items);
-            const u = r.universo.length, ok = r.encontrados.length, just = r.reparacion.length + r.baja.length;
+            const u = r.universo.length, ok = r.encontrados.length, just = r.reparacion.length + r.baja.length + r.otraSuc.length;
             return { r, universo: u, encontrados: ok, justificados: just, revisados: ok + just,
                      pct: u ? Math.round(((ok + just) / u) * 100) : 0,
                      pctOk: u ? (ok / u) * 100 : 0, pctJust: u ? (just / u) * 100 : 0 };
@@ -4167,56 +4382,115 @@
             ['carta', 'Carta responsiva']
         ];
         const esLevantamientoConDocs = inv => !!inv && inv.categoria === 'vehiculos' && inv.vehTipo === 'documentos';
+        // Cada documento: true (sí está), false (no está) o 'na' (no aplica / no se pudo revisar:
+        // unidad no localizada o en otra sucursal, licencia sin responsable asignado…).
         // Registros anteriores guardaban "OK"/"X" sueltos y no tenían carta responsiva.
         function docsDe(v) {
             if (v.docs) return v.docs;
             const d = {};
-            ['tarjeta', 'poliza', 'licencia', 'carta'].forEach(k => { if (v[k] === 'OK') d[k] = true; else if (v[k] === 'X') d[k] = false; });
+            ['tarjeta', 'poliza', 'licencia', 'carta'].forEach(k => { if (v[k] === 'OK') d[k] = true; else if (v[k] === 'X') d[k] = false; else if (v[k] === 'N/A') d[k] = 'na'; });
             return d;
         }
+        const docRevisado = x => x === true || x === false || x === 'na';
         function estatusDocs(docs) {
             const r = VEH_DOCS.map(([k]) => docs[k]);
-            if (r.some(x => x === undefined || x === null)) return 'Sin revisar';
-            return r.every(Boolean) ? 'Completo' : 'Incompleto';
+            if (!r.every(docRevisado)) return 'Sin revisar';
+            return r.some(x => x === false) ? 'Incompleto' : 'Completo';
         }
         const faltanDocs = docs => VEH_DOCS.filter(([k]) => docs[k] === false).map(([, l]) => l);
+        const txtDoc = x => x === true ? 'OK' : x === false ? 'NO' : x === 'na' ? 'N/A' : '';
+
+        // Estatus del Excel (columna ESTATUS): OK / A / B. Su significado se edita en Ajustes.
+        const CODIGOS_ESTATUS = ['OK', 'A', 'B'];
+        const LEYENDA_DEF = { OK: 'Unidad y documentación en regla', A: 'Estatus A', B: 'Estatus B' };
+        let leyendaEstatus = { ...LEYENDA_DEF };
+        const textoLeyenda = () => CODIGOS_ESTATUS.map(k => `${k}: ${leyendaEstatus[k] || ''}`).join('   ·   ');
+        // Sin código elegido: OK si la unidad está aquí y sus documentos están completos.
+        const codigoAuto = (docs, ubicacion) => ubicacion !== 'otra' && estatusDocs(docs) === 'Completo' ? 'OK' : '';
+        const codigoEstatusDe = v => v.estatusCodigo || codigoAuto(docsDe(v), v.ubicacion);
+        function pintarCodigosEstatus(contId, actual, fn) {
+            document.getElementById(contId).innerHTML = CODIGOS_ESTATUS.map(k =>
+                `<button type="button" class="${k === actual ? 'on' + (k === 'OK' ? ' ok' : '') : ''}" title="${esc(leyendaEstatus[k] || '')}" onclick="${fn}('${k}')">${k}</button>`).join('');
+        }
 
         let vehiculoPendiente = null;
-        function pedirDocsVehiculo(item) {
+        // opciones.ubicacion = 'otra' + opciones.sucursal: viene de "En otra sucursal" (documentos en N/A).
+        function pedirDocsVehiculo(item, opciones) {
             if (!item) return;
+            const o = opciones || {};
             const asset = (item.assetId && assets.find(a => a.id === item.assetId)) || null;
             const codigo = String(item.code || (asset && (asset.activoFijo || asset.codigo)) || '');
             const idx = vehiculos.findIndex(v => v.codigo && normCodigo(v.codigo) === normCodigo(codigo));
             const previo = idx >= 0 ? vehiculos[idx] : null;
             const inv = inventarios.find(i => i.id === inventarioActivo);
+            const itScan = scanResults.find(r => (item.assetId && r.assetId === item.assetId) || normCodigo(r.code) === normCodigo(codigo));
+            const enOtra = o.ubicacion === 'otra' || (!o.ubicacion && itScan && estatusDe(itScan) === 'En otra sucursal');
+            const docs = previo ? { ...docsDe(previo) } : {};
+            if (o.ubicacion === 'otra') VEH_DOCS.forEach(([k]) => { if (!docRevisado(docs[k]) || docs[k] === true) docs[k] = 'na'; });
             vehiculoPendiente = {
-                idx, codigo, equipo: (asset && asset.nombre) || item.name || codigo,
+                idx, codigo, assetId: asset ? asset.id : (item.assetId || null), equipo: (asset && asset.nombre) || item.name || codigo,
                 activoFijo: (asset && asset.activoFijo) || codigo, serie: (asset && asset.serie) || '',
-                docs: previo ? { ...docsDe(previo) } : {},
+                fechaAlta: (asset && asset.fechaCompra) || (previo && previo.fechaAlta) || '',
+                docs, ubicacion: enOtra ? 'otra' : 'aqui',
+                sucursal: o.sucursal || (itScan && itScan.sucursalReal) || (previo && previo.sucursal) || '',
+                estatusCodigo: previo ? previo.estatusCodigo || '' : '',
                 reabrirCamara: !!camaraStream
             };
             if (camaraStream) cerrarCamaraScan();
             document.getElementById('veh-doc-equipo').textContent =
                 `${vehiculoPendiente.equipo} · ${vehiculoPendiente.activoFijo}${vehiculoPendiente.serie ? ' · Serie ' + vehiculoPendiente.serie : ''}`;
-            document.getElementById('veh-resp-input').value = previo ? (previo.responsable === 'N/A' ? '' : previo.responsable || '') : '';
+            const sinResp = !!(previo && previo.responsable === 'NO ASIGNADO');
+            document.getElementById('veh-sin-resp').checked = sinResp;
+            const resp = document.getElementById('veh-resp-input');
+            resp.disabled = sinResp;
+            resp.value = previo && !['N/A', 'NO ASIGNADO'].includes(previo.responsable) ? previo.responsable || '' : '';
             document.getElementById('veh-doc-com').value = previo ? previo.comentario || '' : '';
             document.getElementById('veh-doc-err').textContent = '';
+            llenarSelectSucursales(document.getElementById('veh-ubic-sucursal'), inv ? inv.tienda : '', vehiculoPendiente.sucursal);
+            pintarUbicacionVehiculo();
             pintarDocsVehiculo();
             openModal('modalResponsableVehiculo');
         }
         // Nombre anterior (la llamada original pedía solo el responsable).
         function abrirModalResponsableVehiculo(equipoNombre) { pedirDocsVehiculo({ code: equipoNombre, name: equipoNombre }); }
 
+        function pintarUbicacionVehiculo() {
+            const u = vehiculoPendiente ? vehiculoPendiente.ubicacion : 'aqui';
+            document.querySelectorAll('#veh-ubic button').forEach(b => b.classList.toggle('on', b.dataset.u === u));
+            document.getElementById('veh-ubic-otra').style.display = u === 'otra' ? 'block' : 'none';
+        }
+        function vehUbicacion(u) {
+            const p = vehiculoPendiente;
+            if (!p) return;
+            p.ubicacion = u;
+            // Si no está aquí, los documentos no se pueden revisar: N/A (se pueden cambiar).
+            if (u === 'otra') VEH_DOCS.forEach(([k]) => { if (!docRevisado(p.docs[k])) p.docs[k] = 'na'; });
+            pintarUbicacionVehiculo();
+            pintarDocsVehiculo();
+        }
+        function vehSinResponsable(si) {
+            const p = vehiculoPendiente;
+            const resp = document.getElementById('veh-resp-input');
+            resp.disabled = si;
+            if (si) resp.value = '';
+            if (p && si && p.docs.licencia !== true && p.docs.licencia !== false) p.docs.licencia = 'na';
+            pintarDocsVehiculo();
+        }
+
         function pintarDocsVehiculo() {
-            const d = vehiculoPendiente ? vehiculoPendiente.docs : {};
+            const p = vehiculoPendiente;
+            const d = p ? p.docs : {};
             document.getElementById('veh-doc-lista').innerHTML = VEH_DOCS.map(([k, l]) => `
-                <div class="veh-doc-fila ${d[k] === true ? 'si' : d[k] === false ? 'no' : ''}">
+                <div class="veh-doc-fila ${d[k] === true ? 'si' : d[k] === false ? 'no' : d[k] === 'na' ? 'na' : ''}">
                     <span>${l}</span>
                     <div class="veh-doc-btns">
-                        <button type="button" class="${d[k] === true ? 'on-si' : ''}" onclick="marcarDocVehiculo('${k}', true)">✓ Sí está</button>
-                        <button type="button" class="${d[k] === false ? 'on-no' : ''}" onclick="marcarDocVehiculo('${k}', false)">✗ No está</button>
+                        <button type="button" class="${d[k] === true ? 'on-si' : ''}" onclick="marcarDocVehiculo('${k}', true)">✓ Sí</button>
+                        <button type="button" class="${d[k] === false ? 'on-no' : ''}" onclick="marcarDocVehiculo('${k}', false)">✗ No</button>
+                        <button type="button" class="${d[k] === 'na' ? 'on-na' : ''}" onclick="marcarDocVehiculo('${k}', 'na')">N/A</button>
                     </div>
                 </div>`).join('');
+            pintarCodigosEstatus('veh-codigos', p ? (p.estatusCodigo || codigoAuto(d, p.ubicacion)) : '', 'vehCodigoEstatus');
+            document.getElementById('veh-leyenda').textContent = textoLeyenda();
         }
         function marcarDocVehiculo(k, v) {
             if (!vehiculoPendiente) return;
@@ -4224,40 +4498,61 @@
             document.getElementById('veh-doc-err').textContent = '';
             pintarDocsVehiculo();
         }
-        function vehDocsTodos() {
+        function vehDocsTodos(v) {
             if (!vehiculoPendiente) return;
-            VEH_DOCS.forEach(([k]) => { vehiculoPendiente.docs[k] = true; });
+            VEH_DOCS.forEach(([k]) => { vehiculoPendiente.docs[k] = v === undefined ? true : v; });
+            document.getElementById('veh-doc-err').textContent = '';
+            pintarDocsVehiculo();
+        }
+        function vehCodigoEstatus(c) {
+            if (!vehiculoPendiente) return;
+            vehiculoPendiente.estatusCodigo = c;
             pintarDocsVehiculo();
         }
 
         function guardarDocsVehiculo(sinRevisar) {
             const p = vehiculoPendiente;
             if (!p) { closeModal('modalResponsableVehiculo'); return; }
-            if (!sinRevisar && VEH_DOCS.some(([k]) => p.docs[k] !== true && p.docs[k] !== false)) {
-                document.getElementById('veh-doc-err').textContent = 'Marca en cada documento si está o no está.';
+            if (!sinRevisar && VEH_DOCS.some(([k]) => !docRevisado(p.docs[k]))) {
+                document.getElementById('veh-doc-err').textContent = 'Marca en cada documento: Sí, No o N/A.';
+                return;
+            }
+            const sucursal = p.ubicacion === 'otra' ? document.getElementById('veh-ubic-sucursal').value : '';
+            if (!sinRevisar && p.ubicacion === 'otra' && !sucursal) {
+                document.getElementById('veh-doc-err').textContent = 'Elige la sucursal donde está la unidad.';
                 return;
             }
             const docs = sinRevisar ? (p.idx >= 0 ? docsDe(vehiculos[p.idx]) : {}) : { ...p.docs };
             const ahora = new Date();
+            const sinResp = document.getElementById('veh-sin-resp').checked;
             const reg = {
                 fecha: ahora.toLocaleDateString('es-MX'), hora: ahora.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
-                codigo: p.codigo, activoFijo: p.activoFijo, serie: p.serie, equipo: p.equipo,
-                responsable: document.getElementById('veh-resp-input').value.trim() || 'N/A',
+                codigo: p.codigo, activoFijo: p.activoFijo, serie: p.serie, equipo: p.equipo, fechaAlta: p.fechaAlta,
+                responsable: sinResp ? 'NO ASIGNADO' : (document.getElementById('veh-resp-input').value.trim() || 'N/A'),
                 comentario: document.getElementById('veh-doc-com').value.trim(),
-                docs, estatus: estatusDocs(docs)
+                docs, estatus: estatusDocs(docs),
+                ubicacion: p.ubicacion, sucursal,
+                estatusCodigo: sinRevisar ? (p.idx >= 0 ? vehiculos[p.idx].estatusCodigo || '' : '') : (p.estatusCodigo || '') // vacío = automático (codigoEstatusDe)
             };
-            // Columnas anteriores (OK / X) para compatibilidad con exportaciones viejas.
-            VEH_DOCS.forEach(([k]) => { reg[k] = docs[k] === true ? 'OK' : docs[k] === false ? 'X' : ''; });
+            // Columnas anteriores (OK / X / N/A) para compatibilidad con exportaciones viejas.
+            VEH_DOCS.forEach(([k]) => { reg[k] = docs[k] === true ? 'OK' : docs[k] === false ? 'X' : docs[k] === 'na' ? 'N/A' : ''; });
             if (p.idx >= 0) vehiculos[p.idx] = { ...vehiculos[p.idx], ...reg };
             else vehiculos.push(reg);
             renderVehiculosTabla(vehiculos);
+            // La ubicación elegida aquí también marca el renglón del levantamiento.
+            const it = !sinRevisar && scanResults.find(r => (p.assetId && r.assetId === p.assetId) || normCodigo(r.code) === normCodigo(p.codigo));
+            if (it && !it.alerta) {
+                if (p.ubicacion === 'otra') { it.estatus = 'En otra sucursal'; it.sucursalReal = sucursal; }
+                else if (estatusDe(it) === 'En otra sucursal') { it.estatus = 'Encontrado'; delete it.sucursalReal; }
+                renderScanResults();
+            }
             const inv = inventarios.find(i => i.id === inventarioActivo);
-            if (inv) { inv.vehiculos = vehiculos.slice(); guardarInventarioPronto(); }
+            if (inv) { inv.items = scanResults.slice(); inv.vehiculos = vehiculos.slice(); guardarInventarioPronto(); }
             vehiculoPendiente = null;
             closeModal('modalResponsableVehiculo');
             if (!sinRevisar) {
                 const f = faltanDocs(docs);
-                showNotification(f.length ? `🚗 ${reg.equipo}: faltan ${f.join(', ')}` : `🚗 ${reg.equipo}: documentos completos`, f.length ? 'warning' : 'success', 3500);
+                showNotification(p.ubicacion === 'otra' ? `🚗 ${reg.equipo}: en ${sucursal}` : f.length ? `🚗 ${reg.equipo}: faltan ${f.join(', ')}` : `🚗 ${reg.equipo}: documentos revisados`, f.length ? 'warning' : 'success', 3500);
             }
             if (p.reabrirCamara) setTimeout(() => abrirCamaraScan(), 250);
         }
@@ -4267,6 +4562,108 @@
             const v = vehiculos[i];
             if (!v || !inventarioActivo) return;
             pedirDocsVehiculo({ code: v.codigo || v.equipo, name: v.equipo, assetId: (buscarActivoPorCodigo(v.codigo || '') || {}).id });
+        }
+
+        // ---- Unidades de otra razón social (no registradas en este catálogo) ----
+        // Se capturan a mano durante el levantamiento o al cerrarlo; van al informe y a la
+        // segunda tabla del Excel ("NO REGISTRADAS").
+        let orzBorrador = null, orzAlCerrar = null;
+        const ORZ_DOCS = [['poliza', 'Póliza física'], ['tarjeta', 'Tarjeta de circulación'], ['licencia', 'Licencia vigente'], ['carta', 'Carta responsiva']];
+        function abrirOtraRazon(alCerrar) {
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            if (!inv) return;
+            orzAlCerrar = alCerrar || null;
+            document.getElementById('orz-intro').innerHTML = alCerrar
+                ? '<b>Antes de cerrar:</b> ¿existen en esta sucursal unidades de otra razón social? Regístralas aquí; aparecen en el informe final y en el Excel como "NO REGISTRADAS".'
+                : 'Unidades de otra razón social que están en esta sucursal. Aparecen en el informe final y en el Excel como "NO REGISTRADAS".';
+            document.getElementById('orz-botones').innerHTML = alCerrar
+                ? `<button class="btn-secondary" onclick="cerrarOtraRazon(null)">Cancelar cierre</button>
+                   <button class="btn-primary" onclick="cerrarOtraRazon(true)"><i class="fas fa-arrow-right"></i> <span id="orz-continuar">Continuar con el cierre</span></button>`
+                : `<button class="btn-primary" onclick="cerrarOtraRazon(true)">Listo</button>`;
+            nuevaOtraRazon();
+            pintarListaOtraRazon();
+            openModal('modalOtraRazon');
+        }
+        function cerrarOtraRazon(ok) {
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            if (ok && inv) { inv.otraRazonRevisada = true; guardarInventarioPronto(); }
+            closeModal('modalOtraRazon');
+            const fn = orzAlCerrar;
+            orzAlCerrar = null;
+            if (typeof fn === 'function') fn(!!ok);
+        }
+        function nuevaOtraRazon(i) {
+            const inv = inventarios.find(x => x.id === inventarioActivo);
+            const u = i >= 0 && inv ? (inv.otraRazon || [])[i] : null;
+            orzBorrador = { docs: u ? { ...u.docs } : {}, estatusCodigo: u ? u.estatusCodigo || '' : '' };
+            document.getElementById('orz-idx').value = u ? i : -1;
+            document.getElementById('orz-equipo').value = u ? u.equipo : '';
+            document.getElementById('orz-fecha').value = u ? u.fecha || '' : '';
+            document.getElementById('orz-razon').value = u ? u.razon || '' : '';
+            document.getElementById('orz-resp').value = u && u.responsable !== 'NO ASIGNADO' ? u.responsable || '' : '';
+            document.getElementById('orz-com').value = u ? u.comentario || '' : '';
+            document.getElementById('orz-err').textContent = '';
+            document.getElementById('orz-btn-txt').textContent = u ? 'Guardar cambios' : 'Agregar unidad';
+            pintarDocsOtraRazon();
+        }
+        function pintarDocsOtraRazon() {
+            const d = orzBorrador ? orzBorrador.docs : {};
+            document.getElementById('orz-docs').innerHTML = ORZ_DOCS.map(([k, l]) => `
+                <div class="veh-doc-fila ${d[k] === true ? 'si' : d[k] === false ? 'no' : d[k] === 'na' ? 'na' : ''}">
+                    <span>${l}</span>
+                    <div class="veh-doc-btns">
+                        <button type="button" class="${d[k] === true ? 'on-si' : ''}" onclick="marcarDocOtraRazon('${k}', true)">✓ Sí</button>
+                        <button type="button" class="${d[k] === false ? 'on-no' : ''}" onclick="marcarDocOtraRazon('${k}', false)">✗ No</button>
+                        <button type="button" class="${d[k] === 'na' ? 'on-na' : ''}" onclick="marcarDocOtraRazon('${k}', 'na')">N/A</button>
+                    </div>
+                </div>`).join('');
+            pintarCodigosEstatus('orz-codigos', orzBorrador ? orzBorrador.estatusCodigo : '', 'codigoOtraRazon');
+        }
+        function marcarDocOtraRazon(k, v) { if (orzBorrador) { orzBorrador.docs[k] = v; pintarDocsOtraRazon(); } }
+        function codigoOtraRazon(c) { if (orzBorrador) { orzBorrador.estatusCodigo = c; pintarDocsOtraRazon(); } }
+        function guardarOtraRazon() {
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            if (!inv || !orzBorrador) return;
+            const equipo = document.getElementById('orz-equipo').value.trim();
+            const err = document.getElementById('orz-err');
+            if (!equipo) { err.textContent = 'Escribe el equipo de transporte.'; return; }
+            if (ORZ_DOCS.some(([k]) => !docRevisado(orzBorrador.docs[k]))) { err.textContent = 'Marca cada documento: Sí, No o N/A.'; return; }
+            const u = {
+                id: crypto.randomUUID(), equipo, fecha: document.getElementById('orz-fecha').value,
+                razon: document.getElementById('orz-razon').value.trim().toUpperCase(),
+                responsable: document.getElementById('orz-resp').value.trim() || 'NO ASIGNADO',
+                docs: { ...orzBorrador.docs }, estatusCodigo: orzBorrador.estatusCodigo || '',
+                comentario: document.getElementById('orz-com').value.trim(), registrado: new Date().toISOString()
+            };
+            inv.otraRazon = inv.otraRazon || [];
+            const i = parseInt(document.getElementById('orz-idx').value, 10);
+            if (i >= 0 && inv.otraRazon[i]) inv.otraRazon[i] = { ...inv.otraRazon[i], ...u, id: inv.otraRazon[i].id };
+            else inv.otraRazon.push(u);
+            guardarInventarioPronto();
+            nuevaOtraRazon();
+            pintarListaOtraRazon();
+            showNotification(`🚗 ${equipo}: registrada como unidad de otra razón social`, 'success');
+        }
+        function quitarOtraRazon(i) {
+            const inv = inventarios.find(x => x.id === inventarioActivo);
+            if (!inv || !inv.otraRazon || !inv.otraRazon[i] || !confirm(`¿Quitar ${inv.otraRazon[i].equipo}?`)) return;
+            inv.otraRazon.splice(i, 1);
+            guardarInventarioPronto();
+            nuevaOtraRazon();
+            pintarListaOtraRazon();
+        }
+        function pintarListaOtraRazon() {
+            const inv = inventarios.find(x => x.id === inventarioActivo);
+            const lista = (inv && inv.otraRazon) || [];
+            document.getElementById('orz-lista').innerHTML = lista.length
+                ? lista.map((u, i) => `<div class="orz-item"><span><b>${esc(u.equipo)}</b>
+                    <small>${esc(u.razon || 'Sin razón social')} · ${esc(u.responsable)} · ${ORZ_DOCS.slice(0, 3).map(([k, l]) => l.split(' ')[0] + ' ' + txtDoc(u.docs[k])).join(' · ')}${u.estatusCodigo ? ' · Estatus ' + esc(u.estatusCodigo) : ''}</small></span>
+                    <span style="display:flex; gap:4px;"><button class="lv-btn" onclick="nuevaOtraRazon(${i})" title="Editar">✎</button><button class="lv-btn peligro" onclick="quitarOtraRazon(${i})" title="Quitar">✕</button></span></div>`).join('')
+                : '<p class="veh-leyenda" style="margin:0;">Sin unidades de otra razón social registradas.</p>';
+            const cont = document.getElementById('orz-continuar');
+            if (cont) cont.textContent = lista.length ? `Continuar con el cierre (${lista.length} registrada${lista.length > 1 ? 's' : ''})` : 'No hay, continuar con el cierre';
+            const n = document.getElementById('orz-n');
+            if (n) n.textContent = lista.length ? `(${lista.length})` : '';
         }
 
         // ============================================================
@@ -4618,8 +5015,53 @@
         function cambiarEstatusItem(code, estatus) {
             const it = itemPorCodigo(code);
             if (!it || !ESTATUS_REVISION.includes(estatus)) return;
+            if (estatus === 'En otra sucursal') { abrirOtraSucursal(it.assetId, { code }); renderScanResults(); return; }
             it.estatus = estatus;
+            delete it.sucursalReal;
             guardarRevision();
+        }
+
+        // ---- Activo del universo que se localizó en otra sucursal ----
+        // Cuenta como justificado; al cerrar se ofrece registrar el movimiento.
+        let otraSucPendiente = null;
+        function abrirOtraSucursal(assetId, opciones) {
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            const asset = assets.find(a => a.id === assetId);
+            if (!inv || !asset) return;
+            otraSucPendiente = { assetId, ...(opciones || {}) };
+            const previo = scanResults.find(r => r.assetId === assetId);
+            document.getElementById('osuc-activo').textContent = `${asset.nombre} · ${asset.activoFijo || asset.codigo || ''}${asset.serie ? ' · Serie ' + asset.serie : ''}`;
+            llenarSelectSucursales(document.getElementById('osuc-sucursal'), inv.tienda, previo && previo.sucursalReal);
+            document.getElementById('osuc-com').value = (previo && previo.comentario) || (document.getElementById('pend-com-' + assetId)?.value || '');
+            openModal('modalOtraSucursal');
+        }
+        function llenarSelectSucursales(sel, excluir, elegido) {
+            const lista = centros.map(c => c.nombre).filter(n => n && n !== excluir).sort((a, b) => a.localeCompare(b));
+            sel.innerHTML = '<option value="">— Elige la sucursal —</option>' + lista.map(n => `<option value="${esc(n)}"${n === elegido ? ' selected' : ''}>${esc(n)}</option>`).join('');
+        }
+        function confirmarOtraSucursal() {
+            const p = otraSucPendiente;
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            const asset = p && assets.find(a => a.id === p.assetId);
+            if (!inv || !asset) { closeModal('modalOtraSucursal'); return; }
+            const sucursal = document.getElementById('osuc-sucursal').value;
+            if (!sucursal) { showNotification('Elige la sucursal donde está', 'warning'); return; }
+            const comentario = document.getElementById('osuc-com').value.trim().slice(0, 500);
+            let it = scanResults.find(r => r.assetId === asset.id);
+            if (it) {
+                Object.assign(it, { estatus: 'En otra sucursal', sucursalReal: sucursal, comentario });
+            } else {
+                it = evaluarItem(inv, { code: asset.activoFijo || asset.codigo || asset.serie, assetId: asset.id, manual: true, found: true,
+                    timestamp: new Date().toLocaleTimeString(), estatus: 'En otra sucursal', comentario });
+                it.sucursalReal = sucursal;
+                scanResults.push(it);
+            }
+            otraSucPendiente = null;
+            closeModal('modalOtraSucursal');
+            guardarRevision();
+            avisarEscaneo('ok', asset.nombre, `${asset.activoFijo || asset.codigo || ''} · en otra sucursal: ${sucursal}`);
+            // Con documentos: la unidad no está aquí, los documentos quedan en N/A (se pueden corregir).
+            if (esLevantamientoConDocs(inv)) pedirDocsVehiculo(it, { ubicacion: 'otra', sucursal });
         }
         // El comentario se guarda al salir del campo (no en cada tecla, para no re-pintar mientras escriben).
         function comentarItem(code, texto) {
@@ -4654,6 +5096,7 @@
             const asset = assets.find(a => a.id === assetId);
             if (!inv || !asset || !ESTATUS_REVISION.includes(estatus)) return;
             if (scanResults.some(r => r.assetId === assetId)) return;
+            if (estatus === 'En otra sucursal') { abrirOtraSucursal(assetId); return; }
             const comentario = (document.getElementById('pend-com-' + assetId)?.value || '').trim();
             scanResults.push(evaluarItem(inv, {
                 code: asset.activoFijo || asset.codigo || asset.serie, assetId, manual: true, found: true,
@@ -4724,6 +5167,7 @@
                     <div class="lv-card-main"><strong>${esc(it.name)}</strong>
                         <small>${esc(it.code)}${a && a.serie && a.serie !== it.code ? ' · Serie ' + esc(a.serie) : ''}${catTxt(a)} · ${esc(it.timestamp || '')}${it.manual ? ' · marcado a mano' : ' · escaneado'}</small>
                         ${it.alerta ? `<span class="lv-alerta">${esc(it.alerta)}</span>` : ''}
+                        ${ok && estatusDe(it) === 'En otra sucursal' ? `<span class="lv-alerta">🏬 Está en: ${esc(it.sucursalReal || 'sin indicar')}</span>` : ''}
                     </div>
                     <div class="lv-card-actions">
                         ${ok ? `<select class="scan-estatus" onchange='cambiarEstatusItem(${cj}, this.value)' title="Estatus de revisión" aria-label="Estatus">${opciones(estatusDe(it))}</select>` : ''}
@@ -4743,6 +5187,7 @@
                         <button class="lv-btn ok" onclick="marcarPendiente('${a.id}','Encontrado')" title="Está físicamente pero no se pudo escanear">✅ Está</button>
                         <button class="lv-btn" onclick="marcarPendiente('${a.id}','En reparación')" title="En reparación">🔧 Reparación</button>
                         <button class="lv-btn" onclick="marcarPendiente('${a.id}','Dado de baja')" title="Dado de baja">🗑️ Baja</button>
+                        <button class="lv-btn" onclick="marcarPendiente('${a.id}','En otra sucursal')" title="No está aquí: se localizó en otra sucursal">🏬 Otra suc.</button>
                     </div>
                 </div>`;
 
@@ -4829,10 +5274,14 @@
             });
             const otraSucursal = sobrantes.filter(s => s.motivo === 'otra-sucursal');
             const observaciones = sobrantes.filter(s => s.motivo !== 'otra-sucursal');
+            const ubicadosOtra = lista(inv.otraSucursalList);
+            const movs = inv.movimientosList || [];
+            const movRegistrados = movs.filter(m => m.registrado), movPendientes = movs.filter(m => !m.registrado);
+            const otraRazon = inv.otraRazon || [];
 
             const universo = r.universoTotal ?? 0;
             const nEnc = r.encontradosTotal ?? encontrados.length;
-            const nJust = (r.reparacionTotal ?? reparacion.length) + (r.bajaTotal ?? baja.length);
+            const nJust = (r.reparacionTotal ?? reparacion.length) + (r.bajaTotal ?? baja.length) + (r.otraSucursalTotal ?? ubicadosOtra.length);
             const nFalt = r.faltantesTotal ?? faltantes.length;
             const pct = universo ? Math.round((nEnc / universo) * 100) : 0;
             const pctConciliado = universo ? Math.round(((nEnc + nJust) / universo) * 100) : 0;
@@ -4852,22 +5301,26 @@
             const cat = nombreCategoria(inv.categoria);
             let conclusion = `Se revisaron ${universo} activo(s) registrados para ${inv.tienda} (${cat}). ` +
                 `Se localizaron físicamente ${nEnc} (${pct}%)`;
-            conclusion += nJust ? ` y ${nJust} más no están en piso pero están justificados (en reparación o dados de baja), con lo que se concilia el ${pctConciliado}% del universo. ` : '. ';
+            conclusion += nJust ? ` y ${nJust} más no están en piso pero están justificados (en reparación, dados de baja o ubicados en otra sucursal), con lo que se concilia el ${pctConciliado}% del universo. ` : '. ';
             conclusion += nFalt ? `${nFalt} activo(s) no fueron localizados y requieren seguimiento. ` : 'No hay activos sin localizar. ';
             if (otraSucursal.length) conclusion += `Además, se encontraron ${otraSucursal.length} activo(s) en esta tienda que en el catálogo están registrados en otra sucursal. `;
-            if (observaciones.length) conclusion += `${observaciones.length} escaneo(s) más tienen observaciones (sin registro, otra categoría o dados de baja).`;
+            if (observaciones.length) conclusion += `${observaciones.length} escaneo(s) más tienen observaciones (sin registro, otra categoría o dados de baja). `;
+            if (movRegistrados.length) conclusion += `Durante el cierre se registraron ${movRegistrados.length} cambio(s) de sucursal en Movimientos. `;
+            if (otraRazon.length) conclusion += `Se registraron ${otraRazon.length} unidad(es) de otra razón social presentes en la sucursal. `;
 
             // Documentos de vehículos (levantamiento "con documentos")
             const vehDocs = (inv.vehiculos || []).map(v => {
                 const docs = docsDe(v);
-                return { ...v, docs, est: v.docs ? estatusDocs(docs) : (v.estatus || 'Sin revisar'), faltan: faltanDocs(docs) };
+                return { ...v, docs, est: v.docs ? estatusDocs(docs) : (v.estatus || 'Sin revisar'), faltan: faltanDocs(docs), codigo: codigoEstatusDe(v) };
             });
             const vehIncompletos = vehDocs.filter(v => v.est === 'Incompleto');
-            if (vehDocs.length) conclusion += ` En documentos vehiculares: ${vehDocs.filter(v => v.est === 'Completo').length} de ${vehDocs.length} vehículo(s) tienen sus documentos completos.`;
+            if (vehDocs.length) conclusion += `En documentos vehiculares: ${vehDocs.filter(v => v.est === 'Completo').length} de ${vehDocs.length} vehículo(s) tienen sus documentos completos.`;
 
             const recomendaciones = [];
             if (nFalt) recomendaciones.push(`Investigar la ubicación de los ${nFalt} activo(s) no encontrados con el personal de la tienda. Si no se localizan, documentar el caso e iniciar el trámite de baja o reporte que corresponda.`);
-            if (otraSucursal.length) recomendaciones.push(`Registrar en "Movimientos" la transferencia de los ${otraSucursal.length} activo(s) de otra sucursal a ${inv.tienda}, o regresarlos a su sucursal de origen, para que el catálogo coincida con la ubicación física.`);
+            if (movPendientes.length) recomendaciones.push(`Registrar en "Movimientos" los ${movPendientes.length} cambio(s) de sucursal que quedaron pendientes (${movPendientes.map(m => `${m.nombre}: ${m.origen} → ${m.destino}`).join('; ')}), o regresar los activos a su sucursal, para que el catálogo coincida con la ubicación física.`);
+            else if (otraSucursal.length && !movs.length) recomendaciones.push(`Registrar en "Movimientos" la transferencia de los ${otraSucursal.length} activo(s) de otra sucursal a ${inv.tienda}, o regresarlos a su sucursal de origen, para que el catálogo coincida con la ubicación física.`);
+            if (otraRazon.length) recomendaciones.push(`Dar seguimiento con la razón social correspondiente a las ${otraRazon.length} unidad(es) no registradas en este catálogo que se encuentran en ${inv.tienda}.`);
             const n = m => observaciones.filter(o => o.motivo === m).length;
             if (n('no-registrado')) recomendaciones.push(`Dar de alta en el catálogo los ${n('no-registrado')} activo(s) encontrados sin registro.`);
             if (n('otra-categoria')) recomendaciones.push(`Corregir la categoría de ${n('otra-categoria')} activo(s) registrados en una categoría distinta.`);
@@ -4880,6 +5333,7 @@
             if (!recomendaciones.length) recomendaciones.push('Sin acciones pendientes: el inventario coincide con el catálogo.');
 
             return { inv, r, cat, vehDocs, encontrados, faltantes, reparacion, baja, otraSucursal, observaciones,
+                ubicadosOtra, movs, movRegistrados, movPendientes, otraRazon,
                 universo, nEnc, nJust, nFalt, pct, pctConciliado, dictamen, conclusion, recomendaciones,
                 folio: inv.id.slice(0, 8).toUpperCase(), fechaInicio: fmt(inv.fecha), fechaFin: fmt(r.fechaFin), duracion,
                 generado: new Date().toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }) };
@@ -5070,12 +5524,10 @@
             tabla(['Activo fijo', 'Nombre', 'Serie', 'Marca / modelo', 'Comentario'],
                 d.faltantes.map(a => [a.activoFijo || a.codigo || '-', a.nombre, a.serie || '-', a.marca || '-', a.comentario || '']),
                 C.rojo, 'Sin faltantes: todos los activos se localizaron', anchosActivo);
-            if (d.reparacion.length || d.baja.length) {
-                subtitulo(`Justificados: ${d.reparacion.length + d.baja.length}`, C.azul);
-                tabla(['Activo fijo', 'Nombre', 'Serie', 'Situación', 'Comentario'],
-                    d.reparacion.map(a => [a.activoFijo || a.codigo || '-', a.nombre, a.serie || '-', 'En reparación', a.comentario || ''])
-                        .concat(d.baja.map(a => [a.activoFijo || a.codigo || '-', a.nombre, a.serie || '-', 'Dado de baja', a.comentario || ''])),
-                    C.azul, '', { ...anchosActivo, 3: { cellWidth: 70 } });
+            if (d.reparacion.length || d.baja.length || d.ubicadosOtra.length) {
+                subtitulo(`Justificados: ${d.reparacion.length + d.baja.length + d.ubicadosOtra.length}`, C.azul);
+                tabla(['Activo fijo', 'Nombre', 'Serie', 'Situación', 'Comentario'], filasJustificados(d),
+                    C.azul, '', { ...anchosActivo, 3: { cellWidth: 90 } });
             }
 
             seccion('Activos registrados en otra sucursal', C.ambar, d.otraSucursal.length,
@@ -5084,6 +5536,13 @@
                 d.otraSucursal.map(s => [s.activoFijo, s.nombre, s.serie || '-', s.centro || '-', s.comentario || '']),
                 C.ambar, 'No se encontraron activos de otras sucursales', { ...anchosActivo, 3: { cellWidth: 110, fontStyle: 'bold' } });
 
+            if (d.movs.length) {
+                seccion('Cambios de sucursal', C.acento, d.movs.length,
+                    'Detectados en este levantamiento. Los registrados quedaron en Movimientos como "Inventario de activos"; los pendientes no se aplicaron al catálogo.');
+                tabla(['Activo fijo', 'Nombre', 'Origen', 'Destino', 'Movimiento'], filasMovimientos(d),
+                    C.acento, '', { 0: { cellWidth: 62 }, 4: { cellWidth: 110 } });
+            }
+
             if (d.observaciones.length) {
                 seccion('Otras observaciones', C.gris, d.observaciones.length);
                 tabla(['Código escaneado', 'Nombre', 'Observación', 'Comentario'],
@@ -5091,27 +5550,42 @@
                     C.gris, '', { 0: { cellWidth: 80 }, 2: { cellWidth: 150 } });
             }
 
-            if (d.vehDocs.length) {
-                const sn = v => v === true ? 'Sí' : v === false ? 'No' : '-';
-                seccion('Documentos de vehículos', C.acento, d.vehDocs.length,
-                    'Revisión de documentos en cada vehículo escaneado o capturado durante el levantamiento.');
+            // Documentos vehiculares y unidades de otra razón social: mismas columnas que el Excel.
+            const tablaDocs = (filas, c) => {
                 doc.autoTable({
                     ...tablaBase, startY: y,
-                    head: [['Activo fijo', 'Vehículo', 'Responsable'].concat(VEH_DOCS.map(([, l]) => l), ['Estatus'])],
-                    body: d.vehDocs.map(v => [v.activoFijo || v.codigo || '-', v.equipo + (v.comentario ? '\n' + v.comentario : ''), v.responsable || '-']
-                        .concat(VEH_DOCS.map(([k]) => sn(v.docs[k])), [v.est])),
-                    headStyles: { fillColor: C.acento, textColor: 255, fontStyle: 'bold', fontSize: 7.5 },
-                    columnStyles: { 3: { halign: 'center' }, 4: { halign: 'center' }, 5: { halign: 'center' }, 6: { halign: 'center' } },
-                    didParseCell: c => {
-                        if (c.section !== 'body') return;
-                        if (c.column.index >= 3 && c.column.index <= 6) {
-                            if (c.cell.raw === 'Sí') c.cell.styles.textColor = C.verde;
-                            if (c.cell.raw === 'No') { c.cell.styles.textColor = C.rojo; c.cell.styles.fontStyle = 'bold'; }
-                        }
-                        if (c.column.index === 7) c.cell.styles.textColor = c.cell.raw === 'Completo' ? C.verde : c.cell.raw === 'Incompleto' ? C.rojo : C.gris;
+                    head: [EXCEL_VEH_COLS.map(x => x[0] + (x[1] ? ' ' + x[1] : ''))],
+                    body: filas.map(f => [f.fecha, f.equipo + (f.nota ? '\n' + f.nota : ''), f.responsable, ...f.docs, f.estatus]),
+                    headStyles: { fillColor: c, textColor: 255, fontStyle: 'bold', fontSize: 7 },
+                    styles: { ...tablaBase.styles, fontSize: 7.5 },
+                    columnStyles: { 0: { cellWidth: 52 }, 3: { halign: 'center' }, 4: { halign: 'center' }, 5: { halign: 'center' }, 6: { halign: 'center' }, 7: { halign: 'center', fontStyle: 'bold' } },
+                    didParseCell: x => {
+                        if (x.section !== 'body') return;
+                        const f = filas[x.row.index];
+                        if (x.column.index === 2 && f && f.respRojo) { x.cell.styles.textColor = C.rojo; x.cell.styles.fontStyle = 'bold'; }
+                        if (x.column.index >= 3 && x.column.index <= 6 && x.cell.raw === 'NO') { x.cell.styles.textColor = C.rojo; x.cell.styles.fontStyle = 'bold'; }
+                        if (x.column.index === 7) x.cell.styles.textColor = C.rojo;
                     }
                 });
-                y = doc.lastAutoTable.finalY + 22;
+                y = doc.lastAutoTable.finalY + 8;
+            };
+            const leyendaPdf = () => {
+                doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(110);
+                const l = doc.splitTextToSize('Estatus — ' + textoLeyenda(), ANCHO);
+                espacio(l.length * 10 + 14); doc.text(l, M, y + 4); y += l.length * 10 + 16;
+            };
+            if (d.vehDocs.length || inv.vehTipo === 'documentos') {
+                const filasVeh = filasExcelVehiculos(inv, inv.items || [], inv.vehiculos || [], d.faltantes);
+                seccion('Inventario de documentos vehiculares', C.marca, filasVeh.length,
+                    'Revisión de documentos de cada unidad. N/A: no aplica o no se pudo revisar (unidad no localizada o en otra sucursal).');
+                tablaDocs(filasVeh, C.marca);
+                leyendaPdf();
+            }
+            if (d.otraRazon.length) {
+                seccion('Unidades de otra razón social (no registradas)', C.marca, d.otraRazon.length,
+                    `Unidades presentes en ${inv.tienda} que pertenecen a otra razón social y no están en este catálogo.`);
+                tablaDocs(filasExcelOtraRazon(d.otraRazon), C.marca);
+                leyendaPdf();
             }
 
             // Recomendaciones
@@ -5169,6 +5643,15 @@
             let num = 0;
             const seccion = (t, c, total, nota) => `<h2 style="color:${c};">${++num}. ${t} <span style="font-size:11pt;">(${total})</span></h2>` +
                 (nota ? `<p class="nota">${nota}</p>` : '');
+            const filasVehW = filasExcelVehiculos(inv, inv.items || [], inv.vehiculos || [], d.faltantes);
+            const tablaDocsW = rows => `<table>${th(EXCEL_VEH_COLS.map(x => x[0] + (x[1] ? ' ' + x[1] : '')), C.marca)}
+                ${rows.map((f, i) => { const bg = i % 2 ? C.suave : '#ffffff'; return `<tr>
+                    <td style="background:${bg};">${esc(f.fecha)}</td>
+                    <td style="background:${bg};">${esc(f.equipo)}${f.nota ? `<br><span style="color:${C.gris};font-size:8pt;">${esc(f.nota)}</span>` : ''}</td>
+                    <td style="background:${bg};${f.respRojo ? `color:${C.rojo};font-weight:bold;` : ''}">${esc(f.responsable)}</td>
+                    ${f.docs.map(x => `<td style="background:${bg};text-align:center;${x === 'NO' ? `color:${C.rojo};font-weight:bold;` : ''}">${esc(x)}</td>`).join('')}
+                    <td style="background:${bg};text-align:center;color:${C.rojo};font-weight:bold;">${esc(f.estatus)}</td></tr>`; }).join('')}</table>
+                <p class="nota">Estatus — ${esc(textoLeyenda())}</p>`;
             const kpis = [['Universo esperado', d.universo, C.marca], ['Encontrados', d.nEnc, C.verde], ['No encontrados', d.nFalt, C.rojo],
                 ['Justificados', d.nJust, C.azul], ['En otra sucursal', d.otraSucursal.length, C.ambar]];
             const html = `<html><head><meta charset="utf-8"><style>
@@ -5209,24 +5692,26 @@
                 <h3 style="color:${C.rojo};">Faltantes (sin localizar): ${d.faltantes.length}</h3>
                 <table>${th(['Activo fijo', 'Nombre', 'Serie', 'Marca / modelo', 'Comentario'], C.rojo)}
                     ${filas(d.faltantes.map(a => [a.activoFijo || a.codigo || '-', a.nombre, a.serie || '-', a.marca || '-', a.comentario || '']), 5, 'Sin faltantes: todos los activos se localizaron')}</table>
-                ${d.reparacion.length || d.baja.length ? `<h3 style="color:${C.azul};">Justificados: ${d.reparacion.length + d.baja.length}</h3>
+                ${d.reparacion.length || d.baja.length || d.ubicadosOtra.length ? `<h3 style="color:${C.azul};">Justificados: ${d.reparacion.length + d.baja.length + d.ubicadosOtra.length}</h3>
                 <table>${th(['Activo fijo', 'Nombre', 'Serie', 'Situación', 'Comentario'], C.azul)}
-                    ${filas(d.reparacion.map(a => [a.activoFijo || a.codigo || '-', a.nombre, a.serie || '-', 'En reparación', a.comentario || ''])
-                        .concat(d.baja.map(a => [a.activoFijo || a.codigo || '-', a.nombre, a.serie || '-', 'Dado de baja', a.comentario || ''])), 5, '')}</table>` : ''}
+                    ${filas(filasJustificados(d), 5, '')}</table>` : ''}
 
                 ${seccion('Activos registrados en otra sucursal', C.ambar, d.otraSucursal.length, `Se encontraron físicamente en ${esc(inv.tienda)}, pero en el catálogo pertenecen a otra sucursal.`)}
                 <table>${th(['Activo fijo', 'Nombre', 'Serie', 'Sucursal registrada', 'Comentario'], C.ambar)}
                     ${filas(d.otraSucursal.map(s => [s.activoFijo, s.nombre, s.serie || '-', s.centro || '-', s.comentario || '']), 5, 'No se encontraron activos de otras sucursales')}</table>
 
+                ${d.movs.length ? `${seccion('Cambios de sucursal', C.acento, d.movs.length, 'Detectados en este levantamiento. Los registrados quedaron en Movimientos como "Inventario de activos"; los pendientes no se aplicaron al catálogo.')}
+                <table>${th(['Activo fijo', 'Nombre', 'Origen', 'Destino', 'Movimiento'], C.acento)}
+                    ${filas(filasMovimientos(d), 5, '')}</table>` : ''}
+
                 ${d.observaciones.length ? `${seccion('Otras observaciones', C.gris, d.observaciones.length)}
                 <table>${th(['Código escaneado', 'Nombre', 'Observación', 'Comentario'], C.gris)}
                     ${filas(d.observaciones.map(s => [s.activoFijo, s.nombre, INF_OBS[s.motivo] || s.alerta || '-', s.comentario || '']), 4, '')}</table>` : ''}
 
-                ${d.vehDocs.length ? `${seccion('Documentos de vehículos', C.acento, d.vehDocs.length, 'Revisión de documentos en cada vehículo escaneado o capturado durante el levantamiento.')}
-                <table>${th(['Activo fijo', 'Vehículo', 'Responsable'].concat(VEH_DOCS.map(([, l]) => l), ['Estatus']), C.acento)}
-                    ${d.vehDocs.map((v, i) => `<tr>${[v.activoFijo || v.codigo || '-', v.equipo + (v.comentario ? ' — ' + v.comentario : ''), v.responsable || '-'].map(t => `<td style="background:${i % 2 ? C.suave : '#ffffff'};">${esc(t)}</td>`).join('')}
-                        ${VEH_DOCS.map(([k]) => { const x = v.docs[k]; return `<td style="text-align:center;font-weight:bold;color:${x === true ? C.verde : x === false ? C.rojo : C.gris};background:${i % 2 ? C.suave : '#ffffff'};">${x === true ? 'Sí' : x === false ? 'No' : '-'}</td>`; }).join('')}
-                        <td style="font-weight:bold;color:${v.est === 'Completo' ? C.verde : v.est === 'Incompleto' ? C.rojo : C.gris};background:${i % 2 ? C.suave : '#ffffff'};">${v.est}</td></tr>`).join('')}</table>` : ''}
+                ${d.vehDocs.length || inv.vehTipo === 'documentos' ? `${seccion('Inventario de documentos vehiculares', C.marca, filasVehW.length, 'Revisión de documentos de cada unidad. N/A: no aplica o no se pudo revisar (unidad no localizada o en otra sucursal).')}
+                    ${tablaDocsW(filasVehW)}` : ''}
+                ${d.otraRazon.length ? `${seccion('Unidades de otra razón social (no registradas)', C.marca, d.otraRazon.length, `Unidades presentes en ${esc(inv.tienda)} que pertenecen a otra razón social y no están en este catálogo.`)}
+                    ${tablaDocsW(filasExcelOtraRazon(d.otraRazon))}` : ''}
 
                 <h2 style="color:${C.marca};">Recomendaciones</h2>
                 <ol>${d.recomendaciones.map(t => `<li style="margin-bottom:4px;">${esc(t)}</li>`).join('')}</ol>
@@ -5265,16 +5750,17 @@
                 tbody.innerHTML = `<tr><td colspan="8" style="color:#888;">Sin registros de vehículos</td></tr>`;
                 return;
             }
-            const celda = v => v === true ? '<span class="veh-doc-ok" title="Sí está">✓</span>' : v === false ? '<span class="veh-doc-x" title="No está">✗</span>' : '<span style="color:#888;">—</span>';
+            const celda = v => v === true ? '<span class="veh-doc-ok" title="Sí está">✓</span>' : v === false ? '<span class="veh-doc-x" title="No está">✗</span>' : v === 'na' ? '<span style="color:#888; font-weight:700;" title="No aplica">N/A</span>' : '<span style="color:#888;">—</span>';
             tbody.innerHTML = lista.map((v, i) => {
                 const d = docsDe(v), est = v.docs ? estatusDocs(v.docs) : (v.estatus || 'Sin revisar');
                 const cls = est === 'Completo' ? 'badge-done' : est === 'Incompleto' ? 'badge-danger' : 'badge-process';
+                const cod = codigoEstatusDe(v);
                 return `<tr onclick="editarDocsVehiculo(${i})" title="Tocar para corregir">
                     <td data-label="Hora">${esc(v.hora || v.fecha || '')}</td>
-                    <td data-label="Vehículo" class="veh-td-nombre"><strong>${esc(v.equipo)}</strong>${v.activoFijo ? `<br><small style="color:#888;">${esc(v.activoFijo)}</small>` : ''}${v.comentario ? `<br><small style="color:#888;">💬 ${esc(v.comentario)}</small>` : ''}</td>
+                    <td data-label="Vehículo" class="veh-td-nombre"><strong>${esc(v.equipo)}</strong>${v.activoFijo ? `<br><small style="color:#888;">${esc(v.activoFijo)}</small>` : ''}${v.ubicacion === 'otra' ? `<br><small style="color:var(--warning-color);">🏬 En ${esc(v.sucursal || 'otra sucursal')}</small>` : ''}${v.comentario ? `<br><small style="color:#888;">💬 ${esc(v.comentario)}</small>` : ''}</td>
                     <td data-label="Responsable">${esc(v.responsable)}</td>
                     ${VEH_DOCS.map(([k, l]) => `<td data-label="${l}" class="veh-td-doc" style="text-align:center;">${celda(d[k])}</td>`).join('')}
-                    <td data-label="Estatus"><span class="status-badge ${cls}">${esc(est)}</span></td>
+                    <td data-label="Estatus"><span class="status-badge ${cls}">${esc(est)}</span>${cod ? ` <b style="color:${cod === 'OK' ? 'var(--success-color)' : 'var(--danger-color)'};">${esc(cod)}</b>` : ''}</td>
                 </tr>`;
             }).join('');
         }
@@ -5301,24 +5787,198 @@
             showNotification('✅ Excel exportado correctamente', 'success');
         }
 
-        function exportarExcelVehiculos() {
-            if (vehiculos.length === 0) {
-                showNotification('No hay datos de vehículos para exportar', 'warning');
-                return;
-            }
-            const q = t => `"${String(t ?? '').replace(/"/g, '""')}"`;
-            const sn = v => v === true ? 'Sí' : v === false ? 'No' : 'Sin revisar';
-            let csv = ['Fecha', 'Hora', 'Activo fijo', 'Vehículo', 'Responsable'].concat(VEH_DOCS.map(([, l]) => l), ['Faltan', 'Estatus', 'Comentario']).map(q).join(',') + '\n';
-            vehiculos.forEach(v => {
-                const d = docsDe(v);
-                csv += [v.fecha, v.hora || '', v.activoFijo || v.codigo || '', v.equipo, v.responsable].concat(VEH_DOCS.map(([k]) => sn(d[k])),
-                    [faltanDocs(d).join('; '), v.docs ? estatusDocs(v.docs) : v.estatus, v.comentario || '']).map(q).join(',') + '\n';
+        // ---- Inventario de documentos vehiculares (Excel, informe PDF y Word) ----
+        // Formato del Excel de auditoría: FECHA | EQUIPO DE TRANSPORTE | RESPONSABLE |
+        // PÓLIZA FÍSICA | TARJETA CIRCULACIÓN | LICENCIA VIGENTE | CARTA RESPONSIVA | ESTATUS,
+        // una segunda tabla igual con las unidades de otra razón social (NO REGISTRADAS) y la
+        // leyenda "Estatus:" al final.
+        const EXCEL_VEH_COLS = [['FECHA', ''], ['EQUIPO DE TRANSPORTE', ''], ['RESPONSABLE', ''], ['POLIZA', 'FISICA'],
+            ['TARJETA', 'CIRCULACION'], ['LICENCIA', 'VIGENTE'], ['CARTA', 'RESPONSIVA'], ['ESTATUS', '']];
+        const EXCEL_DOC_KEYS = ['poliza', 'tarjeta', 'licencia', 'carta'];
+        function fechaCorta(f) {
+            if (!f) return '';
+            const s = String(f);
+            const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+            const d = new Date(s);
+            return isNaN(d) ? s : d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        }
+        const RESP_ROJO = ['NO ASIGNADO', 'NO ENCONTRADO', 'N/A', ''];
+        // Una fila por unidad del universo: con su registro de documentos o, si no lo tiene,
+        // según cómo quedó en el levantamiento (no encontrada, en otra sucursal, etc.).
+        function filasExcelVehiculos(inv, items, vehs, faltantes) {
+            const filas = [], usados = new Set();
+            const activoDe = (codigo, id) => (id && assets.find(a => a.id === id)) || (codigo ? buscarActivoPorCodigo(codigo) : null) || {};
+            const fila = (equipo, fecha, responsable, docs, estatus, nota, rojo) => ({
+                fecha: fechaCorta(fecha), equipo: String(equipo || '').toUpperCase(), responsable: String(responsable || '').toUpperCase(),
+                docs, estatus: estatus || '', nota: nota || '', respRojo: rojo !== undefined ? rojo : RESP_ROJO.includes(String(responsable || '').toUpperCase())
             });
-            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `vehiculos_${new Date().toISOString().slice(0,10)}.csv`;
-            link.click();
+            const NA = EXCEL_DOC_KEYS.map(() => 'N/A');
+            vehs.forEach(v => {
+                const a = activoDe(v.codigo);
+                const d = docsDe(v);
+                [v.codigo, a.activoFijo, a.codigo, a.id].filter(Boolean).forEach(c => usados.add(normCodigo(c)));
+                const enOtra = v.ubicacion === 'otra';
+                const resp = enOtra && (!v.responsable || v.responsable === 'N/A') ? `EN ${v.sucursal || 'OTRA SUCURSAL'}` : v.responsable;
+                filas.push(fila(v.equipo, v.fechaAlta || a.fechaCompra, resp, EXCEL_DOC_KEYS.map(k => txtDoc(d[k])), codigoEstatusDe(v),
+                    [enOtra ? `En otra sucursal: ${v.sucursal || '-'}` : '', v.comentario || ''].filter(Boolean).join(' · '), enOtra || undefined));
+            });
+            const yaEsta = (...c) => c.some(x => x && usados.has(normCodigo(x)));
+            items.filter(i => (i.enUniverso !== undefined ? i.enUniverso : !i.alerta)).forEach(i => {
+                const a = activoDe(i.code, i.assetId);
+                if (yaEsta(i.code, a.activoFijo, a.codigo, a.id)) return;
+                usados.add(normCodigo(a.id || i.code));
+                const est = estatusDe(i);
+                if (est === 'En otra sucursal') filas.push(fila(a.nombre || i.name, a.fechaCompra, `EN ${i.sucursalReal || 'OTRA SUCURSAL'}`, NA, '', `En otra sucursal: ${i.sucursalReal || '-'}`, true));
+                else if (est === 'Encontrado') filas.push(fila(a.nombre || i.name, a.fechaCompra, a.asignado || '', EXCEL_DOC_KEYS.map(() => ''), '', 'Documentos sin revisar', false));
+                else filas.push(fila(a.nombre || i.name, a.fechaCompra, a.asignado || '', NA, '', est + (i.comentario ? ': ' + i.comentario : ''), false));
+            });
+            (faltantes || []).forEach(f => {
+                const a = activoDe(f.activoFijo || f.codigo, f.id);
+                if (yaEsta(f.activoFijo, f.codigo, a.id)) return;
+                filas.push(fila(f.nombre || a.nombre, a.fechaCompra, 'NO ENCONTRADO', NA, '', f.comentario || '', true));
+            });
+            return filas.sort((x, y) => x.equipo.localeCompare(y.equipo));
+        }
+        function filasExcelOtraRazon(lista) {
+            return (lista || []).map(u => {
+                const eq = String(u.equipo || '').toUpperCase();
+                const razon = String(u.razon || '').toUpperCase();
+                return { fecha: fechaCorta(u.fecha), equipo: razon && !eq.includes(razon) ? `${eq} ${razon}` : eq,
+                    responsable: String(u.responsable || 'NO ASIGNADO').toUpperCase(), docs: EXCEL_DOC_KEYS.map(k => txtDoc((u.docs || {})[k])),
+                    estatus: u.estatusCodigo || '', nota: u.comentario || '', respRojo: RESP_ROJO.includes(String(u.responsable || '').toUpperCase()) };
+            });
+        }
+        function filasJustificados(d) {
+            const f = (a, sit) => [a.activoFijo || a.codigo || '-', a.nombre, a.serie || '-', sit, a.comentario || ''];
+            return d.reparacion.map(a => f(a, 'En reparación'))
+                .concat(d.baja.map(a => f(a, 'Dado de baja')))
+                .concat(d.ubicadosOtra.map(a => f(a, `En otra sucursal: ${a.sucursal || '-'}`)));
+        }
+        function filasMovimientos(d) {
+            return d.movs.map(m => [m.activoFijo || '-', m.nombre || '-', m.origen || '-', m.destino || '-',
+                m.registrado ? `Registrado ${fechaHora(m.fecha)}${m.usuario ? ' · ' + m.usuario : ''}` : 'Pendiente (no registrado)']);
+        }
+
+        const EXCELJS_LIB = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+        // id: inventario finalizado (desde el informe). Sin id: el levantamiento en curso.
+        async function exportarExcelVehiculos(id) {
+            const inv = inventarios.find(i => i.id === (id || inventarioActivo));
+            if (!inv) { showNotification('No hay un levantamiento abierto', 'warning'); return; }
+            const enCurso = inv.id === inventarioActivo && inv.estado !== 'finalizado';
+            const items = enCurso ? scanResults : (inv.items || []);
+            const vehs = enCurso ? vehiculos : (inv.vehiculos || []);
+            const faltantes = enCurso ? calcularResumen(inv, items).faltantes : (inv.faltantesList || []);
+            const filas = filasExcelVehiculos(inv, items, vehs, faltantes);
+            const otras = filasExcelOtraRazon(inv.otraRazon);
+            if (!filas.length && !otras.length) { showNotification('No hay datos de vehículos para exportar', 'warning'); return; }
+            try { await cargarScript(EXCELJS_LIB, () => !!window.ExcelJS); }
+            catch (e) { showNotification('No se pudo cargar el generador de Excel. Revisa tu conexión.', 'danger'); return; }
+
+            const wb = new ExcelJS.Workbook();
+            const ws = wb.addWorksheet('Documentos vehiculares', {
+                pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 1 }
+            });
+            ws.columns = [12, 46, 30, 11, 14, 11, 13, 10].map(width => ({ width }));
+            const N = EXCEL_VEH_COLS.length;
+            const borde = { style: 'thin', color: { argb: 'FF000000' } };
+            const bordes = { top: borde, left: borde, bottom: borde, right: borde };
+            const relleno = argb => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
+            const rojo = { argb: 'FFFF0000' };
+            let fila = 1;
+            const titulo = texto => {
+                ws.mergeCells(fila, 1, fila, N);
+                const c = ws.getCell(fila, 1);
+                c.value = texto;
+                c.font = { bold: true, size: 12 };
+                c.alignment = { horizontal: 'center', vertical: 'middle' };
+                c.fill = relleno('FFBFBFBF');
+                for (let k = 1; k <= N; k++) ws.getCell(fila, k).border = bordes;
+                ws.getRow(fila).height = 20;
+                fila++;
+            };
+            const encabezado = () => {
+                const r1 = fila, r2 = fila + 1;
+                EXCEL_VEH_COLS.forEach(([a, b], k) => {
+                    const col = k + 1;
+                    if (!b) ws.mergeCells(r1, col, r2, col);
+                    else ws.getCell(r2, col).value = b;
+                    ws.getCell(r1, col).value = a;
+                });
+                [r1, r2].forEach((r, n) => {
+                    for (let k = 1; k <= N; k++) {
+                        const c = ws.getCell(r, k);
+                        c.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+                        c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+                        c.fill = relleno(n === 0 ? 'FF1F3864' : 'FF203F55');
+                        c.border = bordes;
+                    }
+                });
+                fila += 2;
+            };
+            const datos = (lista, vacio) => {
+                if (!lista.length) {
+                    ws.mergeCells(fila, 1, fila, N);
+                    const c = ws.getCell(fila, 1);
+                    c.value = vacio;
+                    c.font = { italic: true, color: { argb: 'FF808080' }, size: 10 };
+                    c.alignment = { horizontal: 'center' };
+                    for (let k = 1; k <= N; k++) ws.getCell(fila, k).border = bordes;
+                    fila++;
+                    return;
+                }
+                lista.forEach(f => {
+                    const r = ws.getRow(fila);
+                    r.values = [f.fecha, f.equipo, f.responsable, ...f.docs, f.estatus];
+                    for (let k = 1; k <= N; k++) {
+                        const c = r.getCell(k);
+                        c.border = bordes;
+                        c.font = { size: 10 };
+                        c.alignment = { horizontal: k === 2 || k === 3 ? 'left' : 'center', vertical: 'middle', wrapText: k === 2 };
+                    }
+                    if (f.respRojo) r.getCell(3).font = { size: 10, bold: true, color: rojo };
+                    f.docs.forEach((x, k) => { if (x === 'NO') r.getCell(4 + k).font = { size: 10, bold: true, color: rojo }; });
+                    r.getCell(N).font = { size: 10, bold: true, color: rojo };
+                    if (f.nota) r.getCell(2).note = f.nota;
+                    fila++;
+                });
+            };
+
+            titulo('INVENTARIO DE DOCUMENTOS VEHICULARES');
+            ws.mergeCells(fila, 1, fila, N);
+            ws.getCell(fila, 1).value = `Sucursal: ${inv.tienda}   ·   Levantamiento: ${fechaCorta(inv.fecha)}   ·   Folio ${inv.id.slice(0, 8).toUpperCase()}${enCurso ? '   ·   (en curso)' : ''}`;
+            ws.getCell(fila, 1).font = { italic: true, size: 9, color: { argb: 'FF595959' } };
+            fila++;
+            encabezado();
+            datos(filas, 'Sin unidades registradas');
+            fila += 2;
+            titulo('INVENTARIO DE DOCUMENTOS VEHICULARES ( NO REGISTRADAS)');
+            encabezado();
+            datos(otras, 'Sin unidades de otra razón social');
+            fila += 1;
+            ws.getCell(fila, 1).value = 'Estatus:';
+            ws.getCell(fila, 1).font = { bold: true, size: 11 };
+            fila++;
+            CODIGOS_ESTATUS.forEach(k => {
+                ws.mergeCells(fila, 1, fila, N);
+                ws.getCell(fila, 1).value = `${k} = ${leyendaEstatus[k] || ''}`;
+                ws.getCell(fila, 1).font = { size: 10 };
+                fila++;
+            });
+            ws.mergeCells(fila, 1, fila, N);
+            ws.getCell(fila, 1).value = 'N/A = No aplica o no se pudo revisar (unidad no localizada o en otra sucursal).   NO = el documento no está.';
+            ws.getCell(fila, 1).font = { size: 9, italic: true, color: { argb: 'FF595959' } };
+
+            const buf = await wb.xlsx.writeBuffer();
+            const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Documentos_Vehiculares_${inv.tienda}_${new Date().toISOString().slice(0, 10)}`.replace(/[^\w\-]+/g, '_') + '.xlsx';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
             showNotification('✅ Excel exportado correctamente', 'success');
         }
 
@@ -5655,6 +6315,18 @@
                 return;
             }
             showNotification('Razón social actualizada', 'success');
+        }
+
+        async function guardarLeyendaEstatus() {
+            const nueva = {};
+            ['OK', 'A', 'B'].forEach(k => { nueva[k] = (document.getElementById('leyenda-' + k).value || '').trim() || LEYENDA_DEF[k]; });
+            const { error } = await supabaseClient.from('app_config').upsert([{ key: 'veh_estatus_leyenda', value: JSON.stringify(nueva) }], { onConflict: 'key' });
+            if (error) {
+                showNotification('No se pudo guardar la leyenda: ' + error.message, 'danger');
+                return;
+            }
+            leyendaEstatus = nueva;
+            showNotification('Leyenda de estatus actualizada', 'success');
         }
 
         async function resetearDatos() {
