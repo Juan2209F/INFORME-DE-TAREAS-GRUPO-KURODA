@@ -1492,6 +1492,12 @@
                         <select id="filtro-tienda-activo" onchange="filtrarActivos()" title="Filtrar por tienda / centro">
                             <option value="">Todas las tiendas</option>
                         </select>
+                        <!-- Los dados de baja van aparte: no se mezclan con los activos vigentes -->
+                        <select id="filtro-estado-activo" onchange="filtrarActivos()" title="Vigentes o dados de baja">
+                            <option value="vigentes">Activos vigentes</option>
+                            <option value="baja">Dados de baja</option>
+                            <option value="todos">Todos</option>
+                        </select>
                         <span id="activos-conteo" style="font-size:0.8rem; opacity:.7;"></span>
                     </div>
                     <div class="controls-group">
@@ -1811,6 +1817,20 @@
             <div class="modal-buttons">
                 <button class="btn-secondary" onclick="closeModal('modalOtraSucursal')">Cancelar</button>
                 <button class="btn-primary" onclick="confirmarOtraSucursal()"><i class="fas fa-check"></i> Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: comentario al marcar un activo como En reparación / Dado de baja -->
+    <div class="modal-overlay" id="modalComentarioRevision">
+        <div class="modal-box" style="max-width:min(420px,95vw);">
+            <h3 id="crev-titulo"><i class="fas fa-comment"></i> Comentario</h3>
+            <p class="sub" id="crev-activo"></p>
+            <label>Comentario (aparece en el informe final)</label>
+            <textarea id="crev-texto" rows="3" maxlength="500" placeholder="Ej. enviado a reparación con el proveedor el 05/10; pantalla rota, sin reparación…"></textarea>
+            <div class="modal-buttons">
+                <button class="btn-secondary" onclick="closeModal('modalComentarioRevision')">Cancelar</button>
+                <button class="btn-primary" onclick="confirmarComentarioRevision()"><i class="fas fa-check"></i> Guardar</button>
             </div>
         </div>
     </div>
@@ -2776,6 +2796,7 @@
                 card.className = 'asset-card';
                 card.dataset.categoria = asset.categoria || '';
                 card.dataset.centro = asset.centro || '';
+                card.dataset.baja = asset.estado === 'Dado de baja' ? '1' : '';
                 const fotoOk = fotoSegura(asset.foto);
                 const fotoHtml = fotoOk
                     ? `<button type="button" class="asset-foto-btn" onclick="verFotoActivo(${index})" title="Ver foto en grande" aria-label="Ver foto en grande"><img src="${fotoOk}" alt="Foto de ${esc(asset.nombre)}" loading="lazy"><span class="asset-foto-zoom" aria-hidden="true">⤢</span></button>`
@@ -2798,7 +2819,9 @@
                             ${asset.foto ? `<button type="button" class="asset-menu-item peligro" role="menuitem" onclick="eliminarFotoActivo(${index})" title="Quitar la foto de este activo"><i class="fas fa-image"></i> Eliminar foto</button>` : ''}
                             <button type="button" class="asset-menu-item" role="menuitem" onclick="imprimirEtiquetas([assets[${index}]])" title="Etiqueta con QR para el escaneo"><i class="fas fa-qrcode"></i> Imprimir etiqueta</button>
                             <div class="asset-menu-sep"></div>
-                            ${asset.estado !== 'Dado de baja' ? `<button type="button" class="asset-menu-item peligro" role="menuitem" onclick="solicitarBajaActivo(${index})" title="Solicitar baja a auditoría"><i class="fas fa-ban"></i> Dar de baja</button>` : ''}
+                            ${asset.estado !== 'Dado de baja'
+                                ? `<button type="button" class="asset-menu-item peligro" role="menuitem" onclick="solicitarBajaActivo(${index})" title="Solicitar baja a auditoría"><i class="fas fa-ban"></i> Dar de baja</button>`
+                                : `<button type="button" class="asset-menu-item" role="menuitem" onclick="reactivarActivo(${index})" title="Pasar a otro estado (vuelve a los activos vigentes)"><i class="fas fa-undo"></i> Reactivar / pasar a otro estado</button>`}
                             <button type="button" class="asset-menu-item peligro" role="menuitem" onclick="deleteAsset(${index})" title="Eliminar registro"><i class="fas fa-trash"></i> Eliminar</button>
                         </div>
                     </div>
@@ -3107,6 +3130,16 @@
             showNotification(esAuditor(currentUser) ? '✅ Activo dado de baja' : '📩 Solicitud de baja enviada a auditoría', 'success');
         }
 
+        // Un activo dado de baja vuelve a los vigentes con el estado que se elija (en la ficha
+        // de edición, para poder ajustar también tienda, asignado, etc.).
+        function reactivarActivo(index) {
+            const a = assets[index];
+            if (!a) return;
+            editAsset(index);
+            document.getElementById('activo-estado').value = 'Disponible';
+            showNotification('Elige el nuevo estado y guarda para reactivar el activo', 'info', 4000);
+        }
+
         function aprobarBaja(id) {
             if (!esAuditor(currentUser)) return;
             const sol = solicitudesBaja.find(s => s.id === id);
@@ -3223,19 +3256,29 @@
             const q = (document.getElementById('search-activo')?.value || '').toLowerCase().trim();
             const cat = document.getElementById('filtro-categoria-activo')?.value || '';
             const tienda = document.getElementById('filtro-tienda-activo')?.value || '';
-            let visibles = 0, total = 0;
+            const selEstado = document.getElementById('filtro-estado-activo');
+            const est = selEstado?.value || 'vigentes';
+            let visibles = 0, total = 0, bajas = 0;
             document.querySelectorAll('.asset-card').forEach(card => {
                 total++;
+                const esBaja = card.dataset.baja === '1';
+                if (esBaja) bajas++;
                 const text = card.textContent.toLowerCase();
                 const coincideTexto = !q || text.includes(q);
                 const coincideCategoria = !cat || card.dataset.categoria === cat;
                 const coincideTienda = !tienda || (tienda === '__sin__' ? !card.dataset.centro : card.dataset.centro === tienda);
-                const ver = coincideTexto && coincideCategoria && coincideTienda;
+                const coincideEstado = est === 'todos' || (est === 'baja' ? esBaja : !esBaja);
+                const ver = coincideTexto && coincideCategoria && coincideTienda && coincideEstado;
                 card.style.display = ver ? '' : 'none';
                 if (ver) visibles++;
             });
+            if (selEstado) {
+                selEstado.options[0].textContent = `Activos vigentes (${total - bajas})`;
+                selEstado.options[1].textContent = `Dados de baja (${bajas})`;
+                selEstado.options[2].textContent = `Todos (${total})`;
+            }
             const conteo = document.getElementById('activos-conteo');
-            if (conteo) conteo.textContent = total ? `${visibles} de ${total} activos` : '';
+            if (conteo) conteo.textContent = total ? `${visibles} de ${est === 'baja' ? bajas : est === 'todos' ? total : total - bajas} activos` : '';
         }
 
         function exportarTiendaFiltrada() {
@@ -5037,9 +5080,37 @@
             const it = itemPorCodigo(code);
             if (!it || !ESTATUS_REVISION.includes(estatus)) return;
             if (estatus === 'En otra sucursal') { abrirOtraSucursal(it.assetId, { code }); renderScanResults(); return; }
+            if (estatus === 'En reparación' || estatus === 'Dado de baja') {
+                renderScanResults(); // el select vuelve a su valor hasta que se confirme
+                pedirComentarioRevision(it.name || it.code, estatus, it.comentario, comentario => {
+                    it.estatus = estatus; it.comentario = comentario;
+                    delete it.sucursalReal;
+                    guardarRevision();
+                });
+                return;
+            }
             it.estatus = estatus;
             delete it.sucursalReal;
             guardarRevision();
+        }
+
+        // Al marcar "En reparación" o "Dado de baja" se pide el motivo (va al informe final).
+        let _crev = null;
+        function pedirComentarioRevision(nombre, estatus, actual, listo) {
+            _crev = listo;
+            document.getElementById('crev-titulo').innerHTML = estatus === 'En reparación'
+                ? '<i class="fas fa-wrench"></i> En reparación' : '<i class="fas fa-trash"></i> Dado de baja';
+            document.getElementById('crev-activo').textContent = nombre || '';
+            const t = document.getElementById('crev-texto');
+            t.value = actual || '';
+            openModal('modalComentarioRevision');
+            setTimeout(() => t.focus(), 50);
+        }
+        function confirmarComentarioRevision() {
+            const fn = _crev;
+            _crev = null;
+            closeModal('modalComentarioRevision');
+            if (fn) fn(document.getElementById('crev-texto').value.trim().slice(0, 500));
         }
 
         // ---- Activo del universo que se localizó en otra sucursal ----
@@ -5112,13 +5183,18 @@
         }
         // Pendiente (del universo, aún sin escanear) marcado a mano: encontrado sin etiqueta,
         // en reparación o dado de baja. Queda como un renglón más, con comentario.
-        function marcarPendiente(assetId, estatus) {
+        // comentarioDado: viene de la ventana de comentario (reparación / baja).
+        function marcarPendiente(assetId, estatus, comentarioDado) {
             const inv = inventarios.find(i => i.id === inventarioActivo);
             const asset = assets.find(a => a.id === assetId);
             if (!inv || !asset || !ESTATUS_REVISION.includes(estatus)) return;
             if (scanResults.some(r => r.assetId === assetId)) return;
             if (estatus === 'En otra sucursal') { abrirOtraSucursal(assetId); return; }
-            const comentario = (document.getElementById('pend-com-' + assetId)?.value || '').trim();
+            if ((estatus === 'En reparación' || estatus === 'Dado de baja') && comentarioDado === undefined) {
+                pedirComentarioRevision(`${asset.nombre} · ${asset.activoFijo || asset.codigo || ''}`, estatus, '', c => marcarPendiente(assetId, estatus, c));
+                return;
+            }
+            const comentario = comentarioDado !== undefined ? comentarioDado : (document.getElementById('pend-com-' + assetId)?.value || '').trim();
             scanResults.push(evaluarItem(inv, {
                 code: asset.activoFijo || asset.codigo || asset.serie, assetId, manual: true, found: true,
                 timestamp: new Date().toLocaleTimeString(), estatus, comentario
@@ -5245,7 +5321,7 @@
         //   Datos generales · Resumen (indicadores y dictamen) ·
         //   1) Activos encontrados · 2) Activos no encontrados (faltantes y justificados) ·
         //   3) Activos registrados en otra sucursal · 4) Otras observaciones ·
-        //   Recomendaciones · Firmas.
+        //   Acciones a realizar (una tabla por tipo) · Firmas.
         // Se arma con lo congelado al finalizar (resumen y listas del inventario); el catálogo
         // actual solo completa datos de referencia (activo fijo, serie, marca/modelo).
         // ============================================================
@@ -5337,25 +5413,40 @@
             const vehIncompletos = vehDocs.filter(v => v.est === 'Incompleto');
             if (vehDocs.length) conclusion += `En documentos vehiculares: ${vehDocs.filter(v => v.est === 'Completo').length} de ${vehDocs.length} vehículo(s) tienen sus documentos completos.`;
 
-            const recomendaciones = [];
-            if (nFalt) recomendaciones.push(`Investigar la ubicación de los ${nFalt} activo(s) no encontrados con el personal de la tienda. Si no se localizan, documentar el caso e iniciar el trámite de baja o reporte que corresponda.`);
-            if (movPendientes.length) recomendaciones.push(`Registrar en "Movimientos" los ${movPendientes.length} cambio(s) de sucursal que quedaron pendientes (${movPendientes.map(m => `${m.nombre}: ${m.origen} → ${m.destino}`).join('; ')}), o regresar los activos a su sucursal, para que el catálogo coincida con la ubicación física.`);
-            else if (otraSucursal.length && !movs.length) recomendaciones.push(`Registrar en "Movimientos" la transferencia de los ${otraSucursal.length} activo(s) de otra sucursal a ${inv.tienda}, o regresarlos a su sucursal de origen, para que el catálogo coincida con la ubicación física.`);
-            if (otraRazon.length) recomendaciones.push(`Dar seguimiento con la razón social correspondiente a las ${otraRazon.length} unidad(es) no registradas en este catálogo que se encuentran en ${inv.tienda}.`);
-            const n = m => observaciones.filter(o => o.motivo === m).length;
-            if (n('no-registrado')) recomendaciones.push(`Dar de alta en el catálogo los ${n('no-registrado')} activo(s) encontrados sin registro.`);
-            if (n('otra-categoria')) recomendaciones.push(`Corregir la categoría de ${n('otra-categoria')} activo(s) registrados en una categoría distinta.`);
-            if (n('dado-de-baja')) recomendaciones.push(`Revisar ${n('dado-de-baja')} activo(s) que están dados de baja en el catálogo pero siguen físicamente en la tienda.`);
-            if (vehIncompletos.length) recomendaciones.push(`Regularizar los documentos faltantes de ${vehIncompletos.length} vehículo(s): ` +
-                vehIncompletos.map(v => `${v.equipo} (${v.faltan.join(', ')})`).join('; ') + '.');
+            // Acciones a realizar: una tabla por tipo (antes eran párrafos largos con todos los
+            // nombres seguidos, difíciles de leer). Cada fila: activo fijo, activo, qué hacer/detalle.
+            const acciones = [];
+            const accion = (titulo, que, filas) => { if (filas.length) acciones.push({ titulo, que, filas }); };
+            const af = a => a.activoFijo || a.codigo || '-';
+            const conCom = (base, c) => c ? `${base} — ${c}` : base;
+            accion('Registrar cambio de sucursal', 'Registrar en Movimientos o regresar el activo a su sucursal, para que el catálogo coincida con la ubicación física.',
+                movPendientes.map(m => [m.activoFijo || '-', m.nombre || '-', `${m.origen || '-'} → ${m.destino || '-'}`])
+                    .concat(movs.length ? [] : otraSucursal.map(s => [s.activoFijo, s.nombre, `Registrado en ${s.centro || '-'}; está en ${inv.tienda}`])));
+            accion('Localizar activos faltantes', 'Buscarlos con el personal de la tienda; si no aparecen, documentar el caso e iniciar el trámite que corresponda.',
+                faltantes.map(a => [af(a), a.nombre, a.comentario || 'Sin localizar']));
+            accion('Dar seguimiento a reparaciones', 'Confirmar el avance de la reparación y el regreso del activo a la tienda.',
+                reparacion.map(a => [af(a), a.nombre, a.comentario || 'En reparación']));
+            accion('Tramitar bajas', 'Concluir la baja en SAP y con auditoría.',
+                baja.map(a => [af(a), a.nombre, a.comentario || 'Dado de baja en el levantamiento']));
+            const obs = m => observaciones.filter(o => o.motivo === m);
+            accion('Dar de alta en el catálogo', 'Se encontraron físicamente pero no están registrados.',
+                obs('no-registrado').map(s => [s.activoFijo, s.nombre, conCom('Código escaneado que no existe en el catálogo', s.comentario)]));
+            accion('Corregir categoría', 'Están registrados en una categoría distinta.',
+                obs('otra-categoria').map(s => [s.activoFijo, s.nombre, conCom('Otra categoría', s.comentario)]));
+            accion('Revisar activos dados de baja que siguen en tienda', 'En el catálogo están dados de baja, pero se encontraron físicamente.',
+                obs('dado-de-baja').map(s => [s.activoFijo, s.nombre, conCom('Dado de baja en catálogo', s.comentario)]));
+            accion('Regularizar documentos de vehículos', 'Conseguir o renovar los documentos que faltan.',
+                vehIncompletos.map(v => [v.activoFijo || v.codigo || '-', v.equipo, 'Falta: ' + v.faltan.join(', ')]));
             const vehSinRevisar = vehDocs.filter(v => v.est === 'Sin revisar');
-            if (vehSinRevisar.length) recomendaciones.push(`Completar la revisión de documentos de ${vehSinRevisar.length} vehículo(s) que quedaron sin revisar: ${vehSinRevisar.map(v => v.equipo).join(', ')}.`);
-            if (nJust) recomendaciones.push(`Dar seguimiento a los ${nJust} activo(s) justificados (en reparación o baja) hasta cerrar su trámite.`);
-            if (!recomendaciones.length) recomendaciones.push('Sin acciones pendientes: el inventario coincide con el catálogo.');
+            accion('Completar revisión de documentos', 'Quedaron sin revisar en el levantamiento.',
+                vehSinRevisar.map(v => [v.activoFijo || v.codigo || '-', v.equipo, 'Sin revisar']));
+            accion('Unidades de otra razón social', 'Dar seguimiento con la razón social correspondiente.',
+                otraRazon.map(u => ['-', u.equipo, [u.razon, u.responsable, u.comentario].filter(Boolean).join(' · ') || '-']));
+            const totalAcciones = acciones.reduce((s, a) => s + a.filas.length, 0);
 
             return { inv, r, cat, vehDocs, encontrados, faltantes, reparacion, baja, otraSucursal, observaciones,
                 ubicadosOtra, movs, movRegistrados, movPendientes, otraRazon,
-                universo, nEnc, nJust, nFalt, pct, pctConciliado, dictamen, conclusion, recomendaciones,
+                universo, nEnc, nJust, nFalt, pct, pctConciliado, dictamen, conclusion, acciones, totalAcciones,
                 folio: inv.id.slice(0, 8).toUpperCase(), fechaInicio: fmt(inv.fecha), fechaFin: fmt(r.fechaFin), duracion,
                 generado: new Date().toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }) };
         }
@@ -5604,16 +5695,39 @@
                 leyendaPdf();
             }
 
-            // Recomendaciones
-            espacio(60);
-            doc.setTextColor(40); doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
-            doc.text('Recomendaciones', M, y); y += 14;
-            doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(60);
-            d.recomendaciones.forEach((t, i) => {
-                const l = doc.splitTextToSize(t, ANCHO - 16);
-                espacio(l.length * 12 + 6);
-                doc.text(`${i + 1}.`, M, y); doc.text(l, M + 16, y);
-                y += l.length * 12 + 6;
+            // Acciones a realizar: en su propia página, una tabla por tipo de acción.
+            y = nuevaPagina();
+            doc.setTextColor(40); doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
+            doc.text('Acciones a realizar', M, y);
+            color(C.marca, 'setTextColor'); doc.setFontSize(10);
+            doc.text(d.totalAcciones ? `${d.totalAcciones} pendiente(s)` : 'Sin pendientes', W - M, y, { align: 'right' });
+            y += 8;
+            color(C.acento, 'setFillColor'); doc.rect(M, y, ANCHO, 2, 'F');
+            y += 22;
+            if (!d.acciones.length) {
+                doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(60);
+                doc.text('Sin acciones pendientes: el inventario coincide con el catálogo.', M, y);
+                y += 24;
+            }
+            d.acciones.forEach((a, i) => {
+                espacio(80);
+                color(C.marca, 'setFillColor'); doc.roundedRect(M, y - 11, 18, 16, 3, 3, 'F');
+                doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+                doc.text(String(i + 1), M + 9, y, { align: 'center' });
+                doc.setTextColor(40); doc.setFontSize(11);
+                doc.text(a.titulo, M + 26, y);
+                color(C.marca, 'setTextColor'); doc.setFontSize(9.5);
+                doc.text(`${a.filas.length}`, W - M, y, { align: 'right' });
+                y += 13;
+                doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(110);
+                const q = doc.splitTextToSize(a.que, ANCHO - 26);
+                doc.text(q, M + 26, y); y += q.length * 10 + 4;
+                doc.autoTable({
+                    ...tablaBase, startY: y, head: [['Activo fijo', 'Activo', 'Detalle / comentario']], body: a.filas,
+                    headStyles: { fillColor: [235, 238, 246], textColor: [60, 66, 90], fontStyle: 'bold', fontSize: 8 },
+                    columnStyles: { 0: { cellWidth: 70 }, 1: { cellWidth: 190 } }
+                });
+                y = doc.lastAutoTable.finalY + 26;
             });
 
             // Firmas: nombre y puesto de ambas partes
@@ -5727,8 +5841,15 @@
                 ${d.otraRazon.length ? `${seccion('Unidades de otra razón social (no registradas)', C.marca, d.otraRazon.length, `Unidades presentes en ${esc(inv.tienda)} que pertenecen a otra razón social y no están en este catálogo.`)}
                     ${tablaDocsW(filasExcelOtraRazon(d.otraRazon))}` : ''}
 
-                <h2 style="color:${C.marca};">Recomendaciones</h2>
-                <ol>${d.recomendaciones.map(t => `<li style="margin-bottom:4px;">${esc(t)}</li>`).join('')}</ol>
+                <br style="page-break-before:always;">
+                <h1 style="color:${C.marca};font-size:16pt;border-bottom:3px solid ${C.acento};padding-bottom:4px;">Acciones a realizar
+                    <span style="font-size:10pt;color:${C.gris};">(${d.totalAcciones ? d.totalAcciones + ' pendiente(s)' : 'sin pendientes'})</span></h1>
+                ${d.acciones.length ? d.acciones.map((a, i) => `
+                    <h3 style="color:${C.marca};font-size:11.5pt;margin:18px 0 2px;">${i + 1}. ${esc(a.titulo)} <span style="color:${C.gris};font-weight:normal;">(${a.filas.length})</span></h3>
+                    <p class="nota">${esc(a.que)}</p>
+                    <table>${th(['Activo fijo', 'Activo', 'Detalle / comentario'], C.gris)}${filas(a.filas, 3, '')}</table>`).join('')
+                    : '<p>Sin acciones pendientes: el inventario coincide con el catálogo.</p>'}
+                <br>
                 <h2 style="color:${C.marca};">Firmas de conformidad</h2>
                 <table class="meta"><tr>
                     ${[['Realizó (Auditoría)', d.firmas.realiza], ['Atendió (Tienda)', d.firmas.atiende]].map(([t, f]) =>
