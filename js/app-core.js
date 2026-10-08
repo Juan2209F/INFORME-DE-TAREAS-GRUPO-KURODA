@@ -1590,10 +1590,22 @@ function actualizarStrip(){
   var vigentesAud=(typeof auditoriasVigentesDeduplicadas==='function'&&typeof filteredAudByView==='function')
     ? auditoriasVigentesDeduplicadas(filteredAudByView())
     : STORE.auditorias.slice();
-  var enCursoSinExpiradas=vigentesAud.filter(function(a){return calcAudStats(a,vigentesAud).expiradas===0;});
-  if(elV)elV.textContent=enCursoSinExpiradas.length;
+  /* Un solo término para las auditorías cerradas: una auditoría a la que solo le quedan
+     tareas No resueltas ya no tiene nada que hacer (esas tareas quedaron congeladas),
+     así que cuenta como FINALIZADA junto con las que resolvieron todo.
+       En curso    = vigentes con al menos una tarea abierta (por resolver).
+       Finalizadas = historial de finalizadas + vigentes que solo tienen No resueltas. */
+  var abiertasDe=function(a){var s=calcAudStats(a,vigentesAud);return (s.pendientes||0)-(s.expiradas||0);};
+  var enCurso=vigentesAud.filter(function(a){return abiertasDe(a)>0;});
+  var cerradasConNR=vigentesAud.filter(function(a){var s=calcAudStats(a,vigentesAud);return abiertasDe(a)<=0&&s.expiradas>0;});
+  if(elV)elV.textContent=enCurso.length;
 
-  var elF=document.getElementById('ds-fin'); if(elF)elF.textContent=finList.length;
+  var elF=document.getElementById('ds-fin');
+  if(elF){
+    elF.textContent=finList.length+cerradasConNR.length;
+    var stF=elF.closest('.stat');
+    if(stF)stF.title=finList.length+' con todas sus tareas resueltas + '+cerradasConNR.length+' cerradas con tareas no resueltas';
+  }
   var elT=document.getElementById('ds-tar'); if(elT)elT.textContent=STORE.tareas.length;
   var elP=document.getElementById('ds-pend'); if(elP)elP.textContent=STORE.tareas.filter(esPendiente).length;
 
