@@ -1524,6 +1524,7 @@
                 <div class="toolbar lv-ocultar">
                     <button class="btn-primary" onclick="openModal('modalNuevoInventario')" id="btnNuevoLevantamiento"><i class="fas fa-plus"></i> Nuevo Levantamiento</button>
                     <div class="controls-group">
+                        <input type="search" id="buscar-inventario" placeholder="Buscar folio, tienda, responsable…" oninput="filtrarInventarios()" autocomplete="off" style="min-width:220px;">
                         <select id="filtro-inventario" onchange="filtrarInventarios()">
                             <option value="todos">Todos</option>
                             <option value="borrador">Borradores</option>
@@ -4070,9 +4071,20 @@
             let filtered = inventarios;
             if (filtro === 'borrador') filtered = inventarios.filter(i => i.estado === 'borrador');
             else if (filtro === 'finalizado') filtered = inventarios.filter(i => i.estado === 'finalizado');
+            // Búsqueda por folio (número de inventario), tienda, categoría, responsable o fecha.
+            const qInv = (document.getElementById('buscar-inventario')?.value || '').toLowerCase().trim();
+            if (qInv) {
+                const palabras = qInv.split(/\s+/);
+                filtered = filtered.filter(i => {
+                    const t = [folioInventario(i), i.tienda, nombreCategoria(i.categoria), i.responsable, new Date(i.fecha).toLocaleDateString(), i.estado].join(' ').toLowerCase();
+                    return palabras.every(p => t.includes(p));
+                });
+            }
 
             if (filtered.length === 0) {
-                container.innerHTML = `<p style="color:#888; text-align:center; padding:1rem;">No hay inventarios. Usa "Nuevo Levantamiento" para empezar.</p>`;
+                container.innerHTML = qInv
+                    ? `<p style="color:#888; text-align:center; padding:1rem;">Ningún inventario coincide con "${esc(qInv)}".</p>`
+                    : `<p style="color:#888; text-align:center; padding:1rem;">No hay inventarios. Usa "Nuevo Levantamiento" para empezar.</p>`;
                 return;
             }
             // Borradores primero (son los que hay que continuar), luego lo más reciente.
@@ -4095,7 +4107,7 @@
                     return `<div class="inv-tarj ${enCurso ? 'en-curso' : 'final'}">
                         <div class="inv-tarj-top">
                             <div class="inv-tarj-tit"><b>${esc(inv.tienda)}</b>
-                                <small>${esc(nombreCategoria(inv.categoria))} · ${new Date(inv.fecha).toLocaleDateString()}${inv.responsable ? ' · ' + esc(inv.responsable) : ''}</small></div>
+                                <small><b>Folio ${esc(folioInventario(inv))}</b> · ${esc(nombreCategoria(inv.categoria))} · ${new Date(inv.fecha).toLocaleDateString()}${inv.responsable ? ' · ' + esc(inv.responsable) : ''}</small></div>
                             <span class="status-badge ${enCurso ? 'badge-process' : 'badge-done'}">${enCurso ? 'En curso' : 'Finalizado'}</span>
                         </div>
                         ${cuerpo}
@@ -4109,7 +4121,7 @@
                 }).join('') + '</div>';
                 return;
             }
-            let html = `<table><thead><tr><th>Tienda</th><th>Categoría</th><th>Fecha</th><th>Avance</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>`;
+            let html = `<table><thead><tr><th>Folio</th><th>Tienda</th><th>Categoría</th><th>Fecha</th><th>Responsable</th><th>Avance</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>`;
             filtered.forEach(inv => {
                 const estadoCls = inv.estado === 'borrador' ? 'badge-process' : 'badge-done';
                 let avance;
@@ -4121,9 +4133,11 @@
                     avance = r.universoTotal != null ? `${(r.encontradosTotal || 0) + (r.reparacionTotal || 0) + (r.bajaTotal || 0) + (r.otraSucursalTotal || 0)}/${r.universoTotal} · ❌ ${r.faltantesTotal || 0}` : String((inv.items || []).length);
                 }
                 html += `<tr>
+                    <td data-label="Folio"><strong style="font-family:monospace; letter-spacing:.03em;">${esc(folioInventario(inv))}</strong></td>
                     <td data-label="Tienda">${esc(inv.tienda)}</td>
                     <td data-label="Categoría">${esc(nombreCategoria(inv.categoria))}</td>
                     <td data-label="Fecha">${new Date(inv.fecha).toLocaleDateString()}</td>
+                    <td data-label="Responsable">${esc(inv.responsable || '-')}</td>
                     <td data-label="Avance">${avance}</td>
                     <td data-label="Estado"><span class="status-badge ${estadoCls}">${esc(inv.estado)}</span></td>
                     <td data-label="Acciones">
@@ -4153,6 +4167,9 @@
                 showNotification('Inventario eliminado', 'info');
             }
         }
+
+        // Folio del inventario: el mismo número que sale en el informe y en Movimientos.
+        function folioInventario(inv) { return String(inv && inv.id || '').slice(0, 8).toUpperCase(); }
 
         function filtrarInventarios() {
             renderInventariosList();
