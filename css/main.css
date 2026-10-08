@@ -43,6 +43,9 @@
 [data-theme="dark"] .kpi-cfg-modal{
   background:rgba(255,255,255,.04);backdrop-filter:blur(14px);border:1px solid var(--border)
 }
+/* Ventanas emergentes: fondo sólido (con el translúcido de las tarjetas se veía el tablero detrás). */
+[data-theme="dark"] .kpi-cfg-overlay .kpi-cfg-modal,[data-theme="dark"] .usr-overlay .kpi-cfg-modal{background:#1a1f3c;backdrop-filter:none}
+[data-theme="dark"] .kpi-cfg-overlay{background:rgba(5,8,22,.72)}
 [data-theme="dark"] .fg select,[data-theme="dark"] .fg input{background:rgba(255,255,255,.05);color:var(--txt)}
 [data-theme="dark"] .btn-ghost{background:rgba(255,255,255,.05)}
 /* Campos legibles en modo oscuro: controles nativos oscuros, texto claro,
