@@ -505,6 +505,11 @@
         .badge-admin { background: var(--active-bg); }
         .badge-danger { background: var(--danger-color); }
         .badge-user { background: var(--info-color); }
+        /* Estado del activo: cada uno con su color (antes todo lo que no era "Asignado" salía
+           igual que una baja). */
+        .badge-disponible { background: #2f80ed; color: #fff; }
+        .badge-reparacion { background: #f2a516; color: #222; }
+        .badge-baja { background: #6c757d; color: #fff; }
 
         /* ========== CONTROLES ========== */
         .toolbar {
@@ -2775,7 +2780,7 @@
                 const fotoHtml = fotoOk
                     ? `<button type="button" class="asset-foto-btn" onclick="verFotoActivo(${index})" title="Ver foto en grande" aria-label="Ver foto en grande"><img src="${fotoOk}" alt="Foto de ${esc(asset.nombre)}" loading="lazy"><span class="asset-foto-zoom" aria-hidden="true">⤢</span></button>`
                     : `<i class="fas fa-camera fa-2x"></i>`;
-                const estadoCls = asset.estado === 'Asignado' ? 'badge-done' : 'badge-process';
+                const estadoCls = { 'Asignado': 'badge-done', 'Disponible': 'badge-disponible', 'En reparación': 'badge-reparacion', 'Dado de baja': 'badge-baja' }[asset.estado] || 'badge-process';
                 card.innerHTML = `
                     <div class="asset-image-placeholder">${fotoHtml}</div>
                     <div class="asset-info">
@@ -5999,6 +6004,14 @@
         // centro se determina tomando los 4 primeros caracteres de
         // "Ce.coste" (código base KN##) y buscándolo en CENTROS_MAESTRO.
         // ============================================================
+        function esFechaBajaSap(v) {
+            if (v instanceof Date) return !isNaN(v.getTime()) && v.getFullYear() > 1900;
+            if (typeof v === 'number') return v > 1;
+            const s = String(v || '').trim();
+            if (!s || /^0+([.\/-]0+)*$/.test(s)) return false;
+            return /\d{1,4}[.\/-]\d{1,2}[.\/-]\d{1,4}/.test(s);
+        }
+
         function cargarExcelActivos(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -6111,7 +6124,9 @@
                         const numInventario = colIndex.numInventario > -1 ? String(row[colIndex.numInventario] || '').trim() : '';
                         const cuenta = colIndex.cuenta > -1 ? String(row[colIndex.cuenta] || '').trim() : '';
                         const denominacion2 = colIndex.denominacion2 > -1 ? String(row[colIndex.denominacion2] || '').trim() : '';
-                        const fueDadaDeBaja = colIndex.descapEl > -1 && row[colIndex.descapEl];
+                        // Solo una fecha real de desincorporación cuenta como baja (SAP a veces trae 0,
+                        // "00.00.0000" o espacios en esa columna).
+                        const fueDadaDeBaja = colIndex.descapEl > -1 && esFechaBajaSap(row[colIndex.descapEl]);
 
                         let fechaCompra = '';
                         if (colIndex.feCapit > -1 && row[colIndex.feCapit]) {
