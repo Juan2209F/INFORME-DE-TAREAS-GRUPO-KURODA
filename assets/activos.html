@@ -4269,7 +4269,8 @@
             updateScanCount();
             guardarInventarioPronto();
             const tipo = alerta ? 'alerta' : 'ok';
-            avisarEscaneo(tipo, name, alerta ? `${codigo} · ${alerta.replace(/^⚠️\s*/, '')}` : `${codigo}${item.centro ? ' · ' + item.centro : ''}`);
+            avisarEscaneo(tipo, name, alerta ? `${codigo} · ${alerta.replace(/^⚠️\s*/, '')}` : `${codigo}${item.centro ? ' · ' + item.centro : ''}`,
+                assetFound ? undefined : 'error'); // no existe en el catálogo: sonido de error
 
             // Variante "con documentos vehiculares": después de cada escaneo se pregunta qué
             // documentos tiene el vehículo (la variante "simple" se comporta igual que cómputo).
@@ -4279,21 +4280,48 @@
 
         // ---- Retroalimentación del escaneo: tarjeta grande + sonido + vibración ----
         // Sustituye a las notificaciones flotantes, que se amontonaban al escanear rápido.
+        // Sonidos tipo lector de códigos (zumbador piezo, ~2.7 kHz):
+        //   ok        → un "bip" agudo y corto, como el de un escáner real
+        //   repetido  → doble bip agudo
+        //   alerta    → bip grave doble (no corresponde a esta tienda/categoría)
+        //   error     → zumbido grave triple (código que no existe en el catálogo)
         let _audioCtx = null;
-        function sonidoEscaneo(tipo) {
-            try { if (navigator.vibrate) navigator.vibrate(tipo === 'ok' ? 60 : [90, 60, 90]); } catch (e) { /* sin vibración */ }
+        function audioEscaner() {
             try {
                 _audioCtx = _audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-                const o = _audioCtx.createOscillator(), g = _audioCtx.createGain();
-                o.type = 'sine';
-                o.frequency.value = tipo === 'ok' ? 1175 : tipo === 'alerta' ? 520 : 330;
-                g.gain.value = 0.07;
-                o.connect(g); g.connect(_audioCtx.destination);
-                o.start(); o.stop(_audioCtx.currentTime + (tipo === 'ok' ? 0.08 : 0.22));
+                if (_audioCtx.state === 'suspended') _audioCtx.resume();
+            } catch (e) { _audioCtx = null; }
+            return _audioCtx;
+        }
+        // El navegador solo deja sonar el audio después de un toque: se "despierta" con el primero.
+        ['pointerdown', 'touchstart', 'keydown'].forEach(ev => window.addEventListener(ev, audioEscaner, { once: true, passive: true }));
+        function bip(ctx, inicio, dur, frec, forma, vol) {
+            const o = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter();
+            o.type = forma; o.frequency.value = frec;
+            f.type = 'lowpass'; f.frequency.value = forma === 'square' && frec > 1000 ? 6000 : 2500; // quita lo áspero
+            const t = ctx.currentTime + inicio;
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(vol, t + 0.004);   // ataque inmediato, como un piezo
+            g.gain.setValueAtTime(vol, t + dur - 0.012);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+            o.connect(f); f.connect(g); g.connect(ctx.destination);
+            o.start(t); o.stop(t + dur + 0.02);
+        }
+        function sonidoEscaneo(tipo) {
+            const vib = { ok: 50, repetido: [40, 60, 40], alerta: [120, 80, 120], error: [200, 90, 200, 90, 200] }[tipo] || 50;
+            try { if (navigator.vibrate) navigator.vibrate(vib); } catch (e) { /* sin vibración */ }
+            const ctx = audioEscaner();
+            if (!ctx) return;
+            try {
+                if (tipo === 'ok') bip(ctx, 0, 0.11, 2730, 'square', 0.22);
+                else if (tipo === 'repetido') { bip(ctx, 0, 0.07, 2730, 'square', 0.2); bip(ctx, 0.12, 0.07, 2730, 'square', 0.2); }
+                else if (tipo === 'alerta') { bip(ctx, 0, 0.14, 880, 'square', 0.22); bip(ctx, 0.2, 0.2, 660, 'square', 0.22); }
+                else { [0, 0.19, 0.38].forEach(t => bip(ctx, t, 0.15, 220, 'sawtooth', 0.3)); }
             } catch (e) { /* sin audio */ }
         }
-        function avisarEscaneo(tipo, titulo, detalle) {
-            sonidoEscaneo(tipo);
+        // sonido: opcional, para usar otro sonido que el del tipo (p. ej. 'error' con tarjeta de alerta).
+        function avisarEscaneo(tipo, titulo, detalle, sonido) {
+            sonidoEscaneo(sonido || tipo);
             const ico = { ok: '✅', alerta: '⚠️', repetido: '🔁' }[tipo] || 'ℹ️';
             const el = document.getElementById('lv-last');
             if (el) {
