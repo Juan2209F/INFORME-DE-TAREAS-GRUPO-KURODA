@@ -1899,7 +1899,7 @@
             <label>Serie</label>
             <input type="text" id="activo-serie" placeholder="Ej: DL5540-MX-8821">
             <label>Activo fijo</label>
-            <input type="text" id="activo-activofijo" placeholder="Ej: 40000307" readonly>
+            <input type="text" id="activo-activofijo" placeholder="Ej: 40000307">
             <label>Nombre</label>
             <input type="text" id="activo-nombre" placeholder="Ej: Laptop Dell Latitude 5540">
             <label>Categoría</label>
@@ -2998,10 +2998,14 @@
             const factura = document.getElementById('activo-factura').value.trim();
             const notas = document.getElementById('activo-notas').value.trim();
 
-            if (!serie || !nombre) {
-                alert('⚠️ Serie y Nombre son obligatorios');
+            // Muchos activos (mobiliario, herramienta, inmuebles…) no tienen serie: basta con el activo fijo.
+            if (!nombre || (!serie && !activoFijo)) {
+                alert('⚠️ Escribe el Nombre y la Serie o el Activo fijo');
                 return;
             }
+            const fijoAnterior = index ? String(assets[parseInt(index)].activoFijo || '').trim() : '';
+            if (index && fijoAnterior && activoFijo !== fijoAnterior &&
+                !confirm(`¿Cambiar el activo fijo de ${fijoAnterior} a ${activoFijo || '(vacío)'}?\n\nLas etiquetas QR impresas con el número anterior ya no se reconocerán al escanear.`)) return;
 
             // No permitir dar de alta un activo que ya existe (misma serie o mismo activo fijo)
             const yaExiste = assets.some((a, i) => {
