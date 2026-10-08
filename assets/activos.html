@@ -1835,6 +1835,23 @@
         </div>
     </div>
 
+    <!-- Modal: responsable del equipo (se pide al escanear si el sistema no lo tiene) -->
+    <div class="modal-overlay" id="modalResponsableActivo">
+        <div class="modal-box" style="max-width:min(420px,95vw);">
+            <h3><i class="fas fa-user-tag"></i> Responsable del equipo</h3>
+            <p class="sub" id="ract-activo"></p>
+            <p class="veh-leyenda" style="margin-top:-0.4rem;" id="ract-motivo"></p>
+            <label>Nombre del responsable</label>
+            <input type="text" id="ract-nombre" placeholder="Nombre completo" list="ract-sugerencias" autocomplete="off">
+            <datalist id="ract-sugerencias"></datalist>
+            <div id="ract-err" class="veh-doc-err"></div>
+            <div class="modal-buttons">
+                <button class="btn-secondary" onclick="resolverResponsableActivo(false)">Omitir</button>
+                <button class="btn-primary" onclick="resolverResponsableActivo(true)"><i class="fas fa-check"></i> Guardar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal: al cerrar, registrar los cambios de sucursal detectados -->
     <div class="modal-overlay" id="modalMovimientosCierre">
         <div class="modal-box" style="max-width:min(560px,95vw);">
@@ -4323,6 +4340,9 @@
             // Variante "con documentos vehiculares": después de cada escaneo se pregunta qué
             // documentos tiene el vehículo (la variante "simple" se comporta igual que cómputo).
             if (esLevantamientoConDocs(inv)) pedirDocsVehiculo(item);
+            // Si el activo no tiene responsable en el sistema, se pide al escanearlo
+            // (en "con documentos" ya se pide en la ventana de documentos del vehículo).
+            else if (assetFound) pedirResponsableActivo(assetFound);
             return tipo;
         }
 
@@ -4604,6 +4624,13 @@
             if (p.idx >= 0) vehiculos[p.idx] = { ...vehiculos[p.idx], ...reg };
             else vehiculos.push(reg);
             renderVehiculosTabla(vehiculos);
+            // El responsable capturado también queda en la ficha del vehículo si no lo tenía.
+            const av = !sinRevisar && p.assetId && assets.find(a => a.id === p.assetId);
+            if (av && p.ubicacion !== 'otra' && !SIN_RESP.test(reg.responsable) && necesitaResponsable(av)) {
+                av.asignado = reg.responsable;
+                av.estado = 'Asignado';
+                renderAssets();
+            }
             // La ubicación elegida aquí también marca el renglón del levantamiento.
             const it = !sinRevisar && scanResults.find(r => (p.assetId && r.assetId === p.assetId) || normCodigo(r.code) === normCodigo(p.codigo));
             if (it && !it.alerta) {
@@ -5094,6 +5121,61 @@
             guardarRevision();
         }
 
+        // ---- Responsable del equipo ----
+        // Al escanear (o marcar "Está") un activo sin responsable en el sistema, se pide y se
+        // guarda en su ficha. Si se escanean varios seguidos, se preguntan uno por uno.
+        const _ractCola = [];
+        let _ractActual = null, _ractCamara = false, _ractOmitidos = new Set();
+        // Sin responsable: campo vacío o con un texto de relleno ("NO ASIGNADO", "N/A"…),
+        // o el activo no está en estado "Asignado" (p. ej. "Disponible").
+        const SIN_RESP = /^(no asignado|sin asignar|sin responsable|n\/?a|ninguno|ninguna|-+|\.+)$/i;
+        const tieneResponsable = a => { const n = String(a.asignado || '').trim(); return !!n && !SIN_RESP.test(n); };
+        const necesitaResponsable = a => !!a && a.estado !== 'Dado de baja' && a.estado !== 'En reparación' && (!tieneResponsable(a) || a.estado !== 'Asignado');
+        function pedirResponsableActivo(asset) {
+            if (!necesitaResponsable(asset) || _ractOmitidos.has(asset.id)) return;
+            if (_ractActual && _ractActual.id === asset.id) return;
+            if (_ractCola.some(a => a.id === asset.id)) return;
+            _ractCola.push(asset);
+            if (!_ractActual) siguienteResponsableActivo();
+        }
+        function siguienteResponsableActivo() {
+            _ractActual = _ractCola.shift() || null;
+            if (!_ractActual) {
+                if (_ractCamara) { _ractCamara = false; setTimeout(() => abrirCamaraScan(), 250); }
+                return;
+            }
+            if (camaraStream) { _ractCamara = true; cerrarCamaraScan(); }
+            const a = _ractActual;
+            document.getElementById('ract-activo').textContent = `${a.nombre} · ${a.activoFijo || a.codigo || ''}${a.serie ? ' · Serie ' + a.serie : ''}`;
+            const nombres = [...new Set(assets.filter(tieneResponsable).map(x => String(x.asignado).trim()))].sort((x, y) => x.localeCompare(y));
+            document.getElementById('ract-sugerencias').innerHTML = nombres.map(n => `<option value="${esc(n)}">`).join('');
+            // Si ya tiene un nombre pero no está asignado, se propone ese nombre para confirmarlo.
+            document.getElementById('ract-nombre').value = tieneResponsable(a) ? String(a.asignado).trim() : '';
+            document.getElementById('ract-motivo').textContent = tieneResponsable(a)
+                ? `Tiene a "${String(a.asignado).trim()}" registrado, pero su estado es "${a.estado || 'sin estado'}". Confirma el responsable para dejarlo como Asignado.`
+                : 'Este activo no tiene responsable en el sistema. Se guardará en su ficha y quedará como Asignado.';
+            document.getElementById('ract-err').textContent = '';
+            openModal('modalResponsableActivo');
+            setTimeout(() => document.getElementById('ract-nombre').focus(), 60);
+        }
+        function resolverResponsableActivo(guardar) {
+            const a = _ractActual;
+            if (a && guardar) {
+                const nombre = document.getElementById('ract-nombre').value.trim();
+                if (!nombre) { document.getElementById('ract-err').textContent = 'Escribe el nombre o elige "Omitir".'; return; }
+                a.asignado = nombre;
+                a.estado = 'Asignado';
+                renderAssets();
+                saveAllData();
+                showNotification(`👤 ${a.nombre}: responsable ${nombre}`, 'success', 2500);
+            } else if (a) {
+                _ractOmitidos.add(a.id); // no se vuelve a preguntar en esta sesión
+            }
+            closeModal('modalResponsableActivo');
+            siguienteResponsableActivo();
+        }
+        document.getElementById('ract-nombre')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); resolverResponsableActivo(true); } });
+
         // Al marcar "En reparación" o "Dado de baja" se pide el motivo (va al informe final).
         let _crev = null;
         function pedirComentarioRevision(nombre, estatus, actual, listo) {
@@ -5202,6 +5284,7 @@
             guardarRevision();
             avisarEscaneo('ok', asset.nombre, `${asset.activoFijo || asset.codigo || ''} · marcado a mano como "${estatus}"`);
             if (estatus === 'Encontrado' && esLevantamientoConDocs(inv)) pedirDocsVehiculo(scanResults[scanResults.length - 1]);
+            else if (estatus === 'Encontrado') pedirResponsableActivo(asset);
         }
 
         // ---- Pantalla del levantamiento ----
