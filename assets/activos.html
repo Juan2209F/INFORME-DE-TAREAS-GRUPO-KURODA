@@ -862,6 +862,13 @@
         .orz-item { display: flex; justify-content: space-between; gap: 0.5rem; align-items: center; padding: 0.45rem 0.6rem; border: 1px solid var(--border-color);
             border-radius: var(--border-radius-sm); background: var(--input-bg); font-size: 0.8rem; }
         .orz-item small { display: block; color: #888; }
+        .sug-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 2px; }
+        .sug-chips:empty { display: none; }
+        .sug-chips .sug-tit { width: 100%; font-size: 0.68rem; color: #888; }
+        .sug-chips button { border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main); border-radius: 999px;
+            padding: 4px 10px; font-size: 0.72rem; cursor: pointer; font-family: inherit; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .sug-chips button:hover { border-color: var(--active-bg); color: var(--active-bg); }
+        .sug-chips button small { opacity: .6; margin-left: 3px; }
         .orz-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 0.6rem; }
         .orz-grid .full { grid-column: 1 / -1; }
         @media (max-width: 600px) { .orz-grid { grid-template-columns: 1fr; } }
@@ -1649,7 +1656,7 @@
                 </div>
                 <div class="widget-card">
                     <table>
-                        <thead><tr><th>Activo</th><th>Serie</th><th>Origen</th><th>Destino</th><th>Fecha y hora</th><th>Tipo</th><th>Usuario</th></tr></thead>
+                        <thead><tr><th>Activo</th><th>Serie</th><th>Antes / origen</th><th>Después / destino</th><th>Fecha y hora</th><th>Tipo</th><th>Usuario</th></tr></thead>
                         <tbody id="movimientos-body"></tbody>
                     </table>
                 </div>
@@ -1842,26 +1849,21 @@
             <p class="sub">El código <b id="nreg-codigo"></b> no está en el catálogo de activos. ¿Qué quieres hacer?</p>
 
             <div id="nreg-paso-elegir">
-                <label>¿Es alguno de estos activos que ya tenemos?</label>
-                <input type="search" id="nreg-buscar" placeholder="Buscar por nombre, serie o activo fijo…" oninput="pintarSugerenciasNoRegistrado()">
-                <div class="mov-lista" id="nreg-sugerencias" style="max-height:32vh;"></div>
+                <p style="margin:0.4rem 0;">¿Quieres registrarlo en el catálogo de activos?</p>
                 <div class="modal-buttons" style="flex-wrap:wrap;">
                     <button class="btn-secondary" onclick="cerrarNoRegistrado()">No registrar</button>
-                    <button class="btn-primary" onclick="mostrarFormNoRegistrado()"><i class="fas fa-plus"></i> Registrarlo como nuevo</button>
+                    <button class="btn-primary" onclick="mostrarFormNoRegistrado()"><i class="fas fa-plus"></i> Sí, registrarlo</button>
                 </div>
             </div>
 
             <div id="nreg-paso-form" style="display:none;">
-                <label>Copiar nombre, marca y modelo de un activo parecido</label>
-                <input type="search" id="nreg-base-buscar" placeholder="Ej. laptop dell, impresora hp, optiplex…" oninput="pintarBasesNoRegistrado()">
-                <div class="mov-lista" id="nreg-bases" style="max-height:24vh; margin-bottom:0.4rem;"></div>
                 <div class="orz-grid">
-                    <div class="full"><label>Nombre / descripción *</label><input type="text" id="nreg-nombre" list="nreg-dl-nombres" autocomplete="off" placeholder="Ej. LAPTOP DELL LATITUDE 5540"></div>
+                    <div class="full"><label>Nombre / descripción *</label><input type="text" id="nreg-nombre" list="nreg-dl-nombres" autocomplete="off" placeholder="Escribe y elige una sugerencia (ej. laptop dell)"><div class="sug-chips" id="nreg-sug-nombre"></div></div>
                     <div><label>Activo fijo</label><input type="text" id="nreg-af"></div>
                     <div><label>Serie</label><input type="text" id="nreg-serie"></div>
                     <div><label>Categoría</label><select id="nreg-cat"></select></div>
-                    <div><label>Marca</label><input type="text" id="nreg-marca" list="nreg-dl-marcas" autocomplete="off"></div>
-                    <div><label>Modelo</label><input type="text" id="nreg-modelo" list="nreg-dl-modelos" autocomplete="off"></div>
+                    <div><label>Marca</label><input type="text" id="nreg-marca" list="nreg-dl-marcas" autocomplete="off"><div class="sug-chips" id="nreg-sug-marca"></div></div>
+                    <div><label>Modelo</label><input type="text" id="nreg-modelo" list="nreg-dl-modelos" autocomplete="off"><div class="sug-chips" id="nreg-sug-modelo"></div></div>
                     <div><label>Responsable</label><input type="text" id="nreg-resp" list="nreg-dl-resp" autocomplete="off" placeholder="Vacío = Disponible"></div>
                     <div class="full"><label>Sucursal</label><select id="nreg-centro"></select></div>
                 </div>
@@ -1984,7 +1986,8 @@
             <label>Activo fijo</label>
             <input type="text" id="activo-activofijo" placeholder="Ej: 40000307">
             <label>Nombre</label>
-            <input type="text" id="activo-nombre" placeholder="Ej: Laptop Dell Latitude 5540">
+            <input type="text" id="activo-nombre" placeholder="Ej: Laptop Dell Latitude 5540" autocomplete="off">
+            <div class="sug-chips" id="activo-sug-nombre"></div>
             <label>Categoría</label>
             <select id="activo-categoria">
                 <option value="computo">Equipo de cómputo</option>
@@ -2003,9 +2006,11 @@
                 <option value="Dado de baja">Dado de baja</option>
             </select>
             <label>Marca</label>
-            <input type="text" id="activo-marca" placeholder="Ej: Dell">
+            <input type="text" id="activo-marca" placeholder="Ej: Dell" autocomplete="off">
+            <div class="sug-chips" id="activo-sug-marca"></div>
             <label>Modelo</label>
-            <input type="text" id="activo-modelo" placeholder="Ej: Latitude 5540">
+            <input type="text" id="activo-modelo" placeholder="Ej: Latitude 5540" autocomplete="off">
+            <div class="sug-chips" id="activo-sug-modelo"></div>
             <label>Centro / sucursal</label>
             <select id="activo-centro"></select>
             <label>Asignado a</label>
@@ -2448,7 +2453,9 @@
             const destinoC = centros.find(c => c.nombre === m.destino);
             return {
                 id: m.id, activo_id: asset ? asset.id : null, serie: m.serie || '',
-                origen_id: origenC ? origenC.id : null, destino_id: destinoC ? destinoC.id : null,
+                // En cambios de datos origen/destino son textos ("Estado: …"): se usa la sucursal del activo.
+                origen_id: origenC ? origenC.id : (m.origenCentroId || (asset && centros.find(c => c.nombre === asset.centro) || {}).id || null),
+                destino_id: destinoC ? destinoC.id : (m.destinoCentroId || (asset && centros.find(c => c.nombre === asset.centro) || {}).id || null),
                 fecha: m.fecha || new Date().toISOString(),
                 usuario_id: currentUser ? currentUser.id : null,
                 activo_nombre: m.activoNombre || '', origen_nombre: m.origen || '',
@@ -2824,14 +2831,15 @@
                 tbody.innerHTML = `<tr><td colspan="4" style="color:#888; text-align:center;">Sin movimientos recientes</td></tr>`;
             } else {
                 const last = movimientosRecientes().slice(0, 5);
-                tbody.innerHTML = last.map(m => `
+                const deInv = inventarioDeMovimientos();
+                tbody.innerHTML = last.map(m => { const c = clasificarMovimiento(m, deInv); return `
                     <tr>
-                        <td>${esc(m.activoNombre || m.serie)}</td>
-                        <td>${esc(m.origen)} → ${esc(m.destino)}</td>
+                        <td>${esc(m.activoNombre || m.serie)}<br><small style="opacity:.65;">${esc(c.tipo)}</small></td>
+                        <td>${esc(c.origen)} → ${esc(m.destino)}</td>
                         <td>${new Date(m.fecha).toLocaleDateString()}</td>
                         <td>${esc(m.usuario)}</td>
                     </tr>
-                `).join('');
+                `; }).join('');
             }
         }
 
@@ -3055,6 +3063,7 @@
             document.getElementById('activo-proveedor').value = a.proveedor || '';
             document.getElementById('activo-factura').value = a.factura || '';
             document.getElementById('activo-notas').value = a.notas || '';
+            ['nombre', 'marca', 'modelo'].forEach(c => { document.getElementById('activo-sug-' + c).innerHTML = ''; });
             openModal('modalActivo');
         }
 
@@ -3062,7 +3071,10 @@
             if (confirm(`¿Eliminar "${assets[index].nombre}"?`)) {
                 // Solo admin puede borrar activos (RLS); solo entonces se borra también su foto.
                 if (currentUser && currentUser.role === 'admin') borrarFotoActivo(assets[index].foto);
+                const a = assets[index];
+                movimientoBitacora(a, `${a.activoFijo ? 'AF ' + a.activoFijo + ' · ' : ''}${a.estado || ''}${a.asignado ? ' · ' + a.asignado : ''}`, 'Eliminado del catálogo');
                 assets.splice(index, 1);
+                renderMovimientos();
                 renderAssets();
                 saveAllData();
             }
@@ -3119,15 +3131,19 @@
 
             if (index) {
                 const idx = parseInt(index);
+                const antes = { ...assets[idx] };
                 assetData.foto = assets[idx].foto || null;
                 assets[idx] = { ...assets[idx], ...assetData };
+                registrarCambiosActivo(antes, assets[idx]);
             } else {
                 assetData.codigo = nuevoCodigoActivo();
                 assetData.id = crypto.randomUUID();
                 assets.push(assetData);
+                registrarAltaActivo(assetData);
             }
             closeModal('modalActivo');
             renderAssets();
+            renderMovimientos();
             saveAllData();
             resetAssetForm();
 
@@ -3152,6 +3168,7 @@
             document.getElementById('activo-proveedor').value = '';
             document.getElementById('activo-factura').value = '';
             document.getElementById('activo-notas').value = '';
+            ['nombre', 'marca', 'modelo'].forEach(c => { const el = document.getElementById('activo-sug-' + c); if (el) el.innerHTML = ''; });
             actualizarSelectCentros();
         }
 
@@ -3171,7 +3188,10 @@
 
             if (esAuditor(currentUser)) {
                 // Auditor/administrador: aplica la baja de inmediato, sin trámite.
+                const antes = { ...asset };
                 asset.estado = 'Dado de baja';
+                registrarCambiosActivo(antes, asset, null, 'Motivo: ' + motivo);
+                renderMovimientos();
                 renderAssets();
                 saveAllData();
             } else {
@@ -3203,7 +3223,12 @@
             const sol = solicitudesBaja.find(s => s.id === id);
             if (!sol) return;
             const asset = assets.find(a => a.id === sol.activoId);
-            if (asset) asset.estado = 'Dado de baja';
+            if (asset) {
+                const antes = { ...asset };
+                asset.estado = 'Dado de baja';
+                registrarCambiosActivo(antes, asset, null, `Baja aprobada (solicitó ${sol.solicitadoPor || '—'}): ${sol.motivo || ''}`);
+                renderMovimientos();
+            }
             sol.estado = 'aprobada';
             sol.resueltoPor = currentUser.nombreCompleto || currentUser.username;
             sol.fechaResuelto = new Date().toISOString();
@@ -3544,17 +3569,15 @@
             }
             const deInventario = inventarioDeMovimientos();
             movimientosRecientes().forEach(m => {
-                const inv = deInventario.get(m.id);
+                const c = clasificarMovimiento(m, deInventario);
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td data-label="Activo">${esc(m.activoNombre || m.serie)}</td>
                     <td data-label="Serie"><strong>${esc(m.serie)}</strong></td>
-                    <td data-label="Origen">${esc(m.origen)}</td>
-                    <td data-label="Destino">${esc(m.destino)}</td>
+                    <td data-label="Antes / origen">${esc(c.origen)}</td>
+                    <td data-label="Después / destino">${esc(m.destino)}</td>
                     <td data-label="Fecha y hora">${esc(fechaHora(m.fecha))}</td>
-                    <td data-label="Tipo">${inv
-                        ? `<span class="mov-tipo inv" title="${esc(inv.tienda)}">Inventario de activos · ${esc(inv.id.slice(0, 8).toUpperCase())}</span>`
-                        : '<span class="mov-tipo man">Cambio manual</span>'}</td>
+                    <td data-label="Tipo"><span class="mov-tipo ${c.donde ? 'inv' : 'man'}">${esc(c.tipo)}${c.donde ? ' · ' + esc(c.donde) : ' · manual'}</span></td>
                     <td data-label="Usuario">${esc(m.usuario)}</td>
                 `;
                 tbody.appendChild(row);
@@ -3587,6 +3610,63 @@
             const cDest = centros.find(c => c.nombre === destino);
             if (cDest) { asset.centroCodigo = cDest.codigo; asset.razonSocial = cDest.razonSocial; }
             return movimiento;
+        }
+
+        // ---- Bitácora de cambios del activo (se guarda en Movimientos) ----
+        // Altas, ediciones de datos, cambios de estado/responsable, bajas y eliminaciones quedan
+        // como un renglón de Movimientos: Origen = cómo estaba, Destino = cómo quedó.
+        // ctx: "Inventario XXXXXXXX" cuando el cambio se hizo durante un levantamiento.
+        const CAMPOS_BITACORA = [['nombre', 'Nombre'], ['activoFijo', 'Activo fijo'], ['serie', 'Serie'], ['categoria', 'Categoría'],
+            ['estado', 'Estado'], ['marca', 'Marca'], ['modelo', 'Modelo'], ['asignado', 'Responsable'], ['fechaCompra', 'Fecha de compra'],
+            ['proveedor', 'Proveedor'], ['factura', 'Factura']];
+        const ctxInventario = () => { const inv = inventarios.find(i => i.id === inventarioActivo); return inv ? 'Inventario ' + inv.id.slice(0, 8).toUpperCase() : null; };
+        function movimientoBitacora(asset, origen, destino, ctx, centroAntes) {
+            const cA = centros.find(c => c.nombre === (centroAntes || asset.centro)), cD = centros.find(c => c.nombre === asset.centro);
+            const m = {
+                id: crypto.randomUUID(), activoId: asset.id, serie: asset.serie || asset.activoFijo || '', activoNombre: asset.nombre,
+                origen: (ctx ? `[${ctx}] ` : '') + origen, destino, fecha: new Date().toISOString(),
+                usuario: currentUser ? currentUser.nombreCompleto || currentUser.username : 'admin',
+                origenCentroId: cA ? cA.id : null, destinoCentroId: cD ? cD.id : null
+            };
+            movimientos.push(m);
+            return m;
+        }
+        function registrarAltaActivo(asset, ctx) {
+            return movimientoBitacora(asset, 'Alta de activo', asset.centro || '—', ctx);
+        }
+        function valorBitacora(campo, v) {
+            if (campo === 'categoria') return v ? nombreCategoria(v) : '—';
+            return String(v ?? '').trim() || '—';
+        }
+        function registrarCambiosActivo(antes, despues, ctx, nota) {
+            if (!antes || !despues) return;
+            if ((antes.centro || '') !== (despues.centro || '')) {
+                // Cambio de sucursal: renglón propio (origen y destino son sucursales).
+                const m = movimientoBitacora(despues, antes.centro || '—', despues.centro || '—', null, antes.centro);
+                if (ctx) m.origen = `[${ctx}] ` + m.origen;
+            }
+            const difs = CAMPOS_BITACORA.filter(([k]) => valorBitacora(k, antes[k]) !== valorBitacora(k, despues[k]));
+            if (!difs.length && !nota) return;
+            movimientoBitacora(despues,
+                difs.map(([k, l]) => `${l}: ${valorBitacora(k, antes[k])}`).join(' · ') || 'Sin cambios de datos',
+                difs.map(([k, l]) => `${l}: ${valorBitacora(k, despues[k])}`).join(' · ') + (nota ? (difs.length ? ' — ' : '') + nota : ''),
+                ctx);
+        }
+        // Tipo de un renglón de Movimientos y texto de origen sin la marca de inventario.
+        function clasificarMovimiento(m, deInventario) {
+            const inv = deInventario.get(m.id);
+            let origen = m.origen || '', ctx = null;
+            const mm = origen.match(/^\[(Inventario [A-Z0-9]+)\]\s*/);
+            if (mm) { ctx = mm[1]; origen = origen.slice(mm[0].length); }
+            const esCentro = n => centros.some(c => c.nombre === n);
+            let tipo;
+            if (inv) tipo = 'Cambio de sucursal';
+            else if (origen === 'Alta de activo') tipo = 'Alta';
+            else if (origen === 'Eliminado del catálogo' || m.destino === 'Eliminado del catálogo') tipo = 'Eliminación';
+            else if (esCentro(origen) && esCentro(m.destino)) tipo = 'Cambio de sucursal';
+            else tipo = 'Cambio de datos';
+            const donde = inv ? 'Inventario ' + inv.id.slice(0, 8).toUpperCase() : ctx;
+            return { tipo, origen, donde };
         }
 
         function abrirModalMovimiento() {
@@ -4165,10 +4245,22 @@
             // "Dado de baja" lo aplica un auditor directo y los demás usuarios generan una
             // solicitud de baja para que auditoría la apruebe (mismo trámite que en Activos).
             const folio = inv.id.slice(0, 8).toUpperCase();
-            r.reparacion.forEach(a => { a.estado = 'En reparación'; });
+            const ctxInv = 'Inventario ' + folio;
+            const comDe = a => { const i = r.itemDe(a) || {}; return i.comentario ? 'Motivo: ' + i.comentario : ''; };
+            r.reparacion.forEach(a => {
+                if (a.estado === 'En reparación') return;
+                const antes = { ...a };
+                a.estado = 'En reparación';
+                registrarCambiosActivo(antes, a, ctxInv, comDe(a));
+            });
             r.baja.forEach(a => {
                 if (a.estado === 'Dado de baja') return;
-                if (esAuditor(currentUser)) { a.estado = 'Dado de baja'; return; }
+                if (esAuditor(currentUser)) {
+                    const antes = { ...a };
+                    a.estado = 'Dado de baja';
+                    registrarCambiosActivo(antes, a, ctxInv, comDe(a));
+                    return;
+                }
                 if (solicitudesBaja.some(b => b.activoId === a.id && b.estado === 'pendiente')) return;
                 const i = r.itemDe(a) || {};
                 solicitudesBaja.push({
@@ -4671,8 +4763,11 @@
             // El responsable capturado también queda en la ficha del vehículo si no lo tenía.
             const av = !sinRevisar && p.assetId && assets.find(a => a.id === p.assetId);
             if (av && p.ubicacion !== 'otra' && !SIN_RESP.test(reg.responsable) && necesitaResponsable(av)) {
+                const antesV = { ...av };
                 av.asignado = reg.responsable;
                 av.estado = 'Asignado';
+                registrarCambiosActivo(antesV, av, ctxInventario());
+                renderMovimientos();
                 renderAssets();
             }
             // La ubicación elegida aquí también marca el renglón del levantamiento.
@@ -5175,70 +5270,11 @@
             _nreg = { codigo, camara: !!camaraStream };
             if (camaraStream) cerrarCamaraScan();
             document.getElementById('nreg-codigo').textContent = codigo;
-            document.getElementById('nreg-buscar').value = '';
             document.getElementById('nreg-paso-elegir').style.display = '';
             document.getElementById('nreg-paso-form').style.display = 'none';
-            pintarSugerenciasNoRegistrado();
             openModal('modalNoRegistrado');
         }
-        // Parecidos: comparte parte del código (activo fijo, serie o código interno), o coincide
-        // con lo que se escribe en el buscador. Primero los de esta tienda y los que faltan por revisar.
-        function pintarSugerenciasNoRegistrado() {
-            const inv = inventarios.find(i => i.id === inventarioActivo);
-            if (!_nreg || !inv) return;
-            const q = (document.getElementById('nreg-buscar').value || '').toLowerCase().trim();
-            const c = normCodigo(_nreg.codigo);
-            const yaRevisados = new Set(scanResults.map(r => r.assetId).filter(Boolean));
-            const parecido = a => {
-                const campos = [a.activoFijo, a.serie, a.codigo].map(normCodigo).filter(x => x.length >= 4);
-                let p = 0;
-                campos.forEach(x => {
-                    if (c.length >= 4 && (x.includes(c) || c.includes(x))) p = Math.max(p, 3);
-                    else if (c.length >= 5 && x.slice(-5) === c.slice(-5)) p = Math.max(p, 2);
-                    else if (c.length >= 4 && x.slice(-4) === c.slice(-4)) p = Math.max(p, 1);
-                });
-                return p;
-            };
-            let lista = assets.filter(a => a.estado !== 'Dado de baja').map(a => {
-                let p = q ? ([a.nombre, a.activoFijo, a.serie, a.codigo, a.asignado].some(v => String(v || '').toLowerCase().includes(q)) ? 1 : 0) : parecido(a);
-                if (p && a.centro === inv.tienda) p += 0.5;
-                if (p && !yaRevisados.has(a.id)) p += 0.25;
-                return { a, p };
-            }).filter(x => x.p > 0).sort((x, y) => y.p - x.p || String(x.a.nombre).localeCompare(String(y.a.nombre))).slice(0, 12);
-            // Sin parecidos por código: se sugieren los pendientes de esta tienda y categoría.
-            if (!q && !lista.length) {
-                lista = calcularResumen(inv, scanResults).faltantes.slice(0, 12).map(a => ({ a, p: 0 }));
-            }
-            const cont = document.getElementById('nreg-sugerencias');
-            cont.innerHTML = lista.length ? lista.map(({ a }) => `
-                <div class="mov-fila" style="cursor:default; align-items:center;">
-                    <span style="flex:1; min-width:0;"><b>${esc(a.nombre)}</b>
-                        <small>AF ${esc(a.activoFijo || '-')}${a.serie ? ' · Serie ' + esc(a.serie) : ''} · ${esc(a.centro || 'Sin tienda')}${a.asignado ? ' · ' + esc(a.asignado) : ''}${yaRevisados.has(a.id) ? ' · ya revisado' : ''}</small></span>
-                    <button type="button" class="lv-btn ok" onclick="enlazarNoRegistrado('${a.id}')">Es este</button>
-                </div>`).join('')
-                : `<p class="veh-leyenda" style="margin:0;">${q ? 'Sin coincidencias.' : 'No hay activos con un código parecido. Usa el buscador o regístralo como nuevo.'}</p>`;
-            if (!q && lista.length && lista[0].p === 0) cont.insertAdjacentHTML('afterbegin', '<p class="veh-leyenda" style="margin:0 0 4px;">Pendientes de esta tienda:</p>');
-        }
         function itemNoRegistrado() { return _nreg && scanResults.find(r => normCodigo(r.code) === normCodigo(_nreg.codigo) && !r.assetId); }
-        // "Es este": el escaneo pasa a ser de ese activo.
-        function enlazarNoRegistrado(assetId) {
-            const inv = inventarios.find(i => i.id === inventarioActivo);
-            const a = assets.find(x => x.id === assetId);
-            const it = itemNoRegistrado();
-            if (!inv || !a || !it) { cerrarNoRegistrado(); return; }
-            const previo = scanResults.find(r => r.assetId === a.id);
-            if (previo) {
-                scanResults = scanResults.filter(r => r !== it);
-                showNotification(`${a.nombre} ya estaba revisado; se quitó el código ${it.code}`, 'info', 3500);
-            } else {
-                const nuevo = evaluarItem(inv, { ...it, assetId: a.id, code: a.activoFijo || a.codigo || it.code,
-                    comentario: [it.comentario, `Escaneado con el código ${it.code}`].filter(Boolean).join(' · ') });
-                scanResults = scanResults.map(r => r === it ? nuevo : r);
-                avisarEscaneo(nuevo.alerta ? 'alerta' : 'ok', a.nombre, `${a.activoFijo || ''} · enlazado al código ${it.code}`);
-            }
-            guardarRevision();
-            terminarNoRegistrado(a, inv);
-        }
         function mostrarFormNoRegistrado() {
             const inv = inventarios.find(i => i.id === inventarioActivo);
             if (!_nreg || !inv) return;
@@ -5257,52 +5293,66 @@
             const soloDigitos = /^\d{5,}$/.test(_nreg.codigo);
             document.getElementById('nreg-af').value = soloDigitos ? _nreg.codigo : '';
             document.getElementById('nreg-serie').value = soloDigitos ? '' : _nreg.codigo;
-            ['nreg-nombre', 'nreg-marca', 'nreg-modelo', 'nreg-resp', 'nreg-base-buscar'].forEach(id => { document.getElementById(id).value = ''; });
+            ['nreg-nombre', 'nreg-marca', 'nreg-modelo', 'nreg-resp'].forEach(id => { document.getElementById(id).value = ''; });
             document.getElementById('nreg-err').textContent = '';
             document.getElementById('nreg-paso-elegir').style.display = 'none';
             document.getElementById('nreg-paso-form').style.display = '';
-            pintarBasesNoRegistrado();
-            setTimeout(() => document.getElementById('nreg-base-buscar').focus(), 60);
+            pintarSugerenciasAlta('nreg');
+            setTimeout(() => document.getElementById('nreg-nombre').focus(), 60);
         }
-        // Modelos ya registrados (uno por nombre + marca + modelo) para copiar sus datos al
-        // activo nuevo. Sin búsqueda se muestran los más comunes de esta categoría.
-        function pintarBasesNoRegistrado() {
-            const inv = inventarios.find(i => i.id === inventarioActivo);
-            if (!inv) return;
-            const q = (document.getElementById('nreg-base-buscar').value || '').toLowerCase().trim();
-            const palabras = q.split(/\s+/).filter(Boolean);
-            const grupos = new Map();
-            assets.forEach(a => {
-                if (!a.nombre) return;
-                const k = [a.nombre, a.marca, a.modelo].map(x => String(x || '').trim().toUpperCase()).join('|');
-                const g = grupos.get(k) || { a, n: 0 };
-                g.n++;
-                grupos.set(k, g);
+
+        // ---- Sugerencias al dar de alta (nombre, marca y modelo) ----
+        // Mientras se escribe el nombre se proponen nombres ya registrados que contienen esas
+        // palabras, y las marcas y modelos que tienen esos activos. Solo llenan el campo: no
+        // enlazan ni reemplazan ningún activo.
+        const SUG_IDS = {
+            nreg:   { nombre: 'nreg-nombre', marca: 'nreg-marca', modelo: 'nreg-modelo', cat: 'nreg-cat' },
+            activo: { nombre: 'activo-nombre', marca: 'activo-marca', modelo: 'activo-modelo', cat: 'activo-categoria' }
+        };
+        const sinAcentos = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+        function topValores(lista, campo, excluir, max) {
+            const cuenta = new Map();
+            lista.forEach(a => { const v = String(a[campo] || '').trim(); if (v) cuenta.set(v.toUpperCase(), { v, n: ((cuenta.get(v.toUpperCase()) || {}).n || 0) + 1 }); });
+            const ex = String(excluir || '').trim().toUpperCase();
+            return [...cuenta.entries()].filter(([k]) => k !== ex).map(([, x]) => x).sort((x, y) => y.n - x.n || x.v.localeCompare(y.v)).slice(0, max);
+        }
+        function pintarSugerenciasAlta(pref) {
+            const ids = SUG_IDS[pref];
+            const val = id => document.getElementById(id).value.trim();
+            const nombre = val(ids.nombre), marca = val(ids.marca), modelo = val(ids.modelo);
+            const palabras = sinAcentos(nombre).split(/[\s,./-]+/).filter(p => p.length >= 2);
+            const conNombre = palabras.length ? assets.filter(a => { const t = sinAcentos(a.nombre); return palabras.every(p => t.includes(p)); }) : [];
+            // Si nada contiene todas las palabras, se usan los que contienen alguna.
+            const base = conNombre.length ? conNombre : (palabras.length ? assets.filter(a => { const t = sinAcentos(a.nombre); return palabras.some(p => p.length >= 3 && t.includes(p)); }) : []);
+            const chips = (cont, titulo, vals, onClick) => {
+                document.getElementById(cont).innerHTML = vals.length
+                    ? `<span class="sug-tit">${titulo}</span>` + vals.map(x => `<button type="button" data-v="${esc(x.v)}" onclick="${onClick}(this.dataset.v)">${esc(x.v)}<small>${x.n}</small></button>`).join('')
+                    : '';
+            };
+            chips(`${pref}-sug-nombre`, 'Nombres parecidos ya registrados:', palabras.length ? topValores(base, 'nombre', nombre, 8) : [], `elegirSugAlta_${pref}_nombre`);
+            const paraMarca = base.length ? base : [];
+            chips(`${pref}-sug-marca`, nombre ? 'Marcas de activos con ese nombre:' : '', nombre ? topValores(paraMarca, 'marca', marca, 6) : [], `elegirSugAlta_${pref}_marca`);
+            const paraModelo = paraMarca.filter(a => !marca || sinAcentos(a.marca) === sinAcentos(marca));
+            chips(`${pref}-sug-modelo`, nombre ? 'Modelos de activos con ese nombre' + (marca ? ' y marca' : '') + ':' : '', nombre ? topValores(paraModelo, 'modelo', modelo, 6) : [], `elegirSugAlta_${pref}_modelo`);
+        }
+        function elegirSugAlta(pref, campo, v) {
+            const ids = SUG_IDS[pref];
+            document.getElementById(ids[campo]).value = v;
+            // Al elegir un nombre, la categoría se toma de los activos con ese nombre (si coinciden).
+            if (campo === 'nombre') {
+                const cats = topValores(assets.filter(a => String(a.nombre || '').trim().toUpperCase() === v.toUpperCase()), 'categoria', '', 1);
+                if (cats.length) document.getElementById(ids.cat).value = cats[0].v;
+            }
+            pintarSugerenciasAlta(pref);
+            const sig = { nombre: ids.marca, marca: ids.modelo }[campo];
+            if (sig && !document.getElementById(sig).value) document.getElementById(sig).focus();
+        }
+        ['nreg', 'activo'].forEach(pref => {
+            ['nombre', 'marca', 'modelo'].forEach(campo => {
+                window[`elegirSugAlta_${pref}_${campo}`] = v => elegirSugAlta(pref, campo, v);
+                document.getElementById(SUG_IDS[pref][campo])?.addEventListener('input', () => pintarSugerenciasAlta(pref));
             });
-            let lista = [...grupos.values()];
-            if (palabras.length) lista = lista.filter(({ a }) => { const t = [a.nombre, a.marca, a.modelo].join(' ').toLowerCase(); return palabras.every(p => t.includes(p)); });
-            else lista = lista.filter(({ a }) => inv.categoria === 'todas' || a.categoria === inv.categoria);
-            lista.sort((x, y) => y.n - x.n || String(x.a.nombre).localeCompare(String(y.a.nombre)));
-            lista = lista.slice(0, 15);
-            document.getElementById('nreg-bases').innerHTML = lista.length ? lista.map(({ a, n }) => `
-                <div class="mov-fila" style="cursor:default; align-items:center;">
-                    <span style="flex:1; min-width:0;"><b>${esc(a.nombre)}</b>
-                        <small>${esc([a.marca, a.modelo].filter(Boolean).join(' · ') || 'Sin marca/modelo')} · ${esc(nombreCategoria(a.categoria))} · ${n} registrado(s)</small></span>
-                    <button type="button" class="lv-btn ok" onclick="usarBaseNoRegistrado('${a.id}')">Usar</button>
-                </div>`).join('')
-                : '<p class="veh-leyenda" style="margin:0;">Sin coincidencias. Puedes escribir los datos abajo.</p>';
-        }
-        function usarBaseNoRegistrado(id) {
-            const a = assets.find(x => x.id === id);
-            if (!a) return;
-            document.getElementById('nreg-nombre').value = a.nombre || '';
-            document.getElementById('nreg-marca').value = a.marca || '';
-            document.getElementById('nreg-modelo').value = a.modelo || '';
-            if (a.categoria) document.getElementById('nreg-cat').value = a.categoria;
-            document.getElementById('nreg-err').textContent = '';
-            showNotification('Datos copiados de: ' + a.nombre, 'info', 2000);
-            (document.getElementById('nreg-af').value ? document.getElementById('nreg-resp') : document.getElementById('nreg-af')).focus();
-        }
+        });
         function volverNoRegistrado() {
             document.getElementById('nreg-paso-elegir').style.display = '';
             document.getElementById('nreg-paso-form').style.display = 'none';
@@ -5329,6 +5379,8 @@
                 foto: null
             };
             assets.push(nuevo);
+            registrarAltaActivo(nuevo, 'Inventario ' + inv.id.slice(0, 8).toUpperCase());
+            renderMovimientos();
             const item = evaluarItem(inv, { ...it, assetId: nuevo.id, code: af || serie || it.code });
             scanResults = scanResults.map(r => r === it ? item : r);
             renderAssets();
@@ -5398,8 +5450,11 @@
             if (a && guardar) {
                 const nombre = document.getElementById('ract-nombre').value.trim();
                 if (!nombre) { document.getElementById('ract-err').textContent = 'Escribe el nombre o elige "Omitir".'; return; }
+                const antes = { ...a };
                 a.asignado = nombre;
                 a.estado = 'Asignado';
+                registrarCambiosActivo(antes, a, ctxInventario());
+                renderMovimientos();
                 renderAssets();
                 saveAllData();
                 showNotification(`👤 ${a.nombre}: responsable ${nombre}`, 'success', 2500);
@@ -5492,7 +5547,10 @@
             const asset = it && assets.find(a => a.id === it.assetId);
             if (!inv || !asset) return;
             if (!confirm(`¿Cambiar "${asset.nombre}" de "${nombreCategoria(asset.categoria)}" a "${nombreCategoria(inv.categoria)}" en el catálogo?`)) return;
+            const antesCat = { ...asset };
             asset.categoria = inv.categoria;
+            registrarCambiosActivo(antesCat, asset, ctxInventario());
+            renderMovimientos();
             scanResults = scanResults.map(r => evaluarItem(inv, r));
             renderAssets();
             guardarRevision();
