@@ -1783,7 +1783,12 @@ function openKpiCfg(){
     });
   });
   body.innerHTML=html;
-  document.getElementById('kpi-cfg-overlay').classList.add('show');
+  // La vista del tablero queda con transform (animación fadeUp); un position:fixed dentro de
+  // ella se acomoda a la vista y no a la pantalla (en el teléfono salía abajo). Se cuelga del body.
+  const ov=document.getElementById('kpi-cfg-overlay');
+  if(ov.parentNode!==document.body)document.body.appendChild(ov);
+  body.scrollTop=0;
+  ov.classList.add('show');
 }
 function closeKpiCfg(){document.getElementById('kpi-cfg-overlay').classList.remove('show');}
 function toggleKpiItem(el){
