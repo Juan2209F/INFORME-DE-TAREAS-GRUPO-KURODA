@@ -1835,6 +1835,47 @@
         </div>
     </div>
 
+    <!-- Modal: código escaneado que no está en el catálogo -->
+    <div class="modal-overlay" id="modalNoRegistrado">
+        <div class="modal-box" style="max-width:min(560px,95vw);">
+            <h3><i class="fas fa-question-circle"></i> Activo no registrado</h3>
+            <p class="sub">El código <b id="nreg-codigo"></b> no está en el catálogo de activos. ¿Qué quieres hacer?</p>
+
+            <div id="nreg-paso-elegir">
+                <label>¿Es alguno de estos activos que ya tenemos?</label>
+                <input type="search" id="nreg-buscar" placeholder="Buscar por nombre, serie o activo fijo…" oninput="pintarSugerenciasNoRegistrado()">
+                <div class="mov-lista" id="nreg-sugerencias" style="max-height:32vh;"></div>
+                <div class="modal-buttons" style="flex-wrap:wrap;">
+                    <button class="btn-secondary" onclick="cerrarNoRegistrado()">No registrar</button>
+                    <button class="btn-primary" onclick="mostrarFormNoRegistrado()"><i class="fas fa-plus"></i> Registrarlo como nuevo</button>
+                </div>
+            </div>
+
+            <div id="nreg-paso-form" style="display:none;">
+                <label>Copiar nombre, marca y modelo de un activo parecido</label>
+                <input type="search" id="nreg-base-buscar" placeholder="Ej. laptop dell, impresora hp, optiplex…" oninput="pintarBasesNoRegistrado()">
+                <div class="mov-lista" id="nreg-bases" style="max-height:24vh; margin-bottom:0.4rem;"></div>
+                <div class="orz-grid">
+                    <div class="full"><label>Nombre / descripción *</label><input type="text" id="nreg-nombre" list="nreg-dl-nombres" autocomplete="off" placeholder="Ej. LAPTOP DELL LATITUDE 5540"></div>
+                    <div><label>Activo fijo</label><input type="text" id="nreg-af"></div>
+                    <div><label>Serie</label><input type="text" id="nreg-serie"></div>
+                    <div><label>Categoría</label><select id="nreg-cat"></select></div>
+                    <div><label>Marca</label><input type="text" id="nreg-marca" list="nreg-dl-marcas" autocomplete="off"></div>
+                    <div><label>Modelo</label><input type="text" id="nreg-modelo" list="nreg-dl-modelos" autocomplete="off"></div>
+                    <div><label>Responsable</label><input type="text" id="nreg-resp" list="nreg-dl-resp" autocomplete="off" placeholder="Vacío = Disponible"></div>
+                    <div class="full"><label>Sucursal</label><select id="nreg-centro"></select></div>
+                </div>
+                <datalist id="nreg-dl-nombres"></datalist><datalist id="nreg-dl-marcas"></datalist>
+                <datalist id="nreg-dl-modelos"></datalist><datalist id="nreg-dl-resp"></datalist>
+                <div id="nreg-err" class="veh-doc-err"></div>
+                <div class="modal-buttons">
+                    <button class="btn-secondary" onclick="volverNoRegistrado()">← Atrás</button>
+                    <button class="btn-primary" onclick="guardarNoRegistrado()"><i class="fas fa-save"></i> Registrar activo</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal: responsable del equipo (se pide al escanear si el sistema no lo tiene) -->
     <div class="modal-overlay" id="modalResponsableActivo">
         <div class="modal-box" style="max-width:min(420px,95vw);">
@@ -4339,10 +4380,13 @@
 
             // Variante "con documentos vehiculares": después de cada escaneo se pregunta qué
             // documentos tiene el vehículo (la variante "simple" se comporta igual que cómputo).
-            if (esLevantamientoConDocs(inv)) pedirDocsVehiculo(item);
+            // No está en el catálogo: se ofrece enlazarlo a uno existente o registrarlo
+            // (después de eso se piden documentos o responsable, según el caso).
+            if (!assetFound) abrirNoRegistrado(codigo);
+            else if (esLevantamientoConDocs(inv)) pedirDocsVehiculo(item);
             // Si el activo no tiene responsable en el sistema, se pide al escanearlo
             // (en "con documentos" ya se pide en la ventana de documentos del vehículo).
-            else if (assetFound) pedirResponsableActivo(assetFound);
+            else pedirResponsableActivo(assetFound);
             return tipo;
         }
 
@@ -5119,6 +5163,197 @@
             it.estatus = estatus;
             delete it.sucursalReal;
             guardarRevision();
+        }
+
+        // ---- Código escaneado que no está en el catálogo ----
+        // Se ofrece: enlazarlo a un activo que ya existe (etiqueta o número mal capturado),
+        // registrarlo como activo nuevo (con sugerencias de lo que ya hay) o dejarlo "A revisar".
+        let _nreg = null;
+        function abrirNoRegistrado(codigo) {
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            if (!inv) return;
+            _nreg = { codigo, camara: !!camaraStream };
+            if (camaraStream) cerrarCamaraScan();
+            document.getElementById('nreg-codigo').textContent = codigo;
+            document.getElementById('nreg-buscar').value = '';
+            document.getElementById('nreg-paso-elegir').style.display = '';
+            document.getElementById('nreg-paso-form').style.display = 'none';
+            pintarSugerenciasNoRegistrado();
+            openModal('modalNoRegistrado');
+        }
+        // Parecidos: comparte parte del código (activo fijo, serie o código interno), o coincide
+        // con lo que se escribe en el buscador. Primero los de esta tienda y los que faltan por revisar.
+        function pintarSugerenciasNoRegistrado() {
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            if (!_nreg || !inv) return;
+            const q = (document.getElementById('nreg-buscar').value || '').toLowerCase().trim();
+            const c = normCodigo(_nreg.codigo);
+            const yaRevisados = new Set(scanResults.map(r => r.assetId).filter(Boolean));
+            const parecido = a => {
+                const campos = [a.activoFijo, a.serie, a.codigo].map(normCodigo).filter(x => x.length >= 4);
+                let p = 0;
+                campos.forEach(x => {
+                    if (c.length >= 4 && (x.includes(c) || c.includes(x))) p = Math.max(p, 3);
+                    else if (c.length >= 5 && x.slice(-5) === c.slice(-5)) p = Math.max(p, 2);
+                    else if (c.length >= 4 && x.slice(-4) === c.slice(-4)) p = Math.max(p, 1);
+                });
+                return p;
+            };
+            let lista = assets.filter(a => a.estado !== 'Dado de baja').map(a => {
+                let p = q ? ([a.nombre, a.activoFijo, a.serie, a.codigo, a.asignado].some(v => String(v || '').toLowerCase().includes(q)) ? 1 : 0) : parecido(a);
+                if (p && a.centro === inv.tienda) p += 0.5;
+                if (p && !yaRevisados.has(a.id)) p += 0.25;
+                return { a, p };
+            }).filter(x => x.p > 0).sort((x, y) => y.p - x.p || String(x.a.nombre).localeCompare(String(y.a.nombre))).slice(0, 12);
+            // Sin parecidos por código: se sugieren los pendientes de esta tienda y categoría.
+            if (!q && !lista.length) {
+                lista = calcularResumen(inv, scanResults).faltantes.slice(0, 12).map(a => ({ a, p: 0 }));
+            }
+            const cont = document.getElementById('nreg-sugerencias');
+            cont.innerHTML = lista.length ? lista.map(({ a }) => `
+                <div class="mov-fila" style="cursor:default; align-items:center;">
+                    <span style="flex:1; min-width:0;"><b>${esc(a.nombre)}</b>
+                        <small>AF ${esc(a.activoFijo || '-')}${a.serie ? ' · Serie ' + esc(a.serie) : ''} · ${esc(a.centro || 'Sin tienda')}${a.asignado ? ' · ' + esc(a.asignado) : ''}${yaRevisados.has(a.id) ? ' · ya revisado' : ''}</small></span>
+                    <button type="button" class="lv-btn ok" onclick="enlazarNoRegistrado('${a.id}')">Es este</button>
+                </div>`).join('')
+                : `<p class="veh-leyenda" style="margin:0;">${q ? 'Sin coincidencias.' : 'No hay activos con un código parecido. Usa el buscador o regístralo como nuevo.'}</p>`;
+            if (!q && lista.length && lista[0].p === 0) cont.insertAdjacentHTML('afterbegin', '<p class="veh-leyenda" style="margin:0 0 4px;">Pendientes de esta tienda:</p>');
+        }
+        function itemNoRegistrado() { return _nreg && scanResults.find(r => normCodigo(r.code) === normCodigo(_nreg.codigo) && !r.assetId); }
+        // "Es este": el escaneo pasa a ser de ese activo.
+        function enlazarNoRegistrado(assetId) {
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            const a = assets.find(x => x.id === assetId);
+            const it = itemNoRegistrado();
+            if (!inv || !a || !it) { cerrarNoRegistrado(); return; }
+            const previo = scanResults.find(r => r.assetId === a.id);
+            if (previo) {
+                scanResults = scanResults.filter(r => r !== it);
+                showNotification(`${a.nombre} ya estaba revisado; se quitó el código ${it.code}`, 'info', 3500);
+            } else {
+                const nuevo = evaluarItem(inv, { ...it, assetId: a.id, code: a.activoFijo || a.codigo || it.code,
+                    comentario: [it.comentario, `Escaneado con el código ${it.code}`].filter(Boolean).join(' · ') });
+                scanResults = scanResults.map(r => r === it ? nuevo : r);
+                avisarEscaneo(nuevo.alerta ? 'alerta' : 'ok', a.nombre, `${a.activoFijo || ''} · enlazado al código ${it.code}`);
+            }
+            guardarRevision();
+            terminarNoRegistrado(a, inv);
+        }
+        function mostrarFormNoRegistrado() {
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            if (!_nreg || !inv) return;
+            const dl = (id, vals) => { document.getElementById(id).innerHTML = [...new Set(vals.map(v => String(v || '').trim()).filter(Boolean))].sort((x, y) => x.localeCompare(y)).slice(0, 400).map(v => `<option value="${esc(v)}">`).join(''); };
+            const mismas = assets.filter(a => inv.categoria === 'todas' || a.categoria === inv.categoria);
+            dl('nreg-dl-nombres', mismas.map(a => a.nombre));
+            dl('nreg-dl-marcas', assets.map(a => a.marca));
+            dl('nreg-dl-modelos', assets.map(a => a.modelo));
+            dl('nreg-dl-resp', assets.filter(tieneResponsable).map(a => a.asignado));
+            const cat = document.getElementById('nreg-cat');
+            cat.innerHTML = document.getElementById('activo-categoria').innerHTML;
+            cat.value = inv.categoria !== 'todas' ? inv.categoria : 'otros';
+            document.getElementById('nreg-centro').innerHTML = centros.map(c => `<option value="${esc(c.nombre)}">${esc(c.codigo ? c.codigo + ' · ' : '')}${esc(c.nombre)}</option>`).join('');
+            document.getElementById('nreg-centro').value = inv.tienda;
+            // El código escaneado se propone como activo fijo si parece uno (solo dígitos); si no, como serie.
+            const soloDigitos = /^\d{5,}$/.test(_nreg.codigo);
+            document.getElementById('nreg-af').value = soloDigitos ? _nreg.codigo : '';
+            document.getElementById('nreg-serie').value = soloDigitos ? '' : _nreg.codigo;
+            ['nreg-nombre', 'nreg-marca', 'nreg-modelo', 'nreg-resp', 'nreg-base-buscar'].forEach(id => { document.getElementById(id).value = ''; });
+            document.getElementById('nreg-err').textContent = '';
+            document.getElementById('nreg-paso-elegir').style.display = 'none';
+            document.getElementById('nreg-paso-form').style.display = '';
+            pintarBasesNoRegistrado();
+            setTimeout(() => document.getElementById('nreg-base-buscar').focus(), 60);
+        }
+        // Modelos ya registrados (uno por nombre + marca + modelo) para copiar sus datos al
+        // activo nuevo. Sin búsqueda se muestran los más comunes de esta categoría.
+        function pintarBasesNoRegistrado() {
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            if (!inv) return;
+            const q = (document.getElementById('nreg-base-buscar').value || '').toLowerCase().trim();
+            const palabras = q.split(/\s+/).filter(Boolean);
+            const grupos = new Map();
+            assets.forEach(a => {
+                if (!a.nombre) return;
+                const k = [a.nombre, a.marca, a.modelo].map(x => String(x || '').trim().toUpperCase()).join('|');
+                const g = grupos.get(k) || { a, n: 0 };
+                g.n++;
+                grupos.set(k, g);
+            });
+            let lista = [...grupos.values()];
+            if (palabras.length) lista = lista.filter(({ a }) => { const t = [a.nombre, a.marca, a.modelo].join(' ').toLowerCase(); return palabras.every(p => t.includes(p)); });
+            else lista = lista.filter(({ a }) => inv.categoria === 'todas' || a.categoria === inv.categoria);
+            lista.sort((x, y) => y.n - x.n || String(x.a.nombre).localeCompare(String(y.a.nombre)));
+            lista = lista.slice(0, 15);
+            document.getElementById('nreg-bases').innerHTML = lista.length ? lista.map(({ a, n }) => `
+                <div class="mov-fila" style="cursor:default; align-items:center;">
+                    <span style="flex:1; min-width:0;"><b>${esc(a.nombre)}</b>
+                        <small>${esc([a.marca, a.modelo].filter(Boolean).join(' · ') || 'Sin marca/modelo')} · ${esc(nombreCategoria(a.categoria))} · ${n} registrado(s)</small></span>
+                    <button type="button" class="lv-btn ok" onclick="usarBaseNoRegistrado('${a.id}')">Usar</button>
+                </div>`).join('')
+                : '<p class="veh-leyenda" style="margin:0;">Sin coincidencias. Puedes escribir los datos abajo.</p>';
+        }
+        function usarBaseNoRegistrado(id) {
+            const a = assets.find(x => x.id === id);
+            if (!a) return;
+            document.getElementById('nreg-nombre').value = a.nombre || '';
+            document.getElementById('nreg-marca').value = a.marca || '';
+            document.getElementById('nreg-modelo').value = a.modelo || '';
+            if (a.categoria) document.getElementById('nreg-cat').value = a.categoria;
+            document.getElementById('nreg-err').textContent = '';
+            showNotification('Datos copiados de: ' + a.nombre, 'info', 2000);
+            (document.getElementById('nreg-af').value ? document.getElementById('nreg-resp') : document.getElementById('nreg-af')).focus();
+        }
+        function volverNoRegistrado() {
+            document.getElementById('nreg-paso-elegir').style.display = '';
+            document.getElementById('nreg-paso-form').style.display = 'none';
+        }
+        function guardarNoRegistrado() {
+            const inv = inventarios.find(i => i.id === inventarioActivo);
+            const it = itemNoRegistrado();
+            if (!inv || !it) { cerrarNoRegistrado(); return; }
+            const v = id => document.getElementById(id).value.trim();
+            const nombre = v('nreg-nombre').toUpperCase(), af = v('nreg-af'), serie = v('nreg-serie'), resp = v('nreg-resp');
+            const err = document.getElementById('nreg-err');
+            if (!nombre) { err.textContent = 'Escribe el nombre del activo.'; return; }
+            if (!af && !serie) { err.textContent = 'Escribe el activo fijo o la serie.'; return; }
+            const dup = assets.find(a => (af && normCodigo(a.activoFijo) === normCodigo(af)) || (serie && a.serie && normCodigo(a.serie) === normCodigo(serie)));
+            if (dup) { err.textContent = `Ya existe: ${dup.nombre} (AF ${dup.activoFijo || '-'}). Usa "Atrás" y elige "Es este".`; return; }
+            const centro = v('nreg-centro');
+            const cSel = centros.find(c => c.nombre === centro);
+            const nuevo = {
+                id: crypto.randomUUID(), codigo: nuevoCodigoActivo(), activoFijo: af, serie, nombre,
+                categoria: v('nreg-cat') || 'otros', estado: resp ? 'Asignado' : 'Disponible',
+                marca: v('nreg-marca'), modelo: v('nreg-modelo'), centro, centroCodigo: cSel ? cSel.codigo : '',
+                razonSocial: cSel ? cSel.razonSocial : '', asignado: resp, fechaCompra: '', valor: 0, proveedor: '', factura: '',
+                notas: `Registrado durante el inventario ${inv.id.slice(0, 8).toUpperCase()} (${inv.tienda}) por ${currentUser ? currentUser.nombreCompleto || currentUser.username : ''} el ${new Date().toLocaleDateString('es-MX')}.`,
+                foto: null
+            };
+            assets.push(nuevo);
+            const item = evaluarItem(inv, { ...it, assetId: nuevo.id, code: af || serie || it.code });
+            scanResults = scanResults.map(r => r === it ? item : r);
+            renderAssets();
+            guardarRevision();
+            saveAllData();
+            avisarEscaneo(item.alerta ? 'alerta' : 'ok', nuevo.nombre, `${af || serie} · registrado en el catálogo`);
+            showNotification(`✅ ${nuevo.nombre} registrado en el catálogo`, 'success', 3000);
+            _ractOmitidos.add(nuevo.id); // el responsable ya se capturó en el formulario
+            terminarNoRegistrado(nuevo, inv);
+        }
+        // Cierra la ventana y sigue con lo que toque: documentos del vehículo o responsable.
+        function terminarNoRegistrado(asset, inv) {
+            const camara = _nreg && _nreg.camara;
+            _nreg = null;
+            closeModal('modalNoRegistrado');
+            const it = scanResults.find(r => r.assetId === asset.id);
+            if (esLevantamientoConDocs(inv) && it) pedirDocsVehiculo(it);
+            else if (necesitaResponsable(asset) && !_ractOmitidos.has(asset.id)) { if (camara) _ractCamara = true; pedirResponsableActivo(asset); return; }
+            if (camara && !vehiculoPendiente) setTimeout(() => abrirCamaraScan(), 250);
+        }
+        function cerrarNoRegistrado() {
+            const camara = _nreg && _nreg.camara;
+            _nreg = null;
+            closeModal('modalNoRegistrado');
+            if (camara) setTimeout(() => abrirCamaraScan(), 250);
         }
 
         // ---- Responsable del equipo ----
