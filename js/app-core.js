@@ -1067,7 +1067,13 @@ function tareaResueltaAtrasadaReal(t){
 }
 function diasVenc(t){ // días hasta fechaTerm (negativo = vencida)
   const ft=fromISO(t.fechaTerm);if(!ft)return null;
-  return daysBetween(ft,new Date());
+  /* Se comparan DÍAS, no horas: antes se restaba la hora actual y una tarea que vence
+     HOY salía con -1 (vencida) desde la mañana, aunque estadoAutomatico() la tiene
+     como "Abierta" hasta que termina el día. Por eso "Pend. vencidas" no cuadraba
+     con "Abiertas atrasadas" + "No resueltas". */
+  const f=new Date(ft);f.setHours(0,0,0,0);
+  const hoy=new Date();hoy.setHours(0,0,0,0);
+  return Math.round((f-hoy)/86400000);
 }
 function estadoBadge(estado){
   const n=norm(estado);
@@ -1696,7 +1702,9 @@ function renderKPIs(tareas,aud){
   const total=tareas.length;
   const res=tareas.filter(esResuelta).length;
   const pend=tareas.filter(esPendiente).length;
-  const vencidas=tareas.filter(t=>esPendiente(t)&&diasVenc(t)!==null&&diasVenc(t)<0).length;
+  /* Vencidas = pendientes cuya fecha de término ya pasó, más las No resueltas (que ya
+     están fuera de plazo aunque su estatus se haya congelado a mano). */
+  const vencidas=tareas.filter(t=>esPendiente(t)&&(esEstadoNoResuelta(t.estado)||(diasVenc(t)!==null&&diasVenc(t)<0))).length;
   const pctRes=total?res/total:0;
 
   // delta de tendencia: comparar último bucket vs anterior (% cumplimiento)
@@ -1708,12 +1716,15 @@ function renderKPIs(tareas,aud){
   const buckets={};
   aud.forEach(a=>{const d=_fechaK(a);const b=bucketKey(d,f.gran);if(b){(buckets[b.k]=buckets[b.k]||{sort:b.sort,s:0,n:0});buckets[b.k].s+=a.pctCumpl;buckets[b.k].n++;}});
   const ord=Object.values(buckets).sort((a,b)=>a.sort-b.sort);
-  let delta=null;
-  if(ord.length>=2){const cur=ord[ord.length-1].s/ord[ord.length-1].n,prev=ord[ord.length-2].s/ord[ord.length-2].n;delta=(cur-prev)*100;}
+  let delta=null,nCur=0,nPrev=0;
+  if(ord.length>=2){const c=ord[ord.length-1],p=ord[ord.length-2];nCur=c.n;nPrev=p.n;delta=(c.s/c.n-p.s/p.n)*100;}
 
+  /* Se indica cuántas auditorías hay en cada período: con 1 sola auditoría en el
+     período actual la variación puede verse muy grande sin ser representativa. */
+  const baseDelta=` vs período previo <span style="opacity:.75">(${nCur} vs ${nPrev} aud.)</span>`;
   const deltaHtml=delta===null?`<span class="delta flat">— sin tendencia</span>`:
-    delta>=0?`<span class="delta up">▲ +${delta.toFixed(1)} pts</span> vs período previo`:
-    `<span class="delta down">▼ ${delta.toFixed(1)} pts</span> vs período previo`;
+    delta>=0?`<span class="delta up">▲ +${delta.toFixed(1)} pts</span>${baseDelta}`:
+    `<span class="delta down">▼ ${delta.toFixed(1)} pts</span>${baseDelta}`;
 
   // distribución de estados (mismos conteos que el donut)
   const resOk=tareas.filter(t=>esResuelta(t)&&!norm(t.estado).includes('atrasad')).length;
@@ -1726,8 +1737,8 @@ function renderKPIs(tareas,aud){
     {c:'k-blue',ico:'📊',lbl:'Cumplimiento prom.',val:Math.round(avgCumpl*100)+'%',sub:deltaHtml},
     {c:'k-teal',ico:'📋',lbl:'Tareas en período',val:total,sub:`${aud.length} auditorías`},
     {c:'k-green',ico:'✅',lbl:'Resueltas',val:res,sub:pctStr(pctRes)+' del total'},
-    {c:'k-orange',ico:'⏳',lbl:'Pendientes',val:pend,sub:total?pctStr(pend/total)+' sin cerrar':'—'},
-    {c:'k-red',ico:'🚨',lbl:'Pend. vencidas',val:vencidas,sub:'fuera de fecha de término'},
+    {c:'k-orange',ico:'⏳',lbl:'Pendientes',val:pend,sub:total?pctStr(pend/total)+` sin cerrar (${abOk+abAtr} abiertas + ${expiradas} no resueltas)`:'—'},
+    {c:'k-red',ico:'🚨',lbl:'Pend. vencidas',val:vencidas,sub:`fuera de fecha de término (${abAtr} atrasadas + ${expiradas} no resueltas)`},
     {c:'k-teal',ico:'🎯',lbl:'% Resolución',val:Math.round(pctRes*100)+'%',sub:'tareas cerradas'},
     {c:'k-blue',ico:'🏬',lbl:'Sucursales',val:uniq(tareas.map(t=>t.tienda)).length,sub:'con tareas en período'},
     {c:'k-orange',ico:'📈',lbl:'Cumpl. ponderado',val:Math.round((aud.reduce((a,r)=>a+r.pctCumpl*(r.tareas||1),0)/(aud.reduce((a,r)=>a+(r.tareas||1),0)||1))*100)+'%',sub:'por nº de tareas'},
