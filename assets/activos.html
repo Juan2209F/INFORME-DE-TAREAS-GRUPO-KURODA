@@ -1657,7 +1657,7 @@
                 </div>
                 <div class="widget-card">
                     <table>
-                        <thead><tr><th>Activo</th><th>Serie</th><th>Antes / origen</th><th>Después / destino</th><th>Fecha y hora</th><th>Tipo</th><th>Usuario</th></tr></thead>
+                        <thead><tr><th>Activo</th><th>Serie</th><th>Antes / origen</th><th>Después / destino</th><th>Fecha y hora</th><th>Tipo</th><th>Usuario</th><th id="mov-th-acciones" style="display:none;"></th></tr></thead>
                         <tbody id="movimientos-body"></tbody>
                     </table>
                 </div>
@@ -3569,6 +3569,9 @@
                 return;
             }
             const deInventario = inventarioDeMovimientos();
+            const esAdmin = !!(currentUser && currentUser.role === 'admin');
+            const thAcc = document.getElementById('mov-th-acciones');
+            if (thAcc) thAcc.style.display = esAdmin ? '' : 'none';
             movimientosRecientes().forEach(m => {
                 const c = clasificarMovimiento(m, deInventario);
                 const row = document.createElement('tr');
@@ -3580,9 +3583,38 @@
                     <td data-label="Fecha y hora">${esc(fechaHora(m.fecha))}</td>
                     <td data-label="Tipo"><span class="mov-tipo ${c.donde ? 'inv' : 'man'}">${esc(c.tipo)}${c.donde ? ' · ' + esc(c.donde) : ' · manual'}</span></td>
                     <td data-label="Usuario">${esc(m.usuario)}</td>
+                    ${esAdmin ? `<td data-label="Acciones"><button class="btn-action" style="padding:2px 8px; font-size:0.7rem; color:var(--danger-color);" title="Eliminar movimiento (solo administrador)" aria-label="Eliminar movimiento" onclick="eliminarMovimiento('${m.id}')"><i class="fas fa-trash"></i></button></td>` : ''}
                 `;
                 tbody.appendChild(row);
             });
+        }
+
+        // Eliminar un movimiento: solo el administrador (la regla de la base de datos también
+        // lo exige; si no lo permite, no se borra nada y se avisa).
+        async function eliminarMovimiento(id) {
+            if (!currentUser || currentUser.role !== 'admin') { showNotification('Solo un administrador puede eliminar movimientos', 'warning'); return; }
+            const m = movimientos.find(x => x.id === id);
+            if (!m) return;
+            const c = clasificarMovimiento(m, inventarioDeMovimientos());
+            if (!confirm(`¿Eliminar este movimiento?\n\n${m.activoNombre || m.serie}\n${c.tipo}: ${c.origen} → ${m.destino}\n${fechaHora(m.fecha)} · ${m.usuario || ''}\n\nNo se puede deshacer.`)) return;
+            try {
+                const { data, error } = await supabaseClient.from('movimientos').delete().eq('id', id).select('id');
+                if (error) throw error;
+                if (!data || !data.length) {
+                    // No estaba guardado todavía (o la base no lo permitió): se revisa si existe.
+                    const { data: existe } = await supabaseClient.from('movimientos').select('id').eq('id', id);
+                    if (existe && existe.length) throw new Error('sin permiso para eliminar');
+                }
+            } catch (err) {
+                showNotification('No se pudo eliminar el movimiento: ' + (err.message || err), 'danger');
+                return;
+            }
+            movimientos = movimientos.filter(x => x.id !== id);
+            if (_snap.movimientos) _snap.movimientos.delete(id);
+            renderMovimientos();
+            updateKPIs();
+            if (typeof updateBadges === 'function') updateBadges();
+            showNotification('Movimiento eliminado', 'info');
         }
 
         const fechaHora = f => f ? new Date(f).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : '-';
