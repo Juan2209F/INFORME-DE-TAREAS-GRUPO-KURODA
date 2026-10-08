@@ -2482,7 +2482,8 @@
                     resumen: i.resumen || null, faltantesList: i.faltantesList || [], sobrantesList: i.sobrantesList || [],
                     reparacionList: i.reparacionList || [], bajaList: i.bajaList || [],
                     otraSucursalList: i.otraSucursalList || [], movimientosList: i.movimientosList || [],
-                    otraRazon: i.otraRazon || [], otraRazonRevisada: !!i.otraRazonRevisada
+                    otraRazon: i.otraRazon || [], otraRazonRevisada: !!i.otraRazonRevisada,
+                    altasApp: i.altasApp || [], soloAppList: i.soloAppList || []
                 }
             };
         }
@@ -2497,7 +2498,8 @@
                 faltantesList: datos.faltantesList || [], sobrantesList: datos.sobrantesList || [],
                 reparacionList: datos.reparacionList || [], bajaList: datos.bajaList || [],
                 otraSucursalList: datos.otraSucursalList || [], movimientosList: datos.movimientosList || [],
-                otraRazon: datos.otraRazon || [], otraRazonRevisada: !!datos.otraRazonRevisada
+                otraRazon: datos.otraRazon || [], otraRazonRevisada: !!datos.otraRazonRevisada,
+                altasApp: datos.altasApp || [], soloAppList: datos.soloAppList || []
             };
         }
 
@@ -4225,6 +4227,14 @@
             inv.reparacionList = r.reparacion.map(fila);
             inv.bajaList = r.baja.map(fila);
             inv.otraSucursalList = r.otraSuc.map(a => ({ ...fila(a), assetId: a.id, sucursal: (r.itemDe(a) || {}).sucursalReal || '' }));
+            // Activos de este levantamiento que existen solo en la app (no vienen del Excel de SAP):
+            // los registrados aquí mismo y los que ya estaban dados de alta solo en la app.
+            const idsRevision = new Set(r.universo.map(a => a.id).concat((inv.items || []).map(i => i.assetId).filter(Boolean)));
+            inv.soloAppList = assets.filter(a => idsRevision.has(a.id) && !esDeSap(a)).map(a => ({
+                assetId: a.id, activoFijo: a.activoFijo || '', nombre: a.nombre, marca: a.marca || '', modelo: a.modelo || '',
+                serie: a.serie || '', asignado: a.asignado || '', estado: a.estado || '',
+                registradoAqui: (inv.altasApp || []).includes(a.id)
+            }));
 
             // Cambios de sucursal: los elegidos se registran en Movimientos (y en el catálogo);
             // los demás quedan anotados como pendientes en el informe.
@@ -4311,6 +4321,7 @@
                     ${obs ? `<div style="color:#888;">⚠️ Otras observaciones<br><strong>${obs}</strong></div>` : ''}
                     ${(inv.movimientosList || []).length ? `<div style="color:var(--active-bg);">🔁 Cambios de sucursal<br><strong>${inv.movimientosList.filter(m => m.registrado).length} de ${inv.movimientosList.length}</strong></div>` : ''}
                     ${(inv.otraRazon || []).length ? `<div style="color:var(--active-bg);">🏢 Otra razón social<br><strong>${inv.otraRazon.length}</strong></div>` : ''}
+                    ${(inv.soloAppList || []).length ? `<div style="color:var(--warning-color);">📝 Solo en la app (no en SAP)<br><strong>${inv.soloAppList.length}</strong></div>` : ''}
                 </div>
             `;
             document.getElementById('inf-btn-excel').style.display =
@@ -5379,6 +5390,7 @@
                 foto: null
             };
             assets.push(nuevo);
+            (inv.altasApp = inv.altasApp || []).push(nuevo.id); // para el informe: registrado aquí, falta en SAP
             registrarAltaActivo(nuevo, 'Inventario ' + inv.id.slice(0, 8).toUpperCase());
             renderMovimientos();
             const item = evaluarItem(inv, { ...it, assetId: nuevo.id, code: af || serie || it.code });
@@ -5751,6 +5763,7 @@
             const movs = inv.movimientosList || [];
             const movRegistrados = movs.filter(m => m.registrado), movPendientes = movs.filter(m => !m.registrado);
             const otraRazon = inv.otraRazon || [];
+            const soloApp = inv.soloAppList || [];
 
             const universo = r.universoTotal ?? 0;
             const nEnc = r.encontradosTotal ?? encontrados.length;
@@ -5780,6 +5793,7 @@
             if (observaciones.length) conclusion += `${observaciones.length} escaneo(s) más tienen observaciones (sin registro, otra categoría o dados de baja). `;
             if (movRegistrados.length) conclusion += `Durante el cierre se registraron ${movRegistrados.length} cambio(s) de sucursal en Movimientos. `;
             if (otraRazon.length) conclusion += `Se registraron ${otraRazon.length} unidad(es) de otra razón social presentes en la sucursal. `;
+            if (soloApp.length) conclusion += `${soloApp.length} activo(s) están registrados solo en la app de control y no en SAP${soloApp.some(a => a.registradoAqui) ? ` (${soloApp.filter(a => a.registradoAqui).length} dados de alta en este levantamiento)` : ''}. `;
 
             // Documentos de vehículos (levantamiento "con documentos")
             const vehDocs = (inv.vehiculos || []).map(v => {
@@ -5805,7 +5819,10 @@
             accion('Tramitar bajas', 'Concluir la baja en SAP y con auditoría.',
                 baja.map(a => [af(a), a.nombre, a.comentario || 'Dado de baja en el levantamiento']));
             const obs = m => observaciones.filter(o => o.motivo === m);
-            accion('Dar de alta en el catálogo', 'Se encontraron físicamente pero no están registrados.',
+            accion('Dar de alta en SAP', 'Están registrados en la app de control pero no en SAP: solicitar su alta para que coincidan.',
+                soloApp.map(a => [a.activoFijo || '-', a.nombre, [a.registradoAqui ? 'Registrado en este levantamiento' : 'Registrado en la app',
+                    [a.marca, a.modelo].filter(Boolean).join(' '), a.serie ? 'Serie ' + a.serie : '', a.asignado].filter(Boolean).join(' · ')]));
+            accion('Dar de alta en el catálogo', 'Se encontraron físicamente pero no están registrados ni en la app ni en SAP.',
                 obs('no-registrado').map(s => [s.activoFijo, s.nombre, conCom('Código escaneado que no existe en el catálogo', s.comentario)]));
             accion('Corregir categoría', 'Están registrados en una categoría distinta.',
                 obs('otra-categoria').map(s => [s.activoFijo, s.nombre, conCom('Otra categoría', s.comentario)]));
@@ -5821,7 +5838,7 @@
             const totalAcciones = acciones.reduce((s, a) => s + a.filas.length, 0);
 
             return { inv, r, cat, vehDocs, encontrados, faltantes, reparacion, baja, otraSucursal, observaciones,
-                ubicadosOtra, movs, movRegistrados, movPendientes, otraRazon,
+                ubicadosOtra, movs, movRegistrados, movPendientes, otraRazon, soloApp,
                 universo, nEnc, nJust, nFalt, pct, pctConciliado, dictamen, conclusion, acciones, totalAcciones,
                 folio: inv.id.slice(0, 8).toUpperCase(), fechaInicio: fmt(inv.fecha), fechaFin: fmt(r.fechaFin), duracion,
                 generado: new Date().toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }) };
@@ -6031,6 +6048,13 @@
                     C.acento, '', { 0: { cellWidth: 62 }, 4: { cellWidth: 110 } });
             }
 
+            if (d.soloApp.length) {
+                seccion('Activos registrados en la app (no en SAP)', C.ambar, d.soloApp.length,
+                    'Están dados de alta en la app de control de auditoría, pero no en SAP (donde la empresa registra sus activos). Hay que solicitar su alta en SAP.');
+                tabla(['Activo fijo', 'Nombre', 'Marca / modelo', 'Serie', 'Responsable', 'Origen'], filasSoloApp(d),
+                    C.ambar, '', { 0: { cellWidth: 62 }, 5: { cellWidth: 88 } });
+            }
+
             if (d.observaciones.length) {
                 seccion('Otras observaciones', C.gris, d.observaciones.length);
                 tabla(['Código escaneado', 'Nombre', 'Observación', 'Comentario'],
@@ -6208,6 +6232,10 @@
                 <table>${th(['Activo fijo', 'Nombre', 'Origen', 'Destino', 'Movimiento'], C.acento)}
                     ${filas(filasMovimientos(d), 5, '')}</table>` : ''}
 
+                ${d.soloApp.length ? `${seccion('Activos registrados en la app (no en SAP)', C.ambar, d.soloApp.length, 'Están dados de alta en la app de control de auditoría, pero no en SAP (donde la empresa registra sus activos). Hay que solicitar su alta en SAP.')}
+                <table>${th(['Activo fijo', 'Nombre', 'Marca / modelo', 'Serie', 'Responsable', 'Origen'], C.ambar)}
+                    ${filas(filasSoloApp(d), 6, '')}</table>` : ''}
+
                 ${d.observaciones.length ? `${seccion('Otras observaciones', C.gris, d.observaciones.length)}
                 <table>${th(['Código escaneado', 'Nombre', 'Observación', 'Comentario'], C.gris)}
                     ${filas(d.observaciones.map(s => [s.activoFijo, s.nombre, INF_OBS[s.motivo] || s.alerta || '-', s.comentario || '']), 4, '')}</table>` : ''}
@@ -6368,6 +6396,10 @@
                 .concat(d.baja.map(a => f(a, 'Dado de baja')))
                 .concat(d.ubicadosOtra.map(a => f(a, `En otra sucursal: ${a.sucursal || '-'}`)));
         }
+        function filasSoloApp(d) {
+            return d.soloApp.map(a => [a.activoFijo || '-', a.nombre || '-', [a.marca, a.modelo].filter(Boolean).join(' / ') || '-',
+                a.serie || '-', a.asignado || '-', a.registradoAqui ? 'Alta en este levantamiento' : 'Alta previa en la app']);
+        }
         function filasMovimientos(d) {
             return d.movs.map(m => [m.activoFijo || '-', m.nombre || '-', m.origen || '-', m.destino || '-',
                 m.registrado ? `Registrado ${fechaHora(m.fecha)}${m.usuario ? ' · ' + m.usuario : ''}` : 'Pendiente (no registrado)']);
@@ -6501,6 +6533,11 @@
         // centro se determina tomando los 4 primeros caracteres de
         // "Ce.coste" (código base KN##) y buscándolo en CENTROS_MAESTRO.
         // ============================================================
+        // ¿El activo viene de SAP? Solo entra por la carga del Excel de SAP, que guarda su
+        // cuenta contable y la nota "Importado/actualizado de Excel". Lo demás se registró solo
+        // en esta app (control interno) y falta darlo de alta en SAP.
+        const esDeSap = a => !!(a && (a.cuentaContable || /^Importado\/actualizado de Excel/.test(a.notas || '')));
+
         function esFechaBajaSap(v) {
             if (v instanceof Date) return !isNaN(v.getTime()) && v.getFullYear() > 1900;
             if (typeof v === 'number') return v > 1;
