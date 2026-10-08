@@ -1858,17 +1858,15 @@
 
             <div id="nreg-paso-form" style="display:none;">
                 <div class="orz-grid">
-                    <div class="full"><label>Nombre / descripción *</label><input type="text" id="nreg-nombre" list="nreg-dl-nombres" autocomplete="off" placeholder="Escribe y elige una sugerencia (ej. laptop dell)"><div class="sug-chips" id="nreg-sug-nombre"></div></div>
+                    <div class="full"><label>Nombre / descripción *</label><input type="text" id="nreg-nombre" autocomplete="off" placeholder="Escribe y elige una sugerencia (ej. laptop dell)"><div class="sug-chips" id="nreg-sug-nombre"></div></div>
                     <div><label>Activo fijo</label><input type="text" id="nreg-af"></div>
                     <div><label>Serie</label><input type="text" id="nreg-serie"></div>
                     <div><label>Categoría</label><select id="nreg-cat"></select></div>
-                    <div><label>Marca</label><input type="text" id="nreg-marca" list="nreg-dl-marcas" autocomplete="off"><div class="sug-chips" id="nreg-sug-marca"></div></div>
-                    <div><label>Modelo</label><input type="text" id="nreg-modelo" list="nreg-dl-modelos" autocomplete="off"><div class="sug-chips" id="nreg-sug-modelo"></div></div>
-                    <div><label>Responsable</label><input type="text" id="nreg-resp" list="nreg-dl-resp" autocomplete="off" placeholder="Vacío = Disponible"></div>
+                    <div><label>Marca</label><input type="text" id="nreg-marca" autocomplete="off"><div class="sug-chips" id="nreg-sug-marca"></div></div>
+                    <div><label>Modelo</label><input type="text" id="nreg-modelo" autocomplete="off"><div class="sug-chips" id="nreg-sug-modelo"></div></div>
+                    <div><label>Responsable</label><input type="text" id="nreg-resp" autocomplete="off" placeholder="Vacío = Disponible"><div class="sug-chips" id="nreg-sug-resp"></div></div>
                     <div class="full"><label>Sucursal</label><select id="nreg-centro"></select></div>
                 </div>
-                <datalist id="nreg-dl-nombres"></datalist><datalist id="nreg-dl-marcas"></datalist>
-                <datalist id="nreg-dl-modelos"></datalist><datalist id="nreg-dl-resp"></datalist>
                 <div id="nreg-err" class="veh-doc-err"></div>
                 <div class="modal-buttons">
                     <button class="btn-secondary" onclick="volverNoRegistrado()">← Atrás</button>
@@ -1885,8 +1883,8 @@
             <p class="sub" id="ract-activo"></p>
             <p class="veh-leyenda" style="margin-top:-0.4rem;" id="ract-motivo"></p>
             <label>Nombre del responsable</label>
-            <input type="text" id="ract-nombre" placeholder="Nombre completo" list="ract-sugerencias" autocomplete="off">
-            <datalist id="ract-sugerencias"></datalist>
+            <input type="text" id="ract-nombre" placeholder="Nombre completo" autocomplete="off">
+            <div class="sug-chips" id="ract-sug-resp"></div>
             <div id="ract-err" class="veh-doc-err"></div>
             <div class="modal-buttons">
                 <button class="btn-secondary" onclick="resolverResponsableActivo(false)">Omitir</button>
@@ -2087,8 +2085,8 @@
         <div class="modal-box">
             <h3><i class="fas fa-exchange-alt"></i> Registrar Movimiento</h3>
             <label>Serie del Activo</label>
-            <input type="text" id="mov-serie" placeholder="Ej: DL5540-MX-8821" list="series-list">
-            <datalist id="series-list"></datalist>
+            <input type="text" id="mov-serie" placeholder="Escribe serie, activo fijo o nombre" autocomplete="off">
+            <div class="sug-chips" id="mov-sug-serie"></div>
             <label>Origen</label>
             <select id="mov-origen"></select>
             <label>Destino</label>
@@ -3673,8 +3671,9 @@
 
         function abrirModalMovimiento() {
             actualizarSelectMovimientos();
-            actualizarDatalistSeries();
             document.getElementById('mov-serie').value = '';
+            document.getElementById('mov-serie').dataset.assetId = '';
+            document.getElementById('mov-sug-serie').innerHTML = '';
             const origen = document.getElementById('mov-origen');
             const destino = document.getElementById('mov-destino');
             origen.innerHTML = centros.map(c => `<option value="${esc(c.nombre)}">${esc(c.nombre)}</option>`).join('');
@@ -3684,14 +3683,32 @@
 
         function actualizarSelectMovimientos() {}
 
-        function actualizarDatalistSeries() {
-            const datalist = document.getElementById('series-list');
-            if (!datalist) return;
-            datalist.innerHTML = assets.map(a => `<option value="${esc(a.serie)}">${esc(a.serie)} - ${esc(a.nombre)}</option>`).join('');
-        }
+        function actualizarDatalistSeries() {} // antes llenaba una lista con TODAS las series (en el teléfono tapaba el teclado)
+
+        // Activo del movimiento: sugerencias mientras se escribe (serie, activo fijo o nombre).
+        document.getElementById('mov-serie')?.addEventListener('input', function () {
+            this.dataset.assetId = '';
+            const cont = document.getElementById('mov-sug-serie');
+            const palabras = sinAcentos(this.value).split(/\s+/).filter(p => p.length >= 2);
+            if (!palabras.length) { cont.innerHTML = ''; return; }
+            const lista = assets.filter(a => { const t = sinAcentos([a.serie, a.activoFijo, a.nombre].join(' ')); return palabras.every(p => t.includes(p)); }).slice(0, 8);
+            cont.innerHTML = lista.length ? '<span class="sug-tit">Activos que coinciden:</span>' + lista.map(a =>
+                `<button type="button" data-id="${a.id}">${esc(a.nombre)}<small>${esc(a.serie || a.activoFijo || '')} · ${esc(a.centro || '')}</small></button>`).join('') : '';
+            cont.querySelectorAll('button').forEach(b => b.onclick = () => {
+                const a = assets.find(x => x.id === b.dataset.id);
+                if (!a) return;
+                const inp = document.getElementById('mov-serie');
+                inp.value = a.serie || a.activoFijo || '';
+                inp.dataset.assetId = a.id;
+                cont.innerHTML = '';
+                const sel = document.getElementById('mov-origen');
+                if ([...sel.options].some(o => o.value === a.centro)) sel.value = a.centro;
+            });
+        });
 
         function registrarMovimiento() {
             const serie = document.getElementById('mov-serie').value.trim();
+            const elegido = document.getElementById('mov-serie').dataset.assetId;
             const origen = document.getElementById('mov-origen').value;
             const destino = document.getElementById('mov-destino').value;
             if (!serie || !origen || !destino) {
@@ -3702,7 +3719,7 @@
                 alert('Origen y destino deben ser diferentes');
                 return;
             }
-            const asset = assets.find(a => a.serie === serie);
+            const asset = (elegido && assets.find(a => a.id === elegido)) || assets.find(a => a.serie === serie) || buscarActivoPorCodigo(serie);
             if (!asset) {
                 alert('No se encontró un activo con esa serie');
                 return;
@@ -5291,12 +5308,7 @@
         function mostrarFormNoRegistrado() {
             const inv = inventarios.find(i => i.id === inventarioActivo);
             if (!_nreg || !inv) return;
-            const dl = (id, vals) => { document.getElementById(id).innerHTML = [...new Set(vals.map(v => String(v || '').trim()).filter(Boolean))].sort((x, y) => x.localeCompare(y)).slice(0, 400).map(v => `<option value="${esc(v)}">`).join(''); };
-            const mismas = assets.filter(a => inv.categoria === 'todas' || a.categoria === inv.categoria);
-            dl('nreg-dl-nombres', mismas.map(a => a.nombre));
-            dl('nreg-dl-marcas', assets.map(a => a.marca));
-            dl('nreg-dl-modelos', assets.map(a => a.modelo));
-            dl('nreg-dl-resp', assets.filter(tieneResponsable).map(a => a.asignado));
+            document.getElementById('nreg-sug-resp').innerHTML = '';
             const cat = document.getElementById('nreg-cat');
             cat.innerHTML = document.getElementById('activo-categoria').innerHTML;
             cat.value = inv.categoria !== 'todas' ? inv.categoria : 'otros';
@@ -5360,6 +5372,22 @@
             const sig = { nombre: ids.marca, marca: ids.modelo }[campo];
             if (sig && !document.getElementById(sig).value) document.getElementById(sig).focus();
         }
+        // Responsable: mientras se escribe (desde 2 letras) se proponen nombres ya registrados.
+        // Sin lista desplegable del navegador: en el teléfono mostraba todo de golpe y tapaba el teclado.
+        function sugerirResponsables(inputId, contId) {
+            const inp = document.getElementById(inputId), cont = document.getElementById(contId);
+            if (!inp || !cont) return;
+            const palabras = sinAcentos(inp.value).split(/\s+/).filter(p => p.length >= 2);
+            if (!palabras.length) { cont.innerHTML = ''; return; }
+            const base = assets.filter(a => tieneResponsable(a) && palabras.every(p => sinAcentos(a.asignado).includes(p)));
+            const vals = topValores(base, 'asignado', inp.value, 6);
+            cont.innerHTML = vals.length ? '<span class="sug-tit">Responsables ya registrados:</span>' +
+                vals.map(x => `<button type="button" data-v="${esc(x.v)}">${esc(x.v)}<small>${x.n}</small></button>`).join('') : '';
+            cont.querySelectorAll('button').forEach(b => b.onclick = () => { inp.value = b.dataset.v; cont.innerHTML = ''; inp.focus(); });
+        }
+        [['nreg-resp', 'nreg-sug-resp'], ['ract-nombre', 'ract-sug-resp']].forEach(([i, c]) =>
+            document.getElementById(i)?.addEventListener('input', () => sugerirResponsables(i, c)));
+
         ['nreg', 'activo'].forEach(pref => {
             ['nombre', 'marca', 'modelo'].forEach(campo => {
                 window[`elegirSugAlta_${pref}_${campo}`] = v => elegirSugAlta(pref, campo, v);
@@ -5448,14 +5476,13 @@
             if (camaraStream) { _ractCamara = true; cerrarCamaraScan(); }
             const a = _ractActual;
             document.getElementById('ract-activo').textContent = `${a.nombre} · ${a.activoFijo || a.codigo || ''}${a.serie ? ' · Serie ' + a.serie : ''}`;
-            const nombres = [...new Set(assets.filter(tieneResponsable).map(x => String(x.asignado).trim()))].sort((x, y) => x.localeCompare(y));
-            document.getElementById('ract-sugerencias').innerHTML = nombres.map(n => `<option value="${esc(n)}">`).join('');
             // Si ya tiene un nombre pero no está asignado, se propone ese nombre para confirmarlo.
             document.getElementById('ract-nombre').value = tieneResponsable(a) ? String(a.asignado).trim() : '';
             document.getElementById('ract-motivo').textContent = tieneResponsable(a)
                 ? `Tiene a "${String(a.asignado).trim()}" registrado, pero su estado es "${a.estado || 'sin estado'}". Confirma el responsable para dejarlo como Asignado.`
                 : 'Este activo no tiene responsable en el sistema. Se guardará en su ficha y quedará como Asignado.';
             document.getElementById('ract-err').textContent = '';
+            document.getElementById('ract-sug-resp').innerHTML = '';
             openModal('modalResponsableActivo');
             setTimeout(() => document.getElementById('ract-nombre').focus(), 60);
         }
