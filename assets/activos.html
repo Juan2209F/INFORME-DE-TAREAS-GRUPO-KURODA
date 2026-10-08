@@ -4405,8 +4405,9 @@
         const LEYENDA_DEF = { OK: 'Unidad y documentación en regla', A: 'Estatus A', B: 'Estatus B' };
         let leyendaEstatus = { ...LEYENDA_DEF };
         const textoLeyenda = () => CODIGOS_ESTATUS.map(k => `${k}: ${leyendaEstatus[k] || ''}`).join('   ·   ');
-        // Sin código elegido: OK si la unidad está aquí y sus documentos están completos.
-        const codigoAuto = (docs, ubicacion) => ubicacion !== 'otra' && estatusDocs(docs) === 'Completo' ? 'OK' : '';
+        // Sin código elegido: OK si la unidad está aquí y sus documentos están completos
+        // (la carta responsiva es solo protocolo: no cuenta para el OK).
+        const codigoAuto = (docs, ubicacion) => ubicacion !== 'otra' && estatusDocs({ ...docs, carta: true }) === 'Completo' ? 'OK' : '';
         const codigoEstatusDe = v => v.estatusCodigo || codigoAuto(docsDe(v), v.ubicacion);
         function pintarCodigosEstatus(contId, actual, fn) {
             document.getElementById(contId).innerHTML = CODIGOS_ESTATUS.map(k =>
@@ -5869,8 +5870,11 @@
             const items = enCurso ? scanResults : (inv.items || []);
             const vehs = enCurso ? vehiculos : (inv.vehiculos || []);
             const faltantes = enCurso ? calcularResumen(inv, items).faltantes : (inv.faltantesList || []);
-            const filas = filasExcelVehiculos(inv, items, vehs, faltantes);
-            const otras = filasExcelOtraRazon(inv.otraRazon);
+            // La carta responsiva se revisa en la app (protocolo) pero no va en el Excel.
+            const sinCarta = f => ({ ...f, docs: f.docs.filter((x, k) => EXCEL_DOC_KEYS[k] !== 'carta') });
+            const COLS = EXCEL_VEH_COLS.filter(([a]) => a !== 'CARTA');
+            const filas = filasExcelVehiculos(inv, items, vehs, faltantes).map(sinCarta);
+            const otras = filasExcelOtraRazon(inv.otraRazon).map(sinCarta);
             if (!filas.length && !otras.length) { showNotification('No hay datos de vehículos para exportar', 'warning'); return; }
             try { await cargarScript(EXCELJS_LIB, () => !!window.ExcelJS); }
             catch (e) { showNotification('No se pudo cargar el generador de Excel. Revisa tu conexión.', 'danger'); return; }
@@ -5879,8 +5883,8 @@
             const ws = wb.addWorksheet('Documentos vehiculares', {
                 pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 1 }
             });
-            ws.columns = [12, 46, 30, 11, 14, 11, 13, 10].map(width => ({ width }));
-            const N = EXCEL_VEH_COLS.length;
+            ws.columns = [12, 46, 30, 11, 14, 11, 10].map(width => ({ width }));
+            const N = COLS.length;
             const borde = { style: 'thin', color: { argb: 'FF000000' } };
             const bordes = { top: borde, left: borde, bottom: borde, right: borde };
             const relleno = argb => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
@@ -5899,7 +5903,7 @@
             };
             const encabezado = () => {
                 const r1 = fila, r2 = fila + 1;
-                EXCEL_VEH_COLS.forEach(([a, b], k) => {
+                COLS.forEach(([a, b], k) => {
                     const col = k + 1;
                     if (!b) ws.mergeCells(r1, col, r2, col);
                     else ws.getCell(r2, col).value = b;
