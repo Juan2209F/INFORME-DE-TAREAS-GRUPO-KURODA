@@ -1683,16 +1683,6 @@
                     <button class="btn-primary" style="margin-top:0.5rem;" onclick="guardarRazonSocial()"><i class="fas fa-save"></i> Guardar</button>
                 </div>
 
-                <!-- Leyenda del estatus de documentos vehiculares -->
-                <div class="widget-card settings-group">
-                    <h3 style="border:none; padding:0; margin-bottom:0.5rem;">Estatus de documentos vehiculares</h3>
-                    <p class="help-text" style="margin-bottom:0.5rem;">Significado de cada estatus. Aparece en la ventana de documentos, en el informe final y en la leyenda "Estatus:" del Excel. Solo el administrador lo cambia.</p>
-                    <label>OK</label><input type="text" id="leyenda-OK" style="max-width:400px;">
-                    <label>A</label><input type="text" id="leyenda-A" style="max-width:400px;">
-                    <label>B</label><input type="text" id="leyenda-B" style="max-width:400px;">
-                    <button class="btn-primary" style="margin-top:0.5rem;" onclick="guardarLeyendaEstatus()"><i class="fas fa-save"></i> Guardar</button>
-                </div>
-
                 <!-- Sesión -->
                 <div class="widget-card settings-group">
                     <h3 style="border:none; padding:0; margin-bottom:0.5rem;">Sesión</h3>
@@ -1793,9 +1783,6 @@
                 <button type="button" class="veh-doc-todos na" onclick="vehDocsTodos('na')">N/A a todos</button>
             </div>
             <p class="veh-leyenda">Usa <b>N/A</b> cuando el documento no aplica o no se puede revisar (unidad no localizada o en otra sucursal).</p>
-            <label style="margin-top:0.6rem;">Estatus</label>
-            <div class="veh-codigos" id="veh-codigos"></div>
-            <div class="veh-leyenda" id="veh-leyenda"></div>
             <label style="margin-top:0.6rem;">Comentario (opcional)</label>
             <input type="text" id="veh-doc-com" placeholder="Ej. póliza vencida, licencia en trámite…">
             <div id="veh-doc-err" class="veh-doc-err"></div>
@@ -1851,8 +1838,6 @@
                     <div class="full"><label>Responsable</label><input type="text" id="orz-resp" placeholder="Nombre completo (vacío = NO ASIGNADO)"></div>
                 </div>
                 <div id="orz-docs" class="veh-doc-lista" style="margin-top:0.5rem;"></div>
-                <label style="margin-top:0.5rem;">Estatus</label>
-                <div class="veh-codigos" id="orz-codigos"></div>
                 <label style="margin-top:0.5rem;">Comentario (opcional)</label>
                 <input type="text" id="orz-com" placeholder="Ej. unidad prestada por KSC">
                 <div id="orz-err" class="veh-doc-err"></div>
@@ -4408,7 +4393,8 @@
         // Sin código elegido: OK si la unidad está aquí y sus documentos están completos
         // (la carta responsiva es solo protocolo: no cuenta para el OK).
         const codigoAuto = (docs, ubicacion) => ubicacion !== 'otra' && estatusDocs({ ...docs, carta: true }) === 'Completo' ? 'OK' : '';
-        const codigoEstatusDe = v => v.estatusCodigo || codigoAuto(docsDe(v), v.ubicacion);
+        // La columna ESTATUS del Excel la llena auditoría a mano: ya no se captura en el levantamiento.
+        const codigoEstatusDe = v => '';
         function pintarCodigosEstatus(contId, actual, fn) {
             document.getElementById(contId).innerHTML = CODIGOS_ESTATUS.map(k =>
                 `<button type="button" class="${k === actual ? 'on' + (k === 'OK' ? ' ok' : '') : ''}" title="${esc(leyendaEstatus[k] || '')}" onclick="${fn}('${k}')">${k}</button>`).join('');
@@ -4490,8 +4476,6 @@
                         <button type="button" class="${d[k] === 'na' ? 'on-na' : ''}" onclick="marcarDocVehiculo('${k}', 'na')">N/A</button>
                     </div>
                 </div>`).join('');
-            pintarCodigosEstatus('veh-codigos', p ? (p.estatusCodigo || codigoAuto(d, p.ubicacion)) : '', 'vehCodigoEstatus');
-            document.getElementById('veh-leyenda').textContent = textoLeyenda();
         }
         function marcarDocVehiculo(k, v) {
             if (!vehiculoPendiente) return;
@@ -4618,7 +4602,6 @@
                         <button type="button" class="${d[k] === 'na' ? 'on-na' : ''}" onclick="marcarDocOtraRazon('${k}', 'na')">N/A</button>
                     </div>
                 </div>`).join('');
-            pintarCodigosEstatus('orz-codigos', orzBorrador ? orzBorrador.estatusCodigo : '', 'codigoOtraRazon');
         }
         function marcarDocOtraRazon(k, v) { if (orzBorrador) { orzBorrador.docs[k] = v; pintarDocsOtraRazon(); } }
         function codigoOtraRazon(c) { if (orzBorrador) { orzBorrador.estatusCodigo = c; pintarDocsOtraRazon(); } }
@@ -5555,26 +5538,21 @@
             const tablaDocs = (filas, c) => {
                 doc.autoTable({
                     ...tablaBase, startY: y,
-                    head: [EXCEL_VEH_COLS.map(x => x[0] + (x[1] ? ' ' + x[1] : ''))],
-                    body: filas.map(f => [f.fecha, f.equipo + (f.nota ? '\n' + f.nota : ''), f.responsable, ...f.docs, f.estatus]),
+                    head: [COLS_INFORME.map(x => x[0] + (x[1] ? ' ' + x[1] : ''))],
+                    body: filas.map(f => [f.fecha, f.equipo + (f.nota ? '\n' + f.nota : ''), f.responsable, ...f.docs]),
                     headStyles: { fillColor: c, textColor: 255, fontStyle: 'bold', fontSize: 7 },
                     styles: { ...tablaBase.styles, fontSize: 7.5 },
-                    columnStyles: { 0: { cellWidth: 52 }, 3: { halign: 'center' }, 4: { halign: 'center' }, 5: { halign: 'center' }, 6: { halign: 'center' }, 7: { halign: 'center', fontStyle: 'bold' } },
+                    columnStyles: { 0: { cellWidth: 52 }, 3: { halign: 'center' }, 4: { halign: 'center' }, 5: { halign: 'center' }, 6: { halign: 'center' } },
                     didParseCell: x => {
                         if (x.section !== 'body') return;
                         const f = filas[x.row.index];
                         if (x.column.index === 2 && f && f.respRojo) { x.cell.styles.textColor = C.rojo; x.cell.styles.fontStyle = 'bold'; }
-                        if (x.column.index >= 3 && x.column.index <= 6 && x.cell.raw === 'NO') { x.cell.styles.textColor = C.rojo; x.cell.styles.fontStyle = 'bold'; }
-                        if (x.column.index === 7) x.cell.styles.textColor = C.rojo;
+                        if (x.column.index >= 3 && x.cell.raw === 'NO') { x.cell.styles.textColor = C.rojo; x.cell.styles.fontStyle = 'bold'; }
                     }
                 });
-                y = doc.lastAutoTable.finalY + 8;
+                y = doc.lastAutoTable.finalY + 18;
             };
-            const leyendaPdf = () => {
-                doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(110);
-                const l = doc.splitTextToSize('Estatus — ' + textoLeyenda(), ANCHO);
-                espacio(l.length * 10 + 14); doc.text(l, M, y + 4); y += l.length * 10 + 16;
-            };
+            const leyendaPdf = () => {};
             if (d.vehDocs.length || inv.vehTipo === 'documentos') {
                 const filasVeh = filasExcelVehiculos(inv, inv.items || [], inv.vehiculos || [], d.faltantes);
                 seccion('Inventario de documentos vehiculares', C.marca, filasVeh.length,
@@ -5645,14 +5623,12 @@
             const seccion = (t, c, total, nota) => `<h2 style="color:${c};">${++num}. ${t} <span style="font-size:11pt;">(${total})</span></h2>` +
                 (nota ? `<p class="nota">${nota}</p>` : '');
             const filasVehW = filasExcelVehiculos(inv, inv.items || [], inv.vehiculos || [], d.faltantes);
-            const tablaDocsW = rows => `<table>${th(EXCEL_VEH_COLS.map(x => x[0] + (x[1] ? ' ' + x[1] : '')), C.marca)}
+            const tablaDocsW = rows => `<table>${th(COLS_INFORME.map(x => x[0] + (x[1] ? ' ' + x[1] : '')), C.marca)}
                 ${rows.map((f, i) => { const bg = i % 2 ? C.suave : '#ffffff'; return `<tr>
                     <td style="background:${bg};">${esc(f.fecha)}</td>
                     <td style="background:${bg};">${esc(f.equipo)}${f.nota ? `<br><span style="color:${C.gris};font-size:8pt;">${esc(f.nota)}</span>` : ''}</td>
                     <td style="background:${bg};${f.respRojo ? `color:${C.rojo};font-weight:bold;` : ''}">${esc(f.responsable)}</td>
-                    ${f.docs.map(x => `<td style="background:${bg};text-align:center;${x === 'NO' ? `color:${C.rojo};font-weight:bold;` : ''}">${esc(x)}</td>`).join('')}
-                    <td style="background:${bg};text-align:center;color:${C.rojo};font-weight:bold;">${esc(f.estatus)}</td></tr>`; }).join('')}</table>
-                <p class="nota">Estatus — ${esc(textoLeyenda())}</p>`;
+                    ${f.docs.map(x => `<td style="background:${bg};text-align:center;${x === 'NO' ? `color:${C.rojo};font-weight:bold;` : ''}">${esc(x)}</td>`).join('')}</tr>`; }).join('')}</table>`;
             const kpis = [['Universo esperado', d.universo, C.marca], ['Encontrados', d.nEnc, C.verde], ['No encontrados', d.nFalt, C.rojo],
                 ['Justificados', d.nJust, C.azul], ['En otra sucursal', d.otraSucursal.length, C.ambar]];
             const html = `<html><head><meta charset="utf-8"><style>
@@ -5796,6 +5772,8 @@
         const EXCEL_VEH_COLS = [['FECHA', ''], ['EQUIPO DE TRANSPORTE', ''], ['RESPONSABLE', ''], ['POLIZA', 'FISICA'],
             ['TARJETA', 'CIRCULACION'], ['LICENCIA', 'VIGENTE'], ['CARTA', 'RESPONSIVA'], ['ESTATUS', '']];
         const EXCEL_DOC_KEYS = ['poliza', 'tarjeta', 'licencia', 'carta'];
+        // El informe (PDF/Word) muestra los documentos sin la columna ESTATUS (esa la llena auditoría en el Excel).
+        const COLS_INFORME = EXCEL_VEH_COLS.filter(([a]) => a !== 'ESTATUS');
         function fechaCorta(f) {
             if (!f) return '';
             const s = String(f);
@@ -5847,7 +5825,7 @@
                 const razon = String(u.razon || '').toUpperCase();
                 return { fecha: fechaCorta(u.fecha), equipo: razon && !eq.includes(razon) ? `${eq} ${razon}` : eq,
                     responsable: String(u.responsable || 'NO ASIGNADO').toUpperCase(), docs: EXCEL_DOC_KEYS.map(k => txtDoc((u.docs || {})[k])),
-                    estatus: u.estatusCodigo || '', nota: u.comentario || '', respRojo: RESP_ROJO.includes(String(u.responsable || '').toUpperCase()) };
+                    estatus: '', nota: u.comentario || '', respRojo: RESP_ROJO.includes(String(u.responsable || '').toUpperCase()) };
             });
         }
         function filasJustificados(d) {
@@ -5962,13 +5940,7 @@
             fila += 1;
             ws.getCell(fila, 1).value = 'Estatus:';
             ws.getCell(fila, 1).font = { bold: true, size: 11 };
-            fila++;
-            CODIGOS_ESTATUS.forEach(k => {
-                ws.mergeCells(fila, 1, fila, N);
-                ws.getCell(fila, 1).value = `${k} = ${leyendaEstatus[k] || ''}`;
-                ws.getCell(fila, 1).font = { size: 10 };
-                fila++;
-            });
+            fila += 4; // espacio para que auditoría escriba la leyenda de estatus
             ws.mergeCells(fila, 1, fila, N);
             ws.getCell(fila, 1).value = 'N/A = No aplica o no se pudo revisar (unidad no localizada o en otra sucursal).   NO = el documento no está.';
             ws.getCell(fila, 1).font = { size: 9, italic: true, color: { argb: 'FF595959' } };
