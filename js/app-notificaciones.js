@@ -124,7 +124,10 @@
     panel.id = 'notif-panel';
     panel.className = 'notif-panel';
     panel.style.display = 'none';
-    document.body.appendChild(panel);
+    /* Dentro de la barra superior: queda pegada debajo de ella sin calcular coordenadas (la página
+       usa zoom en escritorio) y en el teléfono ocupa todo el ancho (css/notificaciones.css). */
+    var barra = boton.closest ? boton.closest('.topbar') : null;
+    (barra || document.body).appendChild(panel);
     panel.addEventListener('click', function (e) {
       var fila = e.target.closest ? e.target.closest('[data-modulo]') : null;
       if (fila) { irA(fila.getAttribute('data-modulo')); return; }
@@ -152,9 +155,6 @@
   function abrirPanel() {
     crearPanel();
     pintarPanel();
-    var r = boton.getBoundingClientRect();
-    panel.style.top = Math.round(r.bottom + 8) + 'px';
-    panel.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + 'px';
     panel.style.display = '';
     /* Al abrir la bandeja todo queda visto (lo nuevo sigue resaltado hasta cerrarla). */
     pintarGlobo(0);
@@ -242,7 +242,6 @@
     setTimeout(alCambiarSesion, 3000);
     setInterval(revisar, REVISAR_MS);
     document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') revisar(); });
-    window.addEventListener('resize', cerrarPanel);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
