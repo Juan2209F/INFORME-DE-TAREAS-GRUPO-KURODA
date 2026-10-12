@@ -1,0 +1,69 @@
+/* App para iPhone / iPad (PWA) — Grupo Kuroda
+   El diseño de app es el mismo de Android (css/apk.css, clase gk-apk). Aquí solo va lo propio
+   de iOS, colgado de html.gk-ios (lo pone js/app-ios.js cuando la app está instalada):
+   áreas seguras (isla / muesca arriba, barra de inicio abajo, costados con el teléfono
+   acostado), la franja detrás de la hora y la batería, y la hoja para guardar archivos.
+   Al final, fuera de gk-ios, el aviso "Instala el Monitor" que se ve en Safari. */
+
+/* La app ocupa toda la pantalla (viewport-fit=cover): sin rebote al llegar al tope, para que
+   "deslizar para recargar" no se mezcle con el rebote de iOS. */
+html.gk-ios { overscroll-behavior-y: none; -webkit-text-size-adjust: 100%; }
+.gk-ios body { -webkit-touch-callout: none; }
+
+/* ── Franja detrás de la barra de estado (hora, señal, batería) ──
+   Con barra translúcida iOS escribe la hora en blanco; sin esta franja no se leería sobre la
+   barra blanca de la app en modo claro. */
+.gk-ios body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; z-index: 10002;
+  height: env(safe-area-inset-top, 0px); background: linear-gradient(90deg, var(--blue), var(--blue2)); pointer-events: none; }
+
+/* ── Barra superior y contenido debajo de la franja ── */
+.gk-ios .main-area { padding-top: env(safe-area-inset-top, 0px) !important; }
+.gk-ios .topbar { top: env(safe-area-inset-top, 0px);
+  padding-left: max(14px, env(safe-area-inset-left, 0px)) !important; padding-right: max(10px, env(safe-area-inset-right, 0px)) !important; }
+.gk-ios .content { padding-left: max(10px, env(safe-area-inset-left, 0px)) !important; padding-right: max(10px, env(safe-area-inset-right, 0px)) !important; }
+.gk-ios .apk-ptr { top: calc(8px + env(safe-area-inset-top, 0px)); }
+
+/* ── Inicio de sesión ── */
+.gk-ios #login-page { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); box-sizing: border-box; }
+
+/* ── Ventanas emergentes: nunca debajo de la barra de estado ni de la barra de inicio ── */
+.gk-ios .modal-overlay, .gk-ios .kpi-cfg-overlay, .gk-ios .usr-overlay, .gk-ios .mv-hoja, .gk-ios #plantilla-overlay {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 8px) !important; box-sizing: border-box; }
+.gk-ios .modal-overlay .modal, .gk-ios .kpi-cfg-overlay .kpi-cfg-modal, .gk-ios .usr-overlay .kpi-cfg-modal { max-height: 100% !important; }
+.gk-ios .modal-foot { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+
+/* ── Controles: 16 px evita que iOS acerque la pantalla al escribir; toques sin retraso ── */
+.gk-ios input:not([type=checkbox]):not([type=radio]):not([type=range]), .gk-ios select, .gk-ios textarea { font-size: 16px; }
+.gk-ios button, .gk-ios .btn, .gk-ios .nav-item, .gk-ios a { touch-action: manipulation; }
+
+/* ── Hoja "Archivo listo" (js/app-ios.js): guardar o compartir lo que genera la app ── */
+.ios-archivos { position: fixed; left: 10px; right: 10px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 9000;
+  display: none; align-items: center; gap: 10px; padding: 12px 12px 12px 16px; border-radius: 18px;
+  background: var(--white, #fff); color: var(--txt, #344767); border: 1px solid var(--border, #e9ecef);
+  box-shadow: 0 14px 40px rgba(10, 14, 35, .35); font-family: inherit; animation: iosSube .25s ease both; }
+.ios-archivos.abierta { display: flex; }
+.ios-archivos-txt { flex: 1; min-width: 0; }
+.ios-archivos-txt b { display: block; font-size: 13.5px; }
+.ios-archivos-txt span { display: block; font-size: 11.5px; color: var(--muted, #8392ab); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ios-archivos-ok { flex-shrink: 0; border: 0; border-radius: 12px; padding: 11px 14px; font: inherit; font-size: 13px; font-weight: 700;
+  color: #fff; background: linear-gradient(135deg, var(--blue, #5e72e4), var(--blue2, #825ee4)); cursor: pointer; }
+.ios-archivos-x { flex-shrink: 0; width: 34px; height: 34px; border: 0; border-radius: 50%; background: transparent;
+  color: var(--muted, #8392ab); font-size: 15px; cursor: pointer; }
+@keyframes iosSube { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ── Aviso "Instala el Monitor" (solo en Safari de iPhone/iPad, sin instalar) ── */
+.ios-instalar { position: fixed; left: 10px; right: 10px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 10000;
+  display: flex; align-items: center; gap: 12px; padding: 12px 10px 12px 12px; border-radius: 18px;
+  background: #1a1f3c; color: #f1f2f8; box-shadow: 0 14px 40px rgba(10, 14, 35, .45);
+  font-family: Poppins, system-ui, sans-serif; animation: iosSube .3s ease both; }
+.ios-instalar img { flex-shrink: 0; border-radius: 11px; }
+.ios-instalar-txt { flex: 1; min-width: 0; }
+.ios-instalar-txt b { display: block; font-size: 13.5px; margin-bottom: 2px; }
+.ios-instalar-txt span { display: block; font-size: 12px; line-height: 1.45; color: #c3c9e6; }
+.ios-instalar-txt u { text-decoration: none; font-weight: 700; color: #fff; }
+.ios-instalar > button { flex-shrink: 0; align-self: flex-start; width: 30px; height: 30px; border: 0; border-radius: 50%;
+  background: rgba(255, 255, 255, .12); color: #fff; font-size: 13px; cursor: pointer; }
+/* Ícono "Compartir" de iOS (cuadro con flecha hacia arriba). */
+.ios-compartir { display: inline-block; width: 13px; height: 15px; vertical-align: -2px; margin: 0 1px;
+  background: no-repeat center / contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 15V2M5.5 6.5 10 2l4.5 4.5M6 10H3.5A1.5 1.5 0 0 0 2 11.500v9A1.5 1.5 0 0 0 3.500 22h13a1.500 1.500 0 0 0 1.500-1.500v-9A1.500 1.500 0 0 0 16.500 10H14'/%3E%3C/svg%3E"); }
