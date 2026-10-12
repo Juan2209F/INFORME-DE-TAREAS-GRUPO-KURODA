@@ -1745,7 +1745,7 @@ function renderTareasTable(tareas){
       const estCol=nEst.includes('no resuelta')?'var(--k-dark)':nEst.includes('atrasad')?'var(--k-red)':nEst.includes('resuelta')&&nEst.includes('atrasad')?'var(--k-orange)':nEst.includes('resuelta')?'var(--k-greenok)':'var(--k-blue)';
       const estTxt=nEst.includes('no resuelta')?'No resuelta':nEst.includes('abierta')&&nEst.includes('atrasad')?'Ab. Atr.':nEst.includes('abierta')?'Abierta':nEst.includes('resuelta')&&nEst.includes('atrasad')?'Res. Atr.':'Resuelta';
       const ftColor=fromISO(t.fechaTerm)&&fromISO(t.fechaTerm)<new Date()&&esPendiente(t)?'#dc2626':'var(--muted)';
-      return `<tr style="background:${bg};border-bottom:1px solid var(--rowline)">
+      return `<tr data-nid="${esc(t.sb_uuid||'')}" style="background:${bg};border-bottom:1px solid var(--rowline)">
         <td style="padding:5px 8px;color:var(--muted);font-size:11px;white-space:nowrap;font-family:monospace">${t.id}</td>
         <td style="padding:5px 8px;max-width:300px">
           <div style="font-weight:700;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(t.nombre||t.actividad||'').replace(/"/g,'&quot;')}">${t.nombre||t.actividad||'—'}</div>
@@ -3030,7 +3030,7 @@ function audTablaPorClase(titulo,color,rows){
     var tieneNR=(stats.expiradas||0)>0;
     var domId='nr_'+akey.replace(/[^a-zA-Z0-9]/g,'_');
     var nrBtn=tieneNR?'<button class="icon-btn" style="margin-left:4px;padding:0 5px;font-weight:800;color:var(--k-dark)" onclick="toggleNoResueltasDet(this,\''+domId+'\')" title="Ver tareas no resueltas">+</button>':'';
-    var filaPrincipal='<tr style="background:'+rowBg+';border-left:'+rowBd+'">'+ 
+    var filaPrincipal='<tr data-nid="'+esc(a.sb_id||'')+'" style="background:'+rowBg+';border-left:'+rowBd+'">'+
       '<td><b>'+(a.tienda||'—')+'</b></td>'+
       '<td>'+(a.mes||'—')+'</td>'+
       '<td style="text-align:center">'+pctFmt(a.pctCumpl)+'</td>'+
@@ -4241,7 +4241,7 @@ function renderActividades(){
        tuvieran fecha. Ahora se calcula con las mismas fechas que se editan
        en esta tabla (Est.Inicio/Est.Fin), igual que en el modal. */
     var dur=calcDias(a.estInicio,a.estFin);
-    return '<tr>'+
+    return '<tr data-nid="'+esc(a.id)+'">'+
       '<td>'+(a.mes||'—')+'</td>'+
       '<td style="min-width:200px"><b>'+(a.actividad||'—')+'</b></td>'+
       '<td>'+estadoCelda(a)+'</td>'+
@@ -6536,7 +6536,8 @@ async function loadDataFromSupabase(){
         pctCumpl:parseFloat(a.pct_cumpl)||0,
         tareas:a.tareas||0,pendientes:a.pendientes||0,
         resueltas:a.resueltas||0,pctResuelto:parseFloat(a.pct_resuelto)||0,
-        clase:safe(a.clase)||''
+        clase:safe(a.clase)||'',
+        sb_id:a.id||null /* id en la base: lo usa la campanita para ubicar la fila (data-nid) */
       };
     });
     /* Tareas */
@@ -7160,7 +7161,7 @@ function renderAjustes(){
     tbody.innerHTML=arr.map(function(a,i){
       var cls=a.condicion==='A tiempo'?'b-atiempo':'b-destiempo';
       var editTd=isAdmin?'<td style="text-align:center"><button class="icon-btn" onclick="openEditAjuste(\''+a.id+'\')" title="Editar">✎</button></td>':'';
-      return '<tr>'+
+      return '<tr data-nid="'+esc(a.id)+'">'+
         '<td style="color:var(--muted);font-size:11px">'+(i+1)+'</td>'+
         '<td><b>'+esc(a.tienda)+'</b></td>'+
         '<td>'+esc(a.mes)+'</td>'+
@@ -7614,7 +7615,7 @@ function renderMermas(){
       var lf=m.localForanea||'—';
       var lfColor=norm(lf).includes('foranea')||norm(lf).includes('foránea')?'color:#ea580c;font-weight:700':'color:var(--k-blue);font-weight:700';
       var editTd=isAdmin?'<td style="text-align:center"><button class="icon-btn" onclick="openEditMerma(\''+m.id+'\')" title="Editar">✎</button></td>':'';
-      return '<tr>'+
+      return '<tr data-nid="'+esc(m.id)+'">'+
         '<td style="color:var(--muted);font-size:11px">'+(i+1)+'</td>'+
         '<td><b>'+esc(m.tienda)+'</b></td>'+
         '<td style="'+lfColor+'">'+esc(lf)+'</td>'+
@@ -8256,7 +8257,7 @@ function finTablaPorClase(titulo,color,rows,esCartera){
     var mark=f._vinculada?
       '<span style="font-size:9px;color:var(--teal);margin-left:3px" title="Vinculada: total y resueltos vienen de sus tareas reales">⟳</span>':
       '<span style="font-size:9px;color:var(--k-red,#dc2626);margin-left:3px;cursor:help" title="Sin vincular: no se encontró ninguna tarea real que coincida en centro+tipo+mes; se muestra el dato guardado al archivar.">⚠</span>';
-    return '<tr style="background:'+rowBg+';border-left:'+rowBd+'">'+
+    return '<tr data-nid="'+esc(f.id||'')+'" style="background:'+rowBg+';border-left:'+rowBd+'">'+
       '<td><b>'+(f.tienda||'—')+'</b>'+mark+'</td>'+
       '<td>'+(f.mes||'—')+'</td>'+
       pctCell+
