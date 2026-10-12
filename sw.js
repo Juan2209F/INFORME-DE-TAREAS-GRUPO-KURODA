@@ -6,13 +6,13 @@
    No toca nada de otros sitios (Supabase, librerías de CDN) ni peticiones que no sean GET. */
 'use strict';
 
-var CACHE = 'gk-monitor-v1';
+var CACHE = 'gk-monitor-v2';
 var NUCLEO = [
   './', 'index.html', 'manifest.webmanifest',
-  'css/main.css', 'css/movil.css', 'css/apk.css', 'css/ios.css',
+  'css/main.css', 'css/movil.css', 'css/notificaciones.css', 'css/apk.css', 'css/ios.css',
   'js/app-ios.js', 'js/app-apk.js', 'js/theme-init.js', 'config/supabase-config.js',
   'js/app-core.js', 'js/app-usuarios.js', 'js/app-correos.js', 'js/app-archivero.js',
-  'js/app-activos.js', 'js/app-sesion.js', 'js/app-movil.js',
+  'js/app-activos.js', 'js/app-sesion.js', 'js/app-movil.js', 'js/app-notificaciones.js',
   'icons/apple-touch-icon.png', 'icons/icon-192.png'
 ];
 
