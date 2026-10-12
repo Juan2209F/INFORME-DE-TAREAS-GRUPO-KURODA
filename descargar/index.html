@@ -42,7 +42,18 @@
     <ul class="notas" id="notas" hidden></ul>
     <a class="btn" id="btn" href="#" aria-disabled="true">⬇️ Descargar app</a>
     <div class="err" id="err" hidden></div>
-    <div class="pasos">
+    <!-- iPhone / iPad: no hay archivo que descargar; la app se instala desde Safari. -->
+    <div class="pasos" id="ios" hidden>
+      <b>Cómo instalarla en iPhone o iPad</b>
+      <ol>
+        <li>Abre el Monitor <b style="display:inline">en Safari</b> con el botón de abajo.</li>
+        <li>Toca <b style="display:inline">Compartir</b> (el cuadro con la flecha hacia arriba).</li>
+        <li>Elige <b style="display:inline">Agregar a inicio</b> y luego <b style="display:inline">Agregar</b>.</li>
+        <li>Abre la app desde el ícono <b style="display:inline">Monitor</b> de tu pantalla de inicio. Se actualiza sola.</li>
+      </ol>
+    </div>
+    <a class="btn" id="btn-ios" href="../" style="display:none">Abrir el Monitor</a>
+    <div class="pasos" id="android">
       <b>Cómo instalarla</b>
       <ol>
         <li>Toca <b style="display:inline">Descargar app</b>. Si el teléfono avisa que el archivo puede ser dañino, elige <b style="display:inline">Descargar de todas formas</b>.</li>
@@ -57,6 +68,17 @@
   'use strict';
   var INFO = 'https://xlygkolfmetytowixtnb.supabase.co/storage/v1/object/public/app-releases/latest.json';
   var $ = function (id) { return document.getElementById(id); };
+  /* iPhone / iPad: se muestran los pasos para instalarla desde Safari en vez del APK. */
+  var esIos = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (esIos) {
+    document.querySelector('.sub').textContent = 'Monitor de Cumplimiento para iPhone y iPad';
+    $('ver').textContent = 'Se instala desde Safari';
+    $('btn').hidden = true; $('btn').style.display = 'none';
+    $('android').hidden = true;
+    $('ios').hidden = false;
+    $('btn-ios').style.display = 'block';
+    return;
+  }
   fetch(INFO + '?t=' + Date.now(), { cache: 'no-store' })
     .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(function (j) {
