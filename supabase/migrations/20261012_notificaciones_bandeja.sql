@@ -3,8 +3,63 @@
 -- activos queda registrado en public.notificaciones. Con ese registro:
 --   - la campanita del Monitor (js/app-notificaciones.js) muestra a cada usuario lo que le toca,
 --   - la Edge Function "notificar-push" avisa a los teléfonos de esos mismos usuarios.
--- Sustituye a los disparadores de 20261005_notificaciones_push.sql (que debe estar aplicada).
--- Aplicar ANTES de publicar el JavaScript nuevo. Se puede correr varias veces sin problema.
+-- Sustituye a los disparadores de 20261005_notificaciones_push.sql. No hace falta haber corrido
+-- esa migración: aquí se crea también lo que necesita de ella (sección 0).
+-- Se puede correr varias veces sin problema.
+
+-- 0) Base del push (lo mismo que crea 20261005_notificaciones_push.sql, sin sus disparadores).
+create extension if not exists pg_net with schema extensions;
+create extension if not exists pgcrypto with schema extensions;
+
+-- Teléfonos registrados (los registra la app al iniciar sesión).
+create table if not exists public.push_dispositivos (
+  token       text primary key,
+  user_id     uuid not null,
+  usuario     text,
+  razones     text[],
+  actualizado timestamptz not null default now()
+);
+alter table public.push_dispositivos enable row level security;   -- sin políticas: solo vía funciones
+
+-- Dirección de la Edge Function y clave para que solo la base pueda llamarla.
+create table if not exists public.push_config (clave text primary key, valor text not null);
+alter table public.push_config enable row level security;
+insert into public.push_config (clave, valor) values
+  ('url', 'https://xlygkolfmetytowixtnb.supabase.co/functions/v1/notificar-push'),
+  ('secreto', encode(extensions.gen_random_bytes(24), 'hex'))
+on conflict (clave) do nothing;
+
+-- Bitácora de avisos push enviados.
+create table if not exists public.push_envios (
+  id bigserial primary key,
+  tabla text not null,
+  n int,
+  razones text[],
+  dispositivos int,
+  enviado timestamptz not null default now()
+);
+alter table public.push_envios enable row level security;
+
+-- La app registra / quita su teléfono (siempre a nombre del usuario con sesión).
+create or replace function public.registrar_dispositivo(p_token text, p_usuario text, p_razones text[])
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null or coalesce(p_token, '') = '' then return; end if;
+  delete from push_dispositivos where token = p_token;
+  insert into push_dispositivos (token, user_id, usuario, razones)
+  values (p_token, auth.uid(), p_usuario, nullif(p_razones, '{}'::text[]));
+end $$;
+
+create or replace function public.quitar_dispositivo(p_token text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  delete from push_dispositivos where token = p_token and user_id = auth.uid();
+end $$;
+
+revoke all on function public.registrar_dispositivo(text, text, text[]) from public, anon;
+revoke all on function public.quitar_dispositivo(text) from public, anon;
+grant execute on function public.registrar_dispositivo(text, text, text[]) to authenticated;
+grant execute on function public.quitar_dispositivo(text) to authenticated;
 
 -- 1) Razón social en claro para las tablas donde la razón o la tienda se guardan cifradas.
 --    La llena la app al guardar (conRazonAviso en js/app-core.js): solo la clave KNO/KSC/KSA.
