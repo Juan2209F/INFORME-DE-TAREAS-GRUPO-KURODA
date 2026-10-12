@@ -44,9 +44,19 @@
     DELETE: ['eliminó', 'Se eliminó', 'Se eliminaron']
   };
 
+  /* En Activos el texto depende de la tabla del movimiento: tabla -> [singular, plural, género] */
+  var TABLAS_ACTIVOS = {
+    activos: ['activo', 'activos', 'm'],
+    movimientos: ['movimiento de activos', 'movimientos de activos', 'm'],
+    inventarios: ['inventario de activos', 'inventarios de activos', 'm'],
+    solicitudes_baja: ['solicitud de baja', 'solicitudes de baja', 'f']
+  };
+
   function textoDe(a) {
     var m = MODULOS[a.modulo], v = VERBOS[a.operacion];
     if (!m || !v) return '';
+    var t = TABLAS_ACTIVOS[a.tabla];
+    if (t) m = [m[0], m[1], t[0], t[1], t[2], m[5]];
     var n = Number(a.n) || 1;
     var cuanto = n === 1 ? (m[4] === 'f' ? 'una ' : 'un ') + m[2] : n + ' ' + m[3];
     return a.actor_nombre ? a.actor_nombre + ' ' + v[0] + ' ' + cuanto : (n === 1 ? v[1] : v[2]) + ' ' + cuanto;
@@ -74,12 +84,16 @@
     if (!sb || !ses) return false;
     var firma = [ses.username, ses.rol, JSON.stringify(ses.razones_permitidas), JSON.stringify(ses.vistas_permitidas)].join('|');
     if (perfilDe === firma) return true;
-    var r = await sb.rpc('notif_perfil', {
+    var datos = {
       p_usuario: ses.nombre || ses.username || null,
       p_rol: ses.rol || '',
       p_razones: lista(ses.razones_permitidas),
       p_vistas: lista(ses.vistas_permitidas)
-    });
+    };
+    /* El nombre de usuario enlaza con la cuenta de Activos (para no avisarle de lo que él mismo
+       hizo ahí). Si la base aún no acepta ese dato, se registra sin él. */
+    var r = await sb.rpc('notif_perfil', Object.assign({ p_username: ses.username || null }, datos));
+    if (r.error) r = await sb.rpc('notif_perfil', datos);
     if (r.error) return false;       /* migración sin aplicar o sin conexión: se reintenta */
     perfilDe = firma;
     /* La función existe = la migración está aplicada: ya se puede guardar razon_aviso (app-core.js). */
