@@ -4437,7 +4437,7 @@ async function saveActividad(id,isNew){
     apoyos:document.getElementById('a-apoyos').value.trim()||null,
     programada:document.getElementById('a-programada').checked
   };
-  var row=await encObj(_rowActRaw,FIELDS.actividades);
+  var row=conRazonAviso(await encObj(_rowActRaw,FIELDS.actividades),_rowActRaw);
   var client=getSbClient();
   if(!client){toast('⚠ Sin conexión a Supabase');return;}
   closeModal();
@@ -4585,7 +4585,7 @@ async function commitActividadesExcel(rows){
     var okN=0,failN=0,dupN=0;
     for(var i=0;i<rows.length;i++){
       try{
-        var row=await encObj(rows[i],FIELDS.actividades);
+        var row=conRazonAviso(await encObj(rows[i],FIELDS.actividades),rows[i]);
         var r=await client.from('actividades').insert([row]);
         if(r.error){
           /* 409 / 23505 = la actividad ya existe (restricción única). No es un
@@ -4656,7 +4656,7 @@ async function ejecutarAsignarRazonMasiva(){
     var okN=0, failN=0;
     for(var i=0;i<pend.length;i++){
       try{
-        var row=await encObj({razon:razon},FIELDS.actividades);
+        var row=conRazonAviso(await encObj({razon:razon},FIELDS.actividades),{razon:razon});
         var r=await client.from('actividades').update(row).eq('id',pend[i].id);
         if(r.error)failN++; else okN++;
       }catch(e){failN++;}
@@ -5458,6 +5458,19 @@ async function encObj(obj,fields){
   return r;
 }
 
+/* Razón social EN CLARO para las notificaciones (columna razon_aviso de ajustes, mermas,
+   actividades y tareas_finalizadas). En esas tablas la razón o la tienda van cifradas, así que
+   la base no puede saber a qué razón pertenece el movimiento; aquí se agrega solo la clave
+   (KNO/KSC/KSA), que no es un dato sensible. Si la tienda no se identifica queda en null y el
+   aviso llega únicamente a quien ve todas las razones (mismo criterio que tiendaVisible). */
+var _razonAvisoOk=false; /* true cuando js/app-notificaciones.js confirma que la migración de notificaciones está aplicada */
+function conRazonAviso(row,raw){
+  if(!_razonAvisoOk)return row; /* sin la columna razon_aviso en la base, se guarda como antes */
+  raw=raw||{};
+  var rz=String(raw.razon||'').trim()||razonDeCentro(raw.centro||'')||razonDeCentro(centroDeTienda(raw.tienda||''));
+  row.razon_aviso=rz?rz.toUpperCase():null;
+  return row;
+}
 /* Descifrar un objeto — solo los campos especificados */
 async function decObj(obj,fields){
   var r=Object.assign({},obj);
@@ -7253,7 +7266,7 @@ async function guardarNuevoAjuste(){
   var año=parseInt(((ajuste||correo)).split('-')[0]);
   var _ajRaw={tienda,mes:mes.toUpperCase(),año,fecha_correo:correo,fecha_ajuste:ajuste,
     dias,condicion:condicionAjuste(dias),auditor:auditor||null};
-  var row=await encObj(_ajRaw,FIELDS.ajustes);
+  var row=conRazonAviso(await encObj(_ajRaw,FIELDS.ajustes),_ajRaw);
   var client=getSbClient();
   if(!client){toast('⚠ Sin Supabase');return;}
   closeModal();
@@ -7324,7 +7337,7 @@ async function saveEditAjuste(id){
   /* Año predominante = fecha de ajuste; si aún no existe, se usa fecha de correo */
   var año=parseInt(((ajuste||correo)||'').split('-')[0])||null;
   var _ajUpdRaw={tienda,mes,año,fecha_correo:correo,fecha_ajuste:ajuste,dias,condicion:condicionAjuste(dias),auditor:auditor};
-  var row=await encObj(_ajUpdRaw,FIELDS.ajustes);
+  var row=conRazonAviso(await encObj(_ajUpdRaw,FIELDS.ajustes),_ajUpdRaw);
   var client=getSbClient();if(!client)return;
   closeModal();
   try{
@@ -7452,7 +7465,7 @@ async function commitAjustesExcel(rows){
     var ins=0,upd=0,err=null;
     for(var i=0;i<dedup.length&&!err;i++){
       var raw=dedup[i];
-      var row=await encObj(raw,FIELDS.ajustes);   /* ← CIFRAR antes de guardar */
+      var row=conRazonAviso(await encObj(raw,FIELDS.ajustes),raw);   /* ← CIFRAR antes de guardar */
       var k=_k(raw.tienda,raw.fecha_correo,raw.fecha_ajuste);
       if(exMap[k]){
         var ru=await client.from('ajustes').update(row).eq('id',exMap[k]);
@@ -7718,7 +7731,7 @@ async function guardarNuevaMerma(){
   var año=parseInt(((val||aut)||'').split('-')[0])||null;
   var _mrRaw={tienda,local_foranea:lf,mes:mes.toUpperCase(),año,
     fecha_autorizacion:aut,fecha_validacion:val,dias,condicion:condicionAjuste(dias),auditor:auditorMr||null};
-  var row=await encObj(_mrRaw,FIELDS.mermas);
+  var row=conRazonAviso(await encObj(_mrRaw,FIELDS.mermas),_mrRaw);
   var client=getSbClient();if(!client){toast('⚠ Sin Supabase');return;}
   closeModal();
   try{
@@ -7758,7 +7771,7 @@ async function saveEditMerma(id){
   var _mrUpdRaw={tienda,local_foranea:lf,mes,año,fecha_autorizacion:aut,
     fecha_validacion:val,dias,condicion:condicionAjuste(dias),
     auditor:auditor};
-  var row=await encObj(_mrUpdRaw,FIELDS.mermas);
+  var row=conRazonAviso(await encObj(_mrUpdRaw,FIELDS.mermas),_mrUpdRaw);
   var client=getSbClient();if(!client)return;
   closeModal();
   try{
@@ -7893,7 +7906,7 @@ async function commitMermasExcel(rows){
     var ins=0,upd=0,err=null;
     for(var i=0;i<dedup.length&&!err;i++){
       var raw=dedup[i];
-      var row=await encObj(raw,FIELDS.mermas);   /* ← CIFRAR antes de guardar */
+      var row=conRazonAviso(await encObj(raw,FIELDS.mermas),raw);   /* ← CIFRAR antes de guardar */
       var k=_k(raw.tienda,raw.fecha_autorizacion,raw.fecha_validacion);
       if(exMap[k]){
         var ru=await client.from('mermas').update(row).eq('id',exMap[k]);
@@ -8362,7 +8375,7 @@ async function saveEditFinalizada(id){
   var client=getSbClient();
   if(!client){toast('✓ Guardado local (sin Supabase)');return;}
   try{
-    var row=await encObj(updated,FIELDS.tareas_finalizadas);
+    var row=conRazonAviso(await encObj(updated,FIELDS.tareas_finalizadas),updated);
     var r=await client.from('tareas_finalizadas').update(row).eq('id',id);
     if(r.error)toast('⚠ '+r.error.message);
     else toast('☁️ Finalizada actualizada');
@@ -8447,7 +8460,7 @@ async function registrarFinalizada(a){
     duracion_dias:duracion,
     completado_por:(_session&&(_session.nombre||_session.username))||null
   };
-  var row=await encObj(_finRowRaw,FIELDS.tareas_finalizadas);
+  var row=conRazonAviso(await encObj(_finRowRaw,FIELDS.tareas_finalizadas),_finRowRaw);
   try{
     var r=await client.from('tareas_finalizadas').insert([row]).select();
     if(r.error){

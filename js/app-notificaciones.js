@@ -1,0 +1,249 @@
+/* Notificaciones de movimientos (campanita) — web y app
+   Cada alta, cambio o eliminación en tareas, auditorías, actividades, ajustes, mermas,
+   finalizadas, archivero o activos queda registrada en Supabase (tabla notificaciones, ver
+   supabase/migrations/20261012_notificaciones_bandeja.sql). Este archivo:
+   1) Registra el perfil del usuario al iniciar sesión (rol, razones sociales y vistas): con él la
+      base decide qué movimientos le tocan, tanto aquí como en el push de la app Android.
+   2) Pone la campanita en la barra superior con el contador de avisos sin ver.
+   3) Muestra la bandeja; al tocar un aviso se abre su sección.
+   4) Revisa cada minuto si hay avisos nuevos y, en el navegador, puede mostrarlos como
+      notificación del sistema mientras el Monitor esté abierto (en la app Android eso lo hace
+      el push de Firebase, aunque la app esté cerrada).
+   Nunca se avisa a quien hizo el movimiento. */
+(function () {
+  'use strict';
+
+  var REVISAR_MS = 60000;
+  var $ = function (id) { return document.getElementById(id); };
+  var html = document.documentElement;
+  var sbCliente = function () { return typeof _sb !== 'undefined' ? _sb : null; };
+  var sesion = function () { return typeof _session !== 'undefined' ? _session : null; };
+  var limpio = function (s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  };
+  function sesionAbierta() {
+    var login = $('login-page');
+    return !!(login && login.classList.contains('hidden') && sesion());
+  }
+
+  /* módulo -> [icono, título, singular, plural, género, opción del menú] */
+  var MODULOS = {
+    tareas: ['📝', 'Tareas', 'tarea', 'tareas', 'f', 'nav-tareas'],
+    finalizadas: ['✅', 'Tareas finalizadas', 'tarea finalizada', 'tareas finalizadas', 'f', 'nav-finalizadas'],
+    auditorias: ['🔍', 'Auditorías', 'auditoría', 'auditorías', 'f', 'nav-auditorias'],
+    actividades: ['📋', 'Actividades', 'actividad', 'actividades', 'f', 'nav-actividades'],
+    ajustes: ['⚖️', 'Ajustes', 'ajuste', 'ajustes', 'm', 'nav-ajustes'],
+    mermas: ['🗂️', 'Mermas', 'merma', 'mermas', 'f', 'nav-mermas'],
+    archivero: ['🗄️', 'Archivero', 'documento', 'documentos', 'm', 'nav-archivero'],
+    activos: ['📦', 'Activos', 'movimiento de activos', 'movimientos de activos', 'm', 'nav-activos']
+  };
+  /* operación -> [con autor, sin autor (singular), sin autor (plural)] */
+  var VERBOS = {
+    INSERT: ['registró', 'Se registró', 'Se registraron'],
+    UPDATE: ['actualizó', 'Se actualizó', 'Se actualizaron'],
+    DELETE: ['eliminó', 'Se eliminó', 'Se eliminaron']
+  };
+
+  function textoDe(a) {
+    var m = MODULOS[a.modulo], v = VERBOS[a.operacion];
+    if (!m || !v) return '';
+    var n = Number(a.n) || 1;
+    var cuanto = n === 1 ? (m[4] === 'f' ? 'una ' : 'un ') + m[2] : n + ' ' + m[3];
+    return a.actor_nombre ? a.actor_nombre + ' ' + v[0] + ' ' + cuanto : (n === 1 ? v[1] : v[2]) + ' ' + cuanto;
+  }
+  function hace(fecha) {
+    var d = new Date(fecha), min = Math.floor((Date.now() - d.getTime()) / 60000);
+    if (isNaN(min)) return '';
+    if (min < 1) return 'ahora';
+    if (min < 60) return 'hace ' + min + ' min';
+    if (min < 1440) return 'hace ' + Math.floor(min / 60) + ' h';
+    if (min < 2880) return 'ayer';
+    return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
+  }
+
+  /* ---------- 1) Perfil del usuario ---------- */
+  function lista(v) {
+    if (typeof v === 'string') {
+      try { v = JSON.parse(v); } catch (e) { v = v.split(/[,;\s]+/); }
+    }
+    return Array.isArray(v) ? v.map(function (x) { return String(x).trim(); }).filter(Boolean) : [];
+  }
+  var perfilDe = '';
+  async function registrarPerfil() {
+    var sb = sbCliente(), ses = sesion();
+    if (!sb || !ses) return false;
+    var firma = [ses.username, ses.rol, JSON.stringify(ses.razones_permitidas), JSON.stringify(ses.vistas_permitidas)].join('|');
+    if (perfilDe === firma) return true;
+    var r = await sb.rpc('notif_perfil', {
+      p_usuario: ses.nombre || ses.username || null,
+      p_rol: ses.rol || '',
+      p_razones: lista(ses.razones_permitidas),
+      p_vistas: lista(ses.vistas_permitidas)
+    });
+    if (r.error) return false;       /* migración sin aplicar o sin conexión: se reintenta */
+    perfilDe = firma;
+    /* La función existe = la migración está aplicada: ya se puede guardar razon_aviso (app-core.js). */
+    window._razonAvisoOk = true;
+    return true;
+  }
+
+  /* ---------- 2) Campanita ---------- */
+  var boton = null, globo = null, panel = null;
+  function montarCampana() {
+    if (boton) return;
+    var ref = $('topbar-user');
+    if (!ref || !ref.parentNode) return;
+    boton = document.createElement('button');
+    boton.type = 'button';
+    boton.id = 'notif-btn';
+    boton.className = 'notif-btn';
+    boton.title = 'Notificaciones';
+    boton.setAttribute('aria-label', 'Notificaciones');
+    boton.innerHTML = '🔔<span class="notif-globo" id="notif-globo" style="display:none"></span>';
+    boton.style.display = 'none';
+    ref.parentNode.insertBefore(boton, ref);
+    globo = $('notif-globo');
+    boton.addEventListener('click', function (e) { e.stopPropagation(); if (panelAbierto()) cerrarPanel(); else abrirPanel(); });
+    document.addEventListener('click', function (e) {
+      if (panelAbierto() && !panel.contains(e.target)) cerrarPanel();
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cerrarPanel(); });
+  }
+  function pintarGlobo(n) {
+    if (!globo) return;
+    globo.textContent = n > 99 ? '99+' : String(n);
+    globo.style.display = n > 0 ? '' : 'none';
+  }
+
+  /* ---------- 3) Bandeja ---------- */
+  var avisos = [];
+  function panelAbierto() { return !!(panel && panel.style.display !== 'none'); }
+  function crearPanel() {
+    if (panel) return;
+    panel = document.createElement('div');
+    panel.id = 'notif-panel';
+    panel.className = 'notif-panel';
+    panel.style.display = 'none';
+    document.body.appendChild(panel);
+    panel.addEventListener('click', function (e) {
+      var fila = e.target.closest ? e.target.closest('[data-modulo]') : null;
+      if (fila) { irA(fila.getAttribute('data-modulo')); return; }
+      if (e.target.id === 'notif-permiso') pedirPermiso();
+    });
+  }
+  function puedePedirPermiso() {
+    return !html.classList.contains('gk-apk') && 'Notification' in window && Notification.permission === 'default';
+  }
+  function pintarPanel() {
+    if (!panel) return;
+    var filas = avisos.map(function (a) {
+      var m = MODULOS[a.modulo];
+      if (!m) return '';
+      var razones = Array.isArray(a.razones) && a.razones.length ? ' · ' + limpio(a.razones.join(', ')) : '';
+      return '<button type="button" class="notif-fila' + (a.nueva ? ' nueva' : '') + '" data-modulo="' + limpio(a.modulo) + '">' +
+        '<span class="notif-ico">' + m[0] + '</span>' +
+        '<span class="notif-txt"><b>' + limpio(textoDe(a)) + '</b>' +
+        '<small>' + limpio(m[1]) + razones + ' · ' + limpio(hace(a.fecha)) + '</small></span></button>';
+    }).join('');
+    panel.innerHTML = '<div class="notif-cab">Notificaciones</div>' +
+      (puedePedirPermiso() ? '<button type="button" class="notif-permiso" id="notif-permiso">Activar avisos en este navegador</button>' : '') +
+      '<div class="notif-lista">' + (filas || '<div class="notif-vacio">Sin movimientos recientes</div>') + '</div>';
+  }
+  function abrirPanel() {
+    crearPanel();
+    pintarPanel();
+    var r = boton.getBoundingClientRect();
+    panel.style.top = Math.round(r.bottom + 8) + 'px';
+    panel.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + 'px';
+    panel.style.display = '';
+    /* Al abrir la bandeja todo queda visto (lo nuevo sigue resaltado hasta cerrarla). */
+    pintarGlobo(0);
+    var sb = sbCliente();
+    if (sb) sb.rpc('notif_marcar_vistas').then(function () {}, function () {});
+  }
+  function cerrarPanel() {
+    if (!panelAbierto()) return;
+    panel.style.display = 'none';
+    avisos.forEach(function (a) { a.nueva = false; });
+  }
+  function irA(modulo) {
+    cerrarPanel();
+    var m = MODULOS[modulo], n = m ? $(m[5]) : null;
+    if (!n || n.style.display === 'none') return;
+    n.click();
+    window.scrollTo(0, 0);
+  }
+
+  /* ---------- 4) Revisión periódica ---------- */
+  var ultimaFecha = 0;       /* fecha del aviso más reciente ya conocido en esta sesión */
+  var primera = true, revisando = false;
+  var ms = function (f) { return new Date(f).getTime() || 0; };
+  function pedirPermiso() {
+    try {
+      var p = Notification.requestPermission(function () { pintarPanel(); });
+      if (p && p.then) p.then(pintarPanel, function () {});
+    } catch (e) { /* navegador sin notificaciones */ }
+  }
+  function avisarNuevos(nuevos) {
+    if (!nuevos.length) return;
+    var a = nuevos[0], m = MODULOS[a.modulo];
+    var texto = nuevos.length === 1 ? textoDe(a) : nuevos.length + ' movimientos nuevos';
+    if (typeof toast === 'function') toast('🔔 ' + texto);
+    /* En la app Android el aviso del sistema lo manda Firebase. */
+    if (html.classList.contains('gk-apk') || !('Notification' in window) || Notification.permission !== 'granted') return;
+    try {
+      var n = new Notification(nuevos.length === 1 && m ? m[0] + ' ' + m[1] : 'Monitor de Cumplimiento',
+        { body: texto, tag: 'gk-movimientos', icon: 'icons/icon-192.png' });
+      n.onclick = function () { window.focus(); if (nuevos.length === 1) irA(a.modulo); n.close(); };
+    } catch (e) { /* iPhone / navegadores que solo permiten avisos desde un service worker */ }
+  }
+  async function revisar() {
+    if (revisando || !sesionAbierta() || document.visibilityState === 'hidden') return;
+    var sb = sbCliente();
+    if (!sb) return;
+    revisando = true;
+    try {
+      if (!(await registrarPerfil())) return;
+      var r = await sb.rpc('mis_notificaciones', { p_limite: 40 });
+      if (r.error || !Array.isArray(r.data) || !sesionAbierta()) return;
+      var abierto = panelAbierto();
+      var nuevos = r.data.filter(function (a) { return a.nueva && ms(a.fecha) > ultimaFecha; });
+      /* Con la bandeja abierta se conserva el resaltado de lo que ya se estaba viendo. */
+      var resaltados = {};
+      if (abierto) avisos.forEach(function (a) { if (a.nueva) resaltados[a.id] = 1; });
+      avisos = r.data;
+      if (abierto) avisos.forEach(function (a) { if (resaltados[a.id]) a.nueva = true; });
+      if (avisos.length && ms(avisos[0].fecha) > ultimaFecha) ultimaFecha = ms(avisos[0].fecha);
+      if (boton) boton.style.display = '';
+      if (abierto) {
+        pintarPanel();
+        if (nuevos.length) sb.rpc('notif_marcar_vistas').then(function () {}, function () {});
+      } else {
+        pintarGlobo(avisos.filter(function (a) { return a.nueva; }).length);
+        if (!primera) avisarNuevos(nuevos);
+      }
+      primera = false;
+    } catch (e) { /* sin conexión: se reintenta */ }
+    finally { revisando = false; }
+  }
+  function alCambiarSesion() {
+    if (sesionAbierta()) { setTimeout(revisar, 1500); return; }
+    /* Sesión cerrada: se limpia todo para el siguiente usuario. */
+    cerrarPanel();
+    avisos = []; ultimaFecha = 0; primera = true; perfilDe = '';
+    pintarGlobo(0);
+    if (boton) boton.style.display = 'none';
+  }
+
+  function init() {
+    montarCampana();
+    var login = $('login-page');
+    if (login) new MutationObserver(alCambiarSesion).observe(login, { attributes: true, attributeFilter: ['class'] });
+    setTimeout(alCambiarSesion, 3000);
+    setInterval(revisar, REVISAR_MS);
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') revisar(); });
+    window.addEventListener('resize', cerrarPanel);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
