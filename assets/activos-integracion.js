@@ -43,9 +43,9 @@
     E + '.nav-item.active .badge{background:rgba(255,255,255,.25);color:#fff}' +
     E + 'body.dark-mode .nav-item:not(.active) .badge{background:rgba(140,160,255,.22);color:#d3daff}' +
     E + '.main-content{margin-left:0!important;width:100%!important;height:auto!important;flex:1;min-height:0;padding:0 2px 16px!important;background:transparent!important}' +
+    /* Sin campana propia: los avisos de Activos salen en la campanita del Monitor
+       (js/app-notificaciones.js). La de Activos queda dentro de .topbar-user, que va oculto. */
     E + '.topbar-user{display:none!important}' +
-    E + '.sidebar .topbar-actions{position:relative}' +
-    E + '.sidebar .notif-panel{top:46px}' +
     E + '#ajustes .settings-group:has(.theme-selector){display:none}' +
     E + '#act-estado{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:10000;font-family:Poppins,sans-serif}' +
     E + '#act-estado div{background:var(--card-bg);color:var(--text-main);border:1px solid var(--border-color);border-radius:18px;padding:22px 26px;font-size:13px;max-width:420px;text-align:center;box-shadow:var(--shadow)}' +
@@ -154,12 +154,6 @@
   }
   function aPadre(msg) { try { window.parent.postMessage(msg, location.origin); } catch (e) {} }
 
-  /* La campana de notificaciones pasa a la barra de pestañas (la tarjeta de usuario se oculta). */
-  function moverCampana() {
-    var a = document.querySelector('.topbar-actions'), s = document.querySelector('.sidebar');
-    if (a && s && a.parentNode !== s) s.appendChild(a);
-  }
-
   /* App Android: contadores en 0 ocultos y la pestaña elegida siempre a la vista en la franja. */
   function afinarApk() {
     if (!APK) return;
@@ -244,7 +238,6 @@
       if (perfil.role === 'viewer') {
         var sr = document.getElementById('session-rol'); if (sr) sr.textContent = 'Consulta';
       }
-      moverCampana();
       afinarApk();
       aplicarTema(oscuro);
       estado(null);
