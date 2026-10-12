@@ -15,23 +15,28 @@
   'use strict';
 
   var A = window.GKAndroid;
-  var esApk = !!A || / GKApp\//.test(navigator.userAgent);
+  /* App de iPhone / iPad (PWA instalada): js/app-ios.js deja window.GKIos y aquí se usa el mismo diseño. */
+  var IOS = window.GKIos || null;
+  var esApk = !!A || / GKApp\//.test(navigator.userAgent) || !!IOS;
   if (!esApk) return;
   var html = document.documentElement;
   html.classList.add('gk-apk');
 
   var URL_INFO = 'https://xlygkolfmetytowixtnb.supabase.co/storage/v1/object/public/app-releases/latest.json';
-  var tieneActualizador = !!(A && typeof A.buscarActualizacion === 'function');
+  var tieneActualizador = !!(A && typeof A.buscarActualizacion === 'function') || !!IOS;
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   };
-  var versionApp = function () { try { return A && A.version ? A.version() : '1.0'; } catch (e) { return '1.0'; } };
+  var versionApp = function () { if (IOS) return IOS.version; try { return A && A.version ? A.version() : '1.0'; } catch (e) { return '1.0'; } };
 
   /* ---------- 3) Tema ---------- */
-  function avisarTema() { try { if (A && A.tema) A.tema(html.getAttribute('data-theme') === 'dark'); } catch (e) {} }
+  function avisarTema() {
+    var oscuro = html.getAttribute('data-theme') === 'dark';
+    try { if (IOS) IOS.tema(oscuro); else if (A && A.tema) A.tema(oscuro); } catch (e) {}
+  }
   new MutationObserver(avisarTema).observe(html, { attributes: true, attributeFilter: ['data-theme'] });
 
   /* ---------- 2) Botón Atrás ---------- */
@@ -63,6 +68,7 @@
 
   /* ---------- 4) Actualizaciones ---------- */
   function buscarActualizacion() {
+    if (IOS) { IOS.buscarActualizacion(); return; }
     if (tieneActualizador) { try { A.buscarActualizacion(); } catch (e) {} return; }
     revisarLegado(true);
   }
@@ -211,7 +217,7 @@
      anchas se mezclaban los dos diseños. Ahí se fija la página en 768 px de ancho y Android
      la escala para llenar la pantalla; se vuelve a revisar al girar el teléfono. */
   var MEDIA_MOVIL = '(max-width: 768px), (max-height: 500px) and (max-width: 1024px)';
-  var ANCHO_MAX = 768, NORMAL = 'width=device-width, initial-scale=1.0';
+  var ANCHO_MAX = 768, NORMAL = IOS ? IOS.viewport : 'width=device-width, initial-scale=1.0';
   function ajustarAncho() {
     var m = document.querySelector('meta[name="viewport"]');
     if (!m || !window.matchMedia) return;
@@ -220,7 +226,7 @@
       setTimeout(ajustarAncho, 250);   /* medir con el ancho real del dispositivo */
       return;
     }
-    if (!window.matchMedia(MEDIA_MOVIL).matches) m.setAttribute('content', 'width=' + ANCHO_MAX);
+    if (!window.matchMedia(MEDIA_MOVIL).matches) m.setAttribute('content', 'width=' + ANCHO_MAX + (IOS ? ', viewport-fit=cover' : ''));
   }
   function vigilarGiro() {
     ajustarAncho();

@@ -5468,7 +5468,7 @@ async function decObj(obj,fields){
 /* Descifrar array */
 async function decArr(arr,fields){
   var res=[];
-  if(!window.GKAndroid){
+  if(!window.GKAndroid&&!window.GKIos){
     for(var obj of arr)res.push(await decObj(obj,fields));
     return res;
   }
@@ -6504,7 +6504,7 @@ async function loadDataFromSupabase(){
     toast('⏳ Cargando datos…');
     var audDec,tarDec;
     /* App Android: copia local + solo lo que cambió (ver _filasConCopiaLocal). */
-    var local=window.GKAndroid?await _filasConCopiaLocal().catch(function(e){console.warn('copia local:',e);return null;}):null;
+    var local=(window.GKAndroid||window.GKIos)?await _filasConCopiaLocal().catch(function(e){console.warn('copia local:',e);return null;}):null;
     if(local){ audDec=local.auditorias; tarDec=local.tareas; }
     else{
       const [{data:aud},{data:tar}]=await Promise.all([
