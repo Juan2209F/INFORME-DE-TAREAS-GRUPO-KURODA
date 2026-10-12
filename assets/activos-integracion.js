@@ -123,9 +123,10 @@
     A + 'table.act-tarjetas td.act-completa::before{display:none}' +
     A + 'table.act-tarjetas td:empty{display:none}' +
     A + 'table.act-tarjetas tr:hover{transform:none}' +
-    /* El panel no puede quedar dentro de la franja (se recortaría): se muestra fijo debajo. */
-    A + '.sidebar .notif-panel{position:fixed!important;top:76px!important;left:10px!important;right:10px!important;width:auto!important;' +
-      'max-height:70vh;overflow-y:auto;z-index:1000}' +
+    /* Remarcado momentáneo del registro al que lleva un aviso de la campanita del Monitor. */
+    '@keyframes act-ambar{0%,60%{background-color:rgba(245,158,11,.38)}}' +
+    E + '.act-resalta{outline:2px solid #f59e0b;outline-offset:-2px;animation:act-ambar 4.5s ease-out}' +
+    E + 'tr.act-resalta>td{animation:act-ambar 4.5s ease-out}' +
     /* Solo consulta (viewer del Monitor): sin controles que crean, modifican o borran. La base de
        datos también lo impide (RLS es_editor_activos), esto solo evita botones que fallarían. */
     [ '[onclick^="resetAssetForm"]', '#btnNuevoLevantamiento', '[onclick^="finalizarInventario"]', '[onclick^="cancelarInventario"]',
@@ -253,7 +254,56 @@
     if (ev.origin !== location.origin || ev.source !== window.parent || !m || typeof m !== 'object') return;
     if (m.type === 'activos-auth') entrar(m);
     else if (m.type === 'theme') aplicarTema(m.dark);
+    else if (m.type === 'activos-enfocar') enfocar(m);
   });
+
+  /* Aviso de la campanita del Monitor (js/app-notificaciones.js): abre la pestaña del registro
+     que cambió, lo deja a la vista y lo remarca en ámbar unos segundos. */
+  var PESTANAS = { activos: 'activos', movimientos: 'movimientos', inventarios: 'inventarios', solicitudes_baja: 'activos' };
+  function abrirPestana(tab) {
+    var nav = Array.prototype.filter.call(document.querySelectorAll('.nav-item'), function (n) {
+      return (n.getAttribute('onclick') || '').indexOf("switchTab('" + tab + "'") >= 0;
+    })[0];
+    if (nav) nav.click();
+  }
+  function remarcar(el) {
+    el.classList.remove('act-resalta');
+    void el.offsetWidth;
+    el.classList.add('act-resalta');
+    if (el.scrollIntoView) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    setTimeout(function () { el.classList.remove('act-resalta'); }, 5200);
+  }
+  async function enfocar(m) {
+    /* Mientras la app termina de abrir no se contesta: el Monitor lo vuelve a pedir. */
+    if (entrando || typeof currentUser === 'undefined' || !currentUser) return;
+    aPadre({ type: 'activos-enfocado' });
+    try { if (typeof recargarDatos === 'function') await recargarDatos(); } catch (e) { /* se busca en lo ya cargado */ }
+    abrirPestana(PESTANAS[m.tabla] || 'activos');
+    var ids = (Array.isArray(m.ids) ? m.ids : []).map(String), el = null;
+    var esDelAviso = function (x) { return ids.indexOf(String(x.id)) >= 0; };
+    if (m.tabla === 'activos') {
+      /* Sin filtros, para que la tarjeta del activo no quede oculta. */
+      var buscar = document.getElementById('search-activo');
+      if (buscar) buscar.value = '';
+      ['filtro-categoria-activo', 'filtro-tienda-activo'].forEach(function (id) {
+        var s = document.getElementById(id);
+        if (s && s.options.length) s.selectedIndex = 0;
+      });
+      if (typeof filtrarActivos === 'function') filtrarActivos();
+      var i = assets.findIndex(esDelAviso), grid = document.getElementById('assets-grid');
+      el = i >= 0 && grid ? grid.children[i] : null;
+      /* Vigentes / dados de baja: se prueba cada opción hasta que la tarjeta se vea. */
+      var est = document.getElementById('filtro-estado-activo');
+      if (el && el.offsetParent === null && est && typeof filtrarActivos === 'function') {
+        for (var k = 0; k < est.options.length && el.offsetParent === null; k++) { est.selectedIndex = k; filtrarActivos(); }
+      }
+    } else if (m.tabla === 'movimientos') {
+      var lista = typeof movimientosRecientes === 'function' ? movimientosRecientes() : [];
+      var j = lista.findIndex(esDelAviso), cuerpo = document.getElementById('movimientos-body');
+      el = j >= 0 && cuerpo ? cuerpo.rows[j] : null;
+    }
+    if (el && el.offsetParent !== null) remarcar(el);
+  }
 
   /* Lo llama el arranque de activos.html en lugar de revisar la sesión guardada. */
   window.activosIntegradoIniciar = function () {
