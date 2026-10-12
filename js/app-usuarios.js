@@ -466,14 +466,6 @@ window.addEventListener('message',function(ev){
   /* La tarjeta 'Cumplimiento por Tienda' de Documentos ahora genera el reporte
      de Cumplimiento del dashboard (generatePpt: KPIs + donut), en vez del
      antiguo reporte de tablas por sucursal. */
-  if(d.type==='run-consumos'){
-    pedirArchivoConsumos();
-    return;
-  }
-  if(d.type==='consumos-download'){
-    generarReporteConsumos();
-    return;
-  }
   if(d.type==='cumpl-init'){
     (async function(){
       try{
