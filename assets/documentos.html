@@ -45,8 +45,8 @@ main{max-width:1600px;margin:0 auto;padding:24px 32px 64px}
 @media (max-width:900px){main{padding:16px 16px 48px}}
 .view{display:none}.view.active{display:block}
 /* HOME */
-.home-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin-top:6px}
-.home-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:26px 22px;cursor:pointer;transition:transform .18s,box-shadow .18s,border-color .18s;text-align:center}
+.home-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:18px;margin-top:6px}
+.home-card{flex:0 1 270px;min-width:220px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:26px 22px;cursor:pointer;transition:transform .18s,box-shadow .18s,border-color .18s;text-align:center}
 .home-card:hover{border-color:transparent;box-shadow:var(--shadow-lg);transform:translateY(-4px)}
 .ill{width:88px;height:88px;margin:0 auto 16px;border-radius:22px;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow)}
 .ill-veh{background:linear-gradient(135deg,#5e72e4,#825ee4)}
@@ -54,7 +54,6 @@ main{max-width:1600px;margin:0 auto;padding:24px 32px 64px}
 .ill-ent{background:linear-gradient(135deg,#fbb140,#fb6340)}
 .ill-ppt{background:linear-gradient(135deg,#1e4fa3,#4f7fd6)}
 .ill-cum{background:linear-gradient(135deg,#2e7d32,#66bb6a)}
-.ill-fuel{background:linear-gradient(135deg,#b45309,#f59e0b)}
 .ill-cel{background:linear-gradient(135deg,#0ea5a4,#0891b2)}
 .ill-pc{background:linear-gradient(135deg,#7c3aed,#a855f7)}
 .ill svg{stroke:#fff!important}
@@ -201,13 +200,6 @@ textarea{resize:vertical;min-height:46px}
       </div>
       <h3>Cumplimiento</h3>
       <p>Reporte de Cumplimiento (PPTX).</p>
-    </div>
-    <div class="home-card" onclick="showView('consumos')">
-      <div class="ill ill-fuel">
-        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 22V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v18M3 22h12M3 10h10"/><path d="M15 8l3 3v7a2 2 0 0 0 2 2 2 2 0 0 0 2-2v-9l-3-3"/></svg>
-      </div>
-      <h3>Consumos de Combustible</h3>
-      <p>Detecta fugas y errores de carga (Excel).</p>
     </div>
   </div>
 </section>
@@ -585,59 +577,6 @@ textarea{resize:vertical;min-height:46px}
     <div class="status" id="cx_status"></div>
   </section>
 
-  <section class="view" id="view-consumos">
-    <div class="badge">⛽ Consumos de Combustible · Excel</div>
-
-    <div class="card">
-      <div class="card-header"><span class="card-icon icon-amber">🔎</span><h2>¿Qué detecta?</h2></div>
-      <div class="card-body">
-        <p style="margin:0 0 10px;font-size:13px;color:var(--muted)">Sube el Excel de consumos y el sistema revisa cada carga para identificar posibles <b>fugas o robos de combustible</b> y <b>errores de carga/captura</b>:</p>
-        <ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text);line-height:1.7">
-          <li><b>Rendimiento anómalo</b> (km/L): muy bajo → posible fuga/robo; muy alto → odómetro erróneo o carga no registrada.</li>
-          <li><b>Precio por litro fuera de rango</b> → error de carga.</li>
-          <li><b>Cargas duplicadas</b> (misma unidad, día y monto).</li>
-          <li><b>Odómetro inconsistente</b> (menor al registro anterior).</li>
-          <li><b>Litros excesivos</b> por carga y <b>valores en cero/negativos</b>.</li>
-          <li><b>Frecuencia atípica</b> de cargas por unidad.</li>
-        </ul>
-        <p style="margin:12px 0 0;font-size:12px;color:var(--muted)">Reconoce automáticamente columnas comunes: Fecha, Vehículo/Placa/Unidad, Litros, Monto, Precio, Odómetro/Km, Estación, Producto. El reporte indica qué columnas encontró.</p>
-      </div>
-    </div>
-
-    <div class="action-bar">
-      <button class="btn btn-docx" onclick="parent.postMessage({type:'run-consumos'},'*')">📂 Cargar Excel y analizar</button>
-    </div>
-
-    <div id="cons_preview" style="display:none">
-      <div class="card">
-        <div class="card-header"><span class="card-icon icon-blue">📊</span><h2>Resumen del análisis</h2>
-          <span id="cons_origen" style="margin-left:auto;font-size:12px;color:var(--muted)"></span></div>
-        <div class="card-body">
-          <div id="cons_kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:14px"></div>
-          <div style="display:grid;grid-template-columns:1fr 1.5fr;gap:14px">
-            <div>
-              <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Por tipo de inconsistencia</div>
-              <div id="cons_tipos"></div>
-            </div>
-            <div>
-              <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Vehículos (todos · haz clic para ver cada carga)</div>
-              <div id="cons_veh" style="max-height:420px;overflow-y:auto;padding-right:4px"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-header"><span class="card-icon icon-amber">🧾</span><h2>Muestra de hallazgos</h2></div>
-        <div class="card-body"><div id="cons_muestra" style="overflow-x:auto"></div></div>
-      </div>
-      <div class="action-bar">
-        <button class="btn btn-docx" onclick="parent.postMessage({type:'consumos-download'},'*')">⬇ Descargar Excel con colores por severidad</button>
-      </div>
-    </div>
-
-    <div class="status" id="consumos_status">Sube el Excel: primero verás un resumen y luego podrás descargar el reporte con colores.</div>
-  </section>
-
 
 </main>
 
@@ -662,8 +601,7 @@ function showView(id){
          cel:['Carta Responsiva de Celular','Completa los campos y descarga'],
          pc:['Carta Responsiva de Equipo de Cómputo','Completa los campos y descarga'],
          ppt:['Actividades de Auditoría','Presentación mensual en PowerPoint'],
-         cumpl:['Cumplimiento','Configura los KPIs y descarga el reporte'],
-         consumos:['Consumos de Combustible','Detecta fugas y errores de carga']}[id];
+         cumpl:['Cumplimiento','Configura los KPIs y descarga el reporte']}[id];
   document.getElementById('hdr-title').textContent=t[0];
   document.getElementById('hdr-sub').textContent=t[1];
   if(id==='ppt')pptInit();   /* pide razones permitidas y datos al dashboard */
@@ -2329,91 +2267,8 @@ function cumplGenerar(){
 /* ═══ Comunicación con el dashboard (datos + permisos de razón social) ═══ */
 var _PPT_DATA=null, _PPT_CFG=null, _pptEsperando=false;
 
-function pintarConsumosPreview(r){
-  if(!r)return;
-  var box=document.getElementById('cons_preview'); if(box)box.style.display='block';
-  var org=document.getElementById('cons_origen'); if(org)org.textContent=(r.nombre||'')+' · '+r.total+' registros';
-  var sevColor=function(s){return s==='Alta'?'#dc2626':s==='Media'?'#d97706':s==='Baja'?'#ca8a04':'#16a34a';};
-  var sevBg=function(s){return s==='Alta'?'#fde2e2':s==='Media'?'#fdeecb':s==='Baja'?'#fbf3c0':'#e7f8ec';};
-  var kpi=function(v,l,c){return '<div style="background:#fff;border:1px solid var(--border);border-left:4px solid '+c+';border-radius:10px;padding:12px 14px"><div style="font-size:24px;font-weight:800;color:'+c+'">'+v+'</div><div style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;margin-top:2px">'+l+'</div></div>';};
-  var k=document.getElementById('cons_kpis');
-  if(k)k.innerHTML=
-    kpi(r.total,'Registros','#334155')+
-    kpi(r.conObs,'Con observación','#2563eb')+
-    kpi(r.alta,'Alta','#dc2626')+
-    kpi(r.media,'Media','#d97706')+
-    kpi(r.baja,'Baja','#ca8a04')+
-    kpi(r.totLit.toLocaleString('es-MX')+' L','Litros','#0d9488');
-  var maxT=(r.tipos[0]&&r.tipos[0].n)||1;
-  var tp=document.getElementById('cons_tipos');
-  if(tp)tp.innerHTML=r.tipos.length? r.tipos.map(function(t){
-    return '<div style="margin-bottom:7px"><div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text)">'+t.k+'</span><b>'+t.n+'</b></div><div style="height:6px;background:#eef2f7;border-radius:4px;overflow:hidden"><div style="height:100%;width:'+Math.round(t.n/maxT*100)+'%;background:#2563eb"></div></div></div>';
-  }).join('') : '<div style="font-size:13px;color:var(--muted)">Sin inconsistencias 🎉</div>';
-
-  /* Vehículos: se listan TODOS (no solo los que tienen observación), ya
-     agrupados sin duplicados por placa normalizada (ver normPlacaKey en el
-     dashboard). Cada fila es clicable y despliega el detalle de cada carga
-     de esa unidad para poder revisarla una por una. */
-  window._consVehData = r.vehiculos || [];
-  var vb=document.getElementById('cons_veh');
-  if(vb)vb.innerHTML = window._consVehData.length ? window._consVehData.map(function(v,i){
-    var color=sevColor(v.sev), badge=v.sev==='OK'?'Bien':v.sev;
-    return '<div style="border-bottom:1px solid var(--border)">'+
-      '<div onclick="toggleConsVeh('+i+')" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:8px 4px;font-size:12.5px">'+
-        '<span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:'+color+';margin-right:7px"></span><b>'+v.placa+'</b> <span style="color:var(--muted)">· '+v.cargas+' carga'+(v.cargas===1?'':'s')+'</span></span>'+
-        '<span style="display:flex;align-items:center;gap:8px"><span style="font-weight:700;color:'+color+'">'+badge+(v.sev!=='OK'?' · '+v.obs:'')+'</span><span id="cons-veh-arrow-'+i+'" style="color:var(--muted);font-size:11px">▾</span></span>'+
-      '</div>'+
-      '<div id="cons-veh-det-'+i+'" style="display:none;padding:2px 4px 12px 20px"></div>'+
-    '</div>';
-  }).join('') : '<div style="font-size:13px;color:var(--muted)">—</div>';
-
-  var mu=document.getElementById('cons_muestra');
-  if(mu)mu.innerHTML= r.muestra.length? '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#0f172a;color:#fff">'+
-    ['#','Fecha','Vehículo','Litros','Monto','Sev.','Observación'].map(function(h){return '<th style="padding:7px 8px;text-align:left">'+h+'</th>';}).join('')+'</tr></thead><tbody>'+
-    r.muestra.map(function(m){return '<tr style="background:'+sevBg(m.sev)+';border-bottom:1px solid #fff"><td style="padding:6px 8px">'+m.fila+'</td><td style="padding:6px 8px">'+(m.fecha||'')+'</td><td style="padding:6px 8px"><b>'+(m.placa||'')+'</b></td><td style="padding:6px 8px">'+(m.litros!=null?m.litros:'')+'</td><td style="padding:6px 8px">'+(m.monto!=null?'$'+m.monto:'')+'</td><td style="padding:6px 8px;font-weight:700;color:'+sevColor(m.sev)+'">'+m.sev+'</td><td style="padding:6px 8px">'+m.obs+'</td></tr>';}).join('')+
-    '</tbody></table>' : '<div style="font-size:13px;color:var(--muted)">No se detectaron inconsistencias.</div>';
-  var st=document.getElementById('consumos_status'); if(st)st.textContent='Análisis listo. Revisa el resumen y descarga el Excel con colores.';
-}
-
-/* Despliega/oculta, con un clic, el detalle de TODAS las cargas de un
-   vehículo (una fila por carga, con su estado individual), para poder
-   revisarlas una por una sin salir del resumen. */
-function toggleConsVeh(i){
-  var det=document.getElementById('cons-veh-det-'+i);
-  var arrow=document.getElementById('cons-veh-arrow-'+i);
-  if(!det)return;
-  var abierto = det.style.display !== 'none';
-  if(abierto){ det.style.display='none'; if(arrow)arrow.textContent='▾'; return; }
-  if(!det.dataset.built){
-    var v=(window._consVehData||[])[i];
-    var sevColor=function(s){return s==='Alta'?'#dc2626':s==='Media'?'#d97706':s==='Baja'?'#ca8a04':'#16a34a';};
-    if(!v||!v.detalle||!v.detalle.length){ det.innerHTML='<div style="font-size:12px;color:var(--muted);padding:6px 0">Sin detalle disponible.</div>'; }
-    else{
-      det.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:11.5px"><thead><tr style="color:var(--muted);text-transform:uppercase;font-size:10px">'+
-        ['Fila','Fecha','Litros','Monto','$/L','Estación','Combustible','Estado'].map(function(h){return '<th style="padding:4px 6px;text-align:left">'+h+'</th>';}).join('')+
-        '</tr></thead><tbody>'+
-        v.detalle.map(function(d){
-          return '<tr style="border-top:1px solid var(--border)" title="'+String(d.obs||'').replace(/"/g,'&quot;')+'">'+
-            '<td style="padding:4px 6px">'+d.fila+'</td>'+
-            '<td style="padding:4px 6px">'+(d.fecha||'')+'</td>'+
-            '<td style="padding:4px 6px">'+(d.litros!=null?d.litros:'—')+'</td>'+
-            '<td style="padding:4px 6px">'+(d.monto!=null?'$'+d.monto:'—')+'</td>'+
-            '<td style="padding:4px 6px">'+(d.precio!=null?'$'+d.precio:'—')+'</td>'+
-            '<td style="padding:4px 6px">'+(d.estacion||'—')+'</td>'+
-            '<td style="padding:4px 6px">'+(d.producto||'—')+'</td>'+
-            '<td style="padding:4px 6px;font-weight:700;color:'+sevColor(d.sev)+'">'+(d.sev==='OK'?'Bien':d.sev)+'</td>'+
-          '</tr>';
-        }).join('')+
-        '</tbody></table>';
-    }
-    det.dataset.built='1';
-  }
-  det.style.display='block'; if(arrow)arrow.textContent='▴';
-}
-
 window.addEventListener('message',function(ev){
   var d=ev.data; if(!d||typeof d!=='object')return;
-  if(d.type==='consumos-preview'){ pintarConsumosPreview(d.resumen); return; }
   if(d.type==='pptx-config'){
     _PPT_CFG=d;
     var rz=document.getElementById('p_razon'), ms=document.getElementById('p_mes');
