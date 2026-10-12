@@ -1,0 +1,28 @@
+/* Campanita y bandeja de notificaciones (js/app-notificaciones.js) */
+.notif-btn{position:relative;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;
+  flex-shrink:0;border-radius:50%;border:1px solid var(--border);background:var(--white);color:var(--txt);
+  font-size:16px;line-height:1;cursor:pointer;transition:background .15s}
+.notif-btn:hover{background:var(--soft)}
+.notif-globo{position:absolute;top:-4px;right:-4px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;
+  background:#dc2626;color:#fff;font-size:10px;font-weight:700;line-height:17px;text-align:center}
+
+.notif-panel{position:fixed;z-index:500;width:340px;max-width:calc(100vw - 16px);background:var(--white);
+  color:var(--txt);border:1px solid var(--border);border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.18);overflow:hidden}
+.notif-cab{padding:12px 16px;font-size:13px;font-weight:700;border-bottom:1px solid var(--border)}
+.notif-permiso{display:block;width:100%;padding:9px 16px;border:0;border-bottom:1px solid var(--border);
+  background:var(--blue-soft);color:var(--blue);font:inherit;font-size:12px;font-weight:600;text-align:left;cursor:pointer}
+.notif-lista{max-height:min(60vh,420px);overflow-y:auto}
+.notif-fila{display:flex;align-items:flex-start;gap:10px;width:100%;padding:10px 16px;border:0;
+  border-bottom:1px solid var(--border);background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.notif-fila:last-child{border-bottom:0}
+.notif-fila:hover{background:var(--soft)}
+.notif-fila.nueva{background:var(--blue-soft)}
+.notif-ico{flex-shrink:0;font-size:17px;line-height:1.3}
+.notif-txt{min-width:0}
+.notif-txt b{display:block;font-size:12.5px;font-weight:600;line-height:1.35}
+.notif-txt small{display:block;margin-top:2px;font-size:11px;color:var(--muted)}
+.notif-vacio{padding:26px 16px;font-size:12.5px;color:var(--muted);text-align:center}
+
+@media (max-width:768px){
+  .notif-btn{width:32px;height:32px;font-size:15px}
+}
