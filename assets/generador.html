@@ -614,7 +614,14 @@
       <div class="col-pill required"><div class="col-dot"></div>Envíos SAP-Beetrack</div>
       <div class="col-pill required"><div class="col-dot"></div>Rutas Pendientes-Beetrack</div>
       <div class="col-pill required"><div class="col-dot"></div>Mermas</div>
+      <div class="col-pill"><div class="col-dot"></div>Entradas por Compra</div>
     </div>
+    <p class="note">
+      <strong>Formato nuevo (desde agosto 2026):</strong> tablas resumen de <em>GERENTES</em> y de <em>ADMINISTRATIVOS</em>,
+      bloques con Gerente + Administrativo + Tienda, columnas % Administrativo / % Gerente, responsables entre paréntesis
+      (ej. "Picking (Alma)") y Corte de Procesos Frogmi. Con esos meses el dashboard agrega diapositivas de cumplimiento
+      de gerentes, administrativos, tiendas y personal responsable. Los meses anteriores se leen igual que antes.
+    </p>
     <p class="note">
       Sube el archivo completo (todas las hojas mensuales). El generador lee cada hoja tal cual está —
       no requiere convertir nada a una tabla plana.<br>
@@ -909,7 +916,7 @@ function canonicalMesLabel(m) {
   return `${name[0].toUpperCase()}${name.slice(1)} ${yearMatch[0]}`;
 }
 
-const PROCESSES = ['Picking','Traspasos','Entrega en Obra','Envíos vs Beetrack','Rutas pendientes','Mermas'];
+const PROCESSES = ['Picking','Traspasos','Entrega en Obra','Envíos vs Beetrack','Rutas pendientes','Mermas','Entradas por Compra'];
 
 // Palabras clave (sin acentos, minúsculas) para encontrar la columna real de
 // cada proceso en el Excel, tolerando variaciones de redacción entre
@@ -923,7 +930,8 @@ const PROCESS_KEYWORDS = {
   'entrega en obra': ['entrega en obra', 'entrega obra'],
   'envios vs beetrack': ['beetrack'],
   'rutas pendientes': ['ruta pendiente', 'rutas pendiente'],
-  'mermas': ['merma']
+  'mermas': ['merma'],
+  'entradas por compra': ['entradas por compra', 'entrada por compra']
 };
 function findProcessColumn(keys, processName) {
   const pNorm = stripAcc(processName);
@@ -1074,10 +1082,28 @@ const CONCEPT_MAP = {
   'mermas':'Mermas',
   'entradas por compra':'Entradas por Compra',
 };
-function normConcept(name) {
-  const key = stripAcc(name).replace(/\s+/g,' ').trim();
-  return CONCEPT_MAP[key] || (name||'').toString().trim();
+// Quita el responsable entre paréntesis del formato nuevo: "Picking (Alma)" → "Picking".
+function conceptBase(name) {
+  return (name||'').toString().replace(/\(.*$/,'').trim();
 }
+function normConcept(name) {
+  const base = conceptBase(name);
+  const key = stripAcc(base).replace(/\s+/g,' ').trim();
+  return CONCEPT_MAP[key] || base;
+}
+// Responsables escritos entre paréntesis en el concepto: "Picking (Omar y Jocelin)" →
+// ["Omar","Jocelin"]. Lo que va dentro de un segundo paréntesis es una nota y se ignora.
+function conceptPeople(name) {
+  const s = (name||'').toString();
+  const i = s.indexOf('(');
+  if (i === -1) return [];
+  const inner = s.slice(i+1).replace(/\([^)]*\)?/g,' ').replace(/\)/g,' ');
+  return inner.split(/\s*(?:,|\/|\by\b|\be\b)\s*/i)
+    .map(p => collapseWs(p))
+    .filter(Boolean)
+    .map(p => p.toLowerCase().replace(/(^|\s)\S/g, ch => ch.toUpperCase()));
+}
+function esVacante(nombre) { return /^vacante/i.test(stripAcc(nombre)); }
 
 const MONTHS_FULL = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 function monthNameFromToken(tok) {
@@ -1103,15 +1129,30 @@ function extractMonthLabel(grid, sheetName) {
   return sheetName;
 }
 
-// Lee la tabla resumen (Tienda / % / Cumplió) que aparece al inicio de cada hoja.
-function parseSummaryTable(grid) {
-  let headerRow = -1;
+// Lee las tablas resumen (Tienda / % / Cumplió) de la hoja. El formato anterior trae una
+// sola (la de la tienda/gerente). El formato nuevo (desde agosto 2026) trae dos, cada una
+// con su título arriba: "... - GERENTES" y "... - ADMINISTRATIVOS".
+function parseSummaryTables(grid) {
+  const out = { gerente: [], admin: [] };
   for (let r = 0; r < grid.length; r++) {
-    if (grid[r] && (grid[r][0]||'').toString().trim().toLowerCase() === 'tienda' &&
-        (grid[r][1]||'').toString().trim() === '%') { headerRow = r; break; }
+    if (!(grid[r] && (grid[r][0]||'').toString().trim().toLowerCase() === 'tienda' &&
+        (grid[r][1]||'').toString().trim() === '%')) continue;
+    let tipo = 'gerente';
+    for (let k = 1; k <= 3 && r-k >= 0; k++) {
+      const t = stripAcc(grid[r-k] && grid[r-k][0]);
+      if (t.includes('administrativ')) { tipo = 'admin'; break; }
+      if (t.includes('gerente')) break;
+    }
+    if (out[tipo].length) continue; // si se repite un título, vale la primera tabla
+    out[tipo] = parseSummaryTable(grid, r);
   }
+  return out;
+}
+
+// Lee una tabla resumen a partir de su fila de encabezado.
+function parseSummaryTable(grid, headerRow) {
   const out = [];
-  if (headerRow === -1) return out;
+  if (headerRow === undefined || headerRow === -1) return out;
   for (let r = headerRow+1; r < grid.length; r++) {
     const row = grid[r] || [];
     const raw = row[0];
@@ -1141,12 +1182,21 @@ function parseStoreBlocks(grid) {
       if (!m) continue;
       const tiendaRaw = collapseWs(m[1]);
       let gerente = null;
-      const above = (grid[r-1] && grid[r-1][c]) ? grid[r-1][c].toString().trim() : '';
+      const cellAt = (rr, cc) => (grid[rr] && grid[rr][cc] !== null && grid[rr][cc] !== undefined) ? grid[rr][cc].toString().trim() : '';
+      const above = cellAt(r-1, c);
+      // Formato nuevo: "Gerente: X" / "Administrativo: Y" / "Tienda: Z", con dos columnas
+      // de % por concepto (Administrativo y Gerente) y totales con Corte de Procesos Frogmi.
+      const am = above.match(/^administrativ[oa]s?\s*:\s*(.*)$/i);
+      if (am) {
+        const gm2 = cellAt(r-2, c).match(/^(?:gerente|administrador)\s*:\s*(.+)$/i);
+        blocks.push(parseNewStoreBlock(grid, r, c, tiendaRaw, gm2 ? collapseWs(gm2[1]) : null, collapseWs(am[1]) || null));
+        continue;
+      }
       const gm = above.match(/^(?:gerente|administrador)\s*:\s*(.+)$/i);
       if (gm) gerente = gm[1].trim();
 
       let dataStart = r+1;
-      const headerCell = (grid[r+1] && grid[r+1][c]) ? grid[r+1][c].toString().trim().toLowerCase() : '';
+      const headerCell = cellAt(r+1, c).toLowerCase();
       if (headerCell === 'concepto') dataStart = r+2;
 
       const procesos = {};
@@ -1176,10 +1226,105 @@ function parseStoreBlocks(grid) {
   return blocks;
 }
 
+// Bloque del formato nuevo. Columnas: Concepto | % Administrativo | % Gerente.
+// Filas de concepto (con responsables entre paréntesis) y luego los totales:
+// "Total Procesos" (ambas columnas), "Calificación Administrativo" (80%),
+// "Total Corte de Procesos Frogmi" (20%) y "Calificación Total Administrativo".
+function parseNewStoreBlock(grid, r, c, tiendaRaw, gerente, administrativo) {
+  const txt = (rr, cc) => (grid[rr] && grid[rr][cc] !== null && grid[rr][cc] !== undefined) ? grid[rr][cc].toString().trim() : '';
+  const num = (rr, cc) => toNum(grid[rr] ? grid[rr][cc] : null);
+  let dataStart = r+1;
+  if (stripAcc(txt(r+1, c)) === 'concepto') dataStart = r+2;
+
+  const filas = [];
+  let adminTotal = null, gerTotal = null, frogmiPts = null, adminFinal = null;
+  for (let rr = dataStart; rr < Math.min(dataStart+16, grid.length); rr++) {
+    const concepto = txt(rr, c);
+    if (!concepto) break;
+    const k = stripAcc(concepto);
+    const vA = num(rr, c+1), vG = num(rr, c+2);
+    if (k.startsWith('total procesos')) { adminTotal = vA; gerTotal = vG; continue; }
+    if (k.includes('frogmi')) { frogmiPts = vA; continue; }
+    if (k.startsWith('calificacion total')) { adminFinal = vA; break; }
+    if (k.startsWith('calificacion')) continue;
+    filas.push({ concepto, admin: vA, ger: vG });
+  }
+
+  // Cada columna reparte el 100% entre los conceptos que sí califica (5 × 20%, 6 × 16.7%,
+  // 4 × 25%…). Se lleva cada concepto a 0–100% de SU peso; si un proceso se repite en la
+  // tienda (ej. dos filas de Traspasos), se promedian.
+  const porProceso = key => {
+    const n = filas.filter(f => f[key] !== null).length;
+    const sum = {}, cnt = {};
+    filas.forEach(f => {
+      if (f[key] === null) return;
+      const p = normConcept(f.concepto);
+      sum[p] = (sum[p]||0) + Math.min(f[key]*n*100, 100);
+      cnt[p] = (cnt[p]||0) + 1;
+    });
+    const out = {};
+    for (const p in sum) out[p] = Math.round(sum[p]/cnt[p]*10)/10;
+    return out;
+  };
+  const gerPct = porProceso('ger');
+  const procesos = {};
+  for (const [p,v] of Object.entries(gerPct)) procesos[p] = v/500; // misma escala 0–0.2 del formato anterior
+
+  const responsables = [];
+  filas.forEach(f => {
+    const v = f.admin !== null ? f.admin : f.ger;
+    conceptPeople(f.concepto).forEach(nombre => responsables.push({
+      nombre, proceso: normConcept(f.concepto), cumple: v === null ? null : v > 0, vacante: esVacante(nombre),
+    }));
+  });
+
+  const esAuditoria = filas.length > 0 && filas.every(f => f.ger === null) && gerTotal !== null;
+  return {
+    tiendaRaw, tiendaNorm: normStore(tiendaRaw), gerente, administrativo, formatoNuevo: true,
+    procesos, procesosRaw: filas.map(f => ({ concepto: f.concepto, valor: f.ger, admin: f.admin })),
+    total: gerTotal, esAuditoria,
+    adminProcesos: porProceso('admin'), adminTotal, adminFinal,
+    frogmi: frogmiPts !== null ? frogmiPts / 0.2 : null,
+    responsables,
+  };
+}
+
+const r1 = v => (v === null || v === undefined || !Number.isFinite(Number(v))) ? null : Math.round(v*1000)/10; // 0–1 → % con 1 decimal
+
+// Datos de personal (formato nuevo) que se guardan con el registro de la tienda.
+function buildPersonal(b, a) {
+  if (!b || !b.formatoNuevo) return null;
+  const adminPct = a && a.pct !== null ? r1(a.pct) : r1(b.adminFinal);
+  return {
+    gerente: b.gerente, administrativo: b.administrativo,
+    adminPct,
+    adminCumplio: a && a.cumplio ? a.cumplio : (adminPct !== null ? (adminPct > 79 ? 'Si' : 'No') : null),
+    adminProcesosPct: r1(b.adminTotal),
+    frogmi: r1(b.frogmi),
+    adminProcesos: b.adminProcesos,
+    responsables: b.responsables,
+  };
+}
+
+function matchByStore(list, norm, used) {
+  let i = list.findIndex((x,j) => !(used && used.has(j)) && x.tiendaNorm === norm);
+  if (i === -1) i = list.findIndex((x,j) => !(used && used.has(j)) && x.tiendaNorm && norm &&
+    (norm.includes(x.tiendaNorm) || x.tiendaNorm.includes(norm)));
+  return i;
+}
+
 // Une tabla resumen + bloques de una hoja (un mes) en filas planas.
 function parseMonthSheet(grid, sheetName) {
   const mesLabel = canonicalMesLabel(extractMonthLabel(grid, sheetName));
-  const summary = parseSummaryTable(grid);
+  const tablas = parseSummaryTables(grid);
+  const summary = tablas.gerente;
+  const adminRows = tablas.admin;
+  const adminFor = (b, s) => {
+    if (!b || !b.formatoNuevo || !adminRows.length) return null;
+    let i = matchByStore(adminRows, b.tiendaNorm);
+    if (i === -1 && s) i = matchByStore(adminRows, s.tiendaNorm);
+    return i !== -1 ? adminRows[i] : null;
+  };
   const blocks = parseStoreBlocks(grid);
   const usedBlocks = new Set();
   const rows = [];
@@ -1203,6 +1348,7 @@ function parseMonthSheet(grid, sheetName) {
       'Auditoria': esAuditoria ? 'Si' : 'No',
       'Gerente': b ? b.gerente : null,
       'Detalle': b ? b.procesosRaw : [],
+      'Personal': buildPersonal(b, adminFor(b, s)),
     };
     if (b && !esAuditoria) for (const [k,v] of Object.entries(b.procesos)) row[k] = v;
     rows.push(row);
@@ -1218,6 +1364,7 @@ function parseMonthSheet(grid, sheetName) {
       'Auditoria': b.esAuditoria ? 'Si' : 'No',
       'Gerente': b.gerente,
       'Detalle': b.procesosRaw,
+      'Personal': buildPersonal(b, adminFor(b, null)),
     };
     if (!b.esAuditoria) for (const [k,v] of Object.entries(b.procesos)) row[k] = v;
     rows.push(row);
@@ -1235,6 +1382,9 @@ function parseWorkbookBlocks(workbook) {
     if (!grid.length) continue;
     const summaryCheck = grid.some(r => r && (r[0]||'').toString().trim().toLowerCase() === 'tienda');
     if (!summaryCheck) continue; // hoja sin datos reconocibles, se ignora
+    // Hojas auxiliares (ej. "Hoja1" con una comparación de meses) no son un mes: se ignoran.
+    const mesHoja = stripAcc(canonicalMesLabel(extractMonthLabel(grid, sheetName)));
+    if (!/\d{4}/.test(mesHoja) || !MONTHS_FULL.some(m => mesHoja.startsWith(m))) continue;
     rows = rows.concat(parseMonthSheet(grid, sheetName));
   }
   return rows;
@@ -1554,22 +1704,28 @@ async function buildPptx(d) {
     });
 
     s.addText('DETALLE POR PROCESO', { x:8.4, y:0.9, w:4.6, h:0.38, fontSize:13, bold:true, color:C.navy, fontFace:'Calibri', align:'center' });
+    // Con 7 procesos (formato nuevo) las tarjetas se compactan para no salirse de la diapositiva.
+    const stepP = Math.min(0.97, 5.55 / Math.max(procAvg.length, 1));
+    const cardH = stepP - 0.1;
     procAvg.forEach((p,i) => {
-      const y = 1.38 + i*0.97;
+      const y = 1.38 + i*stepP;
       const col = barColor(p.val);
-      s.addShape(pres.ShapeType.rect, { x:8.4, y, w:4.6, h:0.87, fill:{color:C.white},
+      s.addShape(pres.ShapeType.rect, { x:8.4, y, w:4.6, h:cardH, fill:{color:C.white},
         shadow:{type:'outer', blur:4, offset:2, angle:135, color:'000000', opacity:0.1} });
-      s.addShape(pres.ShapeType.rect, { x:8.4, y, w:0.1, h:0.87, fill:{color:col} });
-      s.addText(p.name, { x:8.6, y:y+0.06, w:2.8, h:0.3, fontSize:10, bold:true, color:C.navy, fontFace:'Calibri' });
-      s.addText(`${fx1(p.val)}%`, { x:11.3, y:y+0.05, w:1.5, h:0.45, fontSize:21, bold:true, color:col, fontFace:'Calibri', align:'right' });
+      s.addShape(pres.ShapeType.rect, { x:8.4, y, w:0.1, h:cardH, fill:{color:col} });
+      s.addText(p.name, { x:8.6, y:y+0.04, w:2.8, h:0.3, fontSize:10, bold:true, color:C.navy, fontFace:'Calibri' });
+      s.addText(`${fx1(p.val)}%`, { x:11.3, y:y+0.03, w:1.5, h:0.42, fontSize:cardH < 0.8 ? 18 : 21, bold:true, color:col, fontFace:'Calibri', align:'right' });
       const barW = 3.8, filled = barW*sn(p.val)/100;
-      s.addShape(pres.ShapeType.rect, { x:8.6, y:y+0.57, w:barW, h:0.15, fill:{color:'E2E8F0'} });
-      s.addShape(pres.ShapeType.rect, { x:8.6, y:y+0.57, w:filled||0.01, h:0.15, fill:{color:col} });
+      s.addShape(pres.ShapeType.rect, { x:8.6, y:y+cardH-0.27, w:barW, h:0.15, fill:{color:'E2E8F0'} });
+      s.addShape(pres.ShapeType.rect, { x:8.6, y:y+cardH-0.27, w:filled||0.01, h:0.15, fill:{color:col} });
     });
     s.addText('N/A excluido del cálculo. Tiendas con auditoría usan esa calificación como promedio del mes.', {
       x:0.3, y:7.0, w:12.7, h:0.3, fontSize:9, color:C.gray1, italic:true, fontFace:'Calibri',
     });
   }
+
+  // ─── SLIDES DE PERSONAL (solo meses con el formato nuevo) ─
+  if (d.personalRecs && d.personalRecs.length) buildPersonalSlides(pres, d.personalRecs);
 
   // ─── SLIDE 7 — INFOGRAFÍA RESUMEN ────────────────────────
   {
@@ -1595,8 +1751,9 @@ async function buildPptx(d) {
     });
 
     s.addText('PROCESOS — PROMEDIO ' + PERIODO_ADJ, { x:0.55, y:3.1, w:8.8, h:0.35, fontSize:11, bold:true, color:C.gold, fontFace:'Calibri' });
+    const stepI = Math.min(0.56, 3.6 / Math.max(procAvg.length, 1));
     procAvg.forEach((p,i) => {
-      const y = 3.55 + i*0.56;
+      const y = 3.55 + i*stepI;
       const barW = 5.5, filled = barW*sn(p.val)/100;
       const col2 = p.val>=80?'66BB6A':p.val>=60?'FFA726':'EF5350';
       s.addText(p.name, { x:0.55, y, w:2.55, h:0.4, fontSize:10, color:C.white, fontFace:'Calibri', valign:'middle' });
@@ -1635,6 +1792,254 @@ async function buildPptx(d) {
   }
 
   return pres;
+}
+
+// ═══════════════════════════════════════════════════════════
+// PERSONAL — Gerentes, Administrativos y Responsables por proceso.
+// Solo usa registros con datos del formato nuevo (r.personal); los meses
+// anteriores no traen administrativo ni responsables y no se incluyen.
+// ═══════════════════════════════════════════════════════════
+const CUMPLE_MIN = 79; // el Excel marca "Cumplió = Si" cuando el % es mayor a 79%
+function esSi(v) { return stripAcc(v) === 'si'; }
+
+function resumenPersonal(recs) {
+  const meses = [...new Set(recs.map(r => r.mes))].sort((a,b) => monthKey(a)-monthKey(b));
+  const ultimo = meses[meses.length-1];
+  const avgOf = obj => avg(meses.map(m => obj[m]).filter(v => v !== null && v !== undefined));
+
+  const ger = new Map(), adm = new Map(), resp = new Map(), vacantes = [];
+  recs.forEach(r => {
+    const p = r.personal, tienda = collapseWs(r.tienda);
+    const gNom = p.gerente || r.gerente || 'Sin asignar';
+    const gk = `${gNom}||${tienda}`;
+    if (!ger.has(gk)) ger.set(gk, { nombre: gNom, tienda, pct: {}, cumplio: {}, audit: {} });
+    const g = ger.get(gk);
+    g.pct[r.mes] = r.promedio; g.cumplio[r.mes] = r.cumplio; g.audit[r.mes] = !!r.auditoria;
+
+    const aNom = p.administrativo || 'Sin asignar';
+    const ak = `${aNom}||${tienda}`;
+    if (!adm.has(ak)) adm.set(ak, { nombre: aNom, asignado: !!p.administrativo, tienda, pct: {}, cumplio: {}, procesos: {}, frogmi: {} });
+    const a = adm.get(ak);
+    a.pct[r.mes] = p.adminPct; a.cumplio[r.mes] = p.adminCumplio; a.procesos[r.mes] = p.adminProcesosPct; a.frogmi[r.mes] = p.frogmi;
+
+    (p.responsables || []).forEach(x => {
+      if (x.vacante) { vacantes.push({ tienda, proceso: x.proceso, mes: r.mes }); return; }
+      if (x.cumple === null || x.cumple === undefined) return;
+      const rk = `${stripAcc(x.nombre)}||${tienda}`;
+      if (!resp.has(rk)) resp.set(rk, { nombre: x.nombre, tienda, eval: 0, ok: 0, procesos: new Set(), fallasMap: new Map() });
+      const o = resp.get(rk);
+      o.eval++; o.procesos.add(x.proceso);
+      if (x.cumple) o.ok++;
+      else {
+        if (!o.fallasMap.has(x.proceso)) o.fallasMap.set(x.proceso, []);
+        o.fallasMap.get(x.proceso).push(r.mes);
+      }
+    });
+  });
+  // "Picking (Ago '26, Sep '26)" — un proceso incumplido en varios meses se lista una sola vez.
+  const fallasTxt = m => [...m.entries()].map(([proc, ms]) => meses.length > 1
+    ? `${proc} (${ms.sort((a,b) => monthKey(a)-monthKey(b)).map(toMonthLabel).join(', ')})` : proc);
+
+  // Orden: % del último mes (quien ya no aparece ese mes va al final), luego promedio.
+  const ult = x => (x.pct[ultimo] === null || x.pct[ultimo] === undefined) ? -1 : x.pct[ultimo];
+  const gerentes = [...ger.values()].map(g => ({ ...g, prom: avgOf(g.pct) }))
+    .sort((a,b) => ult(b) - ult(a) || sn(b.prom) - sn(a.prom));
+  const admins = [...adm.values()].map(a => ({ ...a, prom: avgOf(a.pct) }))
+    .sort((a,b) => ult(b) - ult(a) || sn(b.prom) - sn(a.prom));
+  const responsables = [...resp.values()].map(o => ({ ...o, pctOk: o.eval ? o.ok/o.eval*100 : null, procesos: [...o.procesos], fallas: fallasTxt(o.fallasMap) }))
+    .sort((a,b) => sn(b.pctOk) - sn(a.pctOk) || a.tienda.localeCompare(b.tienda) || a.nombre.localeCompare(b.nombre));
+  return { meses, ultimo, gerentes, admins, responsables, vacantes };
+}
+
+function buildPersonalSlides(pres, recs) {
+  const R = resumenPersonal(recs);
+  const { meses, ultimo } = R;
+  const periodoTxt = meses.length > 1 ? `${meses[0]} – ${ultimo}` : ultimo;
+
+  const header = (s, title) => {
+    s.background = { color: C.off };
+    s.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.3, h:0.65, fill:{color:C.navy} });
+    s.addShape(pres.ShapeType.rect, { x:0, y:0.65, w:13.3, h:0.05, fill:{color:C.gold} });
+    s.addText(title, { x:0.3, y:0, w:12.7, h:0.65, fontSize:18, bold:true, color:C.white, fontFace:'Calibri', valign:'middle' });
+  };
+  const kpiStrip = (s, items) => {
+    const w = 12.7 / items.length;
+    items.forEach((k,i) => {
+      const x = 0.3 + i*w;
+      s.addShape(pres.ShapeType.rect, { x, y:0.85, w:w-0.15, h:0.85, fill:{color:C.white},
+        shadow:{type:'outer', blur:4, offset:2, angle:135, color:'000000', opacity:0.1} });
+      s.addShape(pres.ShapeType.rect, { x, y:0.85, w:0.08, h:0.85, fill:{color:k.col||C.teal} });
+      s.addText(k.val, { x:x+0.15, y:0.88, w:w-0.35, h:0.48, fontSize:20, bold:true, color:k.col||C.navy, fontFace:'Calibri', valign:'middle' });
+      s.addText(k.label, { x:x+0.15, y:1.33, w:w-0.35, h:0.32, fontSize:10, color:C.gray1, fontFace:'Calibri', valign:'top' });
+    });
+  };
+  const base = { fontSize:10, fontFace:'Calibri', color:C.navy, valign:'middle', margin:0.04 };
+  const cell = (text, o={}) => ({ text: String(text), options: Object.assign({}, base, o) });
+  const hcell = text => cell(text, { bold:true, color:C.white, fill:{color:C.navy}, align:'center', fontSize:10 });
+  const pctCell = (v, suf='') => (v === null || v === undefined)
+    ? cell('—', { align:'center', color:'999999' })
+    : cell(`${Math.round(v)}%${suf}`, { align:'center', bold:true, fill:{color:heatFill(v)}, color:heatTextColor(v) });
+  const estadoCell = si => si === null || si === undefined
+    ? cell('—', { align:'center', color:'999999' })
+    : (si ? cell('✔ Cumple', { align:'center', bold:true, color:'1B5E20', fill:{color:'E8F5E9'} })
+          : cell('✘ No cumple', { align:'center', bold:true, color:'B71C1C', fill:{color:'FFEBEE'} }));
+  const zebra = (row, i) => row.map(c => (c.options.fill ? c : { ...c, options: { ...c.options, fill:{color: i%2 ? 'F1F5F9' : C.white} } }));
+  const tableOpts = (x, y, w, colW, nRows, maxH) => ({
+    x, y, w, colW, rowH: Math.min(0.36, maxH / Math.max(nRows,1)), autoPage:false,
+    border:{ type:'solid', pt:0.5, color:'CBD5E1' }, fontFace:'Calibri',
+  });
+  const cumpleDe = (cumplio, pct) => cumplio ? esSi(cumplio) : (pct === null || pct === undefined ? null : pct > CUMPLE_MIN);
+  const mesCols = meses.map(m => toMonthLabel(m));
+
+  // ─── GERENTES ───────────────────────────────────────────
+  {
+    const s = pres.addSlide();
+    header(s, `CUMPLIMIENTO DE GERENTES — ${periodoTxt.toUpperCase()}`);
+    const G = R.gerentes;
+    const Gu = G.filter(g => g.pct[ultimo] !== null && g.pct[ultimo] !== undefined); // evaluados en el último mes
+    const cumplen = Gu.filter(g => cumpleDe(g.cumplio[ultimo], g.pct[ultimo]));
+    const promG = avg(Gu.map(g => g.pct[ultimo]));
+    const mejor = [...Gu].sort((a,b) => b.pct[ultimo] - a.pct[ultimo])[0];
+    kpiStrip(s, [
+      { val: `${Gu.length}`, label: `Gerentes evaluados en ${toMonthLabel(ultimo)}`, col: C.navy },
+      { val: `${cumplen.length} de ${Gu.length}`, label: `Cumplen en ${toMonthLabel(ultimo)} (más de ${CUMPLE_MIN}%)`, col: C.green },
+      { val: `${fx1(promG)}%`, label: `Promedio gerentes ${toMonthLabel(ultimo)}`, col: barColor(sn(promG)) },
+      { val: mejor ? `${Math.round(mejor.pct[ultimo])}%` : '—', label: mejor ? `Mejor: ${mejor.nombre} (${mejor.tienda})` : 'Mejor gerente', col: C.teal },
+    ]);
+    const rows = [[hcell('#'), hcell('Gerente'), hcell('Tienda'), ...mesCols.map(hcell), ...(meses.length > 1 ? [hcell('Promedio')] : []), hcell(`Cumplió ${toMonthLabel(ultimo)}`)]];
+    G.forEach((g,i) => rows.push(zebra([
+      cell(i+1, { align:'center' }), cell(g.nombre, { bold:true }), cell(g.tienda),
+      ...meses.map(m => pctCell(g.pct[m], g.audit[m] ? ' (A)' : '')),
+      ...(meses.length > 1 ? [pctCell(g.prom)] : []),
+      estadoCell(cumpleDe(g.cumplio[ultimo], g.pct[ultimo])),
+    ], i)));
+    const fixed = [0.45, 3.4, 3.2], rest = 12.7 - fixed.reduce((a,b)=>a+b,0);
+    const nVar = meses.length + (meses.length > 1 ? 1 : 0) + 1;
+    s.addTable(rows, tableOpts(0.3, 1.9, 12.7, [...fixed, ...Array(nVar).fill(rest/nVar)], rows.length, 5.1));
+    s.addText('Calificación del gerente = cumplimiento de los procesos de su tienda (columna % Gerente del Excel). (A) = tienda calificada por auditoría ese mes.', {
+      x:0.3, y:7.08, w:12.7, h:0.3, fontSize:9, color:C.gray1, italic:true, fontFace:'Calibri',
+    });
+  }
+
+  // ─── ADMINISTRATIVOS ────────────────────────────────────
+  {
+    const s = pres.addSlide();
+    header(s, `CUMPLIMIENTO DE ADMINISTRATIVOS — ${periodoTxt.toUpperCase()}`);
+    const A = R.admins;
+    const Au = A.filter(a => a.pct[ultimo] !== null && a.pct[ultimo] !== undefined); // evaluados en el último mes
+    const conNombre = Au.filter(a => a.asignado);
+    const cumplen = Au.filter(a => cumpleDe(a.cumplio[ultimo], a.pct[ultimo]));
+    const promA = avg(Au.map(a => a.pct[ultimo]));
+    const personas = new Set(conNombre.map(a => a.nombre)).size;
+    const sinAsignar = Au.length - conNombre.length;
+    kpiStrip(s, [
+      { val: `${personas}`, label: `Administrativos en ${toMonthLabel(ultimo)} (${conNombre.length} tiendas)`, col: C.navy },
+      { val: `${cumplen.length} de ${Au.length}`, label: `Tiendas que cumplen en ${toMonthLabel(ultimo)}`, col: C.green },
+      { val: `${fx1(promA)}%`, label: `Calificación promedio ${toMonthLabel(ultimo)}`, col: barColor(sn(promA)) },
+      { val: `${sinAsignar}`, label: 'Tiendas sin administrativo asignado', col: sinAsignar ? C.orange : C.gray1 },
+    ]);
+    const prevMeses = meses.slice(0, -1);
+    const rows = [[hcell('#'), hcell('Administrativo'), hcell('Tienda'), ...prevMeses.map(m => hcell(toMonthLabel(m))),
+      hcell('Procesos (80%)'), hcell('Frogmi (20%)'), hcell(`Calificación ${toMonthLabel(ultimo)}`), hcell('Cumplió')]];
+    A.forEach((a,i) => rows.push(zebra([
+      cell(i+1, { align:'center' }), cell(a.nombre, { bold: a.asignado, italic: !a.asignado, color: a.asignado ? C.navy : C.gray1 }), cell(a.tienda),
+      ...prevMeses.map(m => pctCell(a.pct[m])),
+      pctCell(a.procesos[ultimo]), pctCell(a.frogmi[ultimo]), pctCell(a.pct[ultimo]),
+      estadoCell(cumpleDe(a.cumplio[ultimo], a.pct[ultimo])),
+    ], i)));
+    const fixed = [0.45, 3.0, 2.9], rest = 12.7 - fixed.reduce((a,b)=>a+b,0);
+    const nVar = prevMeses.length + 4;
+    s.addTable(rows, tableOpts(0.3, 1.9, 12.7, [...fixed, ...Array(nVar).fill(rest/nVar)], rows.length, 5.1));
+    s.addText('Calificación administrativo = Procesos × 80% + Corte de Procesos Frogmi × 20%. Un mismo administrativo puede llevar más de una tienda.', {
+      x:0.3, y:7.08, w:12.7, h:0.3, fontSize:9, color:C.gray1, italic:true, fontFace:'Calibri',
+    });
+  }
+
+  // ─── TIENDAS QUE CUMPLEN: GERENTE VS ADMINISTRATIVO ─────
+  {
+    const s = pres.addSlide();
+    header(s, `TIENDAS QUE CUMPLEN — GERENTE VS ADMINISTRATIVO (${ultimo.toUpperCase()})`);
+    const recsU = recs.filter(r => r.mes === ultimo).sort((a,b) => sn(b.promedio) - sn(a.promedio));
+    const lbl = recsU.map(r => { const t = collapseWs(r.tienda); return t.length > 16 ? t.slice(0,15)+'.' : t; });
+    s.addChart(pres.ChartType.bar, [
+      { name:'Gerente', labels: lbl, values: recsU.map(r => Math.round(sn(r.promedio))) },
+      { name:'Administrativo', labels: lbl, values: recsU.map(r => Math.round(sn(r.personal.adminPct))) },
+    ], {
+      x:0.3, y:0.85, w:8.2, h:6.3, barDir:'bar', barGrouping:'clustered',
+      chartColors:[C.navy, C.teal],
+      chartArea:{fill:{color:C.white}, roundedCorners:true}, plotArea:{fill:{color:C.white}},
+      catAxisLabelColor:C.navy, catAxisLabelFontSize:9, catAxisOrientation:'maxMin',
+      valAxisLabelColor:C.gray1, valAxisMinVal:0, valAxisMaxVal:100,
+      valGridLine:{color:'E2E8F0', size:0.5}, catGridLine:{style:'none'},
+      showValue:true, dataLabelFontSize:8, dataLabelColor:C.navy,
+      showLegend:true, legendPos:'t', legendFontSize:10,
+    });
+    const gOk = r => cumpleDe(r.cumplio, r.promedio), aOk = r => cumpleDe(r.personal.adminCumplio, r.personal.adminPct);
+    const ambos = recsU.filter(r => gOk(r) && aOk(r));
+    const uno = recsU.filter(r => !!gOk(r) !== !!aOk(r));
+    const ninguno = recsU.filter(r => !gOk(r) && !aOk(r));
+    const grupos = [
+      { t:`✔ CUMPLEN AMBOS (${ambos.length})`, col:'2E7D32', fill:'E8F5E9', items: ambos.map(r => collapseWs(r.tienda)) },
+      { t:`◐ CUMPLE SOLO UNO (${uno.length})`, col:'E65100', fill:'FFF3E0', items: uno.map(r => `${collapseWs(r.tienda)} — ${gOk(r) ? 'Gerente' : 'Administrativo'}`) },
+      { t:`✘ NO CUMPLE NINGUNO (${ninguno.length})`, col:'C62828', fill:'FFEBEE', items: ninguno.map(r => collapseWs(r.tienda)) },
+    ];
+    let y = 0.85;
+    grupos.forEach(gp => {
+      const h = 0.42 + Math.max(gp.items.length, 1) * 0.22;
+      s.addShape(pres.ShapeType.rect, { x:8.75, y, w:4.3, h, fill:{color:gp.fill}, line:{color:gp.col, width:1} });
+      s.addText(gp.t, { x:8.85, y:y+0.04, w:4.1, h:0.32, fontSize:11, bold:true, color:gp.col, fontFace:'Calibri' });
+      s.addText(gp.items.length ? gp.items.map(t => ({ text:t, options:{ bullet:true, breakLine:true } })) : 'Ninguna', {
+        x:8.85, y:y+0.36, w:4.1, h:h-0.4, fontSize:9.5, color:C.navy, fontFace:'Calibri', valign:'top', paraSpaceAfter:0,
+      });
+      y += h + 0.15;
+    });
+  }
+
+  // ─── RESPONSABLES POR PROCESO ───────────────────────────
+  {
+    const P = R.responsables;
+    const cumplen = P.filter(p => p.ok === p.eval);
+    const pendientes = P.filter(p => p.ok < p.eval).sort((a,b) => a.pctOk - b.pctOk || a.tienda.localeCompare(b.tienda));
+    const POR_HOJA = 14;
+    const nHojas = Math.max(1, Math.ceil(Math.max(cumplen.length, pendientes.length) / POR_HOJA));
+    for (let h = 0; h < nHojas; h++) {
+      const s = pres.addSlide();
+      header(s, `PERSONAL RESPONSABLE POR PROCESO — ¿QUIÉN CUMPLE? (${periodoTxt.toUpperCase()})${nHojas > 1 ? `  ${h+1}/${nHojas}` : ''}`);
+      if (h === 0) kpiStrip(s, [
+        { val: `${P.length}`, label: 'Personas responsables evaluadas', col: C.navy },
+        { val: `${cumplen.length}`, label: 'Cumplen todos sus procesos', col: C.green },
+        { val: `${pendientes.length}`, label: 'Con algún proceso incumplido', col: C.red },
+        { val: `${R.vacantes.length}`, label: 'Procesos con puesto vacante', col: R.vacantes.length ? C.orange : C.gray1 },
+      ]);
+      const top = h === 0 ? 1.9 : 0.9, maxH = 7.0 - top - 0.4;
+      const izq = cumplen.slice(h*POR_HOJA, (h+1)*POR_HOJA);
+      const der = pendientes.slice(h*POR_HOJA, (h+1)*POR_HOJA);
+
+      s.addText(`✔ CUMPLEN (${cumplen.length})`, { x:0.3, y:top, w:5.6, h:0.32, fontSize:12, bold:true, color:C.green, fontFace:'Calibri' });
+      const rowsL = [[hcell('Persona'), hcell('Tienda'), hcell('Procesos a su cargo')]];
+      izq.forEach((p,i) => rowsL.push(zebra([cell(p.nombre, { bold:true, fontSize:9 }), cell(p.tienda, { fontSize:9 }), cell(p.procesos.join(', '), { fontSize:8.5 })], i)));
+      if (!izq.length) rowsL.push([cell('—', { align:'center' }), cell(''), cell('')]);
+      s.addTable(rowsL, tableOpts(0.3, top+0.36, 5.6, [1.4, 1.9, 2.3], rowsL.length, maxH));
+
+      s.addText(`✘ CON PROCESOS INCUMPLIDOS (${pendientes.length})`, { x:6.2, y:top, w:6.8, h:0.32, fontSize:12, bold:true, color:C.red, fontFace:'Calibri' });
+      const rowsR = [[hcell('Persona'), hcell('Tienda'), hcell('% cumplido'), hcell('Proceso(s) incumplido(s)')]];
+      der.forEach((p,i) => rowsR.push(zebra([
+        cell(p.nombre, { bold:true, fontSize:9 }), cell(p.tienda, { fontSize:8.5 }),
+        pctCell(p.pctOk), cell(p.fallas.join(' · '), { fontSize:8, color:'B71C1C' }),
+      ], i)));
+      if (!der.length) rowsR.push([cell('—', { align:'center' }), cell(''), cell(''), cell('')]);
+      s.addTable(rowsR, tableOpts(6.2, top+0.36, 6.8, [1.15, 1.75, 0.8, 3.1], rowsR.length, maxH));
+
+      if (h === nHojas-1) {
+        const vacTxt = R.vacantes.length
+          ? `Puestos vacantes en el Excel: ${R.vacantes.map(v => `${v.proceso} (${v.tienda}${meses.length > 1 ? ', '+toMonthLabel(v.mes) : ''})`).join(' · ')}. `
+          : '';
+        s.addText(`${vacTxt}Responsables = nombres entre paréntesis en cada concepto del Excel; se evalúan con la columna % Administrativo.`, {
+          x:0.3, y:7.0, w:12.7, h:0.4, fontSize:8.5, color:C.gray1, italic:true, fontFace:'Calibri', valign:'top',
+        });
+      }
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1705,6 +2110,26 @@ function _gPadre(){ try { const p = window.parent; return p && p !== window && t
 async function _gEnc(v){ const p = _gPadre(); return v && p ? await p.enc(v) : (v || null); }
 async function _gDec(v){ const p = _gPadre(); try { return v && p ? await p.dec(v) : v; } catch(e) { return v; } }
 
+// Datos de personal del formato nuevo (gerente, administrativo y responsables por proceso).
+// Viajan dentro de la columna jsonb "procesos" bajo la llave _personal, CIFRADOS como el
+// gerente, para no requerir columnas nuevas en generador_historial.
+async function _personalOut(rec){
+  const proc = Object.assign({}, rec.procesos || {});
+  delete proc._personal;
+  if (rec.personal) proc._personal = await _gEnc(JSON.stringify(rec.personal));
+  return proc;
+}
+async function _personalIn(procesos){
+  const proc = Object.assign({}, procesos || {});
+  const raw = proc._personal;
+  delete proc._personal;
+  if (!raw) return { procesos: proc, personal: null };
+  let personal = null;
+  try { personal = JSON.parse(raw); }
+  catch(e) { try { personal = JSON.parse(await _gDec(raw)); } catch(e2) { personal = null; } }
+  return { procesos: proc, personal };
+}
+
 // Carga el historial de Supabase para la razón activa hacia HIST_CACHE.
 async function sbFetchHistorial(){
   const razon = (RAZON_ACTIVA || 'GENERAL').toUpperCase();
@@ -1718,12 +2143,16 @@ async function sbFetchHistorial(){
   try {
     const { data, error } = await cli.from('generador_historial').select('*').eq('razon', razon);
     if (error) throw error;
-    HIST_CACHE = await Promise.all((data||[]).map(async r => ({
-      tienda: r.tienda, mes: r.mes, anio: r.anio,
-      promedio: r.promedio, procesos: r.procesos || {},
-      cargadoEn: r.cargado_en, auditoria: !!r.auditoria,
-      gerente: await _gDec(r.gerente), cumplio: r.cumplio, detalle: r.detalle || [],
-    })));
+    HIST_CACHE = await Promise.all((data||[]).map(async r => {
+      const { procesos, personal } = await _personalIn(r.procesos);
+      return {
+        tienda: r.tienda, mes: r.mes, anio: r.anio,
+        promedio: r.promedio, procesos,
+        cargadoEn: r.cargado_en, auditoria: !!r.auditoria,
+        gerente: await _gDec(r.gerente), cumplio: r.cumplio, detalle: r.detalle || [],
+        personal,
+      };
+    }));
     setSbStatus('ok');
   } catch(e) {
     console.warn('No se pudo leer el historial de Supabase, usando respaldo local', e);
@@ -1746,7 +2175,7 @@ async function sbPersistHistorial(data){
   try {
     const rows = await Promise.all(data.map(async r => ({
       razon, tienda: r.tienda, tienda_norm: normStore(r.tienda), mes: r.mes, anio: r.anio,
-      promedio: r.promedio, procesos: r.procesos || {}, auditoria: !!r.auditoria,
+      promedio: r.promedio, procesos: await _personalOut(r), auditoria: !!r.auditoria,
       gerente: await _gEnc(r.gerente), cumplio: r.cumplio || null, detalle: r.detalle || [],
       cargado_en: r.cargadoEn || null,
     })));
@@ -1824,7 +2253,7 @@ function lsMergeRows(rows, mesCol, tiendaCol, promedioCol, procCols, forceOverwr
   const existIndex = new Map(existing.map((r,i) => [`${normStore(r.tienda)}||${r.mes}`, i]));
   let added = 0, skipped = 0, updated = 0;
 
-  const PROCESSES_LOCAL = ['Picking','Traspasos','Entrega en Obra','Envíos vs Beetrack','Rutas pendientes','Mermas'];
+  const PROCESSES_LOCAL = PROCESSES;
   const keys = rows.length ? Object.keys(rows[0]) : [];
   const pCols = PROCESSES_LOCAL.map(p => findProcessColumn(keys, p) || p);
 
@@ -1855,7 +2284,8 @@ function lsMergeRows(rows, mesCol, tiendaCol, promedioCol, procCols, forceOverwr
       auditoria: g.rows[0]['Auditoria'] === 'Si',
       gerente: g.rows[0]['Gerente'] || null,
       cumplio: g.rows[0]['Cumplió'] || null,
-      detalle: g.rows[0]['Detalle'] || [] };
+      detalle: g.rows[0]['Detalle'] || [],
+      personal: g.rows[0]['Personal'] || null };
     if (already) {
       existing[existIndex.get(k)] = record;
       updated++;
@@ -2209,32 +2639,41 @@ function renderDetalleCards() {
     return;
   }
 
+  const pctTxt = v => (v === null || v === undefined) ? '' : `${Math.round(v*100)}%`;
   wrap.innerHTML = data.map(r => {
     const detalle = r.detalle && r.detalle.length ? r.detalle : [];
+    const pers = r.personal || null; // formato nuevo: columna % Administrativo además de % Gerente
+    const nCols = pers ? 3 : 2;
     const rowsHtml = detalle.map(d => {
       const isHi = pfVariants && pfVariants.has(d.concepto);
-      const valTxt = (r.auditoria || d.valor === null) ? '' : `${Math.round(d.valor*100)}%`;
+      const valTxt = (r.auditoria || d.valor === null) ? '' : pctTxt(d.valor);
       const valCls = r.auditoria ? 'valor audit-cell' : 'valor';
       return `<tr class="${isHi ? 'detalle-row-highlight' : ''}">
         <td class="concepto">${d.concepto}</td>
+        ${pers ? `<td class="valor">${pctTxt(d.admin)}</td>` : ''}
         <td class="${valCls}">${valTxt}</td>
       </tr>`;
     }).join('');
     const pv = r.promedio !== null ? `${Math.round(r.promedio)}%` : '—';
     const auditBadge = r.auditoria ? '<span class="detalle-badge-audit">AUDITORÍA</span>' : '';
+    const adminTot = pers && pers.adminProcesosPct !== null ? `${Math.round(pers.adminProcesosPct)}%` : '';
+    const adminFoot = pers && pers.adminPct !== null
+      ? `<br>Calif. Administrativo: ${fx1(pers.adminPct)}%${pers.frogmi !== null ? ` (procesos 80% + Frogmi ${fx1(pers.frogmi)}% × 20%)` : ''}${pers.adminCumplio ? ` · Cumplió: ${pers.adminCumplio}` : ''}`
+      : '';
     return `<div class="detalle-card">
       <div class="detalle-card-head">
         ${r.gerente ? `<div class="gerente">Gerente: ${r.gerente}</div>` : ''}
+        ${pers ? `<div class="gerente">Administrativo: ${pers.administrativo || 'Sin asignar'}</div>` : ''}
         <div class="tienda">Tienda: ${r.tienda}${auditBadge}</div>
       </div>
       <table class="detalle-table">
-        <thead><tr><th class="concepto-header">Concepto</th><th class="pct-header">%</th></tr></thead>
+        <thead><tr><th class="concepto-header">Concepto</th>${pers ? '<th class="pct-header" title="Administrativo">% Adm.</th><th class="pct-header" title="Gerente">% Ger.</th>' : '<th class="pct-header">%</th>'}</tr></thead>
         <tbody>
-          ${rowsHtml || '<tr><td colspan="2" style="text-align:center;color:var(--gray-400);padding:0.6rem">Sin detalle por proceso</td></tr>'}
-          <tr class="detalle-total-row"><td></td><td class="valor">${pv}</td></tr>
+          ${rowsHtml || `<tr><td colspan="${nCols}" style="text-align:center;color:var(--gray-400);padding:0.6rem">Sin detalle por proceso</td></tr>`}
+          <tr class="detalle-total-row"><td></td>${pers ? `<td class="valor">${adminTot}</td>` : ''}<td class="valor">${pv}</td></tr>
         </tbody>
       </table>
-      <div class="detalle-card-foot">${r.mes}${r.cumplio ? ` · Cumplió: ${r.cumplio}` : ''}</div>
+      <div class="detalle-card-foot">${r.mes}${r.cumplio ? ` · Cumplió${pers ? ' (Gerente)' : ''}: ${r.cumplio}` : ''}${adminFoot}</div>
     </div>`;
   }).join('');
 }
@@ -2366,7 +2805,7 @@ function renderTrend(tab) {
   const valorDe = (r) => usaProceso ? (r.procesos ? r.procesos[pf] : null) : r.promedio;
 
   const stores = [...new Set(data.map(r=>r.tienda))].sort();
-  const PROCESSES_LOCAL = ['Picking','Traspasos','Entrega en Obra','Envíos vs Beetrack','Rutas pendientes','Mermas'];
+  const PROCESSES_LOCAL = PROCESSES;
 
   if (tab === 'cumplimiento') {
     const cards = stores.map(tienda => {
@@ -2923,23 +3362,29 @@ function processFromRows(rows, mesCol, tiendaCol, promedioCol, procesoFiltro) {
   }).filter(r => r.val !== null);
   ranking.sort((a,b) => b.val - a.val);
 
-  const keys = Object.keys(rows[0]);
+  const keys = [...new Set(rows.flatMap(r => Object.keys(r)))];
   const procCols = PROCESSES.map(p => findProcessColumn(keys, p) || p);
+  const procIdx = procCols.map((col,i) => i).filter(i => rows.some(r => toNum(r[procCols[i]]) !== null));
+  const procNamesSel = procIdx.length ? procIdx.map(i => PROCESSES[i]) : PROCESSES;
+  const procColsSel  = procIdx.length ? procIdx.map(i => procCols[i]) : procCols;
+  // Un proceso sin ningún dato en la selección (ej. "Entradas por Compra" en meses del
+  // formato anterior) se omite en lugar de mostrarse como 0%.
   const procAvg = procCols.map((col, i) => {
     const vals = rows.flatMap(r => {
       const v = toNum(r[col]);
       return v !== null ? [v] : [];
     });
-    const pct = vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length) * 500 : 0;
+    if (!vals.length) return null;
+    const pct = (vals.reduce((a,b)=>a+b,0)/vals.length) * 500;
     return { name: PROCESSES[i], val: Math.min(Math.round(pct * 10) / 10, 100) };
-  });
+  }).filter(Boolean);
   procAvg.sort((a,b) => b.val - a.val);
 
   // Mapa de calor Tienda × Proceso — promedio de cada tienda en cada proceso,
   // a través de todos los meses de la selección (mismo factor ×500 que procAvg).
   const heatProc = {};
   for (const st of stores) {
-    heatProc[st] = procCols.map(col => {
+    heatProc[st] = procColsSel.map(col => {
       const vals = rows.filter(r => (r[tiendaCol]||'').toString().trim()===st)
         .map(r => toNum(r[col])).filter(v => v !== null);
       if (!vals.length) return null;
@@ -2957,7 +3402,7 @@ function processFromRows(rows, mesCol, tiendaCol, promedioCol, procesoFiltro) {
   const worstMonthLabel = monthLabels[worstMonthIdx] || '—';
   const worstMonthVal   = evoValid.length ? Math.min(...evoValid) : 0;
 
-  return { months, monthLabels, evolucion, stores, heatData, heatProc, procNames: PROCESSES, ranking, procAvg,
+  return { months, monthLabels, evolucion, stores, heatData, heatProc, procNames: procNamesSel, ranking, procAvg,
     globalAvg: globalAvg2||0, bestMonthLabel, bestMonthVal, worstMonthLabel, worstMonthVal,
     procesoFiltro: usaProceso ? procesoFiltro : null };
 }
@@ -3110,6 +3555,14 @@ async function generateDashboard() {
     const data = processFromRows(filteredRows, mesCol, tiendaCol, promedioCol, procesoSel);
     const label = buildFilteredLabel();
 
+    // Registros con datos de personal (formato nuevo) dentro de la misma selección.
+    const selMeses = new Set(data.months), selTiendas = new Set(data.stores);
+    data.personalRecs = lsLoad().filter(r => r.personal && selMeses.has(r.mes) && selTiendas.has((r.tienda||'').toString().trim()));
+    if (data.personalRecs.length) {
+      const nm = new Set(data.personalRecs.map(r => r.mes)).size;
+      log('👥', `Gerentes y administrativos: ${nm} mes(es) con el formato nuevo en la selección`, 'done');
+    }
+
     log('✅',`${data.stores.length} tiendas · ${data.months.length} meses en selección`,'done');
     log('📊','Construyendo diapositivas…','active'); setProgress(40);
 
@@ -3117,7 +3570,7 @@ async function generateDashboard() {
     generatedPres = pres;
     fileName = `${rawFileName}_${label.replace(/[^a-zA-Z0-9_\-]/g,'_')}_Dashboard.pptx`;
 
-    log('✅','Diapositivas generadas (7)','done');
+    log('✅',`Diapositivas generadas (${pres.slides ? pres.slides.length : 7})`,'done');
     log('🎨','Aplicando estilos…','active'); setProgress(75);
     await new Promise(r=>setTimeout(r,300));
     log('✅','Estilos aplicados','done');
@@ -3140,6 +3593,20 @@ async function generateDashboard() {
       {label:'Meses del Período',     val:`${data.months.length}`,                 cls:'gold'},
       {label:'Proceso Líder',         val:data.procAvg[0]?.name||'—',             cls:'green', sub:data.procAvg[0]?`${data.procAvg[0].val.toFixed(1)}%`:null},
     ];
+    if (data.personalRecs.length) {
+      const R = resumenPersonal(data.personalRecs);
+      const u = R.ultimo;
+      const evalU = x => x.pct[u] !== null && x.pct[u] !== undefined;
+      const Gu = R.gerentes.filter(evalU), Au = R.admins.filter(evalU);
+      const gOk = Gu.filter(g => g.cumplio[u] ? esSi(g.cumplio[u]) : sn(g.pct[u]) > CUMPLE_MIN).length;
+      const aOk = Au.filter(a => a.cumplio[u] ? esSi(a.cumplio[u]) : sn(a.pct[u]) > CUMPLE_MIN).length;
+      const pOk = R.responsables.filter(p => p.ok === p.eval).length;
+      kpis.push(
+        {label:`Gerentes que cumplen (${toMonthLabel(u)})`,        val:`${gOk} / ${Gu.length}`,             cls:'green'},
+        {label:`Administrativos que cumplen (${toMonthLabel(u)})`, val:`${aOk} / ${Au.length}`,             cls:'teal'},
+        {label:'Responsables que cumplen todo',                    val:`${pOk} / ${R.responsables.length}`, cls:'gold'},
+      );
+    }
     kpis.forEach(k => {
       const card = document.createElement('div');
       card.className = 'kpi-card';
