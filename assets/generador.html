@@ -3086,6 +3086,7 @@ async function downloadAuditWord() {
 let fileName = 'Dashboard_Ejecutivo_Cumplimiento.pptx';
 let rawWorkbook = null;
 let rawFileName = '';
+let generatedData = null; // datos del último dashboard generado
 let allRows = [];      // all parsed rows from Excel
 let allMonths = [];    // all unique months (sorted)
 let allStores = [];    // all unique stores
@@ -3568,6 +3569,7 @@ async function generateDashboard() {
 
     const pres = await buildPptx(data);
     generatedPres = pres;
+    generatedData = data; // para reconstruir la presentación en cada descarga
     fileName = `${rawFileName}_${label.replace(/[^a-zA-Z0-9_\-]/g,'_')}_Dashboard.pptx`;
 
     log('✅',`Diapositivas generadas (${pres.slides ? pres.slides.length : 7})`,'done');
@@ -3668,7 +3670,14 @@ document.getElementById('downloadBtn').addEventListener('click', async () => {
   const btn = document.getElementById('downloadBtn');
   btn.textContent = '⏳ Generando archivo…';
   btn.disabled = true;
-  try { await descargarPptx(generatedPres, fileName); }
+  // PptxGenJS convierte las unidades de las sombras (blur, ángulo, opacidad) sobre los
+  // mismos objetos cada vez que escribe el archivo: descargar dos veces la MISMA
+  // presentación multiplica esos valores y PowerPoint ya no puede abrirla. Por eso se
+  // arma una presentación nueva en cada descarga.
+  try {
+    const pres = generatedData ? await buildPptx(generatedData) : generatedPres;
+    await descargarPptx(pres, fileName);
+  }
   catch(e) { console.error(e); }
   btn.innerHTML = '<span>⬇️</span> Descargar Dashboard en PowerPoint';
   btn.disabled = false;
@@ -3682,6 +3691,7 @@ document.getElementById('resetBtn').addEventListener('click', () => {
   document.getElementById('fileInput').value = '';
   document.getElementById('forceOverwrite').checked = false;
   generatedPres = null;
+  generatedData = null;
   rawWorkbook = null;
   rawFileName = '';
   filterMesesSel = new Set(); filterMesesCustom = false;
