@@ -544,6 +544,142 @@
   .sb-status.checking { background: var(--gray-100); color: var(--gray-600); }
   .sb-status.ok { background: #E8F5E9; color: #2E7D32; }
   .sb-status.error { background: #FFEBEE; color: #C62828; cursor: help; }
+
+  /* ══ Asistente de 3 pasos (Cargar y Generar) ══ */
+  .wz { width: 100%; max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 1rem; }
+  .wz-steps { list-style: none; display: flex; gap: .5rem; padding: 0; }
+  .wz-steps li { flex: 1; display: flex; align-items: center; gap: .55rem; padding: .7rem .9rem; border-radius: 10px;
+    background: var(--white); border: 1px solid var(--gray-200); color: var(--gray-400); font-weight: 600; font-size: .85rem; cursor: pointer; }
+  .wz-steps li span { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--gray-100); color: var(--gray-600); font-size: .8rem; flex-shrink: 0; }
+  .wz-steps li.active { border-color: var(--teal); color: var(--gray-800); }
+  .wz-steps li.active span { background: var(--teal); color: #fff; }
+  .wz-steps li.done span { background: var(--teal-light); color: var(--teal); }
+  .wz-panel { background: var(--white); border: 1px solid var(--gray-200); border-radius: 14px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.1rem; }
+  .wz-panel[hidden] { display: none; }
+  .wz-title { font-size: 1.25rem; font-weight: 700; color: var(--gray-800); }
+  .wz-help { font-size: .85rem; color: var(--gray-400); margin-top: -.6rem; }
+  .wz-h3 { font-size: .9rem; font-weight: 700; color: var(--gray-800); margin-bottom: .6rem; }
+  .wz-datos { border-radius: 10px; padding: .9rem 1rem; background: var(--teal-light); color: var(--gray-800); font-size: .9rem; line-height: 1.5; }
+  .wz-datos.vacio { background: var(--gold-light); }
+  .wz-upload { padding: 1.6rem 1rem; }
+  .wz-incompleto { display: inline-block; margin-top: .4rem; color: var(--orange); }
+  .wz-field > label.wz-check { text-transform: none; letter-spacing: 0; font-weight: 400; font-size: inherit; color: inherit; }
+  .wz-upload .upload-icon { font-size: 1.8rem; }
+  .wz-details { font-size: .82rem; color: var(--gray-600); }
+  .wz-details summary { cursor: pointer; font-weight: 600; color: var(--teal); }
+  .wz-details p { margin-top: .5rem; line-height: 1.6; }
+  .wz-nav { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding-top: .4rem; border-top: 1px solid var(--gray-200); }
+  .wz-btn { font: inherit; font-size: .9rem; font-weight: 600; padding: .7rem 1.2rem; border-radius: 10px; border: 1px solid var(--gray-200); background: var(--white); color: var(--gray-800); cursor: pointer; }
+  .wz-btn:hover { background: var(--gray-50); }
+  .wz-btn.primary { background: var(--teal); border-color: var(--teal); color: #fff; }
+  .wz-btn.primary:hover { filter: brightness(.95); }
+  .wz-btn:disabled { opacity: .45; cursor: not-allowed; }
+  .wz-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+  @media (max-width: 800px) { .wz-grid { grid-template-columns: 1fr; } .wz-steps li { font-size: .75rem; } }
+  .wz-field { display: flex; flex-direction: column; gap: .35rem; }
+  .wz-field > label { font-size: .8rem; font-weight: 700; color: var(--gray-600); text-transform: uppercase; letter-spacing: .03em; }
+  .wz-field select, .wz-meta input { font: inherit; font-size: .95rem; padding: .6rem .7rem; border: 1px solid var(--gray-200); border-radius: 8px; background: var(--white); color: var(--gray-800); }
+  .wz-field small { font-size: .75rem; color: var(--gray-400); line-height: 1.4; }
+  .wz-meta { display: flex; align-items: center; gap: .4rem; }
+  .wz-meta input { width: 90px; }
+  .wz-count { font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--gray-400); }
+  .wz-chip-actions { display: flex; gap: .4rem; }
+  .wz-chip-actions button { font: inherit; font-size: .75rem; padding: .25rem .65rem; border-radius: 6px; border: 1px solid var(--gray-200); background: var(--white); color: var(--teal); cursor: pointer; }
+  .wz-chips { display: flex; flex-wrap: wrap; gap: .45rem; }
+  .wz-chip { font-size: .8rem; padding: .4rem .75rem; border-radius: 20px; border: 1px solid var(--gray-200); background: var(--white); color: var(--gray-600); cursor: pointer; user-select: none; }
+  .wz-chip.on { background: var(--teal-light); border-color: var(--teal); color: var(--teal); font-weight: 600; }
+  .wz-checks { display: grid; grid-template-columns: repeat(2, 1fr); gap: .5rem; }
+  @media (max-width: 800px) { .wz-checks { grid-template-columns: 1fr; } }
+  .wz-check { display: flex; gap: .6rem; align-items: flex-start; padding: .65rem .8rem; border: 1px solid var(--gray-200); border-radius: 10px; cursor: pointer; }
+  .wz-check input { margin-top: 3px; accent-color: var(--teal); }
+  .wz-check b { display: block; font-size: .87rem; color: var(--gray-800); }
+  .wz-check span { font-size: .76rem; color: var(--gray-400); }
+  .wz-check.fijo { background: var(--gray-50); cursor: default; }
+  .wz-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; }
+  @media (max-width: 800px) { .wz-kpis { grid-template-columns: repeat(2, 1fr); } }
+  .wz-kpi { border: 1px solid var(--gray-200); border-radius: 12px; padding: .85rem 1rem; }
+  .wz-kpi .v { font-size: 1.6rem; font-weight: 700; line-height: 1.1; }
+  .wz-kpi .l { font-size: .78rem; color: var(--gray-400); margin-top: .25rem; }
+  .wz-kpi.ok .v { color: var(--green); } .wz-kpi.warn .v { color: var(--orange); } .wz-kpi.bad .v { color: var(--red); }
+  .wz-aviso { font-size: .82rem; padding: .7rem .9rem; border-radius: 10px; background: var(--gold-light); color: var(--gray-800); }
+  .wz-res-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 1.25rem; align-items: start; }
+  @media (max-width: 900px) { .wz-res-grid { grid-template-columns: 1fr; } }
+  .wz-table-wrap { overflow-x: auto; border: 1px solid var(--gray-200); border-radius: 10px; }
+  .wz-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  .wz-table th { text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; color: var(--gray-400); padding: .55rem .7rem; border-bottom: 1px solid var(--gray-200); white-space: nowrap; }
+  .wz-table td { padding: .5rem .7rem; border-bottom: 1px solid var(--gray-100); color: var(--gray-800); }
+  .wz-table td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .wz-table tr:last-child td { border-bottom: none; }
+  .wz-pill { display: inline-block; font-size: .72rem; font-weight: 700; padding: .15rem .55rem; border-radius: 20px; white-space: nowrap; }
+  .wz-pill.ok { background: rgba(46,125,50,.12); color: var(--green); }
+  .wz-pill.warn { background: rgba(230,81,0,.12); color: var(--orange); }
+  .wz-pill.bad { background: rgba(198,40,40,.12); color: var(--red); }
+  .wz-pill.na { background: var(--gray-100); color: var(--gray-400); }
+  .wz-up { color: var(--green); } .wz-down { color: var(--red); } .wz-eq { color: var(--gray-400); }
+  .wz-slides { padding-left: 1.2rem; font-size: .85rem; color: var(--gray-800); line-height: 1.9; margin-bottom: 1rem; }
+  .wz-slides small { color: var(--gray-400); }
+  .wz-chip.fijo { cursor: default; opacity: .9; outline: 2px solid var(--teal); outline-offset: 1px; }
+  .wz-evo { display: flex; flex-direction: column; gap: .9rem; }
+  .wz-evo[hidden], #wzAnual[hidden], .wz-aviso[hidden] { display: none; }
+  #wzAnual { display: flex; flex-direction: column; gap: .5rem; }
+  .wz-bars { display: flex; flex-direction: column; gap: .4rem; }
+  .wz-plot { position: relative; height: 200px; display: flex; align-items: flex-end; gap: .6rem; border-bottom: 1px solid var(--gray-200); }
+  .wz-bar { flex: 1; height: 100%; display: flex; justify-content: center; align-items: flex-end; }
+  .wz-bar .b { width: 70%; max-width: 70px; border-radius: 6px 6px 0 0; display: flex; justify-content: center; align-items: flex-start; min-height: 4px; }
+  .wz-bar .b span { color: #fff; font-size: .78rem; font-weight: 700; margin-top: .3rem; white-space: nowrap; }
+  .wz-bar .b.ok { background: var(--green); } .wz-bar .b.warn { background: var(--orange); } .wz-bar .b.bad { background: var(--red); } .wz-bar .b.na { background: var(--gray-200); }
+  .wz-xlab { display: flex; gap: .6rem; }
+  .wz-xlab > div { flex: 1; text-align: center; line-height: 1.35; }
+  .wz-xlab .m { font-size: .8rem; color: var(--gray-600); }
+  .wz-xlab .m.act { font-weight: 700; color: var(--gray-800); }
+  .wz-xlab .s { font-size: .7rem; color: var(--gray-400); }
+  /* Calendario de meses */
+  .wz-cal-wrap { position: relative; }
+  .wz-cal-btn { font: inherit; font-size: .95rem; width: 100%; text-align: left; display: flex; align-items: center; gap: .5rem;
+    padding: .6rem .75rem; border: 1px solid var(--gray-200); border-radius: 8px; background: var(--white); color: var(--gray-800); cursor: pointer; }
+  .wz-cal-btn:hover { border-color: var(--teal); }
+  .wz-cal-btn .ar { margin-left: auto; color: var(--gray-400); font-size: .8rem; }
+  .wz-cal-btn.ancho { max-width: 560px; }
+  .wz-cal { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; width: 320px; max-width: calc(100vw - 2rem);
+    background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,.16); padding: .8rem; }
+  .wz-cal[hidden] { display: none; }
+  [data-theme="dark"] .wz-cal { background: #141834; }
+  .wz-cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .6rem; }
+  .wz-cal-head strong { font-size: 1rem; color: var(--gray-800); }
+  .wz-cal-head button { font: inherit; font-size: 1.2rem; width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--gray-200); background: var(--white); color: var(--gray-800); cursor: pointer; }
+  .wz-cal-head button:disabled { opacity: .3; cursor: default; }
+  .wz-cal-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .4rem; }
+  .wz-cal-m { font: inherit; font-size: .85rem; padding: .55rem 0; border-radius: 8px; border: 1px solid var(--gray-200); background: var(--white); color: var(--gray-800); cursor: pointer; }
+  .wz-cal-m:hover:not(:disabled) { border-color: var(--teal); }
+  .wz-cal-m.on { background: var(--teal); border-color: var(--teal); color: #fff; font-weight: 700; }
+  .wz-cal-m.fijo { outline: 2px solid var(--gold); outline-offset: 1px; cursor: default; }
+  .wz-cal-m.off { opacity: .35; cursor: not-allowed; }
+  .wz-cal-aviso { font-size: .75rem; color: var(--gray-400); margin-top: .55rem; text-align: center; }
+  .wz-cal-rapidos { display: flex; flex-wrap: wrap; gap: .35rem; justify-content: center; margin-top: .5rem; }
+  .wz-cal-rapidos button { font: inherit; font-size: .72rem; padding: .25rem .55rem; border-radius: 6px; border: 1px solid var(--gray-200); background: var(--white); color: var(--teal); cursor: pointer; }
+  .wz-cal-pie { display: flex; justify-content: flex-end; margin-top: .6rem; }
+  .wz-cal-pie .wz-btn { padding: .4rem .9rem; font-size: .8rem; }
+  .wz-bar { position: relative; }
+  .wz-bar .mk { position: absolute; left: 6%; right: 6%; border-top: 2px dashed var(--gray-600); z-index: 1; pointer-events: none; }
+  .wz-bar .mk span { position: absolute; left: 0; right: 0; top: -1.05rem; text-align: center; font-size: .65rem; font-weight: 700; color: var(--gray-600); }
+  .wz-plot.compacta .wz-bar .b span { font-size: .68rem; }
+  .wz-plot.compacta { gap: .3rem; }
+  /* Tablas que se ajustan al ancho disponible (sin barra horizontal) */
+  .wz-fit { table-layout: fixed; }
+  .wz-fit col.c-tienda { width: 22%; }
+  .wz-fit col.c-cambio { width: 9%; }
+  .wz-fit th, .wz-fit td { overflow: hidden; text-overflow: ellipsis; }
+  .wz-fit td:first-child { white-space: normal; word-break: break-word; }
+  .wz-fit.compacta th, .wz-fit.compacta td { padding: .45rem .3rem; font-size: .76rem; }
+  .wz-fit.muy-compacta th, .wz-fit.muy-compacta td { padding: .4rem .2rem; font-size: .7rem; }
+  .wz-fit.muy-compacta th { letter-spacing: 0; }
+  .wz-fit.compacta .wz-pill, .wz-fit.muy-compacta .wz-pill { padding: .1rem .3rem; font-size: .68rem; }
+  .wz-fit tr.prom td { background: var(--gray-100); }
+  @media (max-width: 700px) { .wz-fit col.c-tienda { width: 30%; } .wz-fit th, .wz-fit td { font-size: .66rem; padding: .35rem .15rem; } }
+  .wz-meta-line { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--gray-600); pointer-events: none; z-index: 1; }
+  .wz-meta-line span { position: absolute; right: 0; top: -1.2rem; font-size: .7rem; font-weight: 700; color: var(--gray-600); }
+  [data-theme="dark"] .wz-panel, [data-theme="dark"] .wz-steps li { background: rgba(255,255,255,.04); backdrop-filter: blur(14px); }
+
 </style>
 </head>
 <body>
@@ -587,141 +723,167 @@
 <main>
 
   <div id="view-cargar" class="gen-view">
+  <div class="wz">
 
-  <!-- Upload -->
-  <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
-    <div class="upload-icon">📊</div>
-    <h2>Carga tu archivo Excel</h2>
-    <p>Arrastra y suelta aquí, o haz clic para seleccionar</p>
-    <div class="ext-badge">.xlsx · .xls</div>
-    <input type="file" id="fileInput" accept=".xlsx,.xls">
-  </div>
+    <ol class="wz-steps" id="wzSteps">
+      <li data-step="1" class="active" onclick="wzGo(1)"><span>1</span>Datos</li>
+      <li data-step="2" onclick="wzGo(2)"><span>2</span>Parámetros</li>
+      <li data-step="3" onclick="wzGo(3)"><span>3</span>Resumen y descarga</li>
+    </ol>
 
-  <label class="force-refresh-check" onclick="event.stopPropagation()">
-    <input type="checkbox" id="forceOverwrite">
-    <span>🔄 Reemplazar meses ya guardados con este archivo <em>(actívalo si necesitas corregir datos de un mes que ya se había cargado)</em></span>
-  </label>
+    <!-- PASO 1 · DATOS -->
+    <section class="wz-panel" id="wzStep1">
+      <h2 class="wz-title">¿Con qué datos trabajamos?</h2>
+      <p class="wz-help">Usa lo que ya está guardado, o sube el Excel del mes para agregarlo.</p>
 
-  <!-- Format guide -->
-  <div class="format-card">
-    <h3>Formato admitido — 1 hoja por mes (ej. "JUNIO 2026")</h3>
-    <div class="columns-grid">
-      <div class="col-pill required"><div class="col-dot"></div>Tabla resumen: Tienda / % / Cumplió</div>
-      <div class="col-pill required"><div class="col-dot"></div>Bloques por tienda: Gerente + Concepto/%</div>
-      <div class="col-pill required"><div class="col-dot"></div>Picking</div>
-      <div class="col-pill required"><div class="col-dot"></div>Traspasos</div>
-      <div class="col-pill required"><div class="col-dot"></div>Entrega en Obra</div>
-      <div class="col-pill required"><div class="col-dot"></div>Envíos SAP-Beetrack</div>
-      <div class="col-pill required"><div class="col-dot"></div>Rutas Pendientes-Beetrack</div>
-      <div class="col-pill required"><div class="col-dot"></div>Mermas</div>
-      <div class="col-pill"><div class="col-dot"></div>Entradas por Compra</div>
-    </div>
-    <p class="note">
-      <strong>Formato nuevo (desde agosto 2026):</strong> tablas resumen de <em>GERENTES</em> y de <em>ADMINISTRATIVOS</em>,
-      bloques con Gerente + Administrativo + Tienda, columnas % Administrativo / % Gerente, responsables entre paréntesis
-      (ej. "Picking (Alma)") y Corte de Procesos Frogmi. Con esos meses el dashboard agrega diapositivas de cumplimiento
-      de gerentes, administrativos, tiendas y personal responsable. Los meses anteriores se leen igual que antes.
-    </p>
-    <p class="note">
-      Sube el archivo completo (todas las hojas mensuales). El generador lee cada hoja tal cual está —
-      no requiere convertir nada a una tabla plana.<br>
-      <strong>Sin duplicados:</strong> si vuelves a subir el mismo archivo, los meses ya guardados se omiten
-      automáticamente y solo se agregan los meses nuevos que traiga.
-    </p>
-  </div>
-
-  <!-- Aviso: ya hay datos guardados en la nube, se puede generar sin subir archivo -->
-  <div id="cloudDataNote" class="filter-info" style="display:none;margin-bottom:0.9rem">
-    <strong>☁️ Ya tienes datos guardados en la nube</strong>
-    <span id="cloudDataDesc"></span> — puedes generar el dashboard directamente con los filtros de abajo, sin subir ningún archivo. Sube uno solo si quieres agregar meses nuevos.
-  </div>
-
-  <!-- Filter Panel -->
-  <div id="filterPanel">
-    <h3>🔍 Filtrar razón social, período y tienda</h3>
-    <div class="filter-row">
-      <div class="filter-group" id="filterRazonCargarGroup" style="display:none">
+      <div class="filter-group" id="filterRazonCargarGroup" style="display:none;max-width:320px">
         <label>Razón social</label>
         <select id="filterRazonCargar" onchange="cambiarRazonFrom('filterRazonCargar')"></select>
       </div>
-      <div class="filter-group">
-        <label>Tipo de período</label>
-        <select id="filterType" onchange="updateFilterOptions()">
-          <option value="all">Todo el período</option>
-          <option value="mes">Por Mes (uno o varios)</option>
-          <option value="bimestre">Por Bimestre</option>
-          <option value="semestre">Por Semestre</option>
-          <option value="anio">Por Año</option>
-        </select>
+
+      <div class="wz-datos" id="wzDatos"></div>
+
+      <div class="upload-zone wz-upload" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <div class="upload-icon">📊</div>
+        <h2>Subir Excel del mes</h2>
+        <p>Arrastra el archivo aquí o haz clic para elegirlo (.xlsx)</p>
+        <input type="file" id="fileInput" accept=".xlsx,.xls">
       </div>
-      <div class="filter-group" id="filterValueGroup" style="display:none">
-        <label id="filterValueLabel">Período</label>
-        <select id="filterValue"></select>
+      <label class="force-refresh-check" onclick="event.stopPropagation()">
+        <input type="checkbox" id="forceOverwrite">
+        <span>Reemplazar meses que ya estaban guardados <em>(úsalo para corregir datos de un mes)</em></span>
+      </label>
+
+      <div id="statusArea">
+        <div class="status-header">
+          <div class="spinner" id="spinner"></div>
+          <div id="statusTitle">Procesando datos…</div>
+        </div>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressBar"></div></div>
+        <div class="log-lines" id="logLines"></div>
       </div>
-      <div class="filter-group" id="filterMesesGroup" style="display:none">
-        <label>Meses</label>
-        <div class="ms-dropdown" id="filterMesesDropdown">
-          <button type="button" class="ms-dropdown-btn" onclick="toggleFilterMesesDropdown()" id="filterMesesBtn">Todos los meses ▾</button>
-          <div class="ms-dropdown-panel" id="filterMesesPanel" style="display:none">
-            <div class="ms-quick-row" id="filterMesesQuick"></div>
-            <div class="ms-checklist" id="filterMesesChecklist"></div>
+
+      <details class="wz-details">
+        <summary>¿Qué Excel acepta?</summary>
+        <p>El archivo de <strong>Cumplimiento de Procesos</strong> con una hoja por mes (ej. "SEPTIEMBRE 2026").
+        Lee la tabla Tienda / % / Cumplió y los bloques de cada tienda. Desde agosto 2026 también lee
+        Gerente, Administrativo, Frogmi y los responsables entre paréntesis (ej. "Picking (Alma)").
+        Si subes el mismo archivo otra vez, los meses ya guardados no se duplican.</p>
+      </details>
+
+      <div class="wz-nav">
+        <span></span>
+        <button class="wz-btn primary" id="wzNext1" onclick="wzGo(2)">Siguiente: parámetros →</button>
+      </div>
+    </section>
+
+    <!-- PASO 2 · PARÁMETROS -->
+    <section class="wz-panel" id="wzStep2" hidden>
+      <h2 class="wz-title">¿Qué quieres en el reporte?</h2>
+      <p class="wz-help">Estos datos definen lo que verás en el resumen y en el PowerPoint.</p>
+
+      <div class="wz-grid">
+        <div class="wz-field">
+          <label>Mes del reporte</label>
+          <select id="pMes" onchange="wzParamChange()" hidden></select>
+          <div class="wz-cal-wrap">
+            <button type="button" class="wz-cal-btn" id="pMesBtn" onclick="wzCalToggle('mes')"></button>
+            <div class="wz-cal" id="calMes" hidden></div>
           </div>
+          <small>El mes que se presenta.</small>
+        </div>
+        <div class="wz-field">
+          <label for="pComp">Comparar contra</label>
+          <select id="pComp" onchange="wzParamChange()">
+            <option value="prev">Mes anterior</option>
+            <option value="yoy">Mismo mes del año anterior</option>
+            <option value="ytd">Promedio del año (meses previos)</option>
+            <option value="none">No comparar</option>
+          </select>
+          <small id="pCompHint"></small>
+        </div>
+        <div class="wz-field">
+          <label for="pMeta">Meta de cumplimiento</label>
+          <div class="wz-meta"><input type="number" id="pMeta" min="50" max="100" step="1" value="80" onchange="wzParamChange()"><span>%</span></div>
+          <small id="pMetaHint"></small>
         </div>
       </div>
-      <div class="filter-group">
-        <label>Tienda</label>
-        <select id="filterStore">
-          <option value="all">Todas las tiendas</option>
-        </select>
+
+
+      <div class="wz-field">
+        <label>Tiendas <span class="wz-count" id="pTiendasCount"></span></label>
+        <div class="wz-chip-actions">
+          <button type="button" onclick="wzTiendasAll(true)">Todas</button>
+          <button type="button" onclick="wzTiendasAll(false)">Ninguna</button>
+        </div>
+        <div class="wz-chips" id="pTiendas"></div>
       </div>
-      <div class="filter-group">
-        <label>Proceso</label>
-        <select id="filterProcess">
-          <option value="all">Todos (promedio general)</option>
-        </select>
+
+      <div class="wz-field">
+        <label>Meses para la evolución <span class="wz-count" id="pEvoCount"></span></label>
+        <div class="wz-cal-wrap">
+          <button type="button" class="wz-cal-btn ancho" id="pEvoBtn" onclick="wzCalToggle('evo')"></button>
+          <div class="wz-cal" id="calEvo" hidden></div>
+        </div>
+        <small>Abre el calendario y marca los meses que quieres comparar (hasta 12). Se muestran en una gráfica y en una tabla por tienda.</small>
+        <label class="wz-check" style="margin-top:.35rem;max-width:560px">
+          <input type="checkbox" id="pEvoAnual" onchange="wzEvoAnual(this.checked)">
+          <div><b>Comparar contra el año anterior</b><span id="pEvoAnualHint">Cada mes elegido junto al mismo mes del año pasado.</span></div>
+        </label>
       </div>
-    </div>
-    <div class="filter-info" id="filterInfo">
-      <strong>Selección actual:</strong> <span id="filterDesc">Todo el período · Todas las tiendas</span>
-    </div>
-    <button class="generate-btn" id="generateBtn">
-      <span>📊</span> Generar Dashboard con los datos ya cargados
-    </button>
+
+      <div class="wz-field">
+        <label>Secciones del PowerPoint</label>
+        <div class="wz-checks" id="pSecciones"></div>
+      </div>
+
+      <div class="wz-nav">
+        <button class="wz-btn" onclick="wzGo(1)">← Atrás</button>
+        <button class="wz-btn primary" onclick="wzGo(3)">Ver resumen →</button>
+      </div>
+    </section>
+
+    <!-- PASO 3 · RESUMEN Y DESCARGA -->
+    <section class="wz-panel" id="wzStep3" hidden>
+      <h2 class="wz-title" id="wzResTitle">Resumen</h2>
+      <p class="wz-help" id="wzResSub"></p>
+
+      <div class="wz-kpis" id="wzKpis"></div>
+      <div class="wz-aviso" id="wzAviso" hidden></div>
+
+      <div class="wz-res-grid">
+        <div>
+          <h3 class="wz-h3">Tiendas</h3>
+          <div class="wz-table-wrap"><table class="wz-table" id="wzTabla"></table></div>
+        </div>
+        <div>
+          <h3 class="wz-h3">Tu PowerPoint tendrá</h3>
+          <ol class="wz-slides" id="wzSlides"></ol>
+          <button class="download-btn" id="downloadBtn"><span>⬇️</span> Descargar PowerPoint</button>
+          <p class="wz-help" id="wzDescargaMsg" style="margin-top:.6rem"></p>
+        </div>
+      </div>
+
+      <div class="wz-evo" id="wzEvo" hidden>
+        <h3 class="wz-h3" id="wzEvoTitulo">Evolución</h3>
+        <div class="wz-bars" id="wzBars"></div>
+        <div class="wz-table-wrap"><table class="wz-table" id="wzEvoTabla"></table></div>
+        <div id="wzAnual" hidden>
+          <h3 class="wz-h3" id="wzAnualTitulo">Comparativo contra el año anterior</h3>
+          <div class="wz-table-wrap"><table class="wz-table" id="wzAnualTabla"></table></div>
+        </div>
+        <div class="wz-aviso" id="wzAnualAviso" hidden></div>
+      </div>
+
+      <div class="wz-nav">
+        <button class="wz-btn" onclick="wzGo(2)">← Cambiar parámetros</button>
+        <span></span>
+      </div>
+    </section>
+
   </div>
-
-  <!-- Status -->
-  <div id="statusArea">
-    <div class="status-header">
-      <div class="spinner" id="spinner"></div>
-      <div id="statusTitle">Procesando datos…</div>
-    </div>
-    <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressBar"></div></div>
-    <div class="log-lines" id="logLines"></div>
-  </div>
-
-  <!-- Preview & download -->
-  <div id="previewArea">
-    <div class="section-label">Vista previa de KPIs</div>
-    <div class="preview-grid" id="kpiGrid"></div>
-
-    <div class="section-label">Diapositivas incluidas</div>
-    <div class="slide-list">
-      <div class="slide-item"><div class="slide-num">1</div>Portada — KPIs clave del período</div>
-      <div class="slide-item"><div class="slide-num">2</div>Resumen Ejecutivo — Evolución mensual de cumplimiento</div>
-      <div class="slide-item"><div class="slide-num">3</div>Mapa de Calor — Tienda × Mes</div>
-      <div class="slide-item"><div class="slide-num">4</div>Mapa de Calor — Tienda × Proceso</div>
-      <div class="slide-item"><div class="slide-num">5</div>Ranking de Tiendas — Promedio del período</div>
-      <div class="slide-item"><div class="slide-num">6</div>Promedio por Proceso</div>
-      <div class="slide-item"><div class="slide-num">7</div>Infografía Resumen</div>
-    </div>
-
-    <button class="download-btn" id="downloadBtn">
-      <span>⬇️</span> Descargar Dashboard en PowerPoint
-    </button>
-    <button class="reset-btn" id="resetBtn">Cargar otro archivo</button>
-  </div>
-
   </div> <!-- /view-cargar -->
+
 
   <!-- Vista: Historial de Cargas -->
   <div id="view-historial" class="gen-view" style="display:none">
@@ -1059,7 +1221,7 @@ function processExcel(workbook) {
 // tabla resumen (Tienda / % / Cumplió) al inicio de cada hoja.
 // Construye filas "planas" con las MISMAS columnas que el resto
 // del script ya espera (Mes, Tienda, Promedio Cumplimiento, y una
-// columna por proceso) — así processFromRows/buildPptx no cambian.
+// columna por proceso).
 // ═══════════════════════════════════════════════════════════
 function stripAcc(s) {
   return (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
@@ -1401,646 +1563,475 @@ function allRowsFromHistory() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// SLIDE BUILDER
+// REPORTE — un solo cálculo que alimenta el resumen en pantalla (paso 3)
+// y el PowerPoint, para que ambos digan exactamente lo mismo.
+// Parámetros: mes, comparación, tiendas, meta y secciones.
 // ═══════════════════════════════════════════════════════════
-async function buildPptx(d) {
+const COMPARACIONES = {
+  prev: 'Mes anterior',
+  yoy:  'Mismo mes del año anterior',
+  ytd:  'Promedio del año',
+  none: 'Sin comparación',
+};
+
+// Semáforo: verde ≥ meta · amarillo hasta 20 puntos abajo · rojo menos.
+function semaforo(v, meta) {
+  if (v === null || v === undefined || !Number.isFinite(Number(v))) return 'na';
+  return v >= meta ? 'ok' : v >= meta - 20 ? 'warn' : 'bad';
+}
+const ESTADO_TXT = { ok: 'Cumple', warn: 'En riesgo', bad: 'No cumple', na: 'Sin dato' };
+
+function histMeses() {
+  return [...new Set(lsLoad().map(r => r.mes).filter(Boolean))].sort((a,b) => monthKey(a) - monthKey(b));
+}
+function mesCorto(m) { return toMonthLabel(m); }
+// "Ene→Sep" (o "Oct '25→Sep '26" si cruza de año), para el encabezado de la columna Cambio.
+function rangoCambio(E) {
+  const a = E[0].mes, b = E[E.length-1].mes, mismo = getYear(a) === getYear(b);
+  const corto = m => mismo ? mesCorto(m).replace(/\s*'\d+$/, '') : mesCorto(m);
+  return `${corto(a)}→${corto(b)}`;
+}
+// "Septiembre 2026" → "Septiembre 2025"
+function mesAnioAnterior(m) {
+  const y = getYear(m);
+  return y ? canonicalMesLabel(m.replace(y, String(Number(y) - 1))) : null;
+}
+
+// Meses contra los que se compara el mes del reporte.
+function mesesComparacion(mes, comp, meses) {
+  const k = monthKey(mes);
+  if (comp === 'prev') { const m = meses.filter(x => monthKey(x) < k).pop(); return m ? { meses:[m], etiqueta:m } : { meses:[], etiqueta:null }; }
+  if (comp === 'yoy')  { const m = meses.find(x => monthKey(x) === k - 12); return m ? { meses:[m], etiqueta:m } : { meses:[], etiqueta:null }; }
+  if (comp === 'ytd')  {
+    const ms = meses.filter(x => getYear(x) === getYear(mes) && monthKey(x) < k);
+    return ms.length ? { meses:ms, etiqueta:`Promedio ${mesCorto(ms[0])}–${mesCorto(ms[ms.length-1])}` } : { meses:[], etiqueta:null };
+  }
+  return { meses:[], etiqueta:null };
+}
+
+function calcularReporte(p) {
+  const H = lsLoad();
+  const meses = histMeses();
+  const enSel = r => p.tiendas.has(collapseWs(r.tienda));
+  const recs = H.filter(r => r.mes === p.mes && enSel(r));
+  const comp = mesesComparacion(p.mes, p.comp, meses);
+  const valComp = tienda => avg(H.filter(r => comp.meses.includes(r.mes) && collapseWs(r.tienda) === tienda && r.promedio !== null).map(r => r.promedio));
+
+  const tiendas = recs.map(r => {
+    const t = collapseWs(r.tienda), pe = r.personal || null;
+    const ant = valComp(t);
+    return {
+      tienda: t,
+      gerente: (pe && pe.gerente) || r.gerente || null,
+      pct: r.promedio,
+      auditoria: !!r.auditoria,
+      ant, delta: (ant !== null && r.promedio !== null) ? r.promedio - ant : null,
+      estado: semaforo(r.promedio, p.meta),
+      admin: pe ? (pe.administrativo || null) : null,
+      adminPct: pe ? pe.adminPct : null,
+      adminProc: pe ? pe.adminProcesosPct : null,
+      frogmi: pe ? pe.frogmi : null,
+      estadoAdm: pe ? semaforo(pe.adminPct, p.meta) : 'na',
+      personal: pe,
+      procesos: r.procesos || {},
+    };
+  }).sort((a,b) => sn(b.pct) - sn(a.pct));
+
+  const cuenta = k => tiendas.filter(t => t.estado === k);
+  const prom = avg(tiendas.map(t => t.pct).filter(v => v !== null));
+  const promAnt = avg(tiendas.map(t => t.ant).filter(v => v !== null));
+  const conAdmin = tiendas.filter(t => t.personal);
+
+  // Responsables por proceso (solo meses con el formato nuevo).
+  const pers = new Map(), vacantes = [];
+  conAdmin.forEach(t => (t.personal.responsables || []).forEach(x => {
+    if (x.vacante) { vacantes.push(`${x.proceso} (${t.tienda})`); return; }
+    if (x.cumple === null || x.cumple === undefined) return;
+    const k = `${stripAcc(x.nombre)}||${t.tienda}`;
+    if (!pers.has(k)) pers.set(k, { nombre: x.nombre, tienda: t.tienda, ok: 0, total: 0, procesos: [], pendientes: [] });
+    const o = pers.get(k); o.total++;
+    if (!o.procesos.includes(x.proceso)) o.procesos.push(x.proceso);
+    if (x.cumple) o.ok++; else if (!o.pendientes.includes(x.proceso)) o.pendientes.push(x.proceso);
+  }));
+  // Una sola lista ordenada por tienda; dentro de cada tienda, primero quienes no cumplen.
+  const personas = [...pers.values()].sort((a,b) =>
+    a.tienda.localeCompare(b.tienda) ||
+    (b.pendientes.length > 0) - (a.pendientes.length > 0) || a.nombre.localeCompare(b.nombre));
+  const conPendientes = personas.filter(o => o.pendientes.length);
+  const alDia = personas.filter(o => !o.pendientes.length);
+
+  // Cumplimiento por proceso en el mes (promedio de las tiendas que lo tienen).
+  const procesos = PROCESSES.map(nombre => {
+    const vals = tiendas.map(t => t.procesos[nombre]).filter(v => v !== null && v !== undefined);
+    return vals.length ? { nombre, val: avg(vals), n: vals.length } : null;
+  }).filter(Boolean).sort((a,b) => b.val - a.val);
+
+  // Evolución: los meses elegidos en Parámetros (por defecto los últimos 6), con el promedio
+  // de las tiendas elegidas y cuántas cumplieron la meta en cada uno.
+  const evoMeses = (p.evoMeses && p.evoMeses.length ? p.evoMeses
+    : meses.filter(m => monthKey(m) <= monthKey(p.mes) && getYear(m) === getYear(p.mes))).slice(-12);
+  const promMes = m => avg(H.filter(r => r.mes === m && enSel(r) && r.promedio !== null).map(r => r.promedio));
+  const metaDe = () => p.meta; // meta general: la misma para todas las tiendas y meses
+  const evolucion = evoMeses.map(m => {
+    const vals = H.filter(r => r.mes === m && enSel(r) && r.promedio !== null).map(r => r.promedio);
+    // Año anterior (solo si se activó en Parámetros): mismo mes, mismas tiendas elegidas.
+    const mesAnt = p.evoAnual ? mesAnioAnterior(m) : null;
+    return { mes: m, val: avg(vals), ok: vals.filter(v => v >= metaDe(m)).length, n: vals.length, meta: metaDe(m),
+      mesAnt, valAnt: mesAnt ? promMes(mesAnt) : null };
+  }).filter(x => x.val !== null);
+  const anual = p.evoAnual ? evolucion.filter(e => e.valAnt !== null) : [];
+  const anualProm = anual.length ? { act: avg(anual.map(e => e.val)), ant: avg(anual.map(e => e.valAnt)) } : null;
+  // Comparativa por tienda: % de cada tienda en cada mes elegido y el cambio del primero al último.
+  const evoTiendas = tiendas.map(t => {
+    const vals = evolucion.map(e => { const r = H.find(x => x.mes === e.mes && collapseWs(x.tienda) === t.tienda); return r ? r.promedio : null; });
+    const validos = vals.filter(v => v !== null);
+    return { tienda: t.tienda, vals, cambio: validos.length > 1 ? validos[validos.length-1] - validos[0] : null };
+  });
+
+  return {
+    p, comp, tiendas, prom, promAnt,
+    delta: (prom !== null && promAnt !== null) ? prom - promAnt : null,
+    ok: cuenta('ok'), warn: cuenta('warn'), bad: cuenta('bad'),
+    hayAdmin: conAdmin.length > 0,
+    admins: conAdmin.slice().sort((a,b) => sn(b.adminPct) - sn(a.adminPct)),
+    adminOk: conAdmin.filter(t => t.estadoAdm === 'ok').length,
+    personas, conPendientes, alDia, vacantes, procesos, evolucion, evoTiendas, anual, anualProm, metaDe,
+  };
+}
+
+// Filas por diapositiva en las tablas: si hay más tiendas o personas, la tabla
+// continúa en otra diapositiva en lugar de apretarse.
+const PEND_POR_HOJA = 14;
+const FILAS_POR_HOJA = 14;
+// Diapositivas que tendrá el PowerPoint con estos parámetros (lo usa el paso 3 y el armado).
+function planDiapositivas(R) {
+  const s = R.p.sec, out = [
+    { k:'portada', t:'Portada', d:`${R.ok.length} de ${R.tiendas.length} tiendas cumplen la meta` },
+    { k:'resumen', t:'Resumen del mes', d:'Cumplen · en riesgo · no cumplen' },
+  ];
+  // Agrega una sección en tantas diapositivas como hagan falta (1/2, 2/2…).
+  const paginado = (k, titulo, d, nFilas, porHoja = FILAS_POR_HOJA) => {
+    const hojas = Math.max(1, Math.ceil(nFilas / porHoja));
+    for (let h = 0; h < hojas; h++) out.push({ k, hoja:h, hojas, porHoja,
+      t: hojas > 1 ? `${titulo} (${h+1}/${hojas})` : titulo, d: h === 0 ? d : 'continuación' });
+  };
+  paginado('tiendas', 'Tiendas', '% de cada tienda, comparación y estado', R.tiendas.length);
+  if (s.admins && R.hayAdmin) paginado('admins', 'Administrativos', 'Procesos 80% + Frogmi 20%', R.admins.length);
+  if (s.responsables && R.hayAdmin)
+    paginado('responsables', 'Personal por proceso', `${R.alDia.length} cumplen · ${R.conPendientes.length} no cumplen`, R.personas.length, PEND_POR_HOJA);
+  if (s.evolucion && R.evolucion.length > 1) {
+    const rango = `${mesCorto(R.evolucion[0].mes)} – ${mesCorto(R.evolucion[R.evolucion.length-1].mes)}`;
+    out.push({ k:'evolucion', t:'Evolución del cumplimiento', d:`${R.evolucion.length} meses (${rango})` });
+    paginado('evoTiendas', 'Comparativa por tienda', '% de cada tienda en cada mes y su cambio', R.evoTiendas.length);
+  }
+  if (s.evolucion && R.p.evoAnual && R.anual.length)
+    out.push({ k:'anual', t:'Comparativo contra el año anterior', d:`${R.anual.length} mes(es) contra el mismo mes del año pasado` });
+  if (s.procesos && R.procesos.length) out.push({ k:'procesos', t:'Cumplimiento por proceso', d:'Promedio de cada proceso' });
+  return out;
+}
+
+// ═══════════════════════════════════════════════════════════
+// POWERPOINT EJECUTIVO — pocas diapositivas, lectura directa.
+// Sin sombras: PptxGenJS las altera al escribir el archivo.
+// ═══════════════════════════════════════════════════════════
+const PX = {
+  navy:'0D1B3E', teal:'008080', gold:'F0A500', white:'FFFFFF', bg:'F6F7FB', line:'E2E8F0',
+  text:'1F2937', mute:'6B7280',
+  ok:'2E7D32', okBg:'E8F5E9', warn:'B45309', warnBg:'FEF3C7', bad:'C62828', badBg:'FDECEA', na:'9CA3AF', naBg:'F3F4F6',
+};
+const FONT = 'Calibri';
+const colEstado = e => ({ ok:[PX.ok,PX.okBg], warn:[PX.warn,PX.warnBg], bad:[PX.bad,PX.badBg], na:[PX.na,PX.naBg] }[e] || [PX.na,PX.naBg]);
+const pctTxt = v => (v === null || v === undefined || !Number.isFinite(Number(v))) ? '—' : `${Math.round(v)}%`;
+const deltaTxt = d => (d === null || d === undefined) ? '—' : (Math.round(d) === 0 ? '= 0' : `${d > 0 ? '▲ +' : '▼ '}${Math.round(d)}`);
+const deltaCol = d => (d === null || d === undefined || Math.round(d) === 0) ? PX.mute : d > 0 ? PX.ok : PX.bad;
+
+async function buildPptxEjecutivo(R) {
+  const p = R.p;
   const pres = new PptxGenJS();
-  pres.layout = 'LAYOUT_WIDE';
+  pres.layout = 'LAYOUT_WIDE'; // 13.33 × 7.5 in
+  const plan = planDiapositivas(R);
+  const total = plan.length;
+  const empresa = razonNombre(RAZON_ACTIVA);
+  const compTxt = R.comp.etiqueta ? `vs ${R.comp.etiqueta}` : '';
+  let n = 0;
 
-  const {months:mnths, monthLabels:mLbls, evolucion:evo, stores,
-         heatData, heatProc, procNames, ranking, procAvg, globalAvg,
-         bestMonthLabel, bestMonthVal, worstMonthLabel, worstMonthVal} = d;
+  const encabezado = (s, titulo, sub) => {
+    n++;
+    s.background = { color: PX.bg };
+    s.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.33, h:0.9, fill:{ color:PX.navy } });
+    s.addText(titulo, { x:0.5, y:0.12, w:9.5, h:0.45, fontFace:FONT, fontSize:22, bold:true, color:PX.white });
+    s.addText(sub || `${p.mes} · ${empresa}`, { x:0.5, y:0.52, w:9.5, h:0.3, fontFace:FONT, fontSize:11, color:'C7D2FE' });
+    s.addText(`Meta: ${p.meta}%`, { x:10.3, y:0.25, w:2.55, h:0.4, fontFace:FONT, fontSize:12, bold:true, color:PX.gold, align:'right' });
+    s.addText(`${n} / ${total}`, { x:11.8, y:7.1, w:1.1, h:0.3, fontFace:FONT, fontSize:9, color:PX.mute, align:'right' });
+  };
+  const celda = (texto, o={}) => ({ text: String(texto), options: Object.assign({ fontFace:FONT, fontSize:11, color:PX.text, valign:'middle', margin:0.05 }, o) });
+  const cab = texto => celda(texto, { bold:true, color:PX.white, fill:{ color:PX.navy }, fontSize:10.5 });
+  const celdaPct = (v, e) => { const [c,bg] = colEstado(e); return celda(pctTxt(v), { align:'center', bold:true, color:c, fill:{ color:bg } }); };
+  const celdaEstado = e => { const [c,bg] = colEstado(e); return celda(ESTADO_TXT[e], { align:'center', bold:true, color:c, fill:{ color:bg } }); };
+  const celdaDelta = d => celda(deltaTxt(d), { align:'center', color:deltaCol(d), bold:true });
+  const tabla = (s, filas, colW, y, maxH) => s.addTable(filas, {
+    x:0.5, y, w:colW.reduce((a,b)=>a+b,0), colW, rowH: Math.min(0.42, maxH / Math.max(filas.length,1)),
+    border:{ type:'solid', pt:0.5, color:PX.line }, fill:{ color:PX.white }, autoPage:false,
+  });
 
-  // Evita la palabra "semestral" cuando el rango de datos supera los 6 meses.
-  const nMesesPeriodo = mnths.length;
-  const esSemestral = nMesesPeriodo <= 6;
-  const PERIODO_ADJ = esSemestral ? 'SEMESTRAL' : 'DEL PERÍODO';       // para títulos en mayúsculas
-  const PERIODO_ADJ_CAP = esSemestral ? 'Semestral' : 'del Período';  // para texto con mayúscula inicial
-  const PERIODO_SUST = esSemestral ? 'Semestre' : 'Período';          // sustantivo capitalizado
-  const PERIODO_SUST_LOW = esSemestral ? 'semestre' : 'período';
+  // Filas de la hoja actual de una sección paginada, y "(1/2)" para el título.
+  const deHoja = (sl, lista) => lista.slice(sl.hoja * sl.porHoja, (sl.hoja + 1) * sl.porHoja);
+  const sufijo = sl => sl.hojas > 1 ? ` (${sl.hoja+1}/${sl.hojas})` : '';
+  const ultimaHoja = sl => sl.hoja === sl.hojas - 1;
 
-  const storesShort = stores.map(s => s.length > 14 ? s.slice(0,13)+'.' : s);
-  const top3 = ranking.slice(0,3);
-  const bot3 = ranking.slice(-3).reverse();
-
-  // ─── SLIDE 1 — PORTADA ────────────────────────────────────
-  {
+  for (const sl of plan) {
     const s = pres.addSlide();
-    s.background = { color: C.navy };
-    s.addShape(pres.ShapeType.rect, { x:0, y:0, w:0.45, h:7.5, fill:{color:C.teal} });
-    s.addShape(pres.ShapeType.rect, { x:0.45, y:0, w:12.85, h:0.08, fill:{color:C.gold} });
 
-    s.addText('DASHBOARD EJECUTIVO', {
-      x:0.7, y:1.5, w:9, h:0.9,
-      fontSize:38, bold:true, color:C.white, fontFace:'Calibri', charSpacing:4,
-    });
-    s.addText(`Cumplimiento de Procesos por Tienda${RAZON_ACTIVA ? '  ·  ' + RAZON_ACTIVA : ''}${d.procesoFiltro ? '  ·  Proceso: ' + d.procesoFiltro : ''}`, {
-      x:0.7, y:2.5, w:9, h:0.5,
-      fontSize:20, color:C.accent, fontFace:'Calibri', italic:true,
-    });
-    s.addShape(pres.ShapeType.rect, { x:0.7, y:3.2, w:5, h:0.65, fill:{color:C.teal} });
-    s.addText(`${PERIODO_SUST}: ${mnths[0]} – ${mnths[mnths.length-1]}`, {
-      x:0.7, y:3.2, w:5, h:0.65,
-      fontSize:13, color:C.white, fontFace:'Calibri', bold:true, align:'center', valign:'middle',
-    });
+    if (sl.k === 'portada') {
+      n++;
+      s.background = { color: PX.navy };
+      s.addShape(pres.ShapeType.rect, { x:0, y:0, w:0.25, h:7.5, fill:{ color:PX.teal } });
+      s.addText('REPORTE DE CUMPLIMIENTO DE PROCESOS', { x:0.8, y:0.9, w:11.5, h:0.5, fontFace:FONT, fontSize:16, bold:true, color:PX.gold, charSpacing:2 });
+      s.addText(p.mes, { x:0.8, y:1.4, w:11.5, h:1.0, fontFace:FONT, fontSize:44, bold:true, color:PX.white });
+      s.addText(empresa, { x:0.8, y:2.35, w:11.5, h:0.45, fontFace:FONT, fontSize:16, color:'C7D2FE' });
+      s.addShape(pres.ShapeType.roundRect, { x:0.8, y:3.4, w:7.6, h:2.4, fill:{ color:'15264F' }, rectRadius:0.12, line:{ color:'2A3F6B', width:1 } });
+      s.addText([
+        { text:`${R.ok.length} de ${R.tiendas.length}`, options:{ fontSize:54, bold:true, color:PX.white, breakLine:true } },
+        { text:`tiendas cumplen la meta del ${p.meta}%`, options:{ fontSize:18, color:'C7D2FE' } },
+      ], { x:1.1, y:3.55, w:7.1, h:2.1, fontFace:FONT, valign:'middle' });
+      s.addShape(pres.ShapeType.roundRect, { x:8.8, y:3.4, w:3.8, h:2.4, fill:{ color:'15264F' }, rectRadius:0.12, line:{ color:'2A3F6B', width:1 } });
+      s.addText([
+        { text:pctTxt(R.prom), options:{ fontSize:48, bold:true, color:PX.white, breakLine:true } },
+        { text:'promedio general', options:{ fontSize:14, color:'C7D2FE', breakLine:true } },
+        { text: R.delta !== null ? `${deltaTxt(R.delta)} pts ${compTxt}` : '', options:{ fontSize:13, bold:true, color: R.delta === null ? 'C7D2FE' : R.delta >= 0 ? '86EFAC' : 'FCA5A5' } },
+      ], { x:9.0, y:3.55, w:3.4, h:2.1, fontFace:FONT, valign:'middle', align:'center' });
+      s.addText(`Generado el ${new Date().toLocaleDateString('es-MX', { day:'numeric', month:'long', year:'numeric' })}`, { x:0.8, y:6.7, w:8, h:0.3, fontFace:FONT, fontSize:10, color:'8899AA' });
+    }
 
-    const best = top3[0] || { name:'—', val:0 };
-    const kpis = [
-      { label:`Promedio ${PERIODO_ADJ_CAP}`, val:`${fx1(globalAvg)}%` },
-      { label:'Mejor Tienda', val:`${(best.name||'—').slice(0,10)}\n${fx1(best.val)}%` },
-      { label:'Mejor Mes', val:`${bestMonthLabel}\n${fx1(bestMonthVal)}%` },
-      { label:'Tiendas Analizadas', val:`${stores.length}` },
-    ];
-    kpis.forEach((k,i) => {
-      const x = 0.7 + i*3.1;
-      s.addShape(pres.ShapeType.rect, { x, y:4.3, w:2.9, h:1.5, fill:{color:'132347'},
-        shadow:{type:'outer', blur:8, offset:3, angle:135, color:'000000', opacity:0.4} });
-      s.addShape(pres.ShapeType.rect, { x, y:4.3, w:2.9, h:0.06, fill:{color:C.gold} });
-      s.addText(k.val, { x, y:4.42, w:2.9, h:0.85, fontSize:17, bold:true, color:C.accent, fontFace:'Calibri', align:'center', valign:'middle' });
-      s.addText(k.label, { x, y:5.27, w:2.9, h:0.5, fontSize:11, color:C.gray2, fontFace:'Calibri', align:'center', valign:'top' });
-    });
-
-    s.addShape(pres.ShapeType.rect, { x:0.45, y:7.3, w:12.85, h:0.2, fill:{color:C.gold} });
-    s.addText(`${razonNombre(RAZON_ACTIVA)} | Reporte ${PERIODO_ADJ_CAP} de Cumplimiento`, {
-      x:0.7, y:7.1, w:12, h:0.25, fontSize:9, color:'8899AA', fontFace:'Calibri', align:'right',
-    });
-  }
-
-  // ─── SLIDE 2 — EVOLUCIÓN MENSUAL ─────────────────────────
-  {
-    const s = pres.addSlide();
-    s.background = { color: C.off };
-    s.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.3, h:0.65, fill:{color:C.navy} });
-    s.addShape(pres.ShapeType.rect, { x:0, y:0.65, w:13.3, h:0.05, fill:{color:C.gold} });
-    s.addText('RESUMEN EJECUTIVO — EVOLUCIÓN ' + PERIODO_ADJ, {
-      x:0.3, y:0, w:12, h:0.65, fontSize:18, bold:true, color:C.white, fontFace:'Calibri', valign:'middle',
-    });
-
-    s.addChart(pres.ChartType.line, [{
-      name:'Cumplimiento Promedio (%)',
-      labels: mLbls,
-      values: evo.map(v => Number.isFinite(v) ? Math.round(v*10)/10 : 0),
-    }], {
-      x:0.4, y:0.85, w:8.8, h:5.8,
-      lineSize:3, lineSmooth:false,
-      chartColors:[C.teal],
-      chartArea:{fill:{color:C.white}, roundedCorners:true},
-      plotArea:{fill:{color:C.white}},
-      catAxisLabelColor:C.gray1, valAxisLabelColor:C.gray1,
-      valGridLine:{color:'E2E8F0', size:0.75}, catGridLine:{style:'none'},
-      showValue:true, dataLabelColor:C.navy, dataLabelFontSize:13,
-      valAxisMinVal:0, valAxisMaxVal:100,
-      showTitle:true, title:'Cumplimiento Promedio Mensual (%)',
-      titleFontSize:13, titleColor:C.navy, showLegend:false,
-    });
-
-    const insights = [
-      { label:'Pico Máximo',    val:bestMonthLabel,  sub:`${fx1(bestMonthVal)}%`,  col:C.green },
-      { label:'Mes Más Bajo',   val:worstMonthLabel, sub:`${fx1(worstMonthVal)}%`, col:C.red },
-      { label:'Promedio General', val:PERIODO_SUST,    sub:`${fx1(globalAvg)}%`,      col:C.teal },
-      { label:'Tiendas',        val:'Analizadas',    sub:`${stores.length}`,             col:C.orange },
-    ];
-    insights.forEach((ins,i) => {
-      const y = 1.1 + i*1.35;
-      s.addShape(pres.ShapeType.rect, { x:9.55, y, w:3.4, h:1.15, fill:{color:C.white},
-        shadow:{type:'outer', blur:5, offset:2, angle:135, color:'000000', opacity:0.1} });
-      s.addShape(pres.ShapeType.rect, { x:9.55, y, w:0.12, h:1.15, fill:{color:ins.col} });
-      s.addText(ins.label, { x:9.75, y:y+0.07, w:3.1, h:0.32, fontSize:11, bold:true, color:ins.col, fontFace:'Calibri' });
-      s.addText(ins.val,   { x:9.75, y:y+0.38, w:3.1, h:0.28, fontSize:11, color:C.gray1, fontFace:'Calibri' });
-      s.addText(ins.sub,   { x:9.75, y:y+0.65, w:3.1, h:0.38, fontSize:18, bold:true, color:C.navy, fontFace:'Calibri' });
-    });
-    s.addText('* Cada punto representa el promedio de cumplimiento de todas las tiendas en ese mes', {
-      x:0.4, y:7.1, w:12, h:0.3, fontSize:9, color:C.gray1, italic:true, fontFace:'Calibri',
-    });
-  }
-
-  // ─── SLIDE 3 — MAPA DE CALOR ─────────────────────────────
-  {
-    const s = pres.addSlide();
-    s.background = { color: C.off };
-    s.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.3, h:0.65, fill:{color:C.navy} });
-    s.addShape(pres.ShapeType.rect, { x:0, y:0.65, w:13.3, h:0.05, fill:{color:C.gold} });
-    s.addText('MAPA DE CALOR — CUMPLIMIENTO POR TIENDA Y MES', {
-      x:0.3, y:0, w:12, h:0.65, fontSize:18, bold:true, color:C.white, fontFace:'Calibri', valign:'middle',
-    });
-
-    const nMonths = mnths.length;
-    const nStores = stores.length;
-    const cellW = Math.min(1.35, (13.3 - 2.3) / nMonths);
-    const cellH = Math.min(0.44, (7.5 - 0.9 - 0.45) / (nStores + 1));
-    const startX = 2.2;
-    const startY = 0.9;
-
-    mLbls.forEach((m,j) => {
-      s.addShape(pres.ShapeType.rect, { x:startX+j*cellW, y:startY, w:cellW-0.04, h:0.36, fill:{color:C.navy} });
-      s.addText(m, { x:startX+j*cellW, y:startY, w:cellW-0.04, h:0.36, fontSize:11, bold:true, color:C.white, fontFace:'Calibri', align:'center', valign:'middle' });
-    });
-
-    stores.forEach((store,i) => {
-      const y = startY + 0.4 + i*cellH;
-      s.addShape(pres.ShapeType.rect, { x:0.08, y, w:2.05, h:cellH-0.04, fill:{color: i%2===0?'E8EDF5':C.white} });
-      s.addText(storesShort[i], { x:0.1, y, w:2.05, h:cellH-0.04, fontSize:9, color:C.navy, fontFace:'Calibri', bold:true, valign:'middle' });
-
-      heatData[store].forEach((val,j) => {
-        const fill = heatFill(val);
-        s.addShape(pres.ShapeType.rect, { x:startX+j*cellW, y, w:cellW-0.04, h:cellH-0.04, fill:{color:fill}, line:{color:C.white, width:1} });
-        s.addText(val!==null?`${val}%`:'—', {
-          x:startX+j*cellW, y, w:cellW-0.04, h:cellH-0.04,
-          fontSize:Math.min(11, cellH*18), bold:true,
-          color:val!==null?heatTextColor(val):'999999',
-          fontFace:'Calibri', align:'center', valign:'middle',
-        });
+    else if (sl.k === 'resumen') {
+      encabezado(s, 'Resumen del mes');
+      const grupos = [
+        { e:'ok',   t:'Cumplen',   lista:R.ok },
+        { e:'warn', t:'En riesgo', lista:R.warn },
+        { e:'bad',  t:'No cumplen', lista:R.bad },
+      ];
+      grupos.forEach((g,i) => {
+        const [c,bg] = colEstado(g.e), x = 0.5 + i*4.15;
+        s.addShape(pres.ShapeType.roundRect, { x, y:1.2, w:3.95, h:4.55, fill:{ color:bg }, line:{ color:c, width:1.25 }, rectRadius:0.08 });
+        s.addText(String(g.lista.length), { x, y:1.3, w:3.95, h:0.9, fontFace:FONT, fontSize:44, bold:true, color:c, align:'center' });
+        s.addText(g.t.toUpperCase(), { x, y:2.15, w:3.95, h:0.35, fontFace:FONT, fontSize:13, bold:true, color:c, align:'center' });
+        // Con muchas tiendas la lista se parte en dos columnas y la letra se reduce.
+        const n = g.lista.length, cols = n > 11 ? 2 : 1, fs = n > 22 ? 8.5 : n > 11 ? 9.5 : n > 8 ? 11 : 12;
+        const porCol = Math.ceil(n / cols), wCol = 3.45 / cols;
+        if (!n) s.addText('Ninguna', { x:x+0.25, y:2.6, w:3.45, h:0.4, fontFace:FONT, fontSize:12, color:PX.mute, align:'center' });
+        for (let ci = 0; ci < cols; ci++) {
+          const parte = g.lista.slice(ci*porCol, (ci+1)*porCol).map(t => ({ text:`${t.tienda}  ${pctTxt(t.pct)}`, options:{ breakLine:true } }));
+          if (parte.length) s.addText(parte, { x:x+0.25 + ci*wCol, y:2.6, w:wCol, h:3.05, fontFace:FONT, fontSize:fs, color:PX.text, valign:'top', align: cols > 1 ? 'left' : 'center' });
+        }
       });
-    });
-
-    const legend = [
-      {col:'A5D6A7', label:'≥ 80% Óptimo'}, {col:'FFF176', label:'60–79% Aceptable'},
-      {col:'FFCC80', label:'40–59% En Riesgo'}, {col:'EF9A9A', label:'< 40% Crítico'},
-    ];
-    s.addText('LEYENDA:', { x:0.2, y:7.05, w:1.0, h:0.28, fontSize:9, bold:true, color:C.navy, fontFace:'Calibri' });
-    legend.forEach((l,i) => {
-      s.addShape(pres.ShapeType.rect, { x:1.25+i*2.8, y:7.1, w:0.28, h:0.2, fill:{color:l.col} });
-      s.addText(l.label, { x:1.58+i*2.8, y:7.1, w:2.3, h:0.2, fontSize:9, color:C.gray1, fontFace:'Calibri', valign:'middle' });
-    });
-  }
-
-  // ─── SLIDE 4 — MAPA DE CALOR TIENDA × PROCESO ────────────
-  {
-    const s = pres.addSlide();
-    s.background = { color: C.off };
-    s.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.3, h:0.65, fill:{color:C.navy} });
-    s.addShape(pres.ShapeType.rect, { x:0, y:0.65, w:13.3, h:0.05, fill:{color:C.gold} });
-    s.addText('MAPA DE CALOR — CUMPLIMIENTO POR TIENDA Y PROCESO', {
-      x:0.3, y:0, w:12, h:0.65, fontSize:18, bold:true, color:C.white, fontFace:'Calibri', valign:'middle',
-    });
-
-    const nProc = procNames.length;
-    const nStores2 = stores.length;
-    const cellW2 = Math.min(1.9, (13.3 - 2.3) / nProc);
-    const cellH2 = Math.min(0.44, (7.5 - 0.9 - 0.45) / (nStores2 + 1));
-    const startX2 = 2.2;
-    const startY2 = 0.9;
-
-    procNames.forEach((p,j) => {
-      s.addShape(pres.ShapeType.rect, { x:startX2+j*cellW2, y:startY2, w:cellW2-0.04, h:0.36, fill:{color:C.navy} });
-      s.addText(p, { x:startX2+j*cellW2, y:startY2, w:cellW2-0.04, h:0.36, fontSize:10, bold:true, color:C.white, fontFace:'Calibri', align:'center', valign:'middle' });
-    });
-
-    stores.forEach((store,i) => {
-      const y = startY2 + 0.4 + i*cellH2;
-      s.addShape(pres.ShapeType.rect, { x:0.08, y, w:2.05, h:cellH2-0.04, fill:{color: i%2===0?'E8EDF5':C.white} });
-      s.addText(storesShort[i], { x:0.1, y, w:2.05, h:cellH2-0.04, fontSize:9, color:C.navy, fontFace:'Calibri', bold:true, valign:'middle' });
-
-      (heatProc[store]||[]).forEach((val,j) => {
-        const fill = heatFill(val);
-        s.addShape(pres.ShapeType.rect, { x:startX2+j*cellW2, y, w:cellW2-0.04, h:cellH2-0.04, fill:{color:fill}, line:{color:C.white, width:1} });
-        s.addText(val!==null?`${val}%`:'—', {
-          x:startX2+j*cellW2, y, w:cellW2-0.04, h:cellH2-0.04,
-          fontSize:Math.min(11, cellH2*18), bold:true,
-          color:val!==null?heatTextColor(val):'999999',
-          fontFace:'Calibri', align:'center', valign:'middle',
-        });
+      const kp = [
+        { v:pctTxt(R.prom), l:'Promedio general' },
+        { v: R.delta !== null ? deltaTxt(R.delta) + ' pts' : '—', l: R.comp.etiqueta ? `Contra ${R.comp.etiqueta}` : 'Sin comparación', c: deltaCol(R.delta) },
+      ];
+      if (R.tiendas.length) kp.push({ v:pctTxt(R.tiendas[0].pct), l:`Mejor: ${R.tiendas[0].tienda}` });
+      if (R.hayAdmin) kp.push({ v:`${R.adminOk} / ${R.admins.length}`, l:'Administrativos que cumplen' });
+      const w = 12.35 / kp.length;
+      kp.forEach((k,i) => {
+        const x = 0.5 + i*w;
+        s.addShape(pres.ShapeType.rect, { x, y:5.95, w:w-0.15, h:1.0, fill:{ color:PX.white }, line:{ color:PX.line, width:0.75 } });
+        s.addText(k.v, { x, y:5.98, w:w-0.15, h:0.55, fontFace:FONT, fontSize:22, bold:true, color:k.c || PX.navy, align:'center' });
+        s.addText(k.l, { x, y:6.5, w:w-0.15, h:0.35, fontFace:FONT, fontSize:10, color:PX.mute, align:'center' });
       });
-    });
+    }
 
-    s.addText('LEYENDA:', { x:0.2, y:7.05, w:1.0, h:0.28, fontSize:9, bold:true, color:C.navy, fontFace:'Calibri' });
-    const legend2 = [
-      {col:'A5D6A7', label:'≥ 80% Óptimo'}, {col:'FFF176', label:'60–79% Aceptable'},
-      {col:'FFCC80', label:'40–59% En Riesgo'}, {col:'EF9A9A', label:'< 40% Crítico'},
-    ];
-    legend2.forEach((l,i) => {
-      s.addShape(pres.ShapeType.rect, { x:1.25+i*2.8, y:7.1, w:0.28, h:0.2, fill:{color:l.col} });
-      s.addText(l.label, { x:1.58+i*2.8, y:7.1, w:2.3, h:0.2, fontSize:9, color:C.gray1, fontFace:'Calibri', valign:'middle' });
-    });
+    else if (sl.k === 'tiendas') {
+      encabezado(s, 'Cumplimiento por tienda' + sufijo(sl));
+      const conComp = !!R.comp.etiqueta;
+      const head = [cab('Tienda'), cab('Gerente'), cab('% Tienda')];
+      if (conComp) head.push(cab(R.comp.meses.length === 1 ? `vs ${mesCorto(R.comp.meses[0])}` : 'vs prom. año'));
+      if (R.hayAdmin) head.push(cab('% Adm.'));
+      head.push(cab('Estado'));
+      const filas = [head];
+      deHoja(sl, R.tiendas).forEach(t => {
+        const f = [celda(t.tienda, { bold:true }), celda(t.gerente || '—', { fontSize:10 }), celdaPct(t.pct, t.estado)];
+        if (conComp) f.push(celdaDelta(t.delta));
+        if (R.hayAdmin) f.push(celdaPct(t.adminPct, t.estadoAdm));
+        f.push(celdaEstado(t.estado));
+        filas.push(f);
+      });
+      const colW = [3.0, 3.1, 1.4]; if (conComp) colW.push(1.4); if (R.hayAdmin) colW.push(1.4); colW.push(1.8);
+      const esc = 12.33 / colW.reduce((a,b)=>a+b,0); for (let i=0;i<colW.length;i++) colW[i] *= esc;
+      tabla(s, filas, colW, 1.15, 5.7);
+      if (ultimaHoja(sl)) s.addText(`% Tienda = calificación del gerente en el Excel.${R.tiendas.some(t=>t.auditoria) ? ' Tiendas calificadas por auditoría: ' + R.tiendas.filter(t=>t.auditoria).map(t=>t.tienda).join(', ') + '.' : ''}${conComp ? ' Comparación en puntos ' + compTxt + '.' : ''}`,
+        { x:0.5, y:6.95, w:11.2, h:0.35, fontFace:FONT, fontSize:9, color:PX.mute, italic:true });
+    }
+
+    else if (sl.k === 'admins') {
+      encabezado(s, 'Administrativos' + sufijo(sl));
+      const filas = [[cab('Administrativo'), cab('Tienda'), cab('Procesos (80%)'), cab('Frogmi (20%)'), cab('Calificación'), cab('Estado')]];
+      deHoja(sl, R.admins).forEach(t => filas.push([
+        celda(t.admin || 'Sin asignar', { bold: !!t.admin, italic: !t.admin, color: t.admin ? PX.text : PX.mute }),
+        celda(t.tienda),
+        celda(pctTxt(t.adminProc), { align:'center' }),
+        celda(pctTxt(t.frogmi), { align:'center' }),
+        celdaPct(t.adminPct, t.estadoAdm),
+        celdaEstado(t.estadoAdm),
+      ]));
+      tabla(s, filas, [3.0, 3.0, 1.6, 1.6, 1.6, 1.53], 1.15, 5.7);
+      s.addText('Calificación = Procesos × 80% + Corte de Procesos Frogmi × 20%.', { x:0.5, y:6.95, w:9, h:0.3, fontFace:FONT, fontSize:9, color:PX.mute, italic:true });
+    }
+
+    else if (sl.k === 'responsables') {
+      encabezado(s, sl.hojas > 1 ? `Personal por proceso (${sl.hoja+1}/${sl.hojas})` : 'Personal por proceso',
+        `${p.mes} · ${R.alDia.length} cumplen · ${R.conPendientes.length} no cumplen`);
+      // Una sola tabla con todas las personas: quién cumple y quién no, y en qué proceso.
+      const lista = R.personas.slice(sl.hoja * PEND_POR_HOJA, (sl.hoja + 1) * PEND_POR_HOJA);
+      const filas = [[cab('Persona'), cab('Tienda'), cab('Procesos a su cargo'), cab('Estado')]];
+      lista.forEach(o => {
+        const e = o.pendientes.length ? 'bad' : 'ok';
+        // Los procesos que no cumplió se marcan en rojo con ✘ dentro de la misma celda.
+        const runs = o.procesos.map((pr, i) => {
+          const falla = o.pendientes.includes(pr), sep = i < o.procesos.length - 1 ? ',  ' : '';
+          return { text: (falla ? '✘ ' : '') + pr + sep, options: { color: falla ? PX.bad : PX.text, bold: falla } };
+        });
+        filas.push([
+          celda(o.nombre, { bold:true }), celda(o.tienda),
+          { text: runs, options: { fontFace:FONT, fontSize:10.5, valign:'middle', margin:0.05 } },
+          celdaEstado(e),
+        ]);
+      });
+      if (!lista.length) filas.push([celda('Sin responsables registrados este mes', { color:PX.mute }), celda(''), celda(''), celda('')]);
+      tabla(s, filas, [2.1, 3.1, 5.33, 1.8], 1.15, 5.6);
+      const pie = [];
+      if (sl.hoja === 0) pie.push('✘ en rojo = proceso que no cumplió.');
+      if (sl.hoja < sl.hojas - 1) pie.push('Continúa en la siguiente diapositiva →');
+      if (sl.hoja === sl.hojas - 1 && R.vacantes.length) pie.push(`Puestos vacantes: ${R.vacantes.join(' · ')}`);
+      if (pie.length) s.addText(pie.join('   '), { x:0.5, y:6.95, w:11, h:0.3, fontFace:FONT, fontSize:9, color:PX.mute, italic:true });
+    }
+
+    else if (sl.k === 'procesos') {
+      encabezado(s, 'Cumplimiento por proceso');
+      const rowH = Math.min(0.62, 5.4 / R.procesos.length);
+      R.procesos.forEach((pr,i) => {
+        const y = 1.3 + i*rowH, e = semaforo(pr.val, p.meta), [c] = colEstado(e);
+        s.addText(pr.nombre, { x:0.5, y, w:3.2, h:rowH, fontFace:FONT, fontSize:13, bold:true, color:PX.text, valign:'middle' });
+        s.addShape(pres.ShapeType.rect, { x:3.8, y:y+rowH*0.22, w:7.4, h:rowH*0.56, fill:{ color:'E5E7EB' }, line:{ color:'E5E7EB', width:0 } });
+        s.addShape(pres.ShapeType.rect, { x:3.8, y:y+rowH*0.22, w:Math.max(7.4*Math.min(pr.val,100)/100, 0.02), h:rowH*0.56, fill:{ color:c }, line:{ color:c, width:0 } });
+        s.addText(pctTxt(pr.val), { x:11.3, y, w:1.5, h:rowH, fontFace:FONT, fontSize:15, bold:true, color:c, valign:'middle' });
+      });
+      const peor = R.procesos[R.procesos.length-1];
+      s.addText(`Proceso más bajo: ${peor.nombre} (${pctTxt(peor.val)}). Promedio de las tiendas que lo califican.`, { x:0.5, y:6.95, w:11, h:0.3, fontFace:FONT, fontSize:9, color:PX.mute, italic:true });
+    }
+
+    else if (sl.k === 'anual') {
+      const A = R.anual, k = A.length;
+      const anioAct = getYear(A[k-1].mes), anioAnt = getYear(A[k-1].mesAnt);
+      encabezado(s, `Comparativo ${anioAct} vs ${anioAnt}`, `Mismos meses, mismas tiendas · ${empresa}`);
+      // Resumen arriba: promedio de los meses comparados en cada año.
+      const dif = R.anualProm.act - R.anualProm.ant;
+      [[`Promedio ${anioAnt}`, pctTxt(R.anualProm.ant), '9CA3AF'], [`Promedio ${anioAct}`, pctTxt(R.anualProm.act), PX.teal], ['Diferencia', `${deltaTxt(dif)} pts`, deltaCol(dif)]]
+        .forEach(([l, v, c], i) => {
+          const x = 0.5 + i*4.15;
+          s.addShape(pres.ShapeType.rect, { x, y:1.1, w:3.95, h:0.95, fill:{ color:PX.white }, line:{ color:PX.line, width:0.75 } });
+          s.addText(v, { x, y:1.12, w:3.95, h:0.55, fontFace:FONT, fontSize:24, bold:true, color:c, align:'center' });
+          s.addText(l, { x, y:1.62, w:3.95, h:0.35, fontFace:FONT, fontSize:11, color:PX.mute, align:'center' });
+        });
+      // Barras pareadas: gris = año anterior, color del semáforo = año actual.
+      const base = 6.0, alto = 3.3, ancho = 12.3 / k, w = ancho * 0.32;
+      const metaUnicaA = A.every(e => e.meta === A[0].meta);
+      s.addShape(pres.ShapeType.line, { x:0.5, y:base, w:12.3, h:0, line:{ color:'9CA3AF', width:1 } });
+      A.forEach((e,i) => {
+        const x0 = 0.5 + i*ancho, hA = alto*Math.min(sn(e.valAnt),100)/100, hB = alto*Math.min(sn(e.val),100)/100;
+        const [c] = colEstado(semaforo(e.val, e.meta)), fs = k > 10 ? 8 : k > 8 ? 9 : 11;
+        s.addShape(pres.ShapeType.rect, { x:x0 + ancho*0.16, y:base - hA, w, h:Math.max(hA,0.02), fill:{ color:'C4C9D2' }, line:{ color:'C4C9D2', width:0 } });
+        s.addShape(pres.ShapeType.rect, { x:x0 + ancho*0.52, y:base - hB, w, h:Math.max(hB,0.02), fill:{ color:c }, line:{ color:c, width:0 } });
+        s.addText(pctTxt(e.valAnt), { x:x0 + ancho*0.06, y:base - hA - 0.32, w:w + ancho*0.2, h:0.3, fontFace:FONT, fontSize:fs, color:PX.mute, align:'center' });
+        s.addText(pctTxt(e.val), { x:x0 + ancho*0.42, y:base - hB - 0.32, w:w + ancho*0.2, h:0.3, fontFace:FONT, fontSize:fs, bold:true, color:c, align:'center' });
+        s.addText(mesCorto(e.mes).replace(/\s*'\d+$/, ''), { x:x0, y:base + 0.06, w:ancho, h:0.3, fontFace:FONT, fontSize: k > 10 ? 10.5 : 12, color:PX.text, align:'center', bold:true });
+        const d = e.val - e.valAnt;
+        s.addText(deltaTxt(d), { x:x0, y:base + 0.36, w:ancho, h:0.3, fontFace:FONT, fontSize:fs, bold:true, color:deltaCol(d), align:'center' });
+        if (!metaUnicaA) { // meta de ese mes sobre su par de barras
+          const yM = base - alto * e.meta / 100;
+          s.addShape(pres.ShapeType.line, { x:x0 + ancho*0.05, y:yM, w:ancho*0.9, h:0, line:{ color:PX.navy, width:1, dashType:'dash' } });
+        }
+      });
+      if (metaUnicaA) {
+        const yMeta = base - alto * A[0].meta / 100;
+        s.addShape(pres.ShapeType.line, { x:0.5, y:yMeta, w:12.3, h:0, line:{ color:PX.navy, width:1, dashType:'dash' } });
+        s.addText(`meta ${A[0].meta}%`, { x:11.6, y:yMeta - 0.3, w:1.2, h:0.26, fontFace:FONT, fontSize:9.5, bold:true, color:PX.navy, align:'right' });
+      }
+      // Leyenda
+      s.addShape(pres.ShapeType.rect, { x:0.5, y:2.3, w:0.22, h:0.18, fill:{ color:'C4C9D2' }, line:{ color:'C4C9D2', width:0 } });
+      s.addText(anioAnt, { x:0.78, y:2.24, w:1.0, h:0.3, fontFace:FONT, fontSize:11, color:PX.text });
+      s.addShape(pres.ShapeType.rect, { x:1.7, y:2.3, w:0.22, h:0.18, fill:{ color:PX.teal }, line:{ color:PX.teal, width:0 } });
+      s.addText(`${anioAct} (color según meta)`, { x:1.98, y:2.24, w:3.0, h:0.3, fontFace:FONT, fontSize:11, color:PX.text });
+      s.addText('Promedio de las tiendas elegidas. Debajo de cada mes: diferencia en puntos contra el mismo mes del año anterior.', { x:0.5, y:7.0, w:11, h:0.3, fontFace:FONT, fontSize:9, color:PX.mute, italic:true });
+    }
+
+    else if (sl.k === 'evoTiendas') {
+      encabezado(s, 'Comparativa por tienda' + sufijo(sl), `${R.evolucion[0].mes} – ${R.evolucion[R.evolucion.length-1].mes} · ${empresa}`);
+      // Tabla Tienda × mes con el semáforo en cada celda y el cambio del primer al último mes.
+      // Se ajusta sola: con más meses las columnas se angostan y la letra baja de tamaño;
+      // con más tiendas la tabla continúa en otra diapositiva.
+      const nm = R.evolucion.length;
+      const fs = nm > 10 ? 9 : nm > 7 ? 10 : 11;          // letra de las celdas
+      const fsH = nm > 10 ? 9 : 10.5;                      // letra del encabezado
+      const wT = nm > 9 ? 2.4 : nm > 6 ? 2.7 : 3.0;        // columna Tienda
+      const wC = nm > 9 ? 1.15 : 1.3;                      // columna Cambio
+      const wM = (12.33 - wT - wC) / nm;                   // cada mes
+      const etiqueta = m => nm > 9 ? mesCorto(m).replace(" '", "\n'") : mesCorto(m); // "Ene\n'26" si hay muchos
+      const head = [cab('Tienda'), ...R.evolucion.map(e => cab(etiqueta(e.mes))), cab(`Cambio\n${rangoCambio(R.evolucion)}`)];
+      head.forEach((c,i) => { c.options.fontSize = fsH; if (i) c.options.align = 'center'; });
+      const filas = [head];
+      deHoja(sl, R.evoTiendas).forEach(t => filas.push([
+        celda(t.tienda, { bold:true, fontSize: fs }),
+        ...t.vals.map((v,j) => { const [c,bg] = colEstado(semaforo(v, R.metaDe(R.evolucion[j].mes))); return celda(pctTxt(v), { align:'center', bold:true, color:c, fill:{ color:bg }, fontSize: fs }); }),
+        celda(deltaTxt(t.cambio), { align:'center', bold:true, color:deltaCol(t.cambio), fontSize: fs }),
+      ]));
+      if (ultimaHoja(sl)) filas.push([
+        celda('Promedio', { bold:true, fill:{ color:'E5E7EB' }, fontSize: fs }),
+        ...R.evolucion.map(e => celda(pctTxt(e.val), { align:'center', bold:true, fill:{ color:'E5E7EB' }, fontSize: fs })),
+        celda('', { fill:{ color:'E5E7EB' } }),
+      ]);
+      tabla(s, filas, [wT, ...Array(nm).fill(wM), wC], 1.15, 5.65);
+      if (ultimaHoja(sl)) s.addText(`Cambio = puntos que subió (▲) o bajó (▼) cada tienda de ${R.evolucion[0].mes} a ${R.evolucion[nm-1].mes}. Ej.: de 80% a 100% = ▲ +20. Colores según la meta de cada mes.`,
+        { x:0.5, y:6.95, w:11, h:0.3, fontFace:FONT, fontSize:9, color:PX.mute, italic:true });
+    }
+
+    else if (sl.k === 'evolucion') {
+      encabezado(s, 'Evolución del cumplimiento', `${R.evolucion[0].mes} – ${R.evolucion[R.evolucion.length-1].mes} · ${empresa}`);
+      // Barras dibujadas con formas (no gráfica incrustada): se ven igual en cualquier
+      // PowerPoint y no dependen del libro de Excel interno de las gráficas.
+      const base = 6.1, alto = 4.3, k = R.evolucion.length, ancho = 12.3 / k;
+      // Tamaños que se ajustan al número de meses (hasta 12).
+      const fsVal = k > 10 ? 12 : k > 7 ? 14 : 16, fsMes = k > 10 ? 10 : 12, fsSub = k > 10 ? 7.5 : k > 7 ? 8.5 : 10;
+      const metaUnica = R.evolucion.every(e => R.metaDe(e.mes) === R.metaDe(R.evolucion[0].mes));
+      s.addShape(pres.ShapeType.line, { x:0.5, y:base, w:12.3, h:0, line:{ color:'9CA3AF', width:1 } });
+      R.evolucion.forEach((t,i) => {
+        const x0 = 0.5 + i*ancho, metaMes = R.metaDe(t.mes);
+        s.addText(k > 10 ? `${t.ok}/${t.n} cumplen` : `${t.ok} de ${t.n} cumplen`, { x:x0, y:base + 0.42, w:ancho, h:0.3, fontFace:FONT, fontSize: fsSub, color:PX.mute, align:'center' });
+        const ant = i ? R.evolucion[i-1].val : null;
+        if (ant !== null) s.addText(deltaTxt(t.val - ant), { x:x0, y:base + 0.68, w:ancho, h:0.3, fontFace:FONT, fontSize: fsSub, bold:true, color:deltaCol(t.val - ant), align:'center' });
+        const v = Math.min(Math.max(t.val, 0), 100), h = alto * v / 100, x = 0.5 + i*ancho + ancho*0.2, w = ancho*0.6;
+        const [c] = colEstado(semaforo(t.val, metaMes));
+        s.addShape(pres.ShapeType.rect, { x, y:base - h, w, h:Math.max(h, 0.02), fill:{ color:c }, line:{ color:c, width:0 } });
+        // El % va dentro de la barra (si cabe) para no chocar con la línea de la meta.
+        const dentro = h > 0.6;
+        s.addText(pctTxt(t.val), { x:x0, y: dentro ? base - h + 0.08 : base - h - 0.45, w:ancho, h:0.4, fontFace:FONT, fontSize:fsVal, bold:true, color: dentro ? PX.white : c, align:'center' });
+        s.addText(mesCorto(t.mes), { x:x0, y:base + 0.08, w:ancho, h:0.35, fontFace:FONT, fontSize:fsMes, color:PX.text, align:'center', bold: t.mes === p.mes });
+        // Meta de ese mes: tramo punteado sobre su barra (si la meta sube, la línea sube en escalón).
+        if (!metaUnica) {
+          const yM = base - alto * metaMes / 100;
+          s.addShape(pres.ShapeType.line, { x:x0 + ancho*0.05, y:yM, w:ancho*0.9, h:0, line:{ color:PX.navy, width:1.25, dashType:'dash' } });
+          s.addText(`${metaMes}%`, { x:x0, y:yM - 0.27, w:ancho, h:0.24, fontFace:FONT, fontSize:8.5, bold:true, color:PX.navy, align:'center' });
+        }
+      });
+      if (metaUnica) {
+        const m0 = R.metaDe(R.evolucion[0].mes), yMeta = base - alto * m0 / 100;
+        s.addShape(pres.ShapeType.line, { x:0.5, y:yMeta, w:12.3, h:0, line:{ color:PX.navy, width:1.25, dashType:'dash' } });
+        s.addText(`meta ${m0}%`, { x:11.6, y:yMeta - 0.32, w:1.2, h:0.28, fontFace:FONT, fontSize:10, bold:true, color:PX.navy, align:'right' });
+      }
+      s.addText(`Promedio de las tiendas elegidas en cada mes. Debajo: cuántas cumplieron la meta${metaUnica ? '' : ' de ese mes (línea punteada)'} y el cambio contra el mes anterior.`, { x:0.5, y:7.12, w:11, h:0.25, fontFace:FONT, fontSize:9, color:PX.mute, italic:true });
+    }
   }
-
-  // ─── SLIDE 5 — RANKING DE TIENDAS ────────────────────────
-  {
-    const s = pres.addSlide();
-    s.background = { color: C.off };
-    s.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.3, h:0.65, fill:{color:C.navy} });
-    s.addShape(pres.ShapeType.rect, { x:0, y:0.65, w:13.3, h:0.05, fill:{color:C.gold} });
-    s.addText('RANKING DE TIENDAS — PROMEDIO ' + PERIODO_ADJ, {
-      x:0.3, y:0, w:12, h:0.65, fontSize:18, bold:true, color:C.white, fontFace:'Calibri', valign:'middle',
-    });
-
-    const rankLabels = ranking.map(r => r.name.length>16 ? r.name.slice(0,15)+'.' : r.name);
-    s.addChart(pres.ChartType.bar, [{
-      name:`Promedio ${PERIODO_ADJ_CAP} (%)`,
-      labels: rankLabels,
-      values: ranking.map(r=>Math.round(sn(r.val)*10)/10),
-    }], {
-      x:0.3, y:0.85, w:7.7, h:6.3, barDir:'bar',
-      chartColors: ranking.map(r=>barColor(sn(r.val))),
-      chartArea:{fill:{color:C.white}, roundedCorners:true},
-      plotArea:{fill:{color:C.white}},
-      catAxisLabelColor:C.navy, catAxisLabelFontSize:10,
-      valAxisLabelColor:C.gray1,
-      valGridLine:{color:'E2E8F0', size:0.5}, catGridLine:{style:'none'},
-      showValue:true, dataLabelColor:C.white, dataLabelFontSize:10,
-      dataLabelPosition:'inEnd',
-      valAxisMinVal:0, valAxisMaxVal:100,
-      showLegend:false, showTitle:false,
-    });
-
-    s.addText('PODIO ' + PERIODO_ADJ, { x:8.3, y:0.9, w:4.7, h:0.4, fontSize:13, bold:true, color:C.navy, fontFace:'Calibri', align:'center' });
-
-    const medals = [
-      {place:'🥇 1°', col:'DAA520'}, {place:'🥈 2°', col:'9E9E9E'}, {place:'🥉 3°', col:'A0522D'},
-    ];
-    top3.forEach((r,i) => {
-      s.addShape(pres.ShapeType.rect, { x:8.3, y:1.4+i*1.15, w:4.7, h:1.0, fill:{color:C.white},
-        shadow:{type:'outer', blur:5, offset:2, angle:135, color:'000000', opacity:0.12} });
-      s.addShape(pres.ShapeType.rect, { x:8.3, y:1.4+i*1.15, w:0.1, h:1.0, fill:{color:medals[i].col} });
-      s.addText(medals[i].place, { x:8.5, y:1.45+i*1.15, w:4.4, h:0.3, fontSize:12, bold:true, color:medals[i].col, fontFace:'Calibri' });
-      s.addText(r.name.slice(0,20), { x:8.5, y:1.73+i*1.15, w:3.2, h:0.3, fontSize:11, color:C.navy, fontFace:'Calibri', bold:true });
-      s.addText(`${fx1(r.val)}%`, { x:11.0, y:1.68+i*1.15, w:1.8, h:0.4, fontSize:20, color:'2E7D32', fontFace:'Calibri', bold:true, align:'right' });
-    });
-
-    s.addShape(pres.ShapeType.rect, { x:8.3, y:5.0, w:4.7, h:2.2, fill:{color:C.navy},
-      shadow:{type:'outer', blur:6, offset:2, angle:135, color:'000000', opacity:0.2} });
-    s.addText('ESTADÍSTICAS GENERALES', { x:8.3, y:5.0, w:4.7, h:0.38, fontSize:11, bold:true, color:C.gold, fontFace:'Calibri', align:'center', valign:'middle' });
-    const t80 = ranking.filter(r=>r.val>=80).length;
-    const t60 = ranking.filter(r=>r.val>=60&&r.val<80).length;
-    const t40 = ranking.filter(r=>r.val<60).length;
-    const stats = [
-      {label:'Promedio Global:', val:`${fx1(globalAvg)}%`},
-      {label:'Tiendas ≥ 80%:', val:`${t80} / ${stores.length}`},
-      {label:'Tiendas 60–79%:', val:`${t60} / ${stores.length}`},
-      {label:'Tiendas < 60%:', val:`${t40} / ${stores.length}`},
-    ];
-    stats.forEach((st,i) => {
-      s.addText(st.label, { x:8.5, y:5.42+i*0.4, w:2.8, h:0.35, fontSize:11, color:C.gray2, fontFace:'Calibri' });
-      s.addText(st.val,   { x:11.1, y:5.42+i*0.4, w:1.8, h:0.35, fontSize:12, bold:true, color:C.accent, fontFace:'Calibri', align:'right' });
-    });
-  }
-
-  // ─── SLIDE 6 — PROMEDIO POR PROCESO ──────────────────────
-  {
-    const s = pres.addSlide();
-    s.background = { color: C.off };
-    s.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.3, h:0.65, fill:{color:C.navy} });
-    s.addShape(pres.ShapeType.rect, { x:0, y:0.65, w:13.3, h:0.05, fill:{color:C.gold} });
-    s.addText('PROMEDIO ' + PERIODO_ADJ + ' POR PROCESO', {
-      x:0.3, y:0, w:12, h:0.65, fontSize:18, bold:true, color:C.white, fontFace:'Calibri', valign:'middle',
-    });
-
-    s.addChart(pres.ChartType.bar, [{
-      name:`Promedio ${PERIODO_ADJ_CAP} (%)`,
-      labels: procAvg.map(p=>p.name),
-      values: procAvg.map(p=>Math.round(sn(p.val)*10)/10),
-    }], {
-      x:0.3, y:0.85, w:7.8, h:5.9, barDir:'bar',
-      chartColors: procAvg.map(p=>barColor(sn(p.val))),
-      chartArea:{fill:{color:C.white}, roundedCorners:true},
-      plotArea:{fill:{color:C.white}},
-      catAxisLabelColor:C.navy, catAxisLabelFontSize:11,
-      valAxisLabelColor:C.gray1,
-      valGridLine:{color:'E2E8F0', size:0.5}, catGridLine:{style:'none'},
-      showValue:true, dataLabelColor:C.white, dataLabelFontSize:11,
-      dataLabelPosition:'inEnd',
-      valAxisMinVal:0, valAxisMaxVal:100,
-      showLegend:false, showTitle:false,
-    });
-
-    s.addText('DETALLE POR PROCESO', { x:8.4, y:0.9, w:4.6, h:0.38, fontSize:13, bold:true, color:C.navy, fontFace:'Calibri', align:'center' });
-    // Con 7 procesos (formato nuevo) las tarjetas se compactan para no salirse de la diapositiva.
-    const stepP = Math.min(0.97, 5.55 / Math.max(procAvg.length, 1));
-    const cardH = stepP - 0.1;
-    procAvg.forEach((p,i) => {
-      const y = 1.38 + i*stepP;
-      const col = barColor(p.val);
-      s.addShape(pres.ShapeType.rect, { x:8.4, y, w:4.6, h:cardH, fill:{color:C.white},
-        shadow:{type:'outer', blur:4, offset:2, angle:135, color:'000000', opacity:0.1} });
-      s.addShape(pres.ShapeType.rect, { x:8.4, y, w:0.1, h:cardH, fill:{color:col} });
-      s.addText(p.name, { x:8.6, y:y+0.04, w:2.8, h:0.3, fontSize:10, bold:true, color:C.navy, fontFace:'Calibri' });
-      s.addText(`${fx1(p.val)}%`, { x:11.3, y:y+0.03, w:1.5, h:0.42, fontSize:cardH < 0.8 ? 18 : 21, bold:true, color:col, fontFace:'Calibri', align:'right' });
-      const barW = 3.8, filled = barW*sn(p.val)/100;
-      s.addShape(pres.ShapeType.rect, { x:8.6, y:y+cardH-0.27, w:barW, h:0.15, fill:{color:'E2E8F0'} });
-      s.addShape(pres.ShapeType.rect, { x:8.6, y:y+cardH-0.27, w:filled||0.01, h:0.15, fill:{color:col} });
-    });
-    s.addText('N/A excluido del cálculo. Tiendas con auditoría usan esa calificación como promedio del mes.', {
-      x:0.3, y:7.0, w:12.7, h:0.3, fontSize:9, color:C.gray1, italic:true, fontFace:'Calibri',
-    });
-  }
-
-  // ─── SLIDES DE PERSONAL (solo meses con el formato nuevo) ─
-  if (d.personalRecs && d.personalRecs.length) buildPersonalSlides(pres, d.personalRecs);
-
-  // ─── SLIDE 7 — INFOGRAFÍA RESUMEN ────────────────────────
-  {
-    const s = pres.addSlide();
-    s.background = { color: C.navy };
-    s.addShape(pres.ShapeType.rect, { x:0, y:0, w:0.35, h:7.5, fill:{color:C.teal} });
-    s.addShape(pres.ShapeType.rect, { x:0.35, y:0, w:12.95, h:0.06, fill:{color:C.gold} });
-    s.addText(`INFOGRAFÍA RESUMEN — ${PERIODO_SUST} ${mLbls[0]} ${mnths[0].match(/\d{4}/)?.[0]||''} – ${mLbls[mLbls.length-1]} ${mnths[mnths.length-1].match(/\d{4}/)?.[0]||''}`, {
-      x:0.55, y:0.12, w:11.5, h:0.5, fontSize:16, bold:true, color:C.white, fontFace:'Calibri', charSpacing:1,
-    });
-
-    const kpis4 = [
-      { val:`${fx1(globalAvg)}%`, label:'Cumplimiento\nGeneral', col:C.teal },
-      { val:`${stores.length}`, label:'Tiendas\nAnalizadas', col:C.gold },
-      { val:`${mnths.length}`, label:'Meses del\n'+PERIODO_SUST, col:'5C7AEA' },
-      { val:`${procAvg.length}`, label:'Procesos\nEvaluados', col:'E57373' },
-    ];
-    kpis4.forEach((k,i) => {
-      const cx = 0.55 + i*2.2;
-      s.addShape(pres.ShapeType.ellipse, { x:cx, y:0.82, w:1.55, h:1.55, fill:{color:k.col}, line:{color:C.white, width:2} });
-      s.addText(k.val, { x:cx, y:0.92, w:1.55, h:0.75, fontSize:22, bold:true, color:C.white, fontFace:'Calibri', align:'center', valign:'middle' });
-      s.addText(k.label, { x:cx-0.1, y:2.47, w:1.75, h:0.5, fontSize:9, color:C.gray2, fontFace:'Calibri', align:'center' });
-    });
-
-    s.addText('PROCESOS — PROMEDIO ' + PERIODO_ADJ, { x:0.55, y:3.1, w:8.8, h:0.35, fontSize:11, bold:true, color:C.gold, fontFace:'Calibri' });
-    const stepI = Math.min(0.56, 3.6 / Math.max(procAvg.length, 1));
-    procAvg.forEach((p,i) => {
-      const y = 3.55 + i*stepI;
-      const barW = 5.5, filled = barW*sn(p.val)/100;
-      const col2 = p.val>=80?'66BB6A':p.val>=60?'FFA726':'EF5350';
-      s.addText(p.name, { x:0.55, y, w:2.55, h:0.4, fontSize:10, color:C.white, fontFace:'Calibri', valign:'middle' });
-      s.addShape(pres.ShapeType.rect, { x:3.15, y:y+0.08, w:barW, h:0.25, fill:{color:'1B2D50'} });
-      s.addShape(pres.ShapeType.rect, { x:3.15, y:y+0.08, w:filled||0.01, h:0.25, fill:{color:col2} });
-      s.addText(`${fx1(p.val)}%`, { x:8.75, y, w:0.8, h:0.4, fontSize:10, bold:true, color:col2, fontFace:'Calibri' });
-    });
-
-    s.addShape(pres.ShapeType.rect, { x:9.55, y:0.82, w:3.55, h:6.45, fill:{color:'0A1628'},
-      shadow:{type:'outer', blur:8, offset:3, angle:135, color:'000000', opacity:0.3} });
-    s.addText('TOP TIENDAS', { x:9.65, y:0.9, w:3.35, h:0.38, fontSize:12, bold:true, color:C.gold, fontFace:'Calibri', align:'center' });
-    const topEmoji = ['🥇','🥈','🥉'];
-    top3.forEach((r,i) => {
-      const nm = r.name.length>14?r.name.slice(0,13)+'.':r.name;
-      s.addText(`${topEmoji[i]} ${nm}`, { x:9.7, y:1.35+i*0.52, w:2.3, h:0.45, fontSize:10, color:C.white, fontFace:'Calibri' });
-      s.addText(`${fx1(r.val)}%`, { x:11.85, y:1.35+i*0.52, w:1.1, h:0.45, fontSize:13, bold:true, color:'66BB6A', fontFace:'Calibri', align:'right' });
-    });
-
-    s.addShape(pres.ShapeType.line, { x:9.65, y:2.98, w:3.35, h:0, line:{color:'2A3F6B', width:1} });
-    s.addText('MEJORA NECESARIA', { x:9.65, y:3.05, w:3.35, h:0.38, fontSize:11, bold:true, color:'EF5350', fontFace:'Calibri', align:'center' });
-    bot3.forEach((r,i) => {
-      const nm = r.name.length>14?r.name.slice(0,13)+'.':r.name;
-      s.addText(`▼ ${nm}`, { x:9.7, y:3.5+i*0.52, w:2.3, h:0.45, fontSize:10, color:C.gray2, fontFace:'Calibri' });
-      s.addText(`${fx1(r.val)}%`, { x:11.85, y:3.5+i*0.52, w:1.1, h:0.45, fontSize:13, bold:true, color:'EF5350', fontFace:'Calibri', align:'right' });
-    });
-
-    s.addShape(pres.ShapeType.line, { x:9.65, y:5.14, w:3.35, h:0, line:{color:'2A3F6B', width:1} });
-    s.addText('MEJOR MES', { x:9.65, y:5.2, w:3.35, h:0.32, fontSize:11, bold:true, color:C.accent, fontFace:'Calibri', align:'center' });
-    s.addText(bestMonthLabel, { x:9.65, y:5.55, w:3.35, h:0.35, fontSize:12, color:C.white, fontFace:'Calibri', align:'center' });
-    s.addText(`${fx1(bestMonthVal)}%`, { x:9.65, y:5.9, w:3.35, h:0.5, fontSize:26, bold:true, color:C.accent, fontFace:'Calibri', align:'center' });
-
-    s.addShape(pres.ShapeType.rect, { x:0.35, y:7.28, w:12.95, h:0.22, fill:{color:C.gold} });
-    s.addText(`${razonNombre(RAZON_ACTIVA)} · Reporte ${PERIODO_ADJ_CAP} de Cumplimiento de Procesos`, {
-      x:0.55, y:7.29, w:12, h:0.2, fontSize:9, color:C.navy, bold:true, fontFace:'Calibri', align:'center',
-    });
-  }
-
   return pres;
 }
 
-// ═══════════════════════════════════════════════════════════
-// PERSONAL — Gerentes, Administrativos y Responsables por proceso.
-// Solo usa registros con datos del formato nuevo (r.personal); los meses
-// anteriores no traen administrativo ni responsables y no se incluyen.
-// ═══════════════════════════════════════════════════════════
-const CUMPLE_MIN = 79; // el Excel marca "Cumplió = Si" cuando el % es mayor a 79%
-function esSi(v) { return stripAcc(v) === 'si'; }
-
-function resumenPersonal(recs) {
-  const meses = [...new Set(recs.map(r => r.mes))].sort((a,b) => monthKey(a)-monthKey(b));
-  const ultimo = meses[meses.length-1];
-  const avgOf = obj => avg(meses.map(m => obj[m]).filter(v => v !== null && v !== undefined));
-
-  const ger = new Map(), adm = new Map(), resp = new Map(), vacantes = [];
-  recs.forEach(r => {
-    const p = r.personal, tienda = collapseWs(r.tienda);
-    const gNom = p.gerente || r.gerente || 'Sin asignar';
-    const gk = `${gNom}||${tienda}`;
-    if (!ger.has(gk)) ger.set(gk, { nombre: gNom, tienda, pct: {}, cumplio: {}, audit: {} });
-    const g = ger.get(gk);
-    g.pct[r.mes] = r.promedio; g.cumplio[r.mes] = r.cumplio; g.audit[r.mes] = !!r.auditoria;
-
-    const aNom = p.administrativo || 'Sin asignar';
-    const ak = `${aNom}||${tienda}`;
-    if (!adm.has(ak)) adm.set(ak, { nombre: aNom, asignado: !!p.administrativo, tienda, pct: {}, cumplio: {}, procesos: {}, frogmi: {} });
-    const a = adm.get(ak);
-    a.pct[r.mes] = p.adminPct; a.cumplio[r.mes] = p.adminCumplio; a.procesos[r.mes] = p.adminProcesosPct; a.frogmi[r.mes] = p.frogmi;
-
-    (p.responsables || []).forEach(x => {
-      if (x.vacante) { vacantes.push({ tienda, proceso: x.proceso, mes: r.mes }); return; }
-      if (x.cumple === null || x.cumple === undefined) return;
-      const rk = `${stripAcc(x.nombre)}||${tienda}`;
-      if (!resp.has(rk)) resp.set(rk, { nombre: x.nombre, tienda, eval: 0, ok: 0, procesos: new Set(), fallasMap: new Map() });
-      const o = resp.get(rk);
-      o.eval++; o.procesos.add(x.proceso);
-      if (x.cumple) o.ok++;
-      else {
-        if (!o.fallasMap.has(x.proceso)) o.fallasMap.set(x.proceso, []);
-        o.fallasMap.get(x.proceso).push(r.mes);
-      }
-    });
-  });
-  // "Picking (Ago '26, Sep '26)" — un proceso incumplido en varios meses se lista una sola vez.
-  const fallasTxt = m => [...m.entries()].map(([proc, ms]) => meses.length > 1
-    ? `${proc} (${ms.sort((a,b) => monthKey(a)-monthKey(b)).map(toMonthLabel).join(', ')})` : proc);
-
-  // Orden: % del último mes (quien ya no aparece ese mes va al final), luego promedio.
-  const ult = x => (x.pct[ultimo] === null || x.pct[ultimo] === undefined) ? -1 : x.pct[ultimo];
-  const gerentes = [...ger.values()].map(g => ({ ...g, prom: avgOf(g.pct) }))
-    .sort((a,b) => ult(b) - ult(a) || sn(b.prom) - sn(a.prom));
-  const admins = [...adm.values()].map(a => ({ ...a, prom: avgOf(a.pct) }))
-    .sort((a,b) => ult(b) - ult(a) || sn(b.prom) - sn(a.prom));
-  const responsables = [...resp.values()].map(o => ({ ...o, pctOk: o.eval ? o.ok/o.eval*100 : null, procesos: [...o.procesos], fallas: fallasTxt(o.fallasMap) }))
-    .sort((a,b) => sn(b.pctOk) - sn(a.pctOk) || a.tienda.localeCompare(b.tienda) || a.nombre.localeCompare(b.nombre));
-  return { meses, ultimo, gerentes, admins, responsables, vacantes };
-}
-
-function buildPersonalSlides(pres, recs) {
-  const R = resumenPersonal(recs);
-  const { meses, ultimo } = R;
-  const periodoTxt = meses.length > 1 ? `${meses[0]} – ${ultimo}` : ultimo;
-
-  const header = (s, title) => {
-    s.background = { color: C.off };
-    s.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.3, h:0.65, fill:{color:C.navy} });
-    s.addShape(pres.ShapeType.rect, { x:0, y:0.65, w:13.3, h:0.05, fill:{color:C.gold} });
-    s.addText(title, { x:0.3, y:0, w:12.7, h:0.65, fontSize:18, bold:true, color:C.white, fontFace:'Calibri', valign:'middle' });
-  };
-  const kpiStrip = (s, items) => {
-    const w = 12.7 / items.length;
-    items.forEach((k,i) => {
-      const x = 0.3 + i*w;
-      s.addShape(pres.ShapeType.rect, { x, y:0.85, w:w-0.15, h:0.85, fill:{color:C.white},
-        shadow:{type:'outer', blur:4, offset:2, angle:135, color:'000000', opacity:0.1} });
-      s.addShape(pres.ShapeType.rect, { x, y:0.85, w:0.08, h:0.85, fill:{color:k.col||C.teal} });
-      s.addText(k.val, { x:x+0.15, y:0.88, w:w-0.35, h:0.48, fontSize:20, bold:true, color:k.col||C.navy, fontFace:'Calibri', valign:'middle' });
-      s.addText(k.label, { x:x+0.15, y:1.33, w:w-0.35, h:0.32, fontSize:10, color:C.gray1, fontFace:'Calibri', valign:'top' });
-    });
-  };
-  const base = { fontSize:10, fontFace:'Calibri', color:C.navy, valign:'middle', margin:0.04 };
-  const cell = (text, o={}) => ({ text: String(text), options: Object.assign({}, base, o) });
-  const hcell = text => cell(text, { bold:true, color:C.white, fill:{color:C.navy}, align:'center', fontSize:10 });
-  const pctCell = (v, suf='') => (v === null || v === undefined)
-    ? cell('—', { align:'center', color:'999999' })
-    : cell(`${Math.round(v)}%${suf}`, { align:'center', bold:true, fill:{color:heatFill(v)}, color:heatTextColor(v) });
-  const estadoCell = si => si === null || si === undefined
-    ? cell('—', { align:'center', color:'999999' })
-    : (si ? cell('✔ Cumple', { align:'center', bold:true, color:'1B5E20', fill:{color:'E8F5E9'} })
-          : cell('✘ No cumple', { align:'center', bold:true, color:'B71C1C', fill:{color:'FFEBEE'} }));
-  const zebra = (row, i) => row.map(c => (c.options.fill ? c : { ...c, options: { ...c.options, fill:{color: i%2 ? 'F1F5F9' : C.white} } }));
-  const tableOpts = (x, y, w, colW, nRows, maxH) => ({
-    x, y, w, colW, rowH: Math.min(0.36, maxH / Math.max(nRows,1)), autoPage:false,
-    border:{ type:'solid', pt:0.5, color:'CBD5E1' }, fontFace:'Calibri',
-  });
-  const cumpleDe = (cumplio, pct) => cumplio ? esSi(cumplio) : (pct === null || pct === undefined ? null : pct > CUMPLE_MIN);
-  const mesCols = meses.map(m => toMonthLabel(m));
-
-  // ─── GERENTES ───────────────────────────────────────────
-  {
-    const s = pres.addSlide();
-    header(s, `CUMPLIMIENTO DE GERENTES — ${periodoTxt.toUpperCase()}`);
-    const G = R.gerentes;
-    const Gu = G.filter(g => g.pct[ultimo] !== null && g.pct[ultimo] !== undefined); // evaluados en el último mes
-    const cumplen = Gu.filter(g => cumpleDe(g.cumplio[ultimo], g.pct[ultimo]));
-    const promG = avg(Gu.map(g => g.pct[ultimo]));
-    const mejor = [...Gu].sort((a,b) => b.pct[ultimo] - a.pct[ultimo])[0];
-    kpiStrip(s, [
-      { val: `${Gu.length}`, label: `Gerentes evaluados en ${toMonthLabel(ultimo)}`, col: C.navy },
-      { val: `${cumplen.length} de ${Gu.length}`, label: `Cumplen en ${toMonthLabel(ultimo)} (más de ${CUMPLE_MIN}%)`, col: C.green },
-      { val: `${fx1(promG)}%`, label: `Promedio gerentes ${toMonthLabel(ultimo)}`, col: barColor(sn(promG)) },
-      { val: mejor ? `${Math.round(mejor.pct[ultimo])}%` : '—', label: mejor ? `Mejor: ${mejor.nombre} (${mejor.tienda})` : 'Mejor gerente', col: C.teal },
-    ]);
-    const rows = [[hcell('#'), hcell('Gerente'), hcell('Tienda'), ...mesCols.map(hcell), ...(meses.length > 1 ? [hcell('Promedio')] : []), hcell(`Cumplió ${toMonthLabel(ultimo)}`)]];
-    G.forEach((g,i) => rows.push(zebra([
-      cell(i+1, { align:'center' }), cell(g.nombre, { bold:true }), cell(g.tienda),
-      ...meses.map(m => pctCell(g.pct[m], g.audit[m] ? ' (A)' : '')),
-      ...(meses.length > 1 ? [pctCell(g.prom)] : []),
-      estadoCell(cumpleDe(g.cumplio[ultimo], g.pct[ultimo])),
-    ], i)));
-    const fixed = [0.45, 3.4, 3.2], rest = 12.7 - fixed.reduce((a,b)=>a+b,0);
-    const nVar = meses.length + (meses.length > 1 ? 1 : 0) + 1;
-    s.addTable(rows, tableOpts(0.3, 1.9, 12.7, [...fixed, ...Array(nVar).fill(rest/nVar)], rows.length, 5.1));
-    s.addText('Calificación del gerente = cumplimiento de los procesos de su tienda (columna % Gerente del Excel). (A) = tienda calificada por auditoría ese mes.', {
-      x:0.3, y:7.08, w:12.7, h:0.3, fontSize:9, color:C.gray1, italic:true, fontFace:'Calibri',
-    });
-  }
-
-  // ─── ADMINISTRATIVOS ────────────────────────────────────
-  {
-    const s = pres.addSlide();
-    header(s, `CUMPLIMIENTO DE ADMINISTRATIVOS — ${periodoTxt.toUpperCase()}`);
-    const A = R.admins;
-    const Au = A.filter(a => a.pct[ultimo] !== null && a.pct[ultimo] !== undefined); // evaluados en el último mes
-    const conNombre = Au.filter(a => a.asignado);
-    const cumplen = Au.filter(a => cumpleDe(a.cumplio[ultimo], a.pct[ultimo]));
-    const promA = avg(Au.map(a => a.pct[ultimo]));
-    const personas = new Set(conNombre.map(a => a.nombre)).size;
-    const sinAsignar = Au.length - conNombre.length;
-    kpiStrip(s, [
-      { val: `${personas}`, label: `Administrativos en ${toMonthLabel(ultimo)} (${conNombre.length} tiendas)`, col: C.navy },
-      { val: `${cumplen.length} de ${Au.length}`, label: `Tiendas que cumplen en ${toMonthLabel(ultimo)}`, col: C.green },
-      { val: `${fx1(promA)}%`, label: `Calificación promedio ${toMonthLabel(ultimo)}`, col: barColor(sn(promA)) },
-      { val: `${sinAsignar}`, label: 'Tiendas sin administrativo asignado', col: sinAsignar ? C.orange : C.gray1 },
-    ]);
-    const prevMeses = meses.slice(0, -1);
-    const rows = [[hcell('#'), hcell('Administrativo'), hcell('Tienda'), ...prevMeses.map(m => hcell(toMonthLabel(m))),
-      hcell('Procesos (80%)'), hcell('Frogmi (20%)'), hcell(`Calificación ${toMonthLabel(ultimo)}`), hcell('Cumplió')]];
-    A.forEach((a,i) => rows.push(zebra([
-      cell(i+1, { align:'center' }), cell(a.nombre, { bold: a.asignado, italic: !a.asignado, color: a.asignado ? C.navy : C.gray1 }), cell(a.tienda),
-      ...prevMeses.map(m => pctCell(a.pct[m])),
-      pctCell(a.procesos[ultimo]), pctCell(a.frogmi[ultimo]), pctCell(a.pct[ultimo]),
-      estadoCell(cumpleDe(a.cumplio[ultimo], a.pct[ultimo])),
-    ], i)));
-    const fixed = [0.45, 3.0, 2.9], rest = 12.7 - fixed.reduce((a,b)=>a+b,0);
-    const nVar = prevMeses.length + 4;
-    s.addTable(rows, tableOpts(0.3, 1.9, 12.7, [...fixed, ...Array(nVar).fill(rest/nVar)], rows.length, 5.1));
-    s.addText('Calificación administrativo = Procesos × 80% + Corte de Procesos Frogmi × 20%. Un mismo administrativo puede llevar más de una tienda.', {
-      x:0.3, y:7.08, w:12.7, h:0.3, fontSize:9, color:C.gray1, italic:true, fontFace:'Calibri',
-    });
-  }
-
-  // ─── TIENDAS QUE CUMPLEN: GERENTE VS ADMINISTRATIVO ─────
-  {
-    const s = pres.addSlide();
-    header(s, `TIENDAS QUE CUMPLEN — GERENTE VS ADMINISTRATIVO (${ultimo.toUpperCase()})`);
-    const recsU = recs.filter(r => r.mes === ultimo).sort((a,b) => sn(b.promedio) - sn(a.promedio));
-    const lbl = recsU.map(r => { const t = collapseWs(r.tienda); return t.length > 16 ? t.slice(0,15)+'.' : t; });
-    s.addChart(pres.ChartType.bar, [
-      { name:'Gerente', labels: lbl, values: recsU.map(r => Math.round(sn(r.promedio))) },
-      { name:'Administrativo', labels: lbl, values: recsU.map(r => Math.round(sn(r.personal.adminPct))) },
-    ], {
-      x:0.3, y:0.85, w:8.2, h:6.3, barDir:'bar', barGrouping:'clustered',
-      chartColors:[C.navy, C.teal],
-      chartArea:{fill:{color:C.white}, roundedCorners:true}, plotArea:{fill:{color:C.white}},
-      catAxisLabelColor:C.navy, catAxisLabelFontSize:9, catAxisOrientation:'maxMin',
-      valAxisLabelColor:C.gray1, valAxisMinVal:0, valAxisMaxVal:100,
-      valGridLine:{color:'E2E8F0', size:0.5}, catGridLine:{style:'none'},
-      showValue:true, dataLabelFontSize:8, dataLabelColor:C.navy,
-      showLegend:true, legendPos:'t', legendFontSize:10,
-    });
-    const gOk = r => cumpleDe(r.cumplio, r.promedio), aOk = r => cumpleDe(r.personal.adminCumplio, r.personal.adminPct);
-    const ambos = recsU.filter(r => gOk(r) && aOk(r));
-    const uno = recsU.filter(r => !!gOk(r) !== !!aOk(r));
-    const ninguno = recsU.filter(r => !gOk(r) && !aOk(r));
-    const grupos = [
-      { t:`✔ CUMPLEN AMBOS (${ambos.length})`, col:'2E7D32', fill:'E8F5E9', items: ambos.map(r => collapseWs(r.tienda)) },
-      { t:`◐ CUMPLE SOLO UNO (${uno.length})`, col:'E65100', fill:'FFF3E0', items: uno.map(r => `${collapseWs(r.tienda)} — ${gOk(r) ? 'Gerente' : 'Administrativo'}`) },
-      { t:`✘ NO CUMPLE NINGUNO (${ninguno.length})`, col:'C62828', fill:'FFEBEE', items: ninguno.map(r => collapseWs(r.tienda)) },
-    ];
-    let y = 0.85;
-    grupos.forEach(gp => {
-      const h = 0.42 + Math.max(gp.items.length, 1) * 0.22;
-      s.addShape(pres.ShapeType.rect, { x:8.75, y, w:4.3, h, fill:{color:gp.fill}, line:{color:gp.col, width:1} });
-      s.addText(gp.t, { x:8.85, y:y+0.04, w:4.1, h:0.32, fontSize:11, bold:true, color:gp.col, fontFace:'Calibri' });
-      s.addText(gp.items.length ? gp.items.map(t => ({ text:t, options:{ bullet:true, breakLine:true } })) : 'Ninguna', {
-        x:8.85, y:y+0.36, w:4.1, h:h-0.4, fontSize:9.5, color:C.navy, fontFace:'Calibri', valign:'top', paraSpaceAfter:0,
-      });
-      y += h + 0.15;
-    });
-  }
-
-  // ─── RESPONSABLES POR PROCESO ───────────────────────────
-  {
-    const P = R.responsables;
-    const cumplen = P.filter(p => p.ok === p.eval);
-    const pendientes = P.filter(p => p.ok < p.eval).sort((a,b) => a.pctOk - b.pctOk || a.tienda.localeCompare(b.tienda));
-    const POR_HOJA = 14;
-    const nHojas = Math.max(1, Math.ceil(Math.max(cumplen.length, pendientes.length) / POR_HOJA));
-    for (let h = 0; h < nHojas; h++) {
-      const s = pres.addSlide();
-      header(s, `PERSONAL RESPONSABLE POR PROCESO — ¿QUIÉN CUMPLE? (${periodoTxt.toUpperCase()})${nHojas > 1 ? `  ${h+1}/${nHojas}` : ''}`);
-      if (h === 0) kpiStrip(s, [
-        { val: `${P.length}`, label: 'Personas responsables evaluadas', col: C.navy },
-        { val: `${cumplen.length}`, label: 'Cumplen todos sus procesos', col: C.green },
-        { val: `${pendientes.length}`, label: 'Con algún proceso incumplido', col: C.red },
-        { val: `${R.vacantes.length}`, label: 'Procesos con puesto vacante', col: R.vacantes.length ? C.orange : C.gray1 },
-      ]);
-      const top = h === 0 ? 1.9 : 0.9, maxH = 7.0 - top - 0.4;
-      const izq = cumplen.slice(h*POR_HOJA, (h+1)*POR_HOJA);
-      const der = pendientes.slice(h*POR_HOJA, (h+1)*POR_HOJA);
-
-      s.addText(`✔ CUMPLEN (${cumplen.length})`, { x:0.3, y:top, w:5.6, h:0.32, fontSize:12, bold:true, color:C.green, fontFace:'Calibri' });
-      const rowsL = [[hcell('Persona'), hcell('Tienda'), hcell('Procesos a su cargo')]];
-      izq.forEach((p,i) => rowsL.push(zebra([cell(p.nombre, { bold:true, fontSize:9 }), cell(p.tienda, { fontSize:9 }), cell(p.procesos.join(', '), { fontSize:8.5 })], i)));
-      if (!izq.length) rowsL.push([cell('—', { align:'center' }), cell(''), cell('')]);
-      s.addTable(rowsL, tableOpts(0.3, top+0.36, 5.6, [1.4, 1.9, 2.3], rowsL.length, maxH));
-
-      s.addText(`✘ CON PROCESOS INCUMPLIDOS (${pendientes.length})`, { x:6.2, y:top, w:6.8, h:0.32, fontSize:12, bold:true, color:C.red, fontFace:'Calibri' });
-      const rowsR = [[hcell('Persona'), hcell('Tienda'), hcell('% cumplido'), hcell('Proceso(s) incumplido(s)')]];
-      der.forEach((p,i) => rowsR.push(zebra([
-        cell(p.nombre, { bold:true, fontSize:9 }), cell(p.tienda, { fontSize:8.5 }),
-        pctCell(p.pctOk), cell(p.fallas.join(' · '), { fontSize:8, color:'B71C1C' }),
-      ], i)));
-      if (!der.length) rowsR.push([cell('—', { align:'center' }), cell(''), cell(''), cell('')]);
-      s.addTable(rowsR, tableOpts(6.2, top+0.36, 6.8, [1.15, 1.75, 0.8, 3.1], rowsR.length, maxH));
-
-      if (h === nHojas-1) {
-        const vacTxt = R.vacantes.length
-          ? `Puestos vacantes en el Excel: ${R.vacantes.map(v => `${v.proceso} (${v.tienda}${meses.length > 1 ? ', '+toMonthLabel(v.mes) : ''})`).join(' · ')}. `
-          : '';
-        s.addText(`${vacTxt}Responsables = nombres entre paréntesis en cada concepto del Excel; se evalúan con la columna % Administrativo.`, {
-          x:0.3, y:7.0, w:12.7, h:0.4, fontSize:8.5, color:C.gray1, italic:true, fontFace:'Calibri', valign:'top',
-        });
-      }
-    }
-  }
-}
 
 // ═══════════════════════════════════════════════════════════
 // LOCALSTORAGE ENGINE
@@ -2270,7 +2261,12 @@ function lsMergeRows(rows, mesCol, tiendaCol, promedioCol, procCols, forceOverwr
 
   for (const [k, g] of Object.entries(grouped)) {
     const already = existIndex.has(k);
-    if (already && !forceOverwrite) { skipped++; skippedKeys.push(`${g.tienda} · ${g.mes}`); continue; }
+    // Un mes ya guardado se respeta tal cual, EXCEPTO si se guardó con el lector anterior y el
+    // archivo trae ahora los datos nuevos (gerente/administrativo/responsables): en ese caso se
+    // actualiza solo, sin necesidad de marcar "Reemplazar". Nada guardado se borra.
+    const prev = already ? existing[existIndex.get(k)] : null;
+    const enriquece = !!(prev && !prev.personal && g.rows[0]['Personal']);
+    if (already && !forceOverwrite && !enriquece) { skipped++; skippedKeys.push(`${g.tienda} · ${g.mes}`); continue; }
     const promedioVals = g.rows.map(r=>{ const v=toNum(r[promedioCol]); return v!==null?v*100:null; }).filter(x=>x!==null);
     const promedio = promedioVals.length ? promedioVals.reduce((a,b)=>a+b,0)/promedioVals.length : null;
     const procData = {};
@@ -3133,514 +3129,405 @@ function getBimestre(mesStr) {
   return null;
 }
 
-// Abre/cierra el desplegable de meses del panel "Cargar y Generar"
-function toggleFilterMesesDropdown() {
-  const p = document.getElementById('filterMesesPanel');
-  p.style.display = p.style.display === 'none' ? 'block' : 'none';
-}
-function updateFilterMesesBtnLabel(allMeses) {
-  const btn = document.getElementById('filterMesesBtn');
-  if (!btn) return;
-  if (filterMesesSel.size === 0 || filterMesesSel.size === allMeses.length) {
-    btn.textContent = 'Todos los meses ▾';
-  } else if (filterMesesSel.size === 1) {
-    btn.textContent = `${[...filterMesesSel][0]} ▾`;
-  } else {
-    btn.textContent = `${filterMesesSel.size} meses seleccionados ▾`;
+// ═══════════════════════════════════════════════════════════
+// ASISTENTE DE 3 PASOS — 1 Datos · 2 Parámetros · 3 Resumen y descarga
+// ═══════════════════════════════════════════════════════════
+const SECCIONES = [
+  { k:'admins',       t:'Administrativos',          d:'Procesos (80%) + Frogmi (20%) = calificación', on:true, nuevo:true },
+  { k:'responsables', t:'Personal por proceso',     d:'Quién cumple y quién no, ordenado por tienda', on:true, nuevo:true },
+  { k:'evolucion',    t:'Evolución por meses',      d:'Gráfica del promedio y comparativa por tienda en los meses elegidos', on:true },
+  { k:'procesos',     t:'Cumplimiento por proceso', d:'Promedio de cada proceso en el mes', on:false },
+];
+const WZ = {
+  step: 1, mes: null, comp: 'prev', meta: 80, tiendas: new Set(), tiendasTocadas: false,
+  evoMeses: new Set(), evoTocado: false, // meses para la gráfica de evolución
+  evoAnual: false,                        // comparar cada mes contra el mismo mes del año anterior
+  sec: Object.fromEntries(SECCIONES.map(s => [s.k, s.on])),
+};
+// Las preferencias (comparación, meta y secciones) se recuerdan en este navegador.
+const WZ_PREF_KEY = 'kuroda_gen_preferencias';
+try {
+  const g = JSON.parse(localStorage.getItem(WZ_PREF_KEY) || 'null');
+  if (g) {
+    if (COMPARACIONES[g.comp]) WZ.comp = g.comp;
+    if (Number.isFinite(g.meta)) WZ.meta = g.meta;
+    if (g.sec) for (const k in WZ.sec) if (typeof g.sec[k] === 'boolean') WZ.sec[k] = g.sec[k];
+    if (typeof g.evoAnual === 'boolean') WZ.evoAnual = g.evoAnual;
   }
+} catch(e) {}
+function wzGuardarPref() {
+  try { localStorage.setItem(WZ_PREF_KEY, JSON.stringify({ comp: WZ.comp, meta: WZ.meta, sec: WZ.sec, evoAnual: WZ.evoAnual })); } catch(e) {}
 }
-function fmesToggleOne(m) {
-  if (filterMesesSel.has(m)) filterMesesSel.delete(m); else filterMesesSel.add(m);
-  filterMesesCustom = true;
-  updateFilterMesesBtnLabel(allMonths);
-  updateFilterDesc();
+// Una sola meta general para todas las tiendas y todos los meses (se cambia en Parámetros).
+function wzMetaMes() { return WZ.meta; }
+
+const esc = s => String(s === null || s === undefined ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+function tiendasDelMes(mes) {
+  return [...new Set(lsLoad().filter(r => r.mes === mes).map(r => collapseWs(r.tienda)))].sort();
 }
-function fmesQuickSelect(kind) {
-  if (kind === 'all') { filterMesesSel = new Set(allMonths); filterMesesCustom = false; }
-  else if (kind === 'none') { filterMesesSel = new Set(); filterMesesCustom = true; }
-  else if (kind.startsWith('year:')) {
-    const y = kind.slice(5);
-    filterMesesSel = new Set(allMonths.filter(m => getYear(m) === y));
-    filterMesesCustom = true;
-  } else if (kind.startsWith('sem:')) {
-    const [, y, semNum] = kind.split(':');
-    const wanted = semNum === '1' ? 'Semestre 1 (Ene–Jun)' : 'Semestre 2 (Jul–Dic)';
-    filterMesesSel = new Set(allMonths.filter(m => getYear(m) === y && getSemestre(m) === wanted));
-    filterMesesCustom = true;
-  }
-  document.querySelectorAll('#filterMesesChecklist input').forEach(i => { i.checked = filterMesesSel.has(i.value); });
-  updateFilterMesesBtnLabel(allMonths);
-  updateFilterDesc();
-}
-function populateFilterMeses() {
-  if (!filterMesesCustom) filterMesesSel = new Set(allMonths);
-  else filterMesesSel = new Set([...filterMesesSel].filter(m => allMonths.includes(m)));
-  const checklist = document.getElementById('filterMesesChecklist');
-  checklist.innerHTML = allMonths.map(m => `<label>
-      <input type="checkbox" value="${m}" ${filterMesesSel.has(m)?'checked':''} onchange="fmesToggleOne('${m}')">
-      ${m}
-    </label>`).join('');
-  const years = [...new Set(allMonths.map(getYear).filter(Boolean))].sort();
-  const quickHtml = ['<button type="button" class="ms-quick-btn" onclick="fmesQuickSelect(\'all\')">Todos</button>',
-                      '<button type="button" class="ms-quick-btn" onclick="fmesQuickSelect(\'none\')">Ninguno</button>'];
-  years.forEach(y => {
-    quickHtml.push(`<button type="button" class="ms-quick-btn" onclick="fmesQuickSelect('year:${y}')">Año ${y}</button>`);
-    ['1','2'].forEach(semNum => {
-      const wanted = semNum === '1' ? 'Semestre 1 (Ene–Jun)' : 'Semestre 2 (Jul–Dic)';
-      const has = allMonths.some(m => getYear(m) === y && getSemestre(m) === wanted);
-      if (has) quickHtml.push(`<button type="button" class="ms-quick-btn" onclick="fmesQuickSelect('sem:${y}:${semNum}')">Sem ${semNum} · ${y}</button>`);
-    });
+
+// Navegación entre pasos. No deja avanzar sin datos ni sin tiendas.
+function wzGo(paso) {
+  const meses = histMeses();
+  if (paso > 1 && !meses.length) { paso = 1; }
+  if (paso === 3 && !WZ.tiendas.size) { paso = 2; alert('Elige al menos una tienda.'); }
+  WZ.step = paso;
+  [1,2,3].forEach(i => { document.getElementById('wzStep' + i).hidden = i !== paso; });
+  document.querySelectorAll('#wzSteps li').forEach(li => {
+    const i = Number(li.dataset.step);
+    li.classList.toggle('active', i === paso);
+    li.classList.toggle('done', i < paso);
   });
-  document.getElementById('filterMesesQuick').innerHTML = quickHtml.join('');
-  updateFilterMesesBtnLabel(allMonths);
-}
-document.addEventListener('click', (e) => {
-  const dd = document.getElementById('filterMesesDropdown');
-  if (dd && !dd.contains(e.target)) { const p = document.getElementById('filterMesesPanel'); if(p) p.style.display = 'none'; }
-});
-
-function updateFilterOptions() {
-  const type = document.getElementById('filterType').value;
-  const valueGroup = document.getElementById('filterValueGroup');
-  const valueSel   = document.getElementById('filterValue');
-  const valueLabel = document.getElementById('filterValueLabel');
-  const mesesGroup = document.getElementById('filterMesesGroup');
-
-  if (type === 'all') {
-    valueGroup.style.display = 'none';
-    mesesGroup.style.display = 'none';
-    updateFilterDesc();
-    return;
-  }
-
-  if (type === 'mes') {
-    valueGroup.style.display = 'none';
-    mesesGroup.style.display = 'flex';
-    populateFilterMeses();
-    updateFilterDesc();
-    return;
-  }
-  mesesGroup.style.display = 'none';
-  valueGroup.style.display = 'flex';
-
-  let options = [];
-  if (type === 'anio') {
-    valueLabel.textContent = 'Año';
-    const years = [...new Set(allMonths.map(getYear).filter(Boolean))];
-    options = years.map(y => ({ val: y, label: y }));
-  } else if (type === 'semestre') {
-    valueLabel.textContent = 'Semestre';
-    const sems = [...new Set(allMonths.map(getSemestre).filter(Boolean))];
-    options = sems.map(s => ({ val: s, label: s }));
-  } else if (type === 'bimestre') {
-    valueLabel.textContent = 'Bimestre';
-    const bims = [...new Set(allMonths.map(getBimestre).filter(Boolean))];
-    options = bims.map(b => ({ val: b, label: b }));
-  }
-
-  valueSel.innerHTML = options.map(o => `<option value="${o.val}">${o.label}</option>`).join('');
-  updateFilterDesc();
+  if (paso === 2) wzPintarParametros();
+  if (paso === 3) wzPintarResumen();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function updateFilterDesc() {
-  const type = document.getElementById('filterType').value;
-  const value = document.getElementById('filterValue').value || '';
-  const store = document.getElementById('filterStore').value;
-  const proceso = document.getElementById('filterProcess').value;
-
-  let periodoTxt = 'Todo el período';
-  if (type === 'mes') {
-    if (filterMesesSel.size === 0 || filterMesesSel.size === allMonths.length) periodoTxt = 'Todos los meses';
-    else if (filterMesesSel.size === 1) periodoTxt = `Mes: ${[...filterMesesSel][0]}`;
-    else periodoTxt = `${filterMesesSel.size} meses seleccionados`;
-  } else if (type !== 'all' && value) {
-    const map = { anio:'Año', semestre:'Semestre', bimestre:'Bimestre' };
-    periodoTxt = `${map[type]}: ${value}`;
+// Paso 1 — tarjeta con lo que ya hay guardado.
+function wzPintarDatos() {
+  const meses = histMeses(), box = document.getElementById('wzDatos');
+  const tiendas = [...new Set(lsLoad().map(r => collapseWs(r.tienda)))];
+  if (!meses.length) {
+    box.className = 'wz-datos vacio';
+    box.innerHTML = '<strong>Aún no hay datos guardados.</strong> Sube el Excel de Cumplimiento de Procesos para empezar.';
+  } else {
+    const ultimo = meses[meses.length - 1];
+    const nuevos = meses.filter(m => lsLoad().some(r => r.mes === m && r.personal));
+    box.className = 'wz-datos';
+    box.innerHTML = `☁️ <strong>Datos guardados:</strong> ${tiendas.length} tiendas · ${meses.length} meses (${esc(meses[0])} a ${esc(ultimo)}).` +
+      (nuevos.length ? `<br>Con gerentes, administrativos y responsables: ${nuevos.map(esc).join(', ')}.` : '') +
+      `<br>Puedes pasar directo a <strong>Parámetros</strong>, o subir un Excel para agregar un mes.`;
+    // Meses del formato nuevo que se guardaron con la versión anterior del generador (sin
+    // administrativos ni responsables): se detectan por los conceptos con "(responsable)" o
+    // "Total Procesos" en su detalle. Al volver a subir el Excel se completan solos.
+    const incompletos = meses.filter(m => lsLoad().some(r => r.mes === m && !r.personal &&
+      (r.detalle || []).some(d => /\(|total procesos/i.test(d.concepto || ''))));
+    if (incompletos.length) box.innerHTML += `<br><span class="wz-incompleto">⚠️ ${incompletos.map(esc).join(', ')} se guardaron antes de esta actualización.
+      Vuelve a subir el Excel para completarlos con administrativos y responsables: <strong>no se borra nada</strong>, solo se actualizan.</span>`;
   }
-  const razonTxt = RAZON_ACTIVA ? `Razón: ${RAZON_ACTIVA}` : '';
-  const storeTxt = store === 'all' ? 'Todas las tiendas' : `Tienda: ${store}`;
-  const procesoTxt = (!proceso || proceso === 'all') ? 'Todos los procesos' : `Proceso: ${proceso}`;
-  document.getElementById('filterDesc').textContent = [razonTxt, periodoTxt, storeTxt, procesoTxt].filter(Boolean).join(' · ');
+  document.getElementById('wzNext1').disabled = !meses.length;
 }
 
-function getFilteredRows() {
-  const type  = document.getElementById('filterType').value;
-  const value = document.getElementById('filterValue').value || '';
-  const store = document.getElementById('filterStore').value;
+// Paso 2 — parámetros.
+function wzPintarParametros() {
+  const meses = histMeses();
+  if (!WZ.mes || !meses.includes(WZ.mes)) WZ.mes = meses[meses.length - 1];
+  const selMes = document.getElementById('pMes');
+  selMes.innerHTML = meses.slice().reverse().map(m => `<option value="${esc(m)}"${m === WZ.mes ? ' selected' : ''}>${esc(m)}</option>`).join('');
+  document.getElementById('pMesBtn').innerHTML = `<span class="ic">📅</span> ${esc(WZ.mes)} <span class="ar">▾</span>`;
+  document.getElementById('pComp').value = WZ.comp;
+  document.getElementById('pMeta').value = wzMetaMes(WZ.mes);
 
-  let rows = allRows;
+  const disponibles = tiendasDelMes(WZ.mes);
+  if (!WZ.tiendasTocadas) WZ.tiendas = new Set(disponibles);
+  else WZ.tiendas = new Set([...WZ.tiendas].filter(t => disponibles.includes(t)));
+  document.getElementById('pTiendas').innerHTML = disponibles.map(t =>
+    `<span class="wz-chip${WZ.tiendas.has(t) ? ' on' : ''}" data-t="${esc(t)}" onclick="wzToggleTienda(this)">${esc(t)}</span>`).join('');
+  document.getElementById('pTiendasCount').textContent = `· ${WZ.tiendas.size} de ${disponibles.length}`;
 
-  // Filter by period
-  if (type === 'mes') {
-    if (filterMesesSel.size > 0 && filterMesesSel.size < allMonths.length) {
-      rows = rows.filter(r => filterMesesSel.has((r._mes||'').toString()));
+  wzPintarEvo();
+
+  const hayAdmin = lsLoad().some(r => r.mes === WZ.mes && r.personal);
+  document.getElementById('pSecciones').innerHTML =
+    `<label class="wz-check fijo"><input type="checkbox" checked disabled><div><b>Portada, resumen y tiendas</b><span>Siempre incluidas</span></div></label>` +
+    SECCIONES.map(s => {
+      const sinDatos = s.nuevo && !hayAdmin;
+      return `<label class="wz-check"${sinDatos ? ' title="Este mes no trae administrativos ni responsables (formato anterior a agosto 2026)"' : ''}>
+        <input type="checkbox" ${WZ.sec[s.k] ? 'checked' : ''} ${sinDatos ? 'disabled' : ''} onchange="wzToggleSeccion('${s.k}', this.checked)">
+        <div><b>${s.t}</b><span>${sinDatos ? 'No disponible para este mes' : s.d}</span></div></label>`;
+    }).join('');
+  wzPintarHints();
+}
+function wzPintarHints() {
+  const comp = mesesComparacion(WZ.mes, WZ.comp, histMeses());
+  document.getElementById('pCompHint').textContent = WZ.comp === 'none' ? 'Solo se muestra el mes elegido.'
+    : comp.etiqueta ? `Se compara contra: ${comp.etiqueta}.` : 'No hay datos guardados para esa comparación.';
+  const mt = wzMetaMes(WZ.mes);
+  document.getElementById('pMetaHint').textContent = `Meta general para todas las tiendas y meses. 🟢 ${mt}% o más · 🟡 ${mt - 20}–${mt - 1}% · 🔴 menos de ${mt - 20}%`;
+}
+function wzParamChange() {
+  const mesAntes = WZ.mes;
+  WZ.mes = document.getElementById('pMes').value;
+  WZ.comp = document.getElementById('pComp').value;
+  if (WZ.mes !== mesAntes) { wzGuardarPref(); wzPintarParametros(); return; }
+  // Meta general: aplica a todas las tiendas y meses. Se recuerda para la próxima vez.
+  const meta = Math.round(Number(document.getElementById('pMeta').value));
+  WZ.meta = Number.isFinite(meta) ? Math.min(100, Math.max(50, meta)) : 80;
+  wzGuardarPref();
+  document.getElementById('pMeta').value = WZ.meta;
+  wzPintarHints();
+}
+function wzToggleTienda(el) {
+  const t = el.dataset.t; WZ.tiendasTocadas = true;
+  if (WZ.tiendas.has(t)) WZ.tiendas.delete(t); else WZ.tiendas.add(t);
+  el.classList.toggle('on', WZ.tiendas.has(t));
+  document.getElementById('pTiendasCount').textContent = `· ${WZ.tiendas.size} de ${tiendasDelMes(WZ.mes).length}`;
+}
+function wzTiendasAll(todas) {
+  WZ.tiendasTocadas = !todas;
+  WZ.tiendas = new Set(todas ? tiendasDelMes(WZ.mes) : []);
+  wzPintarParametros();
+}
+function wzToggleSeccion(k, v) { WZ.sec[k] = v; wzGuardarPref(); }
+
+// Meses para la evolución: cualquiera hasta el mes del reporte (que siempre va incluido).
+function mesesEvoDisponibles() { return histMeses().filter(m => monthKey(m) <= monthKey(WZ.mes)); }
+function wzPintarEvo() {
+  const disp = mesesEvoDisponibles();
+  // Por defecto: todo el año del mes del reporte (enero → mes elegido), hasta 12 meses.
+  if (!WZ.evoTocado) WZ.evoMeses = new Set(disp.filter(m => getYear(m) === getYear(WZ.mes)).slice(-12));
+  else WZ.evoMeses = new Set([...WZ.evoMeses].filter(m => disp.includes(m)));
+  WZ.evoMeses.add(WZ.mes);
+  const sel = [...WZ.evoMeses].sort((a,b) => monthKey(a) - monthKey(b));
+  // ¿Los meses elegidos son seguidos? Entonces se muestra como rango "Ene '26 – Sep '26".
+  const seguidos = sel.every((m,i) => !i || monthKey(m) - monthKey(sel[i-1]) === 1);
+  document.getElementById('pEvoBtn').innerHTML = `<span class="ic">📅</span> ${sel.length > 1 && seguidos
+    ? `${esc(mesCorto(sel[0]))} – ${esc(mesCorto(sel[sel.length-1]))}` : sel.map(m => esc(mesCorto(m))).join(', ')} <span class="ar">▾</span>`;
+  document.getElementById('pEvoCount').textContent = `· ${WZ.evoMeses.size} de ${EVO_MAX} meses como máximo`;
+  if (!document.getElementById('calEvo').hidden) wzCalPintar('evo');
+  // Año anterior: cuántos de los meses elegidos tienen datos del mismo mes un año antes.
+  const todos = histMeses();
+  const conAnterior = [...WZ.evoMeses].filter(m => todos.includes(mesAnioAnterior(m)));
+  document.getElementById('pEvoAnual').checked = WZ.evoAnual;
+  document.getElementById('pEvoAnualHint').textContent = conAnterior.length
+    ? `Cada mes elegido junto al mismo mes del año pasado (${conAnterior.length} de ${WZ.evoMeses.size} meses tienen datos del año anterior).`
+    : 'Aún no hay datos guardados del año anterior para estos meses; se activará cuando los cargues.';
+}
+function wzEvoAnual(v) { WZ.evoAnual = v; wzGuardarPref(); }
+// La evolución abarca como máximo un año (12 meses) para que la gráfica y las tablas
+// se sigan leyendo bien en pantalla y en el PowerPoint.
+const EVO_MAX = 12;
+function wzEvoToggleMes(m) {
+  if (m === WZ.mes) return; // el mes del reporte siempre va incluido
+  WZ.evoTocado = true; WZ.calAviso = '';
+  if (WZ.evoMeses.has(m)) WZ.evoMeses.delete(m);
+  else if (WZ.evoMeses.size >= EVO_MAX) WZ.calAviso = `Máximo ${EVO_MAX} meses: quita uno para agregar otro.`;
+  else WZ.evoMeses.add(m);
+  wzPintarEvo();
+}
+
+// ─── Calendario de meses (Mes del reporte y Meses para la evolución) ───
+// Un botón abre un calendario por año (Ene…Dic). Los meses sin datos aparecen apagados.
+const MESES_CORTOS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const mesDe = (i, anio) => `${MONTH_ORDER_KEY[i][0].toUpperCase()}${MONTH_ORDER_KEY[i].slice(1)} ${anio}`;
+WZ.calAnio = {}; WZ.calAviso = '';
+function wzCalToggle(tipo) {
+  const id = tipo === 'mes' ? 'calMes' : 'calEvo', el = document.getElementById(id);
+  const abrir = el.hidden;
+  ['calMes','calEvo'].forEach(x => { document.getElementById(x).hidden = true; });
+  if (abrir) { WZ.calAnio[tipo] = Number(getYear(WZ.mes)); WZ.calAviso = ''; el.hidden = false; wzCalPintar(tipo); }
+}
+function wzCalAnio(tipo, d) { WZ.calAnio[tipo] += d; wzCalPintar(tipo); }
+function wzCalPintar(tipo) {
+  const el = document.getElementById(tipo === 'mes' ? 'calMes' : 'calEvo');
+  const conDatos = new Set(histMeses());
+  const anios = [...conDatos].map(m => Number(getYear(m))).filter(Boolean);
+  const aMin = Math.min(...anios), aMax = Math.max(...anios), anio = WZ.calAnio[tipo];
+  const celdas = MESES_CORTOS.map((corto, i) => {
+    const m = mesDe(i, anio), hay = conDatos.has(m);
+    let cls = 'wz-cal-m', click = '', title = '';
+    if (tipo === 'mes') {
+      if (!hay) { cls += ' off'; title = 'Sin datos'; }
+      else { click = `wzCalElegirMes('${m}')`; if (m === WZ.mes) cls += ' on'; }
+    } else {
+      const fuera = monthKey(m) > monthKey(WZ.mes);
+      if (!hay || fuera) { cls += ' off'; title = fuera ? 'Posterior al mes del reporte' : 'Sin datos'; }
+      else {
+        click = `wzEvoToggleMes('${m}')`;
+        if (WZ.evoMeses.has(m)) cls += ' on';
+        if (m === WZ.mes) { cls += ' fijo'; title = 'Mes del reporte (siempre incluido)'; }
+      }
     }
-  } else if (type !== 'all' && value) {
-    rows = rows.filter(r => {
-      const mes = (r._mes||'').toString();
-      if (type === 'anio') return getYear(mes) === value;
-      if (type === 'semestre') return getSemestre(mes) === value;
-      if (type === 'bimestre') return getBimestre(mes) === value;
-      return true;
-    });
-  }
-
-  // Filter by store
-  if (store !== 'all') {
-    rows = rows.filter(r => (r._tienda||'').trim() === store);
-  }
-
-  return rows;
+    return `<button type="button" class="${cls}"${click ? ` onclick="${click}"` : ' disabled'}${title ? ` title="${title}"` : ''}>${corto}</button>`;
+  }).join('');
+  el.innerHTML =
+    `<div class="wz-cal-head">
+       <button type="button" onclick="wzCalAnio('${tipo}',-1)"${anio <= aMin ? ' disabled' : ''} aria-label="Año anterior">‹</button>
+       <strong>${anio}</strong>
+       <button type="button" onclick="wzCalAnio('${tipo}',1)"${anio >= aMax ? ' disabled' : ''} aria-label="Año siguiente">›</button>
+     </div>
+     <div class="wz-cal-grid">${celdas}</div>` +
+    (tipo === 'evo' ? `<div class="wz-cal-aviso">${esc(WZ.calAviso || `${WZ.evoMeses.size} de ${EVO_MAX} meses elegidos`)}</div>
+      <div class="wz-cal-rapidos">
+        <button type="button" onclick="wzEvoRapido(3)">Últimos 3</button>
+        <button type="button" onclick="wzEvoRapido(6)">Últimos 6</button>
+        <button type="button" onclick="wzEvoRapido(12)">Últimos 12</button>
+        <button type="button" onclick="wzEvoRapido('anio')">Este año</button>
+      </div>` : '') +
+    `<div class="wz-cal-pie"><button type="button" class="wz-btn primary" onclick="wzCalToggle('${tipo}')">Listo</button></div>`;
+}
+function wzCalElegirMes(m) {
+  document.getElementById('pMes').value = m;
+  document.getElementById('calMes').hidden = true;
+  wzParamChange();
+}
+// Cerrar el calendario al hacer clic fuera de él.
+document.addEventListener('click', e => {
+  // Si el botón clicado ya no existe (el calendario se redibujó al elegir un mes), no se cierra.
+  if (!document.contains(e.target)) return;
+  if (!e.target.closest('.wz-cal-wrap')) ['calMes','calEvo'].forEach(x => { const c = document.getElementById(x); if (c) c.hidden = true; });
+});
+function wzEvoRapido(tipo) {
+  const disp = mesesEvoDisponibles(); WZ.evoTocado = true;
+  const lista = tipo === 'todos' ? disp : tipo === 'anio' ? disp.filter(m => getYear(m) === getYear(WZ.mes)) : disp.slice(-tipo);
+  WZ.evoMeses = new Set(lista.slice(-EVO_MAX)); // siempre los más recientes, hasta 12
+  wzPintarEvo();
 }
 
-function buildFilteredLabel() {
-  const type  = document.getElementById('filterType').value;
-  const value = document.getElementById('filterValue').value || '';
-  const store = document.getElementById('filterStore').value;
-  const proceso = document.getElementById('filterProcess').value;
-  const parts = [];
-  if (RAZON_ACTIVA) parts.push(RAZON_ACTIVA);
-  if (type === 'mes' && filterMesesSel.size > 0 && filterMesesSel.size < allMonths.length) {
-    parts.push(filterMesesSel.size === 1 ? [...filterMesesSel][0] : `${filterMesesSel.size}meses`);
-  } else if (type !== 'all' && value) parts.push(value);
-  if (store !== 'all') parts.push(store);
-  if (proceso && proceso !== 'all') parts.push(proceso);
-  if (!parts.length) parts.push('Completo');
-  return parts.join(' · ');
+function wzParametros() {
+  return { mes: WZ.mes, comp: WZ.comp, meta: WZ.meta,
+    tiendas: new Set(WZ.tiendas), sec: Object.assign({}, WZ.sec),
+    evoMeses: [...WZ.evoMeses].sort((a,b) => monthKey(a) - monthKey(b)), evoAnual: WZ.evoAnual };
 }
 
-// ─── PROCESS DATA FROM FILTERED ROW SET ───────────────────
-function processFromRows(rows, mesCol, tiendaCol, promedioCol, procesoFiltro) {
-  if (!rows.length) throw new Error('No hay datos para la selección actual.');
+// Paso 3 — resumen (mismos números que el PowerPoint).
+function wzPintarResumen() {
+  const R = calcularReporte(wzParametros());
+  const n = R.tiendas.length;
+  document.getElementById('wzResTitle').textContent = `${R.p.mes} · ${R.ok.length} de ${n} tiendas cumplen la meta`;
+  document.getElementById('wzResSub').textContent = `${razonNombre(RAZON_ACTIVA)} · Meta ${R.p.meta}% · ${R.comp.etiqueta ? 'Comparado contra ' + R.comp.etiqueta : 'Sin comparación'}`;
 
-  const monthsRaw = [...new Set(rows.map(r => r[mesCol]).filter(Boolean))];
-  monthsRaw.sort((a,b) => monthKey(a)-monthKey(b));
-  const months = monthsRaw;
-  const monthLabels = months.map(toMonthLabel);
+  const kpis = [
+    { v: `${Math.round(sn(R.prom))}%`, l: 'Promedio general', c: semaforo(R.prom, R.p.meta) },
+    { v: R.delta === null ? '—' : deltaTxt(R.delta) + ' pts', l: R.comp.etiqueta ? `Contra ${R.comp.etiqueta}` : 'Sin comparación', c: R.delta === null ? '' : R.delta >= 0 ? 'ok' : 'bad' },
+    { v: `${R.ok.length} · ${R.warn.length} · ${R.bad.length}`, l: 'Cumplen · En riesgo · No cumplen', c: '' },
+    R.hayAdmin ? { v: `${R.adminOk} / ${R.admins.length}`, l: 'Administrativos que cumplen', c: '' }
+               : { v: R.tiendas[0] ? `${Math.round(sn(R.tiendas[0].pct))}%` : '—', l: R.tiendas[0] ? `Mejor: ${R.tiendas[0].tienda}` : 'Mejor tienda', c: 'ok' },
+  ];
+  document.getElementById('wzKpis').innerHTML = kpis.map(k => `<div class="wz-kpi ${k.c}"><div class="v">${esc(k.v)}</div><div class="l">${esc(k.l)}</div></div>`).join('');
 
-  const stores = [...new Set(rows.map(r => (r[tiendaCol]||'').toString().trim()).filter(Boolean))];
+  const aviso = document.getElementById('wzAviso');
+  const pedidas = ['admins','responsables'].filter(k => R.p.sec[k]);
+  aviso.hidden = R.hayAdmin || !pedidas.length;
+  aviso.textContent = 'Este mes usa el formato anterior (sin administrativos ni responsables), así que esas secciones no se incluyen.';
 
-  function getRow(store, mes) {
-    return rows.find(r => (r[tiendaCol]||'').toString().trim()===store && r[mesCol]===mes);
-  }
+  const conComp = !!R.comp.etiqueta;
+  const pill = e => `<span class="wz-pill ${e}">${ESTADO_TXT[e]}</span>`;
+  const delta = d => d === null ? '<span class="wz-eq">—</span>' : `<span class="${Math.round(d) === 0 ? 'wz-eq' : d > 0 ? 'wz-up' : 'wz-down'}">${esc(deltaTxt(d))}</span>`;
+  document.getElementById('wzTabla').innerHTML =
+    `<thead><tr><th>Tienda</th><th>Gerente</th><th class="n">% Tienda</th>${conComp ? '<th class="n">Vs comp.</th>' : ''}${R.hayAdmin ? '<th class="n">% Adm.</th>' : ''}<th>Estado</th></tr></thead><tbody>` +
+    R.tiendas.map(t => `<tr><td><strong>${esc(t.tienda)}</strong>${t.auditoria ? ' <small title="Calificada por auditoría">(A)</small>' : ''}</td>
+      <td>${esc(t.gerente || '—')}</td><td class="n">${pctTxt(t.pct)}</td>${conComp ? `<td class="n">${delta(t.delta)}</td>` : ''}
+      ${R.hayAdmin ? `<td class="n">${pctTxt(t.adminPct)}</td>` : ''}<td>${pill(t.estado)}</td></tr>`).join('') + '</tbody>';
 
-  // Si se eligió un proceso específico, la métrica principal (evolución, mapa de
-  // calor, ranking) se calcula con la columna de ESE proceso en vez del promedio
-  // general de la tienda. Usa el mismo factor de escala que procAvg (x500).
-  const keys0 = rows.length ? Object.keys(rows[0]) : [];
-  const usaProceso = !!procesoFiltro && procesoFiltro !== 'all';
-  const valueCol = usaProceso
-    ? (findProcessColumn(keys0, procesoFiltro) || procesoFiltro)
-    : promedioCol;
-  const valueScale = usaProceso ? 500 : 100;
-  const readVal = (row) => {
-    const v = toNum(row[valueCol]);
-    return v !== null ? Math.min(v * valueScale, 100) : null;
-  };
-
-  const evolucion = months.map(mes => {
-    const vals = rows.filter(r => r[mesCol]===mes).map(readVal).filter(x => x !== null);
-    return avg(vals);
-  });
-
-  const heatData = {};
-  for (const st of stores) {
-    heatData[st] = months.map(mes => {
-      const row = getRow(st, mes);
-      if (!row) return null;
-      const v = readVal(row);
-      return v !== null ? Math.round(v) : null;
-    });
-  }
-
-  const ranking = stores.map(st => {
-    const vals = months.map(mes => {
-      const row = getRow(st, mes);
-      if (!row) return null;
-      return readVal(row);
-    }).filter(x => x !== null);
-    return { name: st, val: avg(vals) };
-  }).filter(r => r.val !== null);
-  ranking.sort((a,b) => b.val - a.val);
-
-  const keys = [...new Set(rows.flatMap(r => Object.keys(r)))];
-  const procCols = PROCESSES.map(p => findProcessColumn(keys, p) || p);
-  const procIdx = procCols.map((col,i) => i).filter(i => rows.some(r => toNum(r[procCols[i]]) !== null));
-  const procNamesSel = procIdx.length ? procIdx.map(i => PROCESSES[i]) : PROCESSES;
-  const procColsSel  = procIdx.length ? procIdx.map(i => procCols[i]) : procCols;
-  // Un proceso sin ningún dato en la selección (ej. "Entradas por Compra" en meses del
-  // formato anterior) se omite en lugar de mostrarse como 0%.
-  const procAvg = procCols.map((col, i) => {
-    const vals = rows.flatMap(r => {
-      const v = toNum(r[col]);
-      return v !== null ? [v] : [];
-    });
-    if (!vals.length) return null;
-    const pct = (vals.reduce((a,b)=>a+b,0)/vals.length) * 500;
-    return { name: PROCESSES[i], val: Math.min(Math.round(pct * 10) / 10, 100) };
-  }).filter(Boolean);
-  procAvg.sort((a,b) => b.val - a.val);
-
-  // Mapa de calor Tienda × Proceso — promedio de cada tienda en cada proceso,
-  // a través de todos los meses de la selección (mismo factor ×500 que procAvg).
-  const heatProc = {};
-  for (const st of stores) {
-    heatProc[st] = procColsSel.map(col => {
-      const vals = rows.filter(r => (r[tiendaCol]||'').toString().trim()===st)
-        .map(r => toNum(r[col])).filter(v => v !== null);
-      if (!vals.length) return null;
-      const pct = (vals.reduce((a,b)=>a+b,0)/vals.length) * 500;
-      return Math.min(Math.round(pct), 100);
-    });
-  }
-
-  const globalAvg2 = avg(rows.map(readVal).filter(x=>x!==null));
-  const evoValid = evolucion.filter(x=>x!==null);
-  const bestMonthIdx   = evolucion.reduce((bi,v,i,a)=>v!=null&&(a[bi]==null||v>a[bi])?i:bi,0);
-  const worstMonthIdx  = evolucion.reduce((bi,v,i,a)=>v!=null&&(a[bi]==null||v<a[bi])?i:bi,0);
-  const bestMonthLabel  = monthLabels[bestMonthIdx] || '—';
-  const bestMonthVal    = evoValid.length ? Math.max(...evoValid) : 0;
-  const worstMonthLabel = monthLabels[worstMonthIdx] || '—';
-  const worstMonthVal   = evoValid.length ? Math.min(...evoValid) : 0;
-
-  return { months, monthLabels, evolucion, stores, heatData, heatProc, procNames: procNamesSel, ranking, procAvg,
-    globalAvg: globalAvg2||0, bestMonthLabel, bestMonthVal, worstMonthLabel, worstMonthVal,
-    procesoFiltro: usaProceso ? procesoFiltro : null };
+  wzPintarEvolucion(R);
+  document.getElementById('wzSlides').innerHTML = planDiapositivas(R).map(s => `<li><strong>${esc(s.t)}</strong> <small>— ${esc(s.d)}</small></li>`).join('');
+  document.getElementById('wzDescargaMsg').textContent = '';
 }
 
-// ─── MAIN HANDLERS ───────────────────────────────────────
-// Popula los filtros y muestra el panel de generación de "Cargar y Generar"
-// directamente desde el historial ya guardado en la nube (Supabase), sin
-// necesidad de subir ningún archivo Excel. Se llama al abrir la página, al
-// cambiar de razón social y después de guardar una carga nueva.
-function cargarDesdeHistorial(){
-  allRows = allRowsFromHistory();
-  allRows.forEach(r => { r._mes = r['Mes']; r._tienda = (r['Tienda']||'').toString().trim(); });
-  allMonths = [...new Set(allRows.map(r => r._mes).filter(Boolean))].sort((a,b) => monthKey(a)-monthKey(b));
-  allStores = [...new Set(allRows.map(r => r._tienda).filter(Boolean))].sort();
+// Paso 3 — gráfica de evolución (barras por mes con línea de meta) y comparativa por tienda.
+function wzPintarEvolucion(R) {
+  const box = document.getElementById('wzEvo'), E = R.evolucion;
+  box.hidden = E.length < 2;
+  if (box.hidden) return;
+  const metaUnica = E.every(e => e.meta === E[0].meta);
+  document.getElementById('wzEvoTitulo').textContent = `Evolución · ${E[0].mes} a ${E[E.length-1].mes}`;
+  // Área de dibujo (barras + meta, misma escala 0–100%) y debajo las etiquetas. Si la meta
+  // cambia entre meses, cada barra lleva su propia marca de meta (se ve el escalón).
+  document.getElementById('wzBars').innerHTML =
+    `<div class="wz-plot${E.length > 9 ? ' compacta' : ''}">` +
+    (metaUnica ? `<div class="wz-meta-line" style="bottom:${E[0].meta}%"><span>meta ${E[0].meta}%</span></div>` : '') +
+    E.map(e => `<div class="wz-bar" title="${esc(e.mes)}: ${pctTxt(e.val)} · meta ${e.meta}% · ${e.ok} de ${e.n} tiendas cumplen">
+        ${metaUnica ? '' : `<div class="mk" style="bottom:${e.meta}%"><span>${e.meta}%</span></div>`}
+        <div class="b ${semaforo(e.val, e.meta)}" style="height:${Math.max(Math.min(e.val,100),1)}%"><span>${pctTxt(e.val)}</span></div></div>`).join('') +
+    `</div><div class="wz-xlab">` +
+    E.map((e,i) => {
+      const d = i ? e.val - E[i-1].val : null;
+      return `<div><div class="m${e.mes === R.p.mes ? ' act' : ''}">${esc(mesCorto(e.mes))}</div>
+        <div class="s">${e.ok}/${e.n} cumplen</div>
+        <div class="s">${d === null ? '&nbsp;' : `<b class="${Math.round(d) === 0 ? 'wz-eq' : d > 0 ? 'wz-up' : 'wz-down'}">${esc(deltaTxt(d))}</b>`}</div></div>`;
+    }).join('') + `</div>`;
+  const celda = (v, m) => { const e = semaforo(v, m === undefined ? R.p.meta : m); return `<td class="n"><span class="wz-pill ${e}">${pctTxt(v)}</span></td>`; };
+  const cambio = d => d === null ? '<td class="n"><span class="wz-eq">—</span></td>' : `<td class="n"><b class="${Math.round(d) === 0 ? 'wz-eq' : d > 0 ? 'wz-up' : 'wz-down'}">${esc(deltaTxt(d))}</b></td>`;
+  // Tabla que se ajusta al ancho: columnas fijas y más compacta conforme se agregan meses.
+  const tEvo = document.getElementById('wzEvoTabla');
+  tEvo.className = 'wz-table wz-fit' + (E.length > 9 ? ' muy-compacta' : E.length > 6 ? ' compacta' : '');
+  tEvo.innerHTML =
+    `<colgroup><col class="c-tienda">${E.map(() => '<col>').join('')}<col class="c-cambio"></colgroup>` +
+    `<thead><tr><th>Tienda</th>${E.map(e => `<th class="n">${esc(mesCorto(e.mes))}</th>`).join('')}<th class="n" title="Puntos que subió o bajó la tienda del primer al último mes">Cambio ${esc(rangoCambio(E))}</th></tr></thead><tbody>` +
+    R.evoTiendas.map(t => `<tr><td><strong>${esc(t.tienda)}</strong></td>${t.vals.map((v,j) => celda(v, E[j].meta)).join('')}${cambio(t.cambio)}</tr>`).join('') +
+    `<tr class="prom"><td><strong>Promedio</strong></td>${E.map(e => `<td class="n"><strong>${pctTxt(e.val)}</strong></td>`).join('')}<td></td></tr></tbody>`;
 
-  const storeSel = document.getElementById('filterStore');
-  storeSel.innerHTML = '<option value="all">Todas las tiendas</option>' +
-    allStores.map(s => `<option value="${s}">${s}</option>`).join('');
-
-  const procSel = document.getElementById('filterProcess');
-  procSel.innerHTML = '<option value="all">Todos (promedio general)</option>' +
-    PROCESSES.map(p => `<option value="${p}">${p}</option>`).join('');
-
-  updateFilterOptions();
-
-  const hasData = allRows.length > 0;
-  const note = document.getElementById('cloudDataNote');
-  const desc = document.getElementById('cloudDataDesc');
-  if (hasData) {
-    if (desc) desc.textContent = ` (${allStores.length} tiendas · ${allMonths.length} meses)`;
-    if (note) note.style.display = 'block';
-    document.getElementById('filterPanel').style.display = 'block';
-    if (!rawFileName) rawFileName = 'Dashboard_Nube';
-  } else {
-    if (note) note.style.display = 'none';
-    document.getElementById('filterPanel').style.display = 'none';
+  // Comparativo contra el año anterior (solo si se activó en Parámetros).
+  const A = R.anual, boxA = document.getElementById('wzAnual'), avisoA = document.getElementById('wzAnualAviso');
+  boxA.hidden = !(R.p.evoAnual && A.length);
+  avisoA.hidden = !(R.p.evoAnual && !A.length);
+  avisoA.textContent = 'Activaste "Comparar contra el año anterior", pero no hay datos guardados del año pasado para los meses elegidos. Sube el Excel de ese año para verlo.';
+  if (!boxA.hidden) {
+    const yAct = getYear(A[A.length-1].mes), yAnt = getYear(A[A.length-1].mesAnt);
+    document.getElementById('wzAnualTitulo').textContent = `Comparativo ${yAct} vs ${yAnt}`;
+    document.getElementById('wzAnualTabla').innerHTML =
+      `<thead><tr><th>Mes</th><th class="n">${esc(yAnt)}</th><th class="n">${esc(yAct)}</th><th class="n">Diferencia</th></tr></thead><tbody>` +
+      A.map(e => `<tr><td><strong>${esc(e.mes.replace(/\s*\d{4}$/, ''))}</strong></td>${celda(e.valAnt, e.meta)}${celda(e.val, e.meta)}${cambio(e.val - e.valAnt)}</tr>`).join('') +
+      `<tr><td><strong>Promedio</strong></td><td class="n"><strong>${pctTxt(R.anualProm.ant)}</strong></td><td class="n"><strong>${pctTxt(R.anualProm.act)}</strong></td>${cambio(R.anualProm.act - R.anualProm.ant)}</tr></tbody>`;
   }
-  return hasData;
+}
+
+// Nombre del archivo: Cumplimiento_KNO_Septiembre_2026.pptx
+function wzNombreArchivo(p) {
+  return ['Cumplimiento', RAZON_ACTIVA || '', p.mes].filter(Boolean).join('_').replace(/[^A-Za-z0-9ÁÉÍÓÚÑáéíóúñ_\-]+/g, '_') + '.pptx';
+}
+
+// ─── Paso 1: subir Excel ───────────────────────────────────
+function cargarDesdeHistorial() {
+  wzPintarDatos();
+  if (WZ.step !== 1) wzGo(WZ.step);
+  return histMeses().length > 0;
 }
 
 async function handleFile(file) {
   if (!file) return;
-  rawFileName = file.name.replace(/\.(xlsx|xls)$/i, '');
-  fileName = rawFileName + '_Dashboard.pptx';
-
-  document.getElementById('dropZone').style.display = 'none';
-  document.querySelector('.format-card').style.display = 'none';
-  document.getElementById('filterPanel').style.display = 'none';
-  document.getElementById('previewArea').style.display = 'none';
-  const cloudNote0 = document.getElementById('cloudDataNote'); if (cloudNote0) cloudNote0.style.display = 'none';
-
   const status = document.getElementById('statusArea');
   status.style.display = 'block';
   document.getElementById('logLines').innerHTML = '';
   document.querySelector('.spinner').style.display = '';
-  document.getElementById('statusTitle').textContent = 'Procesando datos…';
+  document.getElementById('statusTitle').textContent = 'Leyendo el archivo…';
   setProgress(0);
-
   try {
-    if (!HIST_READY) { log('☁️','Conectando con el historial en la nube…','active'); await sbFetchHistorial(); }
+    if (!HIST_READY) { log('☁️','Conectando con el historial…','active'); await sbFetchHistorial(); }
+    log('📂', `Leyendo ${file.name}…`, 'active'); setProgress(15);
+    rawWorkbook = XLSX.read(await file.arrayBuffer(), { type:'array' });
+    rawFileName = file.name.replace(/\.(xlsx|xls)$/i, '');
+    const filas = parseWorkbookBlocks(rawWorkbook);
+    if (!filas.length) throw new Error('No se reconoció ninguna hoja de mes (se busca la tabla Tienda / % / Cumplió).');
+    const meses = [...new Set(filas.map(r => r['Mes']).filter(Boolean))];
+    log('✅', `${meses.length} mes(es) en el archivo`, 'done'); setProgress(45);
 
-    log('📂','Leyendo archivo Excel…','active'); setProgress(10);
-    const buf = await file.arrayBuffer();
-    rawWorkbook = XLSX.read(buf, { type:'array' });
+    const reemplazar = document.getElementById('forceOverwrite').checked;
+    const { added, skipped, updated } = lsMergeRows(filas, 'Mes', 'Tienda', 'Promedio Cumplimiento', null, reemplazar);
+    const partes = [];
+    if (added) partes.push(`${added} nuevo(s)`);
+    if (updated) partes.push(`${updated} actualizado(s) con los datos nuevos`);
+    if (skipped) partes.push(`${skipped} ya existían (sin cambios)`);
+    log('📊', `Registros: ${partes.join(', ') || 'sin cambios'}`, 'done'); setProgress(65);
+    if (skipped && !reemplazar) log('ℹ️', 'Si querías corregir un mes ya guardado, marca "Reemplazar meses" y vuelve a subirlo.', '');
 
-    log('✅','Archivo cargado correctamente','done');
-    log('⚙️','Leyendo hojas mensuales y bloques por tienda…','active'); setProgress(25);
-
-    // Cada hoja del libro es un mes, con una tabla resumen (Tienda/%/Cumplió)
-    // y bloques por tienda (Gerente + Concepto/%). Se leen todas las hojas.
-    const uploadRows = parseWorkbookBlocks(rawWorkbook);
-    if (!uploadRows.length) throw new Error('No se reconoció ninguna hoja con el formato esperado (tabla resumen Tienda/%/Cumplió).');
-
-    const mesesEnArchivo = [...new Set(uploadRows.map(r => r['Mes']).filter(Boolean))];
-    log('✅',`${mesesEnArchivo.length} hoja(s) de mes leída(s) del archivo`,'done');
-    setProgress(45);
-
-    // Guarda en el historial — si el mes+tienda ya existía, se omite (no se duplica),
-    // salvo que el usuario haya activado "Reemplazar meses ya guardados".
-    const forceOverwrite = document.getElementById('forceOverwrite').checked;
-    log('💾', forceOverwrite ? 'Actualizando historial (reemplazando meses ya guardados)…' : 'Actualizando historial (sin duplicar meses ya guardados)…', 'active'); setProgress(55);
-    const { added, skipped, updated, skippedKeys } = lsMergeRows(uploadRows, 'Mes', 'Tienda', 'Promedio Cumplimiento', null, forceOverwrite);
-    log('📊', `Historial: ${added} nuevo(s), ${updated} actualizado(s), ${skipped} omitido(s) por ya existir`, skipped>0 ? '' : 'done');
-    if (skipped > 0) {
-      log('⚠️', `Se OMITIERON (ya existían y "Reemplazar meses ya guardados" estaba desactivado): ${skippedKeys.join(' · ')}. Si esos datos son la corrección, vuelve a cargar el archivo con esa casilla activada.`, '');
-    }
-
-    // Confirmación EXPLÍCITA del guardado en la nube — ya no es "fire and forget".
-    // Si Supabase falla (ej. la tabla generador_historial no existe todavía),
-    // esto lo dice en el log en vez de fallar en silencio.
-    log('☁️','Confirmando guardado en Supabase…','active');
-    const persistResult = await sbPersistHistorial(lsLoad());
-    if (persistResult.ok) {
-      log('✅','Guardado en Supabase confirmado (los datos ya están en la nube)','done');
-    } else {
-      log('⚠️',`No se pudo guardar en Supabase (${persistResult.error}). Por ahora quedó SOLO en este navegador — revisa que ejecutaste el SQL de la tabla generador_historial.`,'');
-    }
-
-    // El dashboard siempre se genera desde el historial COMPLETO ya depurado
-    // (no solo desde este archivo), para que cada carga solo sume el mes nuevo.
-    cargarDesdeHistorial();
-
-    log('✅',`Historial completo: ${allStores.length} tiendas · ${allMonths.length} meses`,'done');
-    setProgress(90);
-
-    document.querySelector('.spinner').style.display = 'none';
-    document.getElementById('statusTitle').textContent = '✅ Archivo cargado — Elige filtros y genera';
-    setProgress(100);
-
-    if (added > 0 || skipped > 0 || updated > 0) {
-      const parts = [];
-      if (added) parts.push(`${added} nuevo${added!==1?'s':''}`);
-      if (updated) parts.push(`${updated} actualizado${updated!==1?'s':''}`);
-      if (skipped) parts.push(`${skipped} ya existía${skipped!==1?'n':''}`);
-      log('📌', `De este archivo: ${parts.join(', ')} en el historial`, 'done');
-    }
-
-    // Muestra explícitamente el panel de filtros (cargarDesdeHistorial ya lo
-    // hace, pero se refuerza aquí porque venimos de un flujo de carga de archivo)
-    document.getElementById('filterPanel').style.display = 'block';
-
-  } catch(err) {
-    log('❌',`Error: ${err.message}`,'');
-    document.getElementById('statusTitle').textContent = 'Error al procesar el archivo';
-    document.querySelector('.spinner').style.display = 'none';
-    console.error(err);
-  }
-}
-
-async function generateDashboard() {
-  const status = document.getElementById('statusArea');
-  status.style.display = 'block';
-  document.getElementById('logLines').innerHTML = '';
-  document.querySelector('.spinner').style.display = '';
-  document.getElementById('statusTitle').textContent = 'Procesando datos…';
-  document.getElementById('previewArea').style.display = 'none';
-  setProgress(0);
-
-  try {
-    log('🔍','Aplicando filtros…','active'); setProgress(15);
-
-    const filteredRows = getFilteredRows();
-    if (!filteredRows.length) throw new Error('No hay datos para la selección actual. Ajusta los filtros.');
-
-    const mesCol      = Object.keys(allRows[0]).find(k => k.toLowerCase().includes('mes')) || 'Mes';
-    const tiendaCol   = Object.keys(allRows[0]).find(k => k.toLowerCase().includes('tienda')) || 'Tienda';
-    const promedioCol = Object.keys(allRows[0]).find(k => k.toLowerCase().includes('promedio')) || 'Promedio Cumplimiento';
-    const procesoSel  = document.getElementById('filterProcess').value;
-
-    const data = processFromRows(filteredRows, mesCol, tiendaCol, promedioCol, procesoSel);
-    const label = buildFilteredLabel();
-
-    // Registros con datos de personal (formato nuevo) dentro de la misma selección.
-    const selMeses = new Set(data.months), selTiendas = new Set(data.stores);
-    data.personalRecs = lsLoad().filter(r => r.personal && selMeses.has(r.mes) && selTiendas.has((r.tienda||'').toString().trim()));
-    if (data.personalRecs.length) {
-      const nm = new Set(data.personalRecs.map(r => r.mes)).size;
-      log('👥', `Gerentes y administrativos: ${nm} mes(es) con el formato nuevo en la selección`, 'done');
-    }
-
-    log('✅',`${data.stores.length} tiendas · ${data.months.length} meses en selección`,'done');
-    log('📊','Construyendo diapositivas…','active'); setProgress(40);
-
-    const pres = await buildPptx(data);
-    generatedPres = pres;
-    generatedData = data; // para reconstruir la presentación en cada descarga
-    fileName = `${rawFileName}_${label.replace(/[^a-zA-Z0-9_\-]/g,'_')}_Dashboard.pptx`;
-
-    log('✅',`Diapositivas generadas (${pres.slides ? pres.slides.length : 7})`,'done');
-    log('🎨','Aplicando estilos…','active'); setProgress(75);
-    await new Promise(r=>setTimeout(r,300));
-    log('✅','Estilos aplicados','done');
-    log('🔧','Finalizando presentación…','active'); setProgress(90);
-    await new Promise(r=>setTimeout(r,200));
-    log('✅','Dashboard listo para descargar','done');
+    log('☁️', 'Guardando en la nube…', 'active');
+    const res = await sbPersistHistorial(lsLoad());
+    log(res.ok ? '✅' : '⚠️', res.ok ? 'Guardado en la nube' : `No se pudo guardar en la nube (${res.error}). Quedó solo en este navegador.`, res.ok ? 'done' : '');
     setProgress(100);
 
     document.querySelector('.spinner').style.display = 'none';
-    document.getElementById('statusTitle').textContent = '¡Dashboard listo!';
-
-    // KPI preview
-    const kpiGrid = document.getElementById('kpiGrid');
-    kpiGrid.innerHTML = '';
-    const kpis = [
-      {label:'Promedio del Período',  val:`${data.globalAvg.toFixed(1)}%`,        cls:'teal'},
-      {label:'Mejor Tienda',          val:data.ranking[0]?.name||'—',             cls:'green', sub:data.ranking[0]?`${data.ranking[0].val.toFixed(1)}%`:null},
-      {label:'Mejor Mes',             val:data.bestMonthLabel,                     cls:'gold',  sub:`${data.bestMonthVal.toFixed(1)}%`},
-      {label:'Tiendas Analizadas',    val:`${data.stores.length}`,                 cls:'teal'},
-      {label:'Meses del Período',     val:`${data.months.length}`,                 cls:'gold'},
-      {label:'Proceso Líder',         val:data.procAvg[0]?.name||'—',             cls:'green', sub:data.procAvg[0]?`${data.procAvg[0].val.toFixed(1)}%`:null},
-    ];
-    if (data.personalRecs.length) {
-      const R = resumenPersonal(data.personalRecs);
-      const u = R.ultimo;
-      const evalU = x => x.pct[u] !== null && x.pct[u] !== undefined;
-      const Gu = R.gerentes.filter(evalU), Au = R.admins.filter(evalU);
-      const gOk = Gu.filter(g => g.cumplio[u] ? esSi(g.cumplio[u]) : sn(g.pct[u]) > CUMPLE_MIN).length;
-      const aOk = Au.filter(a => a.cumplio[u] ? esSi(a.cumplio[u]) : sn(a.pct[u]) > CUMPLE_MIN).length;
-      const pOk = R.responsables.filter(p => p.ok === p.eval).length;
-      kpis.push(
-        {label:`Gerentes que cumplen (${toMonthLabel(u)})`,        val:`${gOk} / ${Gu.length}`,             cls:'green'},
-        {label:`Administrativos que cumplen (${toMonthLabel(u)})`, val:`${aOk} / ${Au.length}`,             cls:'teal'},
-        {label:'Responsables que cumplen todo',                    val:`${pOk} / ${R.responsables.length}`, cls:'gold'},
-      );
-    }
-    kpis.forEach(k => {
-      const card = document.createElement('div');
-      card.className = 'kpi-card';
-      card.innerHTML = `<div class="kpi-label">${k.label}</div><div class="kpi-value ${k.cls}">${k.val}</div>${k.sub?`<div class="kpi-sub">${k.sub}</div>`:''}`;
-      kpiGrid.appendChild(card);
-    });
-
-    setTimeout(() => { document.getElementById('previewArea').style.display='block'; }, 200);
-
+    document.getElementById('statusTitle').textContent = '✅ Archivo cargado. Ya puedes seguir a Parámetros.';
+    WZ.mes = histMeses().pop(); WZ.tiendasTocadas = false;
+    wzPintarDatos();
+    populateStorageFilters(); renderStorageTable();
+    populateDetalleFilters(); renderDetalleCards();
   } catch(err) {
-    log('❌',`Error: ${err.message}`,'');
-    document.getElementById('statusTitle').textContent = 'Error al generar el dashboard';
+    log('❌', `Error: ${err.message}`, '');
+    document.getElementById('statusTitle').textContent = 'No se pudo leer el archivo';
     document.querySelector('.spinner').style.display = 'none';
     console.error(err);
+  } finally {
+    document.getElementById('fileInput').value = '';
   }
 }
 
-document.getElementById('generateBtn').addEventListener('click', generateDashboard);
-
-document.getElementById('filterType').addEventListener('change', updateFilterOptions);
-document.getElementById('filterValue').addEventListener('change', updateFilterDesc);
-document.getElementById('filterStore').addEventListener('change', updateFilterDesc);
-document.getElementById('filterProcess').addEventListener('change', updateFilterDesc);
-
+// ─── Descarga ──────────────────────────────────────────────
 // Descarga robusta del .pptx. Dentro del dashboard, el generador vive en un
-// iframe `srcdoc` (origen about:srcdoc); en ese contexto la descarga directa
-// de un blob puede fallar o guardar un archivo ilegible. Por eso, si estamos
-// embebidos, le pasamos el archivo ya armado al dashboard padre (que sí tiene
-// un origen real) para que él lo descargue. Fuera del dashboard, descarga local.
+// iframe; ahí la descarga directa de un blob puede fallar, así que se le pasa
+// el archivo en base64 al dashboard padre para que él lo descargue.
 const PPTX_MIME='application/vnd.openxmlformats-officedocument.presentationml.presentation';
-// Reconstruye el .pptx desde base64. Base64 es texto puro: no se corrompe al
-// viajar por postMessage entre el iframe y el dashboard (a diferencia de un Blob).
 function b64ToBlobPptx(b64){
   const bin = atob(b64);
   const bytes = new Uint8Array(bin.length);
@@ -3655,60 +3542,37 @@ function descargarBlobLocal(blob, nombre){
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 async function descargarPptx(pres, nombre){
-  // Generamos el archivo como base64 (texto). Si estamos embebidos, se lo
-  // pasamos así al dashboard padre —que sí tiene origen real— para que él
-  // haga la descarga sin corromper los bytes. Fuera del dashboard, descarga local.
   const b64 = await pres.write({ outputType:'base64' });
   if (EMBEDDED && window.parent && window.parent !== window) {
     try { window.parent.postMessage({ type:'gen-download', b64, fileName:nombre }, '*'); return; }
-    catch(e){ /* si el padre no puede recibirlo, caemos a descarga local */ }
+    catch(e){ /* si el padre no puede recibirlo, se descarga local */ }
   }
   descargarBlobLocal(b64ToBlobPptx(b64), nombre);
 }
+// Cada clic arma una presentación NUEVA: escribir dos veces la misma con PptxGenJS
+// corrompe el archivo (PowerPoint ya no lo abre).
 document.getElementById('downloadBtn').addEventListener('click', async () => {
-  if (!generatedPres) return;
-  const btn = document.getElementById('downloadBtn');
-  btn.textContent = '⏳ Generando archivo…';
-  btn.disabled = true;
-  // PptxGenJS convierte las unidades de las sombras (blur, ángulo, opacidad) sobre los
-  // mismos objetos cada vez que escribe el archivo: descargar dos veces la MISMA
-  // presentación multiplica esos valores y PowerPoint ya no puede abrirla. Por eso se
-  // arma una presentación nueva en cada descarga.
+  const btn = document.getElementById('downloadBtn'), msg = document.getElementById('wzDescargaMsg');
+  btn.disabled = true; btn.innerHTML = '<span>⏳</span> Armando el PowerPoint…';
   try {
-    const pres = generatedData ? await buildPptx(generatedData) : generatedPres;
-    await descargarPptx(pres, fileName);
+    const p = wzParametros();
+    const R = calcularReporte(p);
+    const pres = await buildPptxEjecutivo(R);
+    await descargarPptx(pres, wzNombreArchivo(p));
+    msg.textContent = `Listo: ${wzNombreArchivo(p)} (${planDiapositivas(R).length} diapositivas).`;
+  } catch(e) {
+    console.error(e); msg.textContent = 'No se pudo armar el PowerPoint: ' + (e.message || e);
   }
-  catch(e) { console.error(e); }
-  btn.innerHTML = '<span>⬇️</span> Descargar Dashboard en PowerPoint';
-  btn.disabled = false;
-});
-
-document.getElementById('resetBtn').addEventListener('click', () => {
-  document.getElementById('dropZone').style.display = 'block';
-  document.querySelector('.format-card').style.display = 'block';
-  document.getElementById('statusArea').style.display = 'none';
-  document.getElementById('previewArea').style.display = 'none';
-  document.getElementById('fileInput').value = '';
-  document.getElementById('forceOverwrite').checked = false;
-  generatedPres = null;
-  generatedData = null;
-  rawWorkbook = null;
-  rawFileName = '';
-  filterMesesSel = new Set(); filterMesesCustom = false;
-  // El historial en la nube sigue disponible: se vuelve a poblar el panel de
-  // filtros con esos datos en vez de dejar la vista vacía.
-  cargarDesdeHistorial();
-  switchGenView('cargar');
+  btn.disabled = false; btn.innerHTML = '<span>⬇️</span> Descargar PowerPoint';
 });
 
 document.getElementById('fileInput').addEventListener('change', e => {
   if (e.target.files[0]) handleFile(e.target.files[0]);
 });
 
-// Carga el historial desde Supabase, lo depura y refresca las vistas de
-// Historial/Tendencia/Detalle apenas abre la página (antes eran botones que
-// se apilaban debajo; ahora son pestañas independientes siempre disponibles).
+// Carga el historial desde Supabase al abrir la página y refresca todas las vistas.
 (async function initHistorialGenerador(){
+  wzPintarDatos();
   await sbFetchHistorial();
   dedupeHistory();
   cargarDesdeHistorial();
@@ -3721,6 +3585,7 @@ const dz = document.getElementById('dropZone');
 dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
 dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
 dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+
 
 // ══════════════════════════════════════════════════════════════════
 // RAZÓN SOCIAL — integración con el dashboard padre (Grupo Kuroda)
