@@ -49,7 +49,10 @@
     --gray-800: #f1f2f8;
     --white: #141834;
   }
-  [data-theme="dark"] body{background:radial-gradient(circle at 20% 0%,#1a1f4d 0%,#0a0e23 55%) fixed}
+  /* Fondo oscuro SÓLIDO (sin "fixed"): dentro del iframe del Monitor un fondo fijo podía
+     no pintarse y se veía blanco detrás de los paneles translúcidos. */
+  [data-theme="dark"], [data-theme="dark"] body{background-color:#0a0e23}
+  [data-theme="dark"] body{background:#0a0e23 radial-gradient(circle at 20% 0%,#1a1f4d 0%,#0a0e23 60%) no-repeat}
   [data-theme="dark"] .ext-badge{border-color:rgba(255,201,77,.4)}
   [data-theme="dark"] .filter-info{border-color:rgba(61,220,151,.35)}
   [data-theme="dark"] .badge-ok{background:rgba(61,220,151,.16);color:#6ee7b7}
@@ -664,11 +667,21 @@
   .wz-bar .mk span { position: absolute; left: 0; right: 0; top: -1.05rem; text-align: center; font-size: .65rem; font-weight: 700; color: var(--gray-600); }
   .wz-plot.compacta .wz-bar .b span { font-size: .68rem; }
   .wz-plot.compacta { gap: .3rem; }
+  .wz-plot.mini { gap: .15rem; }
+  .wz-plot.mini .wz-bar .b { width: 82%; }
+  .wz-plot.mini .wz-bar .b span { font-size: .56rem; margin-top: .2rem; }
+  .wz-xlab.mini { gap: .15rem; }
+  .wz-xlab.mini .m { font-size: .62rem; line-height: 1.15; }
+  .wz-xlab.mini .s { font-size: .58rem; }
+  .wz-evo-tablas { display: flex; flex-direction: column; gap: .6rem; }
+  .wz-bloque-tit { font-size: .78rem; font-weight: 700; color: var(--gray-600); }
+  .wz-fit.sin-cambio col.c-tienda { width: 24%; }
   /* Tablas que se ajustan al ancho disponible (sin barra horizontal) */
   .wz-fit { table-layout: fixed; }
   .wz-fit col.c-tienda { width: 22%; }
   .wz-fit col.c-cambio { width: 9%; }
   .wz-fit th, .wz-fit td { overflow: hidden; text-overflow: ellipsis; }
+  .wz-fit th { white-space: normal; line-height: 1.25; vertical-align: bottom; }
   .wz-fit td:first-child { white-space: normal; word-break: break-word; }
   .wz-fit.compacta th, .wz-fit.compacta td { padding: .45rem .3rem; font-size: .76rem; }
   .wz-fit.muy-compacta th, .wz-fit.muy-compacta td { padding: .4rem .2rem; font-size: .7rem; }
@@ -678,7 +691,28 @@
   @media (max-width: 700px) { .wz-fit col.c-tienda { width: 30%; } .wz-fit th, .wz-fit td { font-size: .66rem; padding: .35rem .15rem; } }
   .wz-meta-line { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--gray-600); pointer-events: none; z-index: 1; }
   .wz-meta-line span { position: absolute; right: 0; top: -1.2rem; font-size: .7rem; font-weight: 700; color: var(--gray-600); }
-  [data-theme="dark"] .wz-panel, [data-theme="dark"] .wz-steps li { background: rgba(255,255,255,.04); backdrop-filter: blur(14px); }
+  /* Modo oscuro del asistente: superficies sólidas (no translúcidas) para que se lean igual
+     dentro del Monitor que abierto por separado. */
+  [data-theme="dark"] .wz-panel, [data-theme="dark"] .wz-steps li { background: #121633; border-color: rgba(255,255,255,.12); }
+  [data-theme="dark"] .wz-steps li.active { border-color: var(--teal); }
+  [data-theme="dark"] .wz-kpi, [data-theme="dark"] .wz-check, [data-theme="dark"] .wz-table-wrap { background: #161b3d; border-color: rgba(255,255,255,.12); }
+  [data-theme="dark"] .wz-check.fijo { background: #1b2148; }
+  [data-theme="dark"] .wz-field select, [data-theme="dark"] .wz-meta input, [data-theme="dark"] .wz-cal-btn,
+  [data-theme="dark"] .wz-btn, [data-theme="dark"] .wz-chip, [data-theme="dark"] .wz-chip-actions button,
+  [data-theme="dark"] .wz-cal-m, [data-theme="dark"] .wz-cal-head button, [data-theme="dark"] .wz-cal-rapidos button { background: #1b2148; border-color: rgba(255,255,255,.16); }
+  [data-theme="dark"] .wz-btn.primary, [data-theme="dark"] .wz-cal-m.on { background: var(--teal); color: #0a0e23; border-color: var(--teal); }
+  [data-theme="dark"] .wz-chip.on { background: rgba(61,220,151,.16); color: var(--teal); border-color: var(--teal); }
+  [data-theme="dark"] .wz-table th { color: #9aa3c7; }
+  [data-theme="dark"] .wz-fit tr.prom td { background: #1b2148; }
+  [data-theme="dark"] .wz-datos { background: rgba(61,220,151,.12); }
+  [data-theme="dark"] .wz-datos.vacio, [data-theme="dark"] .wz-aviso { background: rgba(255,201,77,.12); }
+  [data-theme="dark"] .wz-plot { border-color: rgba(255,255,255,.16); }
+  [data-theme="dark"] .wz-meta-line, [data-theme="dark"] .wz-bar .mk { border-color: #c7d2fe; }
+  [data-theme="dark"] .wz-meta-line span, [data-theme="dark"] .wz-bar .mk span { color: #c7d2fe; }
+  [data-theme="dark"] .wz-pill.ok { background: rgba(74,222,128,.16); }
+  [data-theme="dark"] .wz-pill.warn { background: rgba(251,146,60,.18); }
+  [data-theme="dark"] .wz-pill.bad { background: rgba(252,129,129,.18); }
+  [data-theme="dark"] .wz-cal { background: #121633; border-color: rgba(255,255,255,.16); }
 
 </style>
 </head>
@@ -825,7 +859,7 @@
           <button type="button" class="wz-cal-btn ancho" id="pEvoBtn" onclick="wzCalToggle('evo')"></button>
           <div class="wz-cal" id="calEvo" hidden></div>
         </div>
-        <small>Abre el calendario y marca los meses que quieres comparar (hasta 12). Se muestran en una gráfica y en una tabla por tienda.</small>
+        <small>Abre el calendario y marca los meses que quieres comparar (hasta 24). Se muestran en una gráfica y en una tabla por tienda.</small>
         <label class="wz-check" style="margin-top:.35rem;max-width:560px">
           <input type="checkbox" id="pEvoAnual" onchange="wzEvoAnual(this.checked)">
           <div><b>Comparar contra el año anterior</b><span id="pEvoAnualHint">Cada mes elegido junto al mismo mes del año pasado.</span></div>
@@ -867,7 +901,7 @@
       <div class="wz-evo" id="wzEvo" hidden>
         <h3 class="wz-h3" id="wzEvoTitulo">Evolución</h3>
         <div class="wz-bars" id="wzBars"></div>
-        <div class="wz-table-wrap"><table class="wz-table" id="wzEvoTabla"></table></div>
+        <div id="wzEvoTablas" class="wz-evo-tablas"></div>
         <div id="wzAnual" hidden>
           <h3 class="wz-h3" id="wzAnualTitulo">Comparativo contra el año anterior</h3>
           <div class="wz-table-wrap"><table class="wz-table" id="wzAnualTabla"></table></div>
@@ -1669,7 +1703,7 @@ function calcularReporte(p) {
   // Evolución: los meses elegidos en Parámetros (por defecto los últimos 6), con el promedio
   // de las tiendas elegidas y cuántas cumplieron la meta en cada uno.
   const evoMeses = (p.evoMeses && p.evoMeses.length ? p.evoMeses
-    : meses.filter(m => monthKey(m) <= monthKey(p.mes) && getYear(m) === getYear(p.mes))).slice(-12);
+    : meses.filter(m => monthKey(m) <= monthKey(p.mes) && getYear(m) === getYear(p.mes))).slice(-24);
   const promMes = m => avg(H.filter(r => r.mes === m && enSel(r) && r.promedio !== null).map(r => r.promedio));
   const metaDe = () => p.meta; // meta general: la misma para todas las tiendas y meses
   const evolucion = evoMeses.map(m => {
@@ -1679,7 +1713,8 @@ function calcularReporte(p) {
     return { mes: m, val: avg(vals), ok: vals.filter(v => v >= metaDe(m)).length, n: vals.length, meta: metaDe(m),
       mesAnt, valAnt: mesAnt ? promMes(mesAnt) : null };
   }).filter(x => x.val !== null);
-  const anual = p.evoAnual ? evolucion.filter(e => e.valAnt !== null) : [];
+  // Año contra año: como máximo los 12 meses más recientes, para que la gráfica pareada se lea bien.
+  const anual = p.evoAnual ? evolucion.filter(e => e.valAnt !== null).slice(-12) : [];
   const anualProm = anual.length ? { act: avg(anual.map(e => e.val)), ant: avg(anual.map(e => e.valAnt)) } : null;
   // Comparativa por tienda: % de cada tienda en cada mes elegido y el cambio del primero al último.
   const evoTiendas = tiendas.map(t => {
@@ -1703,6 +1738,13 @@ function calcularReporte(p) {
 // continúa en otra diapositiva en lugar de apretarse.
 const PEND_POR_HOJA = 14;
 const FILAS_POR_HOJA = 14;
+const MESES_POR_BLOQUE = 12;
+// Parte n meses en bloques parejos de hasta 12 (24 → 12+12, 18 → 9+9, 15 → 8+7).
+function bloquesDeMeses(n) {
+  const nb = Math.max(1, Math.ceil(n / MESES_POR_BLOQUE)), tam = Math.ceil(n / nb), out = [];
+  for (let i = 0; i < n; i += tam) out.push([i, Math.min(i + tam, n)]);
+  return out;
+}
 // Diapositivas que tendrá el PowerPoint con estos parámetros (lo usa el paso 3 y el armado).
 function planDiapositivas(R) {
   const s = R.p.sec, out = [
@@ -1722,7 +1764,14 @@ function planDiapositivas(R) {
   if (s.evolucion && R.evolucion.length > 1) {
     const rango = `${mesCorto(R.evolucion[0].mes)} – ${mesCorto(R.evolucion[R.evolucion.length-1].mes)}`;
     out.push({ k:'evolucion', t:'Evolución del cumplimiento', d:`${R.evolucion.length} meses (${rango})` });
-    paginado('evoTiendas', 'Comparativa por tienda', '% de cada tienda en cada mes y su cambio', R.evoTiendas.length);
+    // Comparativa: bloques de hasta 12 meses × páginas de 14 tiendas.
+    const bloques = bloquesDeMeses(R.evolucion.length);
+    const hojasF = Math.max(1, Math.ceil(R.evoTiendas.length / FILAS_POR_HOJA));
+    bloques.forEach((b, bi) => {
+      for (let h = 0; h < hojasF; h++) out.push({ k:'evoTiendas', hoja:h, hojas:hojasF, porHoja:FILAS_POR_HOJA, bloque:b, bi, nb:bloques.length,
+        t: `Comparativa por tienda${bloques.length > 1 ? ` (${mesCorto(R.evolucion[b[0]].mes)} – ${mesCorto(R.evolucion[b[1]-1].mes)})` : ''}${hojasF > 1 ? ` ${h+1}/${hojasF}` : ''}`,
+        d: bi === 0 && h === 0 ? '% de cada tienda en cada mes y su cambio' : 'continuación' });
+    });
   }
   if (s.evolucion && R.p.evoAnual && R.anual.length)
     out.push({ k:'anual', t:'Comparativo contra el año anterior', d:`${R.anual.length} mes(es) contra el mismo mes del año pasado` });
@@ -1920,8 +1969,13 @@ async function buildPptxEjecutivo(R) {
 
     else if (sl.k === 'anual') {
       const A = R.anual, k = A.length;
-      const anioAct = getYear(A[k-1].mes), anioAnt = getYear(A[k-1].mesAnt);
-      encabezado(s, `Comparativo ${anioAct} vs ${anioAnt}`, `Mismos meses, mismas tiendas · ${empresa}`);
+      // Si los meses abarcan dos años (ej. Oct '25 – Sep '26), se habla de "periodo actual"
+      // contra "periodo anterior" y cada mes lleva su año, para que no haya confusión.
+      const cruza = getYear(A[0].mes) !== getYear(A[k-1].mes);
+      const anioAct = cruza ? `${mesCorto(A[0].mes)} – ${mesCorto(A[k-1].mes)}` : getYear(A[k-1].mes);
+      const anioAnt = cruza ? `${mesCorto(A[0].mesAnt)} – ${mesCorto(A[k-1].mesAnt)}` : getYear(A[k-1].mesAnt);
+      encabezado(s, cruza ? 'Comparativo contra el año anterior' : `Comparativo ${anioAct} vs ${anioAnt}`,
+        cruza ? `${anioAct} contra ${anioAnt} · mismas tiendas · ${empresa}` : `Mismos meses, mismas tiendas · ${empresa}`);
       // Resumen arriba: promedio de los meses comparados en cada año.
       const dif = R.anualProm.act - R.anualProm.ant;
       [[`Promedio ${anioAnt}`, pctTxt(R.anualProm.ant), '9CA3AF'], [`Promedio ${anioAct}`, pctTxt(R.anualProm.act), PX.teal], ['Diferencia', `${deltaTxt(dif)} pts`, deltaCol(dif)]]
@@ -1942,7 +1996,7 @@ async function buildPptxEjecutivo(R) {
         s.addShape(pres.ShapeType.rect, { x:x0 + ancho*0.52, y:base - hB, w, h:Math.max(hB,0.02), fill:{ color:c }, line:{ color:c, width:0 } });
         s.addText(pctTxt(e.valAnt), { x:x0 + ancho*0.06, y:base - hA - 0.32, w:w + ancho*0.2, h:0.3, fontFace:FONT, fontSize:fs, color:PX.mute, align:'center' });
         s.addText(pctTxt(e.val), { x:x0 + ancho*0.42, y:base - hB - 0.32, w:w + ancho*0.2, h:0.3, fontFace:FONT, fontSize:fs, bold:true, color:c, align:'center' });
-        s.addText(mesCorto(e.mes).replace(/\s*'\d+$/, ''), { x:x0, y:base + 0.06, w:ancho, h:0.3, fontFace:FONT, fontSize: k > 10 ? 10.5 : 12, color:PX.text, align:'center', bold:true });
+        s.addText(cruza ? mesCorto(e.mes) : mesCorto(e.mes).replace(/\s*'\d+$/, ''), { x:x0, y:base + 0.06, w:ancho, h:0.3, fontFace:FONT, fontSize: k > 10 ? 10.5 : 12, color:PX.text, align:'center', bold:true });
         const d = e.val - e.valAnt;
         s.addText(deltaTxt(d), { x:x0, y:base + 0.36, w:ancho, h:0.3, fontFace:FONT, fontSize:fs, bold:true, color:deltaCol(d), align:'center' });
         if (!metaUnicaA) { // meta de ese mes sobre su par de barras
@@ -1957,40 +2011,50 @@ async function buildPptxEjecutivo(R) {
       }
       // Leyenda
       s.addShape(pres.ShapeType.rect, { x:0.5, y:2.3, w:0.22, h:0.18, fill:{ color:'C4C9D2' }, line:{ color:'C4C9D2', width:0 } });
-      s.addText(anioAnt, { x:0.78, y:2.24, w:1.0, h:0.3, fontFace:FONT, fontSize:11, color:PX.text });
-      s.addShape(pres.ShapeType.rect, { x:1.7, y:2.3, w:0.22, h:0.18, fill:{ color:PX.teal }, line:{ color:PX.teal, width:0 } });
-      s.addText(`${anioAct} (color según meta)`, { x:1.98, y:2.24, w:3.0, h:0.3, fontFace:FONT, fontSize:11, color:PX.text });
+      const xL2 = cruza ? 2.35 : 1.7; // el texto "Año anterior" es más largo que "2025"
+      s.addText(cruza ? 'Año anterior' : anioAnt, { x:0.78, y:2.24, w:1.5, h:0.3, fontFace:FONT, fontSize:11, color:PX.text });
+      s.addShape(pres.ShapeType.rect, { x:xL2, y:2.3, w:0.22, h:0.18, fill:{ color:PX.teal }, line:{ color:PX.teal, width:0 } });
+      s.addText(`${cruza ? 'Periodo actual' : anioAct} (color según meta)`, { x:xL2 + 0.28, y:2.24, w:3.2, h:0.3, fontFace:FONT, fontSize:11, color:PX.text });
       s.addText('Promedio de las tiendas elegidas. Debajo de cada mes: diferencia en puntos contra el mismo mes del año anterior.', { x:0.5, y:7.0, w:11, h:0.3, fontFace:FONT, fontSize:9, color:PX.mute, italic:true });
     }
 
     else if (sl.k === 'evoTiendas') {
-      encabezado(s, 'Comparativa por tienda' + sufijo(sl), `${R.evolucion[0].mes} – ${R.evolucion[R.evolucion.length-1].mes} · ${empresa}`);
-      // Tabla Tienda × mes con el semáforo en cada celda y el cambio del primer al último mes.
-      // Se ajusta sola: con más meses las columnas se angostan y la letra baja de tamaño;
-      // con más tiendas la tabla continúa en otra diapositiva.
-      const nm = R.evolucion.length;
+      // Tabla Tienda × mes con el semáforo en cada celda. Con más de 12 meses se parte en
+      // bloques (ej. 24 meses = dos diapositivas de 12) para que las columnas no se aprieten;
+      // la columna "Cambio" (primer → último mes de toda la selección) va en el último bloque.
+      // Con más tiendas, cada bloque continúa en otra diapositiva.
+      const [b0, b1] = sl.bloque, E = R.evolucion.slice(b0, b1), nm = E.length;
+      const conCambio = sl.bi === sl.nb - 1;
+      const rango = `${mesCorto(E[0].mes)} – ${mesCorto(E[nm-1].mes)}`;
+      encabezado(s, 'Comparativa por tienda' + (sl.nb > 1 ? ` · ${rango}` : '') + sufijo(sl),
+        `${R.evolucion[0].mes} – ${R.evolucion[R.evolucion.length-1].mes} · ${empresa}`);
       const fs = nm > 10 ? 9 : nm > 7 ? 10 : 11;          // letra de las celdas
       const fsH = nm > 10 ? 9 : 10.5;                      // letra del encabezado
       const wT = nm > 9 ? 2.4 : nm > 6 ? 2.7 : 3.0;        // columna Tienda
-      const wC = nm > 9 ? 1.15 : 1.3;                      // columna Cambio
+      const wC = conCambio ? (nm > 9 ? 1.15 : 1.3) : 0;    // columna Cambio (solo último bloque)
       const wM = (12.33 - wT - wC) / nm;                   // cada mes
       const etiqueta = m => nm > 9 ? mesCorto(m).replace(" '", "\n'") : mesCorto(m); // "Ene\n'26" si hay muchos
-      const head = [cab('Tienda'), ...R.evolucion.map(e => cab(etiqueta(e.mes))), cab(`Cambio\n${rangoCambio(R.evolucion)}`)];
+      const head = [cab('Tienda'), ...E.map(e => cab(etiqueta(e.mes)))];
+      if (conCambio) head.push(cab(`Cambio\n${rangoCambio(R.evolucion)}`));
       head.forEach((c,i) => { c.options.fontSize = fsH; if (i) c.options.align = 'center'; });
       const filas = [head];
-      deHoja(sl, R.evoTiendas).forEach(t => filas.push([
-        celda(t.tienda, { bold:true, fontSize: fs }),
-        ...t.vals.map((v,j) => { const [c,bg] = colEstado(semaforo(v, R.metaDe(R.evolucion[j].mes))); return celda(pctTxt(v), { align:'center', bold:true, color:c, fill:{ color:bg }, fontSize: fs }); }),
-        celda(deltaTxt(t.cambio), { align:'center', bold:true, color:deltaCol(t.cambio), fontSize: fs }),
-      ]));
-      if (ultimaHoja(sl)) filas.push([
-        celda('Promedio', { bold:true, fill:{ color:'E5E7EB' }, fontSize: fs }),
-        ...R.evolucion.map(e => celda(pctTxt(e.val), { align:'center', bold:true, fill:{ color:'E5E7EB' }, fontSize: fs })),
-        celda('', { fill:{ color:'E5E7EB' } }),
-      ]);
-      tabla(s, filas, [wT, ...Array(nm).fill(wM), wC], 1.15, 5.65);
-      if (ultimaHoja(sl)) s.addText(`Cambio = puntos que subió (▲) o bajó (▼) cada tienda de ${R.evolucion[0].mes} a ${R.evolucion[nm-1].mes}. Ej.: de 80% a 100% = ▲ +20. Colores según la meta de cada mes.`,
-        { x:0.5, y:6.95, w:11, h:0.3, fontFace:FONT, fontSize:9, color:PX.mute, italic:true });
+      deHoja(sl, R.evoTiendas).forEach(t => {
+        const f = [celda(t.tienda, { bold:true, fontSize: fs }),
+          ...t.vals.slice(b0, b1).map((v,j) => { const [c,bg] = colEstado(semaforo(v, R.metaDe(E[j].mes))); return celda(pctTxt(v), { align:'center', bold:true, color:c, fill:{ color:bg }, fontSize: fs }); })];
+        if (conCambio) f.push(celda(deltaTxt(t.cambio), { align:'center', bold:true, color:deltaCol(t.cambio), fontSize: fs }));
+        filas.push(f);
+      });
+      if (ultimaHoja(sl)) {
+        const f = [celda('Promedio', { bold:true, fill:{ color:'E5E7EB' }, fontSize: fs }),
+          ...E.map(e => celda(pctTxt(e.val), { align:'center', bold:true, fill:{ color:'E5E7EB' }, fontSize: fs }))];
+        if (conCambio) f.push(celda('', { fill:{ color:'E5E7EB' } }));
+        filas.push(f);
+      }
+      tabla(s, filas, conCambio ? [wT, ...Array(nm).fill(wM), wC] : [wT, ...Array(nm).fill(wM)], 1.15, 5.65);
+      const pie = [];
+      if (sl.nb > 1) pie.push(`Bloque ${sl.bi+1} de ${sl.nb}: ${E[0].mes} a ${E[nm-1].mes}.`);
+      if (conCambio && ultimaHoja(sl)) pie.push(`Cambio = puntos que subió (▲) o bajó (▼) cada tienda de ${R.evolucion[0].mes} a ${R.evolucion[R.evolucion.length-1].mes}. Ej.: de 80% a 100% = ▲ +20.`);
+      if (pie.length) s.addText(pie.join(' '), { x:0.5, y:6.95, w:11, h:0.3, fontFace:FONT, fontSize:9, color:PX.mute, italic:true });
     }
 
     else if (sl.k === 'evolucion') {
@@ -1998,22 +2062,27 @@ async function buildPptxEjecutivo(R) {
       // Barras dibujadas con formas (no gráfica incrustada): se ven igual en cualquier
       // PowerPoint y no dependen del libro de Excel interno de las gráficas.
       const base = 6.1, alto = 4.3, k = R.evolucion.length, ancho = 12.3 / k;
-      // Tamaños que se ajustan al número de meses (hasta 12).
-      const fsVal = k > 10 ? 12 : k > 7 ? 14 : 16, fsMes = k > 10 ? 10 : 12, fsSub = k > 10 ? 7.5 : k > 7 ? 8.5 : 10;
+      // Tamaños que se ajustan al número de meses (hasta 24). Con más de 12 meses el mes va
+      // en dos renglones (Ene / '26) y el conteo se abrevia a "4/13".
+      const fsVal = k > 18 ? 8.5 : k > 12 ? 10 : k > 10 ? 12 : k > 7 ? 14 : 16;
+      const fsMes = k > 18 ? 8 : k > 12 ? 9 : k > 10 ? 10 : 12;
+      const fsSub = k > 18 ? 6.5 : k > 12 ? 7 : k > 10 ? 7.5 : k > 7 ? 8.5 : 10;
+      const dosRenglones = k > 12;
       const metaUnica = R.evolucion.every(e => R.metaDe(e.mes) === R.metaDe(R.evolucion[0].mes));
       s.addShape(pres.ShapeType.line, { x:0.5, y:base, w:12.3, h:0, line:{ color:'9CA3AF', width:1 } });
       R.evolucion.forEach((t,i) => {
         const x0 = 0.5 + i*ancho, metaMes = R.metaDe(t.mes);
-        s.addText(k > 10 ? `${t.ok}/${t.n} cumplen` : `${t.ok} de ${t.n} cumplen`, { x:x0, y:base + 0.42, w:ancho, h:0.3, fontFace:FONT, fontSize: fsSub, color:PX.mute, align:'center' });
+        const ySub = dosRenglones ? base + 0.5 : base + 0.42, yDelta = dosRenglones ? base + 0.72 : base + 0.68;
+        s.addText(k > 12 ? `${t.ok}/${t.n}` : k > 10 ? `${t.ok}/${t.n} cumplen` : `${t.ok} de ${t.n} cumplen`, { x:x0, y:ySub, w:ancho, h:0.24, fontFace:FONT, fontSize: fsSub, color:PX.mute, align:'center' });
         const ant = i ? R.evolucion[i-1].val : null;
-        if (ant !== null) s.addText(deltaTxt(t.val - ant), { x:x0, y:base + 0.68, w:ancho, h:0.3, fontFace:FONT, fontSize: fsSub, bold:true, color:deltaCol(t.val - ant), align:'center' });
+        if (ant !== null) s.addText(deltaTxt(t.val - ant), { x:x0, y:yDelta, w:ancho, h:0.24, fontFace:FONT, fontSize: fsSub, bold:true, color:deltaCol(t.val - ant), align:'center' });
         const v = Math.min(Math.max(t.val, 0), 100), h = alto * v / 100, x = 0.5 + i*ancho + ancho*0.2, w = ancho*0.6;
         const [c] = colEstado(semaforo(t.val, metaMes));
         s.addShape(pres.ShapeType.rect, { x, y:base - h, w, h:Math.max(h, 0.02), fill:{ color:c }, line:{ color:c, width:0 } });
         // El % va dentro de la barra (si cabe) para no chocar con la línea de la meta.
-        const dentro = h > 0.6;
-        s.addText(pctTxt(t.val), { x:x0, y: dentro ? base - h + 0.08 : base - h - 0.45, w:ancho, h:0.4, fontFace:FONT, fontSize:fsVal, bold:true, color: dentro ? PX.white : c, align:'center' });
-        s.addText(mesCorto(t.mes), { x:x0, y:base + 0.08, w:ancho, h:0.35, fontFace:FONT, fontSize:fsMes, color:PX.text, align:'center', bold: t.mes === p.mes });
+        const dentro = h > (k > 12 ? 0.4 : 0.6);
+        s.addText(pctTxt(t.val), { x:x0, y: dentro ? base - h + 0.06 : base - h - 0.35, w:ancho, h:0.32, fontFace:FONT, fontSize:fsVal, bold:true, color: dentro ? PX.white : c, align:'center' });
+        s.addText(dosRenglones ? mesCorto(t.mes).replace(" '", "\n'") : mesCorto(t.mes), { x:x0, y:base + 0.05, w:ancho, h: dosRenglones ? 0.42 : 0.35, fontFace:FONT, fontSize:fsMes, color:PX.text, align:'center', valign:'top', bold: t.mes === p.mes, paraSpaceAfter:0 });
         // Meta de ese mes: tramo punteado sobre su barra (si la meta sube, la línea sube en escalón).
         if (!metaUnica) {
           const yM = base - alto * metaMes / 100;
@@ -2026,7 +2095,7 @@ async function buildPptxEjecutivo(R) {
         s.addShape(pres.ShapeType.line, { x:0.5, y:yMeta, w:12.3, h:0, line:{ color:PX.navy, width:1.25, dashType:'dash' } });
         s.addText(`meta ${m0}%`, { x:11.6, y:yMeta - 0.32, w:1.2, h:0.28, fontFace:FONT, fontSize:10, bold:true, color:PX.navy, align:'right' });
       }
-      s.addText(`Promedio de las tiendas elegidas en cada mes. Debajo: cuántas cumplieron la meta${metaUnica ? '' : ' de ese mes (línea punteada)'} y el cambio contra el mes anterior.`, { x:0.5, y:7.12, w:11, h:0.25, fontFace:FONT, fontSize:9, color:PX.mute, italic:true });
+      s.addText(`Promedio de las tiendas elegidas en cada mes. Debajo: ${k > 12 ? 'tiendas que cumplen / tiendas evaluadas' : 'cuántas cumplieron la meta'}${metaUnica ? '' : ' de ese mes (línea punteada)'} y el cambio contra el mes anterior.`, { x:0.5, y:7.12, w:11, h:0.25, fontFace:FONT, fontSize:9, color:PX.mute, italic:true });
     }
   }
   return pres;
@@ -3296,7 +3365,7 @@ function wzPintarEvo() {
 function wzEvoAnual(v) { WZ.evoAnual = v; wzGuardarPref(); }
 // La evolución abarca como máximo un año (12 meses) para que la gráfica y las tablas
 // se sigan leyendo bien en pantalla y en el PowerPoint.
-const EVO_MAX = 12;
+const EVO_MAX = 24;
 function wzEvoToggleMes(m) {
   if (m === WZ.mes) return; // el mes del reporte siempre va incluido
   WZ.evoTocado = true; WZ.calAviso = '';
@@ -3352,6 +3421,7 @@ function wzCalPintar(tipo) {
         <button type="button" onclick="wzEvoRapido(3)">Últimos 3</button>
         <button type="button" onclick="wzEvoRapido(6)">Últimos 6</button>
         <button type="button" onclick="wzEvoRapido(12)">Últimos 12</button>
+        <button type="button" onclick="wzEvoRapido(24)">Últimos 24</button>
         <button type="button" onclick="wzEvoRapido('anio')">Este año</button>
       </div>` : '') +
     `<div class="wz-cal-pie"><button type="button" class="wz-btn primary" onclick="wzCalToggle('${tipo}')">Listo</button></div>`;
@@ -3370,7 +3440,7 @@ document.addEventListener('click', e => {
 function wzEvoRapido(tipo) {
   const disp = mesesEvoDisponibles(); WZ.evoTocado = true;
   const lista = tipo === 'todos' ? disp : tipo === 'anio' ? disp.filter(m => getYear(m) === getYear(WZ.mes)) : disp.slice(-tipo);
-  WZ.evoMeses = new Set(lista.slice(-EVO_MAX)); // siempre los más recientes, hasta 12
+  WZ.evoMeses = new Set(lista.slice(-EVO_MAX)); // siempre los más recientes, hasta 24
   wzPintarEvo();
 }
 
@@ -3425,28 +3495,34 @@ function wzPintarEvolucion(R) {
   // Área de dibujo (barras + meta, misma escala 0–100%) y debajo las etiquetas. Si la meta
   // cambia entre meses, cada barra lleva su propia marca de meta (se ve el escalón).
   document.getElementById('wzBars').innerHTML =
-    `<div class="wz-plot${E.length > 9 ? ' compacta' : ''}">` +
+    `<div class="wz-plot${E.length > 16 ? ' compacta mini' : E.length > 9 ? ' compacta' : ''}">` +
     (metaUnica ? `<div class="wz-meta-line" style="bottom:${E[0].meta}%"><span>meta ${E[0].meta}%</span></div>` : '') +
     E.map(e => `<div class="wz-bar" title="${esc(e.mes)}: ${pctTxt(e.val)} · meta ${e.meta}% · ${e.ok} de ${e.n} tiendas cumplen">
         ${metaUnica ? '' : `<div class="mk" style="bottom:${e.meta}%"><span>${e.meta}%</span></div>`}
         <div class="b ${semaforo(e.val, e.meta)}" style="height:${Math.max(Math.min(e.val,100),1)}%"><span>${pctTxt(e.val)}</span></div></div>`).join('') +
-    `</div><div class="wz-xlab">` +
+    `</div><div class="wz-xlab${E.length > 12 ? ' mini' : ''}">` +
     E.map((e,i) => {
       const d = i ? e.val - E[i-1].val : null;
-      return `<div><div class="m${e.mes === R.p.mes ? ' act' : ''}">${esc(mesCorto(e.mes))}</div>
-        <div class="s">${e.ok}/${e.n} cumplen</div>
+      const etq = E.length > 12 ? esc(mesCorto(e.mes)).replace(" '", "<br>'") : esc(mesCorto(e.mes)); // dos renglones con muchos meses
+      return `<div><div class="m${e.mes === R.p.mes ? ' act' : ''}">${etq}</div>
+        <div class="s">${e.ok}/${e.n}${E.length > 12 ? '' : ' cumplen'}</div>
         <div class="s">${d === null ? '&nbsp;' : `<b class="${Math.round(d) === 0 ? 'wz-eq' : d > 0 ? 'wz-up' : 'wz-down'}">${esc(deltaTxt(d))}</b>`}</div></div>`;
     }).join('') + `</div>`;
   const celda = (v, m) => { const e = semaforo(v, m === undefined ? R.p.meta : m); return `<td class="n"><span class="wz-pill ${e}">${pctTxt(v)}</span></td>`; };
   const cambio = d => d === null ? '<td class="n"><span class="wz-eq">—</span></td>' : `<td class="n"><b class="${Math.round(d) === 0 ? 'wz-eq' : d > 0 ? 'wz-up' : 'wz-down'}">${esc(deltaTxt(d))}</b></td>`;
-  // Tabla que se ajusta al ancho: columnas fijas y más compacta conforme se agregan meses.
-  const tEvo = document.getElementById('wzEvoTabla');
-  tEvo.className = 'wz-table wz-fit' + (E.length > 9 ? ' muy-compacta' : E.length > 6 ? ' compacta' : '');
-  tEvo.innerHTML =
-    `<colgroup><col class="c-tienda">${E.map(() => '<col>').join('')}<col class="c-cambio"></colgroup>` +
-    `<thead><tr><th>Tienda</th>${E.map(e => `<th class="n">${esc(mesCorto(e.mes))}</th>`).join('')}<th class="n" title="Puntos que subió o bajó la tienda del primer al último mes">Cambio ${esc(rangoCambio(E))}</th></tr></thead><tbody>` +
-    R.evoTiendas.map(t => `<tr><td><strong>${esc(t.tienda)}</strong></td>${t.vals.map((v,j) => celda(v, E[j].meta)).join('')}${cambio(t.cambio)}</tr>`).join('') +
-    `<tr class="prom"><td><strong>Promedio</strong></td>${E.map(e => `<td class="n"><strong>${pctTxt(e.val)}</strong></td>`).join('')}<td></td></tr></tbody>`;
+  // Tablas que se ajustan al ancho: con más de 12 meses se parten en bloques de hasta 12
+  // (igual que en el PowerPoint); la columna "Cambio" va en el último bloque.
+  const bloques = bloquesDeMeses(E.length);
+  document.getElementById('wzEvoTablas').innerHTML = bloques.map(([b0, b1], bi) => {
+    const EB = E.slice(b0, b1), ult = bi === bloques.length - 1;
+    const cls = 'wz-table wz-fit' + (EB.length > 9 ? ' muy-compacta' : EB.length > 6 ? ' compacta' : '') + (ult ? '' : ' sin-cambio');
+    return (bloques.length > 1 ? `<div class="wz-bloque-tit">${esc(EB[0].mes)} – ${esc(EB[EB.length-1].mes)}</div>` : '') +
+      `<div class="wz-table-wrap"><table class="${cls}">` +
+      `<colgroup><col class="c-tienda">${EB.map(() => '<col>').join('')}${ult ? '<col class="c-cambio">' : ''}</colgroup>` +
+      `<thead><tr><th>Tienda</th>${EB.map(e => `<th class="n">${esc(mesCorto(e.mes))}</th>`).join('')}${ult ? `<th class="n" title="Puntos que subió o bajó la tienda del primer al último mes">Cambio ${esc(rangoCambio(E))}</th>` : ''}</tr></thead><tbody>` +
+      R.evoTiendas.map(t => `<tr><td><strong>${esc(t.tienda)}</strong></td>${t.vals.slice(b0, b1).map((v,j) => celda(v, EB[j].meta)).join('')}${ult ? cambio(t.cambio) : ''}</tr>`).join('') +
+      `<tr class="prom"><td><strong>Promedio</strong></td>${EB.map(e => `<td class="n"><strong>${pctTxt(e.val)}</strong></td>`).join('')}${ult ? '<td></td>' : ''}</tr></tbody></table></div>`;
+  }).join('');
 
   // Comparativo contra el año anterior (solo si se activó en Parámetros).
   const A = R.anual, boxA = document.getElementById('wzAnual'), avisoA = document.getElementById('wzAnualAviso');
@@ -3454,11 +3530,13 @@ function wzPintarEvolucion(R) {
   avisoA.hidden = !(R.p.evoAnual && !A.length);
   avisoA.textContent = 'Activaste "Comparar contra el año anterior", pero no hay datos guardados del año pasado para los meses elegidos. Sube el Excel de ese año para verlo.';
   if (!boxA.hidden) {
-    const yAct = getYear(A[A.length-1].mes), yAnt = getYear(A[A.length-1].mesAnt);
-    document.getElementById('wzAnualTitulo').textContent = `Comparativo ${yAct} vs ${yAnt}`;
+    // Si los meses abarcan dos años, se habla de "año anterior" / "periodo actual" y cada mes lleva su año.
+    const cruza = getYear(A[0].mes) !== getYear(A[A.length-1].mes);
+    const yAct = cruza ? 'Periodo actual' : getYear(A[A.length-1].mes), yAnt = cruza ? 'Año anterior' : getYear(A[A.length-1].mesAnt);
+    document.getElementById('wzAnualTitulo').textContent = cruza ? `Comparativo contra el año anterior (${mesCorto(A[0].mes)} – ${mesCorto(A[A.length-1].mes)})` : `Comparativo ${yAct} vs ${yAnt}`;
     document.getElementById('wzAnualTabla').innerHTML =
       `<thead><tr><th>Mes</th><th class="n">${esc(yAnt)}</th><th class="n">${esc(yAct)}</th><th class="n">Diferencia</th></tr></thead><tbody>` +
-      A.map(e => `<tr><td><strong>${esc(e.mes.replace(/\s*\d{4}$/, ''))}</strong></td>${celda(e.valAnt, e.meta)}${celda(e.val, e.meta)}${cambio(e.val - e.valAnt)}</tr>`).join('') +
+      A.map(e => `<tr><td><strong>${esc(cruza ? e.mes : e.mes.replace(/\s*\d{4}$/, ''))}</strong></td>${celda(e.valAnt, e.meta)}${celda(e.val, e.meta)}${cambio(e.val - e.valAnt)}</tr>`).join('') +
       `<tr><td><strong>Promedio</strong></td><td class="n"><strong>${pctTxt(R.anualProm.ant)}</strong></td><td class="n"><strong>${pctTxt(R.anualProm.act)}</strong></td>${cambio(R.anualProm.act - R.anualProm.ant)}</tr></tbody>`;
   }
 }
