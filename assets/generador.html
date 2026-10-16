@@ -426,6 +426,8 @@
   .dc-tags { display: flex; gap: .3rem; flex-wrap: wrap; justify-content: flex-end; flex-shrink: 0; }
   .dc-tag { font-size: .66rem; font-weight: 700; padding: .15rem .5rem; border-radius: 20px; background: var(--gray-100); color: var(--gray-600); white-space: nowrap; }
   .dc-tag.audit { background: #2E75B6; color: #fff; }
+  .dc-cap { font-size: .75rem; line-height: 1; padding: .15rem .35rem; border-radius: 6px; border: 1px solid var(--gray-200); background: transparent; cursor: pointer; opacity: .55; }
+  .dc-cap:hover { opacity: 1; border-color: var(--teal); }
   .dc-people { display: grid; grid-template-columns: auto 1fr; gap: .2rem .6rem; padding: 0 1rem .7rem; font-size: .78rem; }
   .dc-people span { color: var(--gray-400); }
   .dc-people b { color: var(--gray-800); font-weight: 600; }
@@ -2735,30 +2737,51 @@ function switchGenView(view){
 // Exporta la pantalla actualmente visible (con los filtros aplicados) como PNG,
 // para usarla como evidencia/anexo adicional fuera del PowerPoint.
 async function descargarCapturaVista(){
-  const target = [...document.querySelectorAll('.gen-view')].find(v => v.style.display !== 'none');
+  let target = [...document.querySelectorAll('.gen-view')].find(v => v.style.display !== 'none');
   if (!target) { alert('No hay ninguna pantalla visible para capturar.'); return; }
   const activeTab = document.querySelector('.gen-tab.active');
-  const nombreVista = activeTab ? activeTab.textContent.trim().replace(/[^\p{L}\p{N}]+/gu,'_') : 'vista';
-  const btn = event && event.target ? event.target : null;
-  const prevTxt = btn ? btn.textContent : null;
-  if (btn) { btn.textContent = '⏳ Generando…'; btn.disabled = true; }
+  let nombreVista = activeTab ? activeTab.textContent.trim().replace(/[^\p{L}\p{N}]+/gu,'_') : 'vista';
+  // En Detalle Individual solo se capturan las tarjetas de calificación (sin título ni filtros);
+  // con una sola tarjeta, solo ese recuadro.
+  if (target.id === 'view-detalle') {
+    const cards = target.querySelectorAll('#detalleCards .detalle-card');
+    if (!cards.length) { alert('No hay tarjetas para capturar con estos filtros.'); return; }
+    if (cards.length === 1) return capturarTarjeta(cards[0], event && event.target);
+    target = document.getElementById('detalleCards');
+  }
+  await capturarElemento(target, nombreVista, event && event.target);
+}
+// Botón 📷 de cada tarjeta: descarga una imagen solo de ese recuadro.
+function capturarTarjeta(card, btn) {
+  const tienda = card.dataset.tienda || 'tienda', mes = card.dataset.mes || '';
+  return capturarElemento(card, [tienda, mes].filter(Boolean).join('_').replace(/[^\p{L}\p{N}]+/gu,'_'), btn);
+}
+async function capturarElemento(target, nombre, btn) {
+  const esBoton = btn && btn.tagName === 'BUTTON';
+  const prevTxt = esBoton ? btn.innerHTML : null;
+  if (esBoton) { btn.textContent = '⏳'; btn.disabled = true; }
+  const oscuro = document.documentElement.getAttribute('data-theme') === 'dark';
   try {
-    const canvas = await html2canvas(target, { backgroundColor:'#f5f6f8', scale:2, useCORS:true, letterRendering:true,
-      onclone:function(clonedDoc){
-        clonedDoc.querySelectorAll('*').forEach(function(node){node.style.letterSpacing='0px';});
+    const canvas = await html2canvas(target, {
+      backgroundColor: oscuro ? (target.classList.contains('detalle-card') ? '#121633' : '#0a0e23') : (target.classList.contains('detalle-card') ? '#ffffff' : '#f5f6f8'),
+      scale: 2, useCORS: true, letterRendering: true,
+      onclone: function(clonedDoc){
+        clonedDoc.querySelectorAll('*').forEach(function(node){ node.style.letterSpacing = '0px'; });
+        // Sin el vidrio translúcido: html2canvas no lo dibuja bien.
+        clonedDoc.querySelectorAll('.detalle-card').forEach(function(c){ c.style.backdropFilter = 'none'; if (oscuro) c.style.background = '#121633'; });
       } });
     const link = document.createElement('a');
     const fecha = new Date().toISOString().slice(0,10);
-    link.download = `Kuroda_${(RAZON_ACTIVA||'General')}_${nombreVista}_${fecha}.png`;
+    link.download = `Kuroda_${(RAZON_ACTIVA||'General')}_${nombre}_${fecha}.png`;
     link.href = canvas.toDataURL('image/png');
     document.body.appendChild(link);
     link.click();
     link.remove();
   } catch(e) {
     console.error(e);
-    alert('No se pudo generar la imagen de esta pantalla: ' + e.message);
+    alert('No se pudo generar la imagen: ' + e.message);
   } finally {
-    if (btn) { btn.textContent = prevTxt; btn.disabled = false; }
+    if (esBoton) { btn.innerHTML = prevTxt; btn.disabled = false; }
   }
 }
 
@@ -2857,10 +2880,12 @@ function renderDetalleCards() {
     const totGer = r.promedio !== null ? `${Math.round(r.promedio)}%` : '—';
     const foot = pers && pers.adminPct !== null && pers.frogmi !== null
       ? `Calificación del administrativo = procesos ${totAdm} × 80% + Frogmi ${fx1(pers.frogmi)}% × 20%.` : '';
-    return `<div class="detalle-card">
+    return `<div class="detalle-card" data-tienda="${esc(r.tienda)}" data-mes="${esc(r.mes)}">
       <div class="dc-head">
         <div class="dc-tienda">${esc(r.tienda)}</div>
-        <div class="dc-tags"><span class="dc-tag">${esc(mesCorto(r.mes))}</span>${r.auditoria ? '<span class="dc-tag audit">AUDITORÍA</span>' : ''}</div>
+        <div class="dc-tags"><span class="dc-tag">${esc(mesCorto(r.mes))}</span>${r.auditoria ? '<span class="dc-tag audit">AUDITORÍA</span>' : ''}
+          <button type="button" class="dc-cap" data-html2canvas-ignore="true" title="Descargar imagen de esta tarjeta"
+            onclick="capturarTarjeta(this.closest('.detalle-card'), this)">📷</button></div>
       </div>
       <div class="dc-people">
         <span>Gerente</span>${gerente ? `<b>${esc(gerente)}</b>` : '<b class="sin">Sin asignar</b>'}
