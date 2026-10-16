@@ -668,6 +668,14 @@
   .wz-kpi .l { font-size: .78rem; color: var(--gray-400); margin-top: .25rem; }
   .wz-kpi.ok .v { color: var(--green); } .wz-kpi.warn .v { color: var(--orange); } .wz-kpi.bad .v { color: var(--red); }
   .wz-aviso { font-size: .82rem; padding: .7rem .9rem; border-radius: 10px; background: var(--gold-light); color: var(--gray-800); }
+  /* Revisión automática de los datos del Excel (paso 1) */
+  .wz-revision { font-size: .82rem; padding: .7rem .9rem; border-radius: 10px; background: var(--gold-light); color: var(--gray-800); margin-top: .6rem; }
+  .wz-revision.ok { background: #e8f5e9; }
+  .wz-revision summary { cursor: pointer; }
+  .wz-rev-lista { max-height: 340px; overflow: auto; margin-top: .5rem; }
+  .wz-rev-mes ul, #wzAvisoDatos ul { margin: .25rem 0 .6rem 1.1rem; padding: 0; }
+  .wz-rev-mes li, #wzAvisoDatos li { margin: .15rem 0; }
+  .wz-rev-mes li.aviso { color: var(--gray-500); }
   .wz-res-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 1.25rem; align-items: start; }
   @media (max-width: 900px) { .wz-res-grid { grid-template-columns: 1fr; } }
   .wz-table-wrap { overflow-x: auto; border: 1px solid var(--gray-200); border-radius: 10px; }
@@ -784,7 +792,8 @@
   [data-theme="dark"] .wz-table th { color: #9aa3c7; }
   [data-theme="dark"] .wz-fit tr.prom td { background: #1b2148; }
   [data-theme="dark"] .wz-datos { background: rgba(61,220,151,.12); }
-  [data-theme="dark"] .wz-datos.vacio, [data-theme="dark"] .wz-aviso { background: rgba(255,201,77,.12); }
+  [data-theme="dark"] .wz-datos.vacio, [data-theme="dark"] .wz-aviso, [data-theme="dark"] .wz-revision { background: rgba(255,201,77,.12); }
+  [data-theme="dark"] .wz-revision.ok { background: rgba(46,125,50,.18); }
   [data-theme="dark"] .wz-plot { border-color: rgba(255,255,255,.16); }
   [data-theme="dark"] .wz-meta-line, [data-theme="dark"] .wz-bar .mk { border-color: #c7d2fe; }
   [data-theme="dark"] .wz-meta-line span, [data-theme="dark"] .wz-bar .mk span { color: #c7d2fe; }
@@ -856,6 +865,7 @@
       </div>
 
       <div class="wz-datos" id="wzDatos"></div>
+      <div class="wz-revision" id="wzRevision" hidden></div>
 
       <div class="upload-zone wz-upload" id="dropZone" onclick="document.getElementById('fileInput').click()">
         <div class="upload-icon">📊</div>
@@ -964,6 +974,7 @@
 
       <div class="wz-kpis" id="wzKpis"></div>
       <div class="wz-aviso" id="wzAviso" hidden></div>
+      <div class="wz-aviso" id="wzAvisoDatos" hidden></div>
 
       <div class="wz-res-grid">
         <div>
@@ -3430,7 +3441,79 @@ function wzRazonTxt() {
   return RAZON_ACTIVA ? `🏢 <strong>Razón social:</strong> ${esc(RAZON_ACTIVA)} · ${esc(razonNombre(RAZON_ACTIVA))}<br>` : '';
 }
 // Paso 1 — tarjeta con lo que ya hay guardado.
+// ─── Revisión automática de los datos del Excel ───
+// Busca en cada mes lo que suele indicar un error de captura en el Excel. 'alerta' = muy
+// probablemente hay que corregir algo; 'aviso' = conviene confirmarlo.
+function revisarMeses(lista) {
+  const H = lsLoad(), todos = histMeses(), T = r => collapseWs(r.tienda), out = [];
+  const num = v => typeof v === 'number' && Number.isFinite(v);
+  const fmt = v => String(Math.round(v * 10) / 10);
+  const evaluados = r => Object.entries(r.procesos || {}).filter(([, v]) => num(v));
+  lista.forEach(m => {
+    const i = todos.indexOf(m); if (i < 0) return;
+    const recs = H.filter(r => r.mes === m), prevM = i ? todos[i-1] : null, prev = prevM ? H.filter(r => r.mes === prevM) : [];
+    const add = (tipo, txt) => out.push({ mes: m, tipo, txt });
+    // 1) Muchas tiendas con exactamente los mismos resultados: mes llenado con plantilla o copiado.
+    const normales = recs.filter(r => !r.auditoria && evaluados(r).length);
+    if (normales.length >= 5) {
+      const grupos = {};
+      normales.forEach(r => { const f = JSON.stringify(evaluados(r).sort((a, b) => a[0].localeCompare(b[0]))); (grupos[f] = grupos[f] || []).push(T(r)); });
+      const mayor = Object.values(grupos).sort((a, b) => b.length - a.length)[0];
+      if (mayor.length >= Math.max(5, Math.ceil(normales.length * 0.6)))
+        add('alerta', `${mayor.length} de ${normales.length} tiendas tienen exactamente los mismos resultados en todos sus procesos. Revisa que el mes no se haya llenado con una plantilla o copiado de otro.`);
+    }
+    // 2) Auditorías: misma calificación que el mes anterior, o la misma en varias tiendas.
+    const aud = recs.filter(r => r.auditoria && r.promedio != null);
+    aud.forEach(r => {
+      const p = prev.find(x => T(x) === T(r) && x.auditoria);
+      if (p && p.promedio === r.promedio) add('alerta', `${T(r)}: la auditoría (${fmt(r.promedio)}%) es igual a la de ${prevM}. Confirma que no se repitió la auditoría anterior.`);
+    });
+    const porValor = {};
+    aud.forEach(r => (porValor[r.promedio] = porValor[r.promedio] || []).push(T(r)));
+    Object.entries(porValor).forEach(([v, ts]) => {
+      if (ts.length > 1) add('aviso', `${ts.join(', ')} tienen la misma calificación de auditoría (${fmt(Number(v))}%). Confirma que cada tienda tiene su propia auditoría.`);
+    });
+    // 3) El % del Excel no cuadra con los procesos leídos: suele ser un proceso con otro nombre.
+    recs.forEach(r => {
+      if (r.auditoria || r.promedio == null) return;
+      const vs = evaluados(r).map(([, v]) => v);
+      if (vs.length && Math.abs(avg(vs) - r.promedio) > 1.5)
+        add('alerta', `${T(r)}: el Excel dice ${fmt(r.promedio)}%, pero sus ${vs.length} procesos leídos dan ${fmt(avg(vs))}%. Puede haber un proceso con otro nombre que no se leyó.`);
+    });
+    // 4) Tienda sin calificación.
+    recs.filter(r => r.promedio == null).forEach(r => add('alerta', `${T(r)} no tiene calificación ni procesos. No se cuenta en el promedio del mes.`));
+    // 5) Tienda en 0%.
+    recs.filter(r => r.promedio === 0 && !r.auditoria).forEach(r => add('aviso', `${T(r)} quedó en 0% (no cumplió ningún proceso). Confirma que es correcto.`));
+    if (prev.length) {
+      // 6) Tiendas que entran o salen respecto al mes anterior.
+      const a = new Set(prev.map(T)), b = new Set(recs.map(T));
+      const salen = [...a].filter(t => !b.has(t)), entran = [...b].filter(t => !a.has(t));
+      if (salen.length) add('aviso', `No aparece${salen.length > 1 ? 'n' : ''} este mes (sí estaba${salen.length > 1 ? 'n' : ''} en ${prevM}): ${salen.join(', ')}.`);
+      if (entran.length) add('aviso', `Tienda${entran.length > 1 ? 's' : ''} nueva${entran.length > 1 ? 's' : ''} respecto a ${prevM}: ${entran.join(', ')}.`);
+      // 7) Cambian los procesos evaluados: los % de un mes y otro no se comparan igual.
+      const ps = rs => new Set(rs.flatMap(r => evaluados(r).map(([k]) => k)));
+      const pa = ps(prev), pb = ps(recs), nuevos = [...pb].filter(k => !pa.has(k)), quitados = [...pa].filter(k => !pb.has(k));
+      if (nuevos.length || quitados.length) add('aviso', `Cambiaron los procesos evaluados respecto a ${prevM}${nuevos.length ? ` · nuevos: ${nuevos.join(', ')}` : ''}${quitados.length ? ` · ya no se evalúan: ${quitados.join(', ')}` : ''}. Los % de ambos meses no se comparan exactamente igual.`);
+    }
+  });
+  return out;
+}
+
+// Panel "Revisión de datos" del paso 1: todas las alertas del historial, por mes (el más reciente primero).
+function wzPintarRevision() {
+  const box = document.getElementById('wzRevision'), meses = histMeses();
+  if (!meses.length) { box.hidden = true; return; }
+  const al = revisarMeses(meses), nA = al.filter(a => a.tipo === 'alerta').length, nV = al.length - nA;
+  box.hidden = false;
+  if (!al.length) { box.className = 'wz-revision ok'; box.innerHTML = '✅ <strong>Revisión de datos:</strong> no se encontraron problemas en los meses guardados.'; return; }
+  box.className = 'wz-revision';
+  const porMes = meses.slice().reverse().map(m => [m, al.filter(a => a.mes === m)]).filter(([, l]) => l.length);
+  box.innerHTML = `<details><summary>🔎 <strong>Revisión de datos:</strong> ${nA} alerta${nA === 1 ? '' : 's'} y ${nV} aviso${nV === 1 ? '' : 's'} en ${porMes.length} mes${porMes.length === 1 ? '' : 'es'}. Toca para ver el detalle y revísalo en el Excel antes de presentar.</summary>
+    <div class="wz-rev-lista">${porMes.map(([m, l]) => `<div class="wz-rev-mes"><b>${esc(m)}</b><ul>${l.map(a => `<li class="${a.tipo}">${a.tipo === 'alerta' ? '⚠️' : 'ℹ️'} ${esc(a.txt)}</li>`).join('')}</ul></div>`).join('')}</div></details>`;
+}
+
 function wzPintarDatos() {
+  wzPintarRevision();
   const meses = histMeses(), box = document.getElementById('wzDatos');
   const tiendas = [...new Set(lsLoad().map(r => collapseWs(r.tienda)))];
   if (!meses.length) {
@@ -3647,6 +3730,11 @@ function wzPintarResumen() {
   const pedidas = ['admins','responsables'].filter(k => R.p.sec[k]);
   aviso.hidden = R.hayAdmin || !pedidas.length;
   aviso.textContent = 'Este mes usa el formato anterior (sin administrativos ni responsables), así que esas secciones no se incluyen.';
+  // Alertas de datos del mes del reporte y de los meses contra los que se compara.
+  const avD = document.getElementById('wzAvisoDatos');
+  const alM = revisarMeses([R.p.mes, ...(R.comp.meses || [])]).filter(a => a.tipo === 'alerta');
+  avD.hidden = !alM.length;
+  avD.innerHTML = alM.length ? `⚠️ <strong>Antes de presentar, revisa en el Excel:</strong><ul>${alM.map(a => `<li><b>${esc(a.mes)}:</b> ${esc(a.txt)}</li>`).join('')}</ul>` : '';
 
   const conComp = !!R.comp.etiqueta;
   const pill = e => `<span class="wz-pill ${e}">${ESTADO_TXT[e]}</span>`;
@@ -4037,6 +4125,14 @@ async function handleFile(file) {
     if (skipped) partes.push(`${skipped} ya existían (sin cambios)`);
     log('📊', `Registros: ${partes.join(', ') || 'sin cambios'}`, 'done'); setProgress(65);
     if (skipped && !reemplazar) log('ℹ️', 'Si querías corregir un mes ya guardado, marca "Reemplazar meses" y vuelve a subirlo.', '');
+    // Revisión automática de los meses de este archivo.
+    const delArchivo = histMeses().filter(h => meses.some(m => m === h || monthKey(m) === monthKey(h)));
+    const alertas = revisarMeses(delArchivo);
+    if (!alertas.length) log('✅', 'Revisión de datos: sin problemas detectados', 'done');
+    else {
+      alertas.filter(a => a.tipo === 'alerta').slice(0, 8).forEach(a => log('⚠️', `${a.mes}: ${a.txt}`, ''));
+      log('🔎', `Revisión de datos: ${alertas.filter(a => a.tipo === 'alerta').length} alerta(s) y ${alertas.filter(a => a.tipo === 'aviso').length} aviso(s). Detalle completo en "Revisión de datos" (abajo de Datos guardados).`, '');
+    }
 
     log('☁️', 'Guardando en la nube…', 'active');
     const res = await sbPersistHistorial(lsLoad());
