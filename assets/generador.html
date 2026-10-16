@@ -566,6 +566,23 @@
   .wz-datos.vacio { background: var(--gold-light); }
   .wz-upload { padding: 1.6rem 1rem; }
   .wz-incompleto { display: inline-block; margin-top: .4rem; color: var(--orange); }
+  /* Estructura de personal */
+  .est-form { display: flex; flex-direction: column; gap: 1rem; }
+  .est-grupo { display: grid; grid-template-columns: repeat(2, 1fr); gap: .75rem 1rem; }
+  @media (max-width: 800px) { .est-grupo { grid-template-columns: 1fr; } }
+  .est-grupo h4 { grid-column: 1 / -1; font-size: .85rem; font-weight: 700; color: var(--gray-800); margin-top: .25rem; }
+  .est-grupo h4 small { font-weight: 400; color: var(--gray-400); }
+  .est-campo { display: flex; flex-direction: column; gap: .25rem; }
+  .est-campo label { font-size: .75rem; font-weight: 700; color: var(--gray-600); text-transform: uppercase; letter-spacing: .03em; }
+  .est-campo input { font: inherit; font-size: .92rem; padding: .55rem .7rem; border: 1px solid var(--gray-200); border-radius: 8px; background: var(--white); color: var(--gray-800); }
+  .est-campo input:disabled { opacity: .7; }
+  .est-campo small { font-size: .72rem; color: var(--orange); }
+  .est-hist { display: grid; grid-template-columns: 9rem 1fr auto; gap: .75rem; padding: .7rem 0; border-bottom: 1px solid var(--gray-100); font-size: .84rem; color: var(--gray-800); }
+  .est-hist:last-child { border-bottom: 0; }
+  .est-hist-mes { font-weight: 700; color: var(--teal); }
+  .est-hist-quien { font-size: .74rem; color: var(--gray-400); white-space: nowrap; }
+  @media (max-width: 800px) { .est-hist { grid-template-columns: 1fr; gap: .25rem; } }
+  [data-theme="dark"] .est-campo input { background: #1b2148; border-color: rgba(255,255,255,.16); }
   .wz-field > label.wz-check { text-transform: none; letter-spacing: 0; font-weight: 400; font-size: inherit; color: inherit; }
   .wz-upload .upload-icon { font-size: 1.8rem; }
   .wz-details { font-size: .82rem; color: var(--gray-600); }
@@ -750,6 +767,7 @@
   <button class="gen-tab" data-view="historial" onclick="switchGenView('historial')">🗄️ Historial</button>
   <button class="gen-tab" data-view="tendencia" onclick="switchGenView('tendencia')">📈 Tendencia</button>
   <button class="gen-tab" data-view="detalle" onclick="switchGenView('detalle')">🔎 Detalle Individual</button>
+  <button class="gen-tab" data-view="estructura" onclick="switchGenView('estructura')">👥 Estructura</button>
   <span id="sbStatusBadge" class="sb-status checking" style="margin-left:auto">☁️ Verificando…</span>
   <button class="gen-tab" onclick="descargarCapturaVista()">📸 PNG de esta pantalla</button>
 </div>
@@ -983,6 +1001,47 @@
         <select id="detalleProceso" onchange="renderDetalleCards()"></select>
       </div>
       <div id="detalleCards" class="detalle-cards-grid"></div>
+    </div>
+  </div>
+
+  <!-- Vista: Estructura de personal (gerente, administrativo y responsables por proceso) -->
+  <div id="view-estructura" class="gen-view" style="display:none">
+    <div class="wz">
+      <section class="wz-panel">
+        <h2 class="wz-title">Estructura de personal</h2>
+        <p class="wz-help">Registra cambios de gerente, administrativo o responsables de proceso (bajas, reemplazos, reestructuras).
+          Cada cambio aplica <strong>desde el mes que elijas en adelante</strong>; los meses anteriores conservan a quien estaba.</p>
+        <div class="wz-aviso" id="estAviso" hidden></div>
+
+        <div class="wz-grid">
+          <div class="wz-field">
+            <label for="estTienda">Tienda</label>
+            <select id="estTienda" onchange="estPintar()"></select>
+          </div>
+          <div class="wz-field">
+            <label for="estDesde">Vigente desde</label>
+            <select id="estDesde" onchange="estPintar()"></select>
+            <small>A partir de este mes se usan estos nombres.</small>
+          </div>
+          <div class="wz-field">
+            <label>Origen de los nombres</label>
+            <div class="wz-datos" id="estOrigen" style="padding:.6rem .8rem;font-size:.82rem"></div>
+          </div>
+        </div>
+
+        <div class="est-form" id="estForm"></div>
+
+        <div class="wz-nav">
+          <button class="wz-btn" id="estBorrar" onclick="estBorrar()">Quitar este cambio</button>
+          <button class="wz-btn primary" id="estGuardar" onclick="estGuardar()">Guardar cambios</button>
+        </div>
+        <p class="wz-help" id="estMsg" style="margin-top:0"></p>
+      </section>
+
+      <section class="wz-panel">
+        <h3 class="wz-h3">Historial de cambios de la tienda</h3>
+        <div id="estHistorial"></div>
+      </section>
     </div>
   </div>
 
@@ -1652,11 +1711,13 @@ function calcularReporte(p) {
   const valComp = tienda => avg(H.filter(r => comp.meses.includes(r.mes) && collapseWs(r.tienda) === tienda && r.promedio !== null).map(r => r.promedio));
 
   const tiendas = recs.map(r => {
-    const t = collapseWs(r.tienda), pe = r.personal || null;
+    // Nombres según la estructura vigente ese mes (si hay cambios registrados); si no, los del Excel.
+    const ef = aplicarEstructura(r);
+    const t = collapseWs(r.tienda), pe = ef.personal || null;
     const ant = valComp(t);
     return {
       tienda: t,
-      gerente: (pe && pe.gerente) || r.gerente || null,
+      gerente: ef.gerente || null,
       pct: r.promedio,
       auditoria: !!r.auditoria,
       ant, delta: (ant !== null && r.promedio !== null) ? r.promedio - ant : null,
@@ -1893,17 +1954,16 @@ async function buildPptxEjecutivo(R) {
       const conComp = !!R.comp.etiqueta;
       const head = [cab('Tienda'), cab('Gerente'), cab('% Tienda')];
       if (conComp) head.push(cab(R.comp.meses.length === 1 ? `vs ${mesCorto(R.comp.meses[0])}` : 'vs prom. año'));
-      if (R.hayAdmin) head.push(cab('% Adm.'));
       head.push(cab('Estado'));
       const filas = [head];
       deHoja(sl, R.tiendas).forEach(t => {
         const f = [celda(t.tienda, { bold:true }), celda(t.gerente || '—', { fontSize:10 }), celdaPct(t.pct, t.estado)];
         if (conComp) f.push(celdaDelta(t.delta));
-        if (R.hayAdmin) f.push(celdaPct(t.adminPct, t.estadoAdm));
         f.push(celdaEstado(t.estado));
         filas.push(f);
       });
-      const colW = [3.0, 3.1, 1.4]; if (conComp) colW.push(1.4); if (R.hayAdmin) colW.push(1.4); colW.push(1.8);
+      // Sin columna de administrativo: ese dato ya está en su propia diapositiva.
+      const colW = [3.0, 3.1, 1.4]; if (conComp) colW.push(1.4); colW.push(1.8);
       const esc = 12.33 / colW.reduce((a,b)=>a+b,0); for (let i=0;i<colW.length;i++) colW[i] *= esc;
       tabla(s, filas, colW, 1.15, 5.7);
       if (ultimaHoja(sl)) s.addText(`% Tienda = calificación del gerente en el Excel.${R.tiendas.some(t=>t.auditoria) ? ' Tiendas calificadas por auditoría: ' + R.tiendas.filter(t=>t.auditoria).map(t=>t.tienda).join(', ') + '.' : ''}${conComp ? ' Comparación en puntos ' + compTxt + '.' : ''}`,
@@ -2548,6 +2608,7 @@ function switchGenView(view){
   if (view === 'historial') { populateStorageFilters(); renderStorageTable(); }
   else if (view === 'tendencia') { renderTrend(currentTrendTab); }
   else if (view === 'detalle') { populateDetalleFilters(); renderDetalleCards(); }
+  else if (view === 'estructura') { estAbrir(); }
 }
 
 // Exporta la pantalla actualmente visible (con los filtros aplicados) como PNG,
@@ -3252,18 +3313,22 @@ function wzGo(paso) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+// Razón social con la que se está trabajando (los datos y el PowerPoint son solo de esa razón).
+function wzRazonTxt() {
+  return RAZON_ACTIVA ? `🏢 <strong>Razón social:</strong> ${esc(RAZON_ACTIVA)} · ${esc(razonNombre(RAZON_ACTIVA))}<br>` : '';
+}
 // Paso 1 — tarjeta con lo que ya hay guardado.
 function wzPintarDatos() {
   const meses = histMeses(), box = document.getElementById('wzDatos');
   const tiendas = [...new Set(lsLoad().map(r => collapseWs(r.tienda)))];
   if (!meses.length) {
     box.className = 'wz-datos vacio';
-    box.innerHTML = '<strong>Aún no hay datos guardados.</strong> Sube el Excel de Cumplimiento de Procesos para empezar.';
+    box.innerHTML = `${wzRazonTxt()}<strong>Aún no hay datos guardados.</strong> Sube el Excel de Cumplimiento de Procesos para empezar.`;
   } else {
     const ultimo = meses[meses.length - 1];
     const nuevos = meses.filter(m => lsLoad().some(r => r.mes === m && r.personal));
     box.className = 'wz-datos';
-    box.innerHTML = `☁️ <strong>Datos guardados:</strong> ${tiendas.length} tiendas · ${meses.length} meses (${esc(meses[0])} a ${esc(ultimo)}).` +
+    box.innerHTML = `${wzRazonTxt()}☁️ <strong>Datos guardados:</strong> ${tiendas.length} tiendas · ${meses.length} meses (${esc(meses[0])} a ${esc(ultimo)}).` +
       (nuevos.length ? `<br>Con gerentes, administrativos y responsables: ${nuevos.map(esc).join(', ')}.` : '') +
       `<br>Puedes pasar directo a <strong>Parámetros</strong>, o subir un Excel para agregar un mes.`;
     // Meses del formato nuevo que se guardaron con la versión anterior del generador (sin
@@ -3475,10 +3540,10 @@ function wzPintarResumen() {
   const pill = e => `<span class="wz-pill ${e}">${ESTADO_TXT[e]}</span>`;
   const delta = d => d === null ? '<span class="wz-eq">—</span>' : `<span class="${Math.round(d) === 0 ? 'wz-eq' : d > 0 ? 'wz-up' : 'wz-down'}">${esc(deltaTxt(d))}</span>`;
   document.getElementById('wzTabla').innerHTML =
-    `<thead><tr><th>Tienda</th><th>Gerente</th><th class="n">% Tienda</th>${conComp ? '<th class="n">Vs comp.</th>' : ''}${R.hayAdmin ? '<th class="n">% Adm.</th>' : ''}<th>Estado</th></tr></thead><tbody>` +
+    `<thead><tr><th>Tienda</th><th>Gerente</th><th class="n">% Tienda</th>${conComp ? '<th class="n">Vs comp.</th>' : ''}<th>Estado</th></tr></thead><tbody>` +
     R.tiendas.map(t => `<tr><td><strong>${esc(t.tienda)}</strong>${t.auditoria ? ' <small title="Calificada por auditoría">(A)</small>' : ''}</td>
       <td>${esc(t.gerente || '—')}</td><td class="n">${pctTxt(t.pct)}</td>${conComp ? `<td class="n">${delta(t.delta)}</td>` : ''}
-      ${R.hayAdmin ? `<td class="n">${pctTxt(t.adminPct)}</td>` : ''}<td>${pill(t.estado)}</td></tr>`).join('') + '</tbody>';
+      <td>${pill(t.estado)}</td></tr>`).join('') + '</tbody>';
 
   wzPintarEvolucion(R);
   document.getElementById('wzSlides').innerHTML = planDiapositivas(R).map(s => `<li><strong>${esc(s.t)}</strong> <small>— ${esc(s.d)}</small></li>`).join('');
@@ -3541,6 +3606,256 @@ function wzPintarEvolucion(R) {
   }
 }
 
+// ═══════════════════════════════════════════════════════════
+// ESTRUCTURA DE PERSONAL — gerente, administrativo y responsables de proceso por tienda,
+// con un mes "vigente desde". Para cada mes del reporte se usa el cambio más reciente
+// cuyo inicio sea ese mes o uno anterior; si no hay, se usan los nombres del Excel.
+// Se guarda cifrado en Supabase (tabla generador_estructura, por razón social) y, como
+// respaldo, en este navegador.
+// ═══════════════════════════════════════════════════════════
+let ESTR = [];            // cambios de la razón activa
+let ESTR_REMOTO = null;   // true = guardado en Supabase · false = la tabla aún no existe o no hay conexión
+const ESTR_LS = () => 'kuroda_gen_estr_' + (RAZON_ACTIVA ? RAZON_ACTIVA.toLowerCase() : 'general');
+
+async function estCargar() {
+  const razon = (RAZON_ACTIVA || 'GENERAL').toUpperCase();
+  const cli = sbGenClient();
+  let filas = null;
+  if (cli) {
+    try {
+      const { data, error } = await cli.from('generador_estructura').select('*').eq('razon', razon);
+      if (error) throw error;
+      filas = await Promise.all((data || []).map(async r => {
+        let datos = null;
+        try { datos = JSON.parse(r.datos); } catch(e) { try { datos = JSON.parse(await _gDec(r.datos)); } catch(e2) { datos = null; } }
+        return { tienda: r.tienda, tienda_norm: r.tienda_norm, desde: r.desde, desde_clave: r.desde_clave,
+                 datos: datos || {}, actualizado: r.actualizado, actualizado_por: r.actualizado_por };
+      }));
+      ESTR_REMOTO = true;
+    } catch(e) { console.warn('Estructura: tabla generador_estructura no disponible', e); ESTR_REMOTO = false; }
+  } else ESTR_REMOTO = false;
+  if (!filas) { try { filas = JSON.parse(localStorage.getItem(ESTR_LS()) || '[]'); } catch(e) { filas = []; } }
+  ESTR = filas;
+  try { localStorage.setItem(ESTR_LS(), JSON.stringify(ESTR)); } catch(e) {}
+}
+
+// Cambio vigente para una tienda en un mes (o null si no hay ninguno).
+function estructuraVigente(tienda, mes) {
+  const n = normStore(tienda), k = monthKey(mes);
+  return ESTR.filter(e => e.tienda_norm === n && e.desde_clave <= k).sort((a,b) => b.desde_clave - a.desde_clave)[0] || null;
+}
+
+// Nombres efectivos de un registro del historial: los del Excel, reemplazados por la estructura
+// vigente en ese mes. El cumplimiento de cada proceso NO cambia (sale del Excel); solo los nombres.
+function aplicarEstructura(r) {
+  const est = estructuraVigente(r.tienda, r.mes);
+  const pe = r.personal ? JSON.parse(JSON.stringify(r.personal)) : null;
+  const gerExcel = (pe && pe.gerente) || r.gerente || null;
+  if (!est) return { gerente: gerExcel, personal: pe, est: null };
+  const d = est.datos || {};
+  const gerente = d.gerente || gerExcel;
+  if (pe) {
+    pe.gerente = gerente;
+    if (d.administrativo) pe.administrativo = d.administrativo;
+    const procs = d.procesos || {};
+    if (Object.keys(procs).length) {
+      const porProc = {};
+      (pe.responsables || []).forEach(x => (porProc[x.proceso] = porProc[x.proceso] || []).push(x));
+      // Cumplimiento de un proceso sin responsables en el Excel: % del administrativo o del gerente.
+      const cumpleDe = proc => {
+        const v = pe.adminProcesos && pe.adminProcesos[proc] !== undefined ? pe.adminProcesos[proc] : (r.procesos ? r.procesos[proc] : undefined);
+        return v === null || v === undefined ? null : v > 0;
+      };
+      const nuevos = [];
+      new Set([...Object.keys(porProc), ...Object.keys(procs)]).forEach(proc => {
+        const lista = porProc[proc] || [];
+        if (procs[proc] === undefined) { nuevos.push(...lista); return; }
+        const base = lista.find(x => x.cumple !== null && x.cumple !== undefined);
+        const c0 = base ? base.cumple : cumpleDe(proc);
+        if (c0 === null && !lista.length) return; // proceso que la tienda no califica
+        const nombres = procs[proc];
+        if (!nombres.length) { nuevos.push({ nombre: 'Vacante', proceso: proc, cumple: c0, vacante: true }); return; }
+        nombres.forEach((nm, i) => {
+          const c = lista[i] && lista[i].cumple !== null && lista[i].cumple !== undefined ? lista[i].cumple : c0;
+          nuevos.push({ nombre: nm, proceso: proc, cumple: c, vacante: esVacante(nm) });
+        });
+      });
+      pe.responsables = nuevos;
+    }
+  }
+  return { gerente, personal: pe, est };
+}
+
+// ¿El usuario puede editar? admin, admin_auditor y auditor (igual que la base de datos).
+function estPuedeEditar() {
+  try {
+    if (window.parent === window) return true; // abierto por separado (pruebas)
+    const s = window.parent._session;
+    return !!(s && ['admin','admin_auditor','auditor'].includes(s.rol));
+  } catch(e) { return false; }
+}
+function estUsuario() { try { const s = window.parent._session; return s ? (s.usuario || s.username || null) : null; } catch(e) { return null; } }
+
+// Nombres que trae el Excel para una tienda en un mes (el registro más reciente hasta ese mes).
+function estDesdeExcel(tienda, mes) {
+  const n = normStore(tienda), k = monthKey(mes);
+  const recs = lsLoad().filter(r => normStore(r.tienda) === n && monthKey(r.mes) <= k).sort((a,b) => monthKey(b.mes) - monthKey(a.mes));
+  const conPersonal = recs.find(r => r.personal) || null, r0 = recs[0] || null;
+  const procesos = {};
+  if (conPersonal) (conPersonal.personal.responsables || []).forEach(x => {
+    procesos[x.proceso] = procesos[x.proceso] || [];
+    if (!procesos[x.proceso].includes(x.nombre)) procesos[x.proceso].push(x.nombre);
+  });
+  // Procesos que la tienda califica aunque el Excel no traiga responsable (ej. Entrega en Obra).
+  const ref = conPersonal || r0;
+  if (ref) {
+    const califica = Object.assign({}, ref.procesos || {}, (ref.personal && ref.personal.adminProcesos) || {});
+    Object.entries(califica).forEach(([p, v]) => { if (v !== null && v !== undefined && !procesos[p]) procesos[p] = []; });
+  }
+  return {
+    mes: (conPersonal || r0 || {}).mes || null,
+    gerente: (conPersonal && conPersonal.personal.gerente) || (r0 && r0.gerente) || '',
+    administrativo: (conPersonal && conPersonal.personal.administrativo) || '',
+    procesos,
+  };
+}
+
+async function estAbrir() {
+  await estCargar();
+  const tiendas = [...new Set(lsLoad().map(r => collapseWs(r.tienda)))].sort();
+  const meses = histMeses();
+  const selT = document.getElementById('estTienda'), selD = document.getElementById('estDesde');
+  const tAntes = selT.value, dAntes = selD.value;
+  selT.innerHTML = tiendas.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+  // Meses con datos y los 6 siguientes al último (para registrar cambios antes de cargar ese mes).
+  const futuros = [];
+  if (meses.length) {
+    let k = monthKey(meses[meses.length-1]);
+    for (let i = 0; i < 6; i++) { k++; futuros.push(mesDe(k % 12, Math.floor(k / 12))); }
+  }
+  const opciones = [...meses, ...futuros].reverse();
+  selD.innerHTML = opciones.map(m => `<option value="${esc(m)}">${esc(m)}${futuros.includes(m) ? ' (sin datos aún)' : ''}</option>`).join('');
+  if (tiendas.includes(tAntes)) selT.value = tAntes;
+  selD.value = opciones.includes(dAntes) ? dAntes : (meses[meses.length-1] || opciones[0] || '');
+  estPintar();
+}
+
+function estPintar() {
+  const tienda = document.getElementById('estTienda').value, mes = document.getElementById('estDesde').value;
+  const form = document.getElementById('estForm'), aviso = document.getElementById('estAviso');
+  if (!tienda || !mes) { form.innerHTML = '<p class="wz-help">Primero carga el Excel en "Cargar y Generar".</p>'; return; }
+  const puede = estPuedeEditar();
+  const avisos = [];
+  if (!puede) avisos.push('Solo lectura: tu rol puede consultar la estructura pero no modificarla.');
+  if (ESTR_REMOTO === false) avisos.push('La tabla de estructura aún no está en Supabase (falta aplicar la migración 20261016_generador_estructura.sql). Por ahora los cambios solo se guardan en este navegador.');
+  aviso.hidden = !avisos.length; aviso.innerHTML = avisos.map(esc).join('<br>');
+
+  const k = monthKey(mes), n = normStore(tienda);
+  const exacto = ESTR.find(e => e.tienda_norm === n && e.desde_clave === k) || null;
+  const vigente = estructuraVigente(tienda, mes);
+  const excel = estDesdeExcel(tienda, mes);
+  const base = exacto || vigente;
+  const val = { gerente: (base && base.datos.gerente) || excel.gerente, administrativo: (base && base.datos.administrativo) || excel.administrativo, procesos: {} };
+  const procs = new Set([...Object.keys(excel.procesos), ...Object.keys((base && base.datos.procesos) || {})]);
+  const orden = p => { const i = PROCESSES.indexOf(p); return i < 0 ? 99 : i; };
+  [...procs].sort((a,b) => orden(a) - orden(b)).forEach(p => {
+    val.procesos[p] = base && base.datos.procesos && base.datos.procesos[p] !== undefined ? base.datos.procesos[p] : (excel.procesos[p] || []);
+  });
+
+  document.getElementById('estOrigen').innerHTML = exacto
+    ? `✏️ Cambio registrado <strong>desde ${esc(exacto.desde)}</strong>.`
+    : vigente ? `Usa el cambio registrado desde <strong>${esc(vigente.desde)}</strong>. Al guardar se crea un cambio nuevo desde ${esc(mes)}.`
+    : `Nombres del Excel${excel.mes ? ` de <strong>${esc(excel.mes)}</strong>` : ''}. Al guardar se registra un cambio desde ${esc(mes)}.`;
+
+  const campo = (id, etiqueta, valor, original, ayuda) => `
+    <div class="est-campo">
+      <label for="${id}">${etiqueta}</label>
+      <input id="${id}" type="text" value="${esc(valor)}" ${puede ? '' : 'disabled'} placeholder="${esc(ayuda)}">
+      ${original !== null && collapseWs(original) !== collapseWs(valor) ? `<small>En el Excel: ${esc(original || '—')}</small>` : ''}
+    </div>`;
+  form.innerHTML =
+    `<div class="est-grupo"><h4>Responsables de la tienda</h4>` +
+      campo('estGer', 'Gerente', val.gerente, excel.gerente, 'Nombre del gerente') +
+      campo('estAdm', 'Administrativo', val.administrativo, excel.administrativo, 'Vacío = sin asignar') +
+    `</div><div class="est-grupo"><h4>Personal por proceso <small>(varios nombres separados por coma · vacío = vacante)</small></h4>` +
+      Object.entries(val.procesos).map(([p, nombres], i) =>
+        campo('estP' + i, esc(p), nombres.join(', '), (excel.procesos[p] || []).join(', '), 'Vacante').replace('<input ', `<input data-proceso="${esc(p)}" `)).join('') +
+    `</div>`;
+  document.getElementById('estGuardar').disabled = !puede;
+  const bb = document.getElementById('estBorrar'); bb.disabled = !puede || !exacto; bb.style.visibility = exacto ? 'visible' : 'hidden';
+  document.getElementById('estMsg').textContent = '';
+  estHistorial(tienda);
+}
+
+// Lista de cambios de la tienda, de lo más reciente a lo más antiguo, con lo que cambió.
+function estHistorial(tienda) {
+  const n = normStore(tienda);
+  const filas = ESTR.filter(e => e.tienda_norm === n).sort((a,b) => b.desde_clave - a.desde_clave);
+  const box = document.getElementById('estHistorial');
+  if (!filas.length) { box.innerHTML = '<p class="wz-help" style="margin:0">Sin cambios registrados: se usan los nombres del Excel de cada mes.</p>'; return; }
+  box.innerHTML = filas.map((e, i) => {
+    const prev = filas[i+1] ? filas[i+1].datos : (() => { const x = estDesdeExcel(tienda, mesDe((e.desde_clave - 1) % 12, Math.floor((e.desde_clave - 1) / 12))); return { gerente: x.gerente, administrativo: x.administrativo, procesos: x.procesos }; })();
+    const cambios = [];
+    const dif = (et, a, b) => { if (collapseWs(a || '') !== collapseWs(b || '')) cambios.push(`<strong>${esc(et)}:</strong> ${esc(a || 'sin asignar')} → ${esc(b || 'sin asignar')}`); };
+    dif('Gerente', prev.gerente, e.datos.gerente); dif('Administrativo', prev.administrativo, e.datos.administrativo);
+    Object.entries(e.datos.procesos || {}).forEach(([p, ns]) => dif(p, ((prev.procesos || {})[p] || []).join(', ') || 'vacante', ns.join(', ') || 'vacante'));
+    const quien = [e.actualizado_por, e.actualizado ? new Date(e.actualizado).toLocaleDateString('es-MX') : null].filter(Boolean).join(' · ');
+    return `<div class="est-hist"><div class="est-hist-mes">Desde ${esc(e.desde)}</div>
+      <div>${cambios.length ? cambios.join('<br>') : '<span class="wz-help">Sin diferencias con lo anterior</span>'}</div>
+      ${quien ? `<div class="est-hist-quien">${esc(quien)}</div>` : ''}</div>`;
+  }).join('');
+}
+
+async function estGuardar() {
+  if (!estPuedeEditar()) return;
+  const tienda = document.getElementById('estTienda').value, mes = document.getElementById('estDesde').value;
+  const msg = document.getElementById('estMsg');
+  const limpia = s => collapseWs(s || '');
+  const datos = { gerente: limpia(document.getElementById('estGer').value), administrativo: limpia(document.getElementById('estAdm').value), procesos: {} };
+  document.querySelectorAll('#estForm input[data-proceso]').forEach(inp => {
+    datos.procesos[inp.dataset.proceso] = inp.value.split(',').map(limpia).filter(Boolean);
+  });
+  const fila = { tienda, tienda_norm: normStore(tienda), desde: mes, desde_clave: monthKey(mes), datos,
+                 actualizado: new Date().toISOString(), actualizado_por: estUsuario() };
+  msg.textContent = 'Guardando…';
+  let remoto = false;
+  const cli = sbGenClient();
+  if (cli && ESTR_REMOTO !== false) {
+    try {
+      const { error } = await cli.from('generador_estructura').upsert({
+        razon: (RAZON_ACTIVA || 'GENERAL').toUpperCase(), tienda: fila.tienda, tienda_norm: fila.tienda_norm,
+        desde: fila.desde, desde_clave: fila.desde_clave, datos: await _gEnc(JSON.stringify(datos)),
+        actualizado: fila.actualizado, actualizado_por: fila.actualizado_por,
+      }, { onConflict: 'razon,tienda_norm,desde_clave' });
+      if (error) throw error;
+      remoto = true;
+    } catch(e) { console.warn('Estructura: no se pudo guardar en Supabase', e); msg.textContent = 'No se pudo guardar en Supabase: ' + (e.message || e); }
+  }
+  ESTR = ESTR.filter(e => !(e.tienda_norm === fila.tienda_norm && e.desde_clave === fila.desde_clave)).concat([fila]);
+  try { localStorage.setItem(ESTR_LS(), JSON.stringify(ESTR)); } catch(e) {}
+  if (remoto) await estCargar();
+  estPintar();
+  msg.textContent = remoto ? `✅ Guardado: aplica a ${tienda} desde ${mes}.` : `Guardado solo en este navegador (aplica a ${tienda} desde ${mes}).`;
+}
+
+async function estBorrar() {
+  if (!estPuedeEditar()) return;
+  const tienda = document.getElementById('estTienda').value, mes = document.getElementById('estDesde').value;
+  if (!confirm(`¿Quitar el cambio de ${tienda} desde ${mes}? Se volverán a usar los nombres anteriores.`)) return;
+  const n = normStore(tienda), k = monthKey(mes), cli = sbGenClient();
+  if (cli && ESTR_REMOTO) {
+    try {
+      const { error } = await cli.from('generador_estructura').delete()
+        .eq('razon', (RAZON_ACTIVA || 'GENERAL').toUpperCase()).eq('tienda_norm', n).eq('desde_clave', k);
+      if (error) throw error;
+    } catch(e) { document.getElementById('estMsg').textContent = 'No se pudo quitar en Supabase: ' + (e.message || e); return; }
+  }
+  ESTR = ESTR.filter(e => !(e.tienda_norm === n && e.desde_clave === k));
+  try { localStorage.setItem(ESTR_LS(), JSON.stringify(ESTR)); } catch(e) {}
+  estPintar();
+  document.getElementById('estMsg').textContent = `Se quitó el cambio de ${tienda} desde ${mes}.`;
+}
+
 // Nombre del archivo: Cumplimiento_KNO_Septiembre_2026.pptx
 function wzNombreArchivo(p) {
   return ['Cumplimiento', RAZON_ACTIVA || '', p.mes].filter(Boolean).join('_').replace(/[^A-Za-z0-9ÁÉÍÓÚÑáéíóúñ_\-]+/g, '_') + '.pptx';
@@ -3555,6 +3870,13 @@ function cargarDesdeHistorial() {
 
 async function handleFile(file) {
   if (!file) return;
+  // Dentro del Monitor, el archivo se guarda en la razón social activa. Si el Monitor aún no
+  // la envió, no se carga (se guardaría en "GENERAL", fuera de toda razón social).
+  if (window.parent !== window && !RAZON_ACTIVA) {
+    alert('Espera un momento: aún se está cargando tu razón social. Vuelve a subir el archivo en unos segundos.');
+    document.getElementById('fileInput').value = '';
+    return;
+  }
   const status = document.getElementById('statusArea');
   status.style.display = 'block';
   document.getElementById('logLines').innerHTML = '';
@@ -3652,6 +3974,7 @@ document.getElementById('fileInput').addEventListener('change', e => {
 (async function initHistorialGenerador(){
   wzPintarDatos();
   await sbFetchHistorial();
+  await estCargar();
   dedupeHistory();
   cargarDesdeHistorial();
   populateStorageFilters(); renderStorageTable();
@@ -3684,9 +4007,15 @@ async function refrescarVistasRazon(){
   // Cada razón social tiene su propio historial en Supabase; al cambiar de
   // razón se recarga y se refrescan las 3 vistas (Historial/Tendencia/Detalle).
   HIST_READY = false;
+  // Lo elegido en el asistente (mes, tiendas, meses de evolución) era de la razón anterior:
+  // se reinicia y se vuelve al paso 1 para no mezclar datos entre razones sociales.
+  WZ.mes = null; WZ.tiendas = new Set(); WZ.tiendasTocadas = false; WZ.evoMeses = new Set(); WZ.evoTocado = false; WZ.step = 1;
   await sbFetchHistorial();
+  await estCargar(); // la estructura de personal también es por razón social
+  if (document.getElementById('view-estructura').style.display !== 'none') estAbrir();
   dedupeHistory();
   rawFileName = '';
+  wzGo(1);
   cargarDesdeHistorial();
   populateStorageFilters(); renderStorageTable();
   renderTrend(currentTrendTab);
