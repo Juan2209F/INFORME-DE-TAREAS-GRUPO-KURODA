@@ -220,7 +220,7 @@ textarea{resize:vertical;min-height:46px}
     <div class="card-header"><span class="card-icon icon-blue">👤</span><h2>Datos del Trabajador</h2></div>
     <div class="card-body"><div class="grid">
       <div class="span2"><label>Razón social (antes de S.A. DE C.V.)</label><input id="empresa" placeholder="Ej. KURODA NORTE" value="KURODA"></div>
-      <div class="span2"><label>Nombre completo</label><input id="nombre" placeholder="Ej. Nombre completo del trabajador"></div>
+      <div class="span2"><label>Nombre completo</label><input id="nombre" placeholder="Ej. Nombre completo del trabajador" oninput="document.getElementById('firmaT').value=this.value"></div>
       <div><label>Puesto</label><input id="puesto" placeholder="Ej. Puesto o cargo"></div>
       <div><label>Sucursal</label><input id="sucursales" placeholder="Ej. Nombre de la sucursal"></div>
     </div></div>
@@ -249,7 +249,7 @@ textarea{resize:vertical;min-height:46px}
   <div class="card">
     <div class="card-header"><span class="card-icon icon-green">✍️</span><h2>Firmas y Lugar</h2></div>
     <div class="card-body"><div class="grid">
-      <div><label>Nombre del trabajador</label><input id="firmaT" placeholder="Ej. Nombre para firma"></div>
+      <div><label>Nombre del trabajador</label><input id="firmaT" placeholder="Se toma del nombre completo" readonly></div>
       <div id="lbl-firmaD-wrap"><label id="lbl-firmaD">Quien autoriza</label><input id="firmaD" placeholder="Ej. Nombre de quien autoriza"></div>
       <div id="puesto-firmaT-wrap"><label>Puesto del trabajador</label><input id="puestoT" placeholder="Ej. Puesto"></div>
       <div id="puesto-firmaD-wrap"><label>Puesto de quien autoriza</label><input id="puestoD" placeholder="Ej. Puesto"></div>
@@ -1255,7 +1255,7 @@ function getData(){
     nombre:v('nombre'),puesto:v('puesto'),sucursales:v('sucursales'),
     marca:v('marca'),tipo_v:v('tipo_v'),modelo:v('modelo'),color:v('color'),
     placas:v('placas'),serie:v('serie'),fi:v('fi'),ff:v('ff'),
-    firmaT:v('firmaT'),firmaD:v('firmaD'),puestoD:v('puestoD'),puestoT:v('puestoT'),
+    firmaT:v('nombre'),firmaD:v('firmaD'),puestoD:v('puestoD'),puestoT:v('puestoT'),
     lugar:v('lugar')+(v('fecha')?' a '+v('fecha'):''),
     tituloDoc:'CARTA RESPONSIVA DE USO Y CUIDADO DE VEHÍCULO',
     labelDerecha:(tipoActual==='temporal')?'DIRECTORA ADMINISTRATIVA':'AUTORIZA'
