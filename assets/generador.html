@@ -1739,7 +1739,16 @@ function calcularReporte(p) {
 
   // Responsables por proceso (solo meses con el formato nuevo).
   const pers = new Map(), vacantes = [];
+  // "Entrega en Obra" es informativa: se muestra por tienda con su resultado, pero no cuenta en
+  // la calificación de las personas ni en los totales de quién cumple.
+  const OBRA = 'Entrega en Obra';
+  const entregaObra = conAdmin.map(t => {
+    const v = t.procesos[OBRA];
+    const nombres = (t.personal.responsables || []).filter(x => x.proceso === OBRA && !x.vacante).map(x => x.nombre);
+    return (v === null || v === undefined) && !nombres.length ? null : { tienda: t.tienda, nombres, cumple: v === null || v === undefined ? null : v > 0 };
+  }).filter(Boolean);
   conAdmin.forEach(t => (t.personal.responsables || []).forEach(x => {
+    if (x.proceso === OBRA) return;
     if (x.vacante) { vacantes.push(`${x.proceso} (${t.tienda})`); return; }
     if (x.cumple === null || x.cumple === undefined) return;
     const k = `${stripAcc(x.nombre)}||${t.tienda}`;
@@ -1754,6 +1763,10 @@ function calcularReporte(p) {
     (b.pendientes.length > 0) - (a.pendientes.length > 0) || a.nombre.localeCompare(b.nombre));
   const conPendientes = personas.filter(o => o.pendientes.length);
   const alDia = personas.filter(o => !o.pendientes.length);
+  // Filas de la tabla "Personal por proceso": las personas y, al final de cada tienda, su
+  // renglón informativo de Entrega en Obra.
+  const filasPersonal = [...personas.map(o => ({ tipo:'persona', ...o })), ...entregaObra.map(e => ({ tipo:'obra', ...e }))]
+    .sort((a,b) => a.tienda.localeCompare(b.tienda) || (a.tipo === 'obra') - (b.tipo === 'obra'));
 
   // Cumplimiento por proceso en el mes (promedio de las tiendas que lo tienen).
   const procesos = PROCESSES.map(nombre => {
@@ -1791,7 +1804,7 @@ function calcularReporte(p) {
     hayAdmin: conAdmin.length > 0,
     admins: conAdmin.slice().sort((a,b) => sn(b.adminPct) - sn(a.adminPct)),
     adminOk: conAdmin.filter(t => t.estadoAdm === 'ok').length,
-    personas, conPendientes, alDia, vacantes, procesos, evolucion, evoTiendas, anual, anualProm, metaDe,
+    personas, conPendientes, alDia, vacantes, entregaObra, filasPersonal, procesos, evolucion, evoTiendas, anual, anualProm, metaDe,
   };
 }
 
@@ -1821,7 +1834,7 @@ function planDiapositivas(R) {
   paginado('tiendas', 'Tiendas', '% de cada tienda, comparación y estado', R.tiendas.length);
   if (s.admins && R.hayAdmin) paginado('admins', 'Administrativos', 'Procesos 80% + Frogmi 20%', R.admins.length);
   if (s.responsables && R.hayAdmin)
-    paginado('responsables', 'Personal por proceso', `${R.alDia.length} cumplen · ${R.conPendientes.length} no cumplen`, R.personas.length, PEND_POR_HOJA);
+    paginado('responsables', 'Personal por proceso', `${R.alDia.length} cumplen · ${R.conPendientes.length} no cumplen`, R.filasPersonal.length, PEND_POR_HOJA);
   if (s.evolucion && R.evolucion.length > 1) {
     const rango = `${mesCorto(R.evolucion[0].mes)} – ${mesCorto(R.evolucion[R.evolucion.length-1].mes)}`;
     out.push({ k:'evolucion', t:'Evolución del cumplimiento', d:`${R.evolucion.length} meses (${rango})` });
@@ -1989,9 +2002,21 @@ async function buildPptxEjecutivo(R) {
       encabezado(s, sl.hojas > 1 ? `Personal por proceso (${sl.hoja+1}/${sl.hojas})` : 'Personal por proceso',
         `${p.mes} · ${R.alDia.length} cumplen · ${R.conPendientes.length} no cumplen`);
       // Una sola tabla con todas las personas: quién cumple y quién no, y en qué proceso.
-      const lista = R.personas.slice(sl.hoja * PEND_POR_HOJA, (sl.hoja + 1) * PEND_POR_HOJA);
+      const lista = R.filasPersonal.slice(sl.hoja * PEND_POR_HOJA, (sl.hoja + 1) * PEND_POR_HOJA);
       const filas = [[cab('Persona'), cab('Tienda'), cab('Procesos a su cargo'), cab('Estado')]];
       lista.forEach(o => {
+        // Renglón informativo de Entrega en Obra (no cuenta en la calificación).
+        if (o.tipo === 'obra') {
+          const e = o.cumple === null ? 'na' : o.cumple ? 'ok' : 'bad', [c, bg] = colEstado(e);
+          filas.push([
+            celda(o.nombres.length ? o.nombres.join(', ') : 'Sin responsable', { italic: !o.nombres.length, color: o.nombres.length ? PX.text : PX.mute, bold: !!o.nombres.length }),
+            celda(o.tienda),
+            { text: [{ text:'Entrega en Obra', options:{ color: o.cumple === false ? PX.bad : PX.text } }, { text:'  · informativo', options:{ color: PX.mute, italic:true } }],
+              options: { fontFace:FONT, fontSize:10.5, valign:'middle', margin:0.05, fill:{ color:'F8FAFC' } } },
+            celda(ESTADO_TXT[e], { align:'center', bold:true, color:c, fill:{ color:bg }, italic:true }),
+          ]);
+          return;
+        }
         const e = o.pendientes.length ? 'bad' : 'ok';
         // Los procesos que no cumplió se marcan en rojo con ✘ dentro de la misma celda.
         const runs = o.procesos.map((pr, i) => {
@@ -2007,7 +2032,7 @@ async function buildPptxEjecutivo(R) {
       if (!lista.length) filas.push([celda('Sin responsables registrados este mes', { color:PX.mute }), celda(''), celda(''), celda('')]);
       tabla(s, filas, [2.1, 3.1, 5.33, 1.8], 1.15, 5.6);
       const pie = [];
-      if (sl.hoja === 0) pie.push('✘ en rojo = proceso que no cumplió.');
+      if (sl.hoja === 0) pie.push('✘ en rojo = proceso que no cumplió. Entrega en Obra es informativa: no cuenta en la calificación.');
       if (sl.hoja < sl.hojas - 1) pie.push('Continúa en la siguiente diapositiva →');
       if (sl.hoja === sl.hojas - 1 && R.vacantes.length) pie.push(`Puestos vacantes: ${R.vacantes.join(' · ')}`);
       if (pie.length) s.addText(pie.join('   '), { x:0.5, y:6.95, w:11, h:0.3, fontFace:FONT, fontSize:9, color:PX.mute, italic:true });
@@ -3727,16 +3752,22 @@ async function estAbrir() {
   const selT = document.getElementById('estTienda'), selD = document.getElementById('estDesde');
   const tAntes = selT.value, dAntes = selD.value;
   selT.innerHTML = tiendas.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
-  // Meses con datos y los 6 siguientes al último (para registrar cambios antes de cargar ese mes).
+  // Solo se modifican meses del formato nuevo (desde el primer mes con administrativos y
+  // responsables, hoy agosto 2026); los anteriores se quedan como están, sin responsables.
+  // Se muestran en orden: meses ya cargados y los próximos 6 (para registrar cambios antes de cargarlos).
+  const primerNuevo = meses.find(m => lsLoad().some(r => r.mes === m && r.personal));
+  const cargados = primerNuevo ? meses.filter(m => monthKey(m) >= monthKey(primerNuevo)) : meses.slice(-1);
   const futuros = [];
   if (meses.length) {
     let k = monthKey(meses[meses.length-1]);
     for (let i = 0; i < 6; i++) { k++; futuros.push(mesDe(k % 12, Math.floor(k / 12))); }
   }
-  const opciones = [...meses, ...futuros].reverse();
-  selD.innerHTML = opciones.map(m => `<option value="${esc(m)}">${esc(m)}${futuros.includes(m) ? ' (sin datos aún)' : ''}</option>`).join('');
+  const opciones = [...cargados, ...futuros];
+  selD.innerHTML =
+    `<optgroup label="Meses ya cargados">${cargados.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('')}</optgroup>` +
+    `<optgroup label="Próximos meses (aún sin Excel)">${futuros.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('')}</optgroup>`;
   if (tiendas.includes(tAntes)) selT.value = tAntes;
-  selD.value = opciones.includes(dAntes) ? dAntes : (meses[meses.length-1] || opciones[0] || '');
+  selD.value = opciones.includes(dAntes) ? dAntes : (cargados[cargados.length-1] || opciones[0] || '');
   estPintar();
 }
 
@@ -3756,7 +3787,8 @@ function estPintar() {
   const excel = estDesdeExcel(tienda, mes);
   const base = exacto || vigente;
   const val = { gerente: (base && base.datos.gerente) || excel.gerente, administrativo: (base && base.datos.administrativo) || excel.administrativo, procesos: {} };
-  const procs = new Set([...Object.keys(excel.procesos), ...Object.keys((base && base.datos.procesos) || {})]);
+  // "Entrega en Obra" siempre aparece para poder asignarle responsable (es informativo: no cuenta en la calificación).
+  const procs = new Set([...Object.keys(excel.procesos), ...Object.keys((base && base.datos.procesos) || {}), 'Entrega en Obra']);
   const orden = p => { const i = PROCESSES.indexOf(p); return i < 0 ? 99 : i; };
   [...procs].sort((a,b) => orden(a) - orden(b)).forEach(p => {
     val.procesos[p] = base && base.datos.procesos && base.datos.procesos[p] !== undefined ? base.datos.procesos[p] : (excel.procesos[p] || []);
