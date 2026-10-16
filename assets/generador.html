@@ -2020,8 +2020,9 @@ async function buildPptxEjecutivo(R) {
       } else puntos.push(['🏆', 'Todas las tiendas cumplen la meta.', 'Ninguna tienda quedó por debajo este mes.']);
       if (R.procesos.length) {
         const peor = R.procesos[R.procesos.length-1];
+        const quien = `Lo ${peor.n === 1 ? 'califica 1 tienda' : `califican ${peor.n} tiendas`}.`;
         puntos.push(['🔧', `El proceso más bajo es ${peor.nombre} con ${pctTxt(peor.val)}.`,
-          R.hayAdmin && R.personas.length ? `${R.conPendientes.length} de ${R.personas.length} personas no cumplieron al menos un proceso.` : 'Promedio de las tiendas que lo califican.']);
+          R.hayAdmin && R.personas.length ? `${quien} ${R.conPendientes.length} de ${R.personas.length} personas no cumplieron al menos un proceso.` : quien]);
       } else if (R.hayAdmin && R.personas.length)
         puntos.push(['👥', `${R.alDia.length} de ${R.personas.length} personas cumplieron todos sus procesos.`, `${R.conPendientes.length} tienen al menos un proceso pendiente.`]);
       const paso = Math.min(1.42, 5.75 / puntos.length), alto = paso - 0.17;
