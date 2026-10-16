@@ -1755,7 +1755,9 @@ function mesesComparacion(mes, comp, meses) {
   if (comp === 'yoy')  { const m = meses.find(x => monthKey(x) === k - 12); return m ? { meses:[m], etiqueta:m } : { meses:[], etiqueta:null }; }
   if (comp === 'ytd')  {
     const ms = meses.filter(x => getYear(x) === getYear(mes) && monthKey(x) < k);
-    return ms.length ? { meses:ms, etiqueta:`Promedio ${mesCorto(ms[0])}–${mesCorto(ms[ms.length-1])}` } : { meses:[], etiqueta:null };
+    // "Promedio Enero '26 a Agosto '26" (mes completo, más fácil de leer que "Ene '26–Ago '26").
+    const largo = m => m.replace(/\s*(\d{2})(\d{2})$/, " '$2");
+    return ms.length ? { meses:ms, etiqueta: ms.length === 1 ? `Promedio ${largo(ms[0])}` : `Promedio ${largo(ms[0])} a ${largo(ms[ms.length-1])}` } : { meses:[], etiqueta:null };
   }
   return { meses:[], etiqueta:null };
 }
@@ -2016,7 +2018,8 @@ async function buildPptxEjecutivo(R) {
         const x = 0.5 + i*w;
         s.addShape(pres.ShapeType.rect, { x, y:5.95, w:w-0.15, h:1.0, fill:{ color:PX.white }, line:{ color:PX.line, width:0.75 } });
         s.addText(k.v, { x, y:5.98, w:w-0.15, h:0.55, fontFace:FONT, fontSize:22, bold:true, color:k.c || PX.navy, align:'center' });
-        s.addText(k.l, { x, y:6.5, w:w-0.15, h:0.35, fontFace:FONT, fontSize:10, color:PX.mute, align:'center' });
+        // Etiquetas largas (ej. "Contra Promedio Enero '26 a Agosto '26") un punto más chicas para que quepan en un renglón.
+        s.addText(k.l, { x, y:6.5, w:w-0.15, h:0.35, fontFace:FONT, fontSize: k.l.length > 32 ? 9 : 10, color:PX.mute, align:'center' });
       });
     }
 
