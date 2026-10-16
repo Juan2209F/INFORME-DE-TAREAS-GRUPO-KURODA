@@ -1227,7 +1227,7 @@ var TIPOS = {
   2:{titulo:'TIPO 2',usoTexto:'El vehículo será utilizado por el trabajador como herramienta de trabajo y en cumplimiento exclusivo de las funciones propias del puesto y dentro de su jornada laboral, por lo tanto, el trabajador queda facultado de resguardar la unidad en su domicilio particular de todos los días de la semana incluyendo fines de semana, excepto en los siguientes casos; El trabajador queda obligado a de dejar el vehículo en "LA EMPRESA" cuando "EL TRABAJADOR" se encuentre de vacaciones o días festivos (inhábiles), o bien cuando así se lo solicite su patronal, responsabilizándose "EL TRABAJADOR", de cualquier siniestro que le suceda a la unidad en las horas que "EL TRABAJADOR" la tenga a su cargo y/o bajo su resguardo.',infoUso:'📋 Tipo 2 — El trabajador puede resguardar el vehículo en su domicilio todos los días incluidos fines de semana, excepto vacaciones y días festivos.',firmaDerechaLabel:'Directora Administrativa',firmaDerecha:'ING. REINA TORRES LOPEZ',puestoD:'DIRECTORA ADMINISTRATIVA',mostrarPuestoT:true,mostrarFechas:false,mantenimiento:'std'},
   3:{titulo:'TIPO 3',usoTexto:'El vehículo será utilizado como herramienta de trabajo y en cumplimiento exclusivo de las funciones propias del puesto, por lo tanto, la unidad solo será utilizada por "EL TRABAJADOR" en horas laborables y no laborales de todos los días, no incluyendo fines de semana, deberá dejar el vehículo en "LA EMPRESA" cuando "EL TRABAJADOR" se encuentre de vacaciones o días festivos, responsabilizándose "EL TRABAJADOR", de cualquier siniestro que le suceda a la unidad en las horas que "EL TRABAJADOR" la tenga a su cargo.',infoUso:'📋 Tipo 3 — Uso de lunes a viernes. El vehículo se deja en la empresa los fines de semana, vacaciones y días festivos.',firmaDerechaLabel:'Quien autoriza',firmaDerecha:'Lic. Jorge Humberto Ortiz Gómez',puestoD:'GERENTE REGIONAL',mostrarPuestoT:true,mostrarFechas:false,mantenimiento:'std'},
   4:{titulo:'TIPO 4',usoTexto:'El vehículo será utilizado por el Trabajador como herramienta de trabajo, en cumplimiento exclusivo de las funciones propias del puesto, por lo tanto, la unidad será utilizada por "EL TRABAJADOR" en horas no laborables de todos los días incluyendo fines de semana, vacaciones y días festivos, responsabilizándose "EL TRABAJADOR", de cualquier siniestro que le suceda a la unidad en las horas que "EL TRABAJADOR" la tenga a su cargo y/o bajo su resguardo.',infoUso:'📋 Tipo 4 — Uso todos los días del año, incluyendo fines de semana, vacaciones y días festivos.',firmaDerechaLabel:'Directora Administrativa',firmaDerecha:'ING. REINA ISABEL TORRES LOPEZ',puestoD:'DIRECTORA ADMINISTRATIVA',mostrarPuestoT:true,mostrarFechas:false,mantenimiento:'std'},
-  temporal:{titulo:'TEMPORAL',usoTexto:null,infoUso:'📋 Temporal — El vehículo se asigna por un período específico con fecha de inicio y fin.',firmaDerechaLabel:'Directora Administrativa',firmaDerecha:'REINA TORRES',puestoD:'',mostrarPuestoT:false,mostrarFechas:true,mantenimiento:'std'}
+  temporal:{titulo:'TEMPORAL',usoTexto:null,infoUso:'📋 Temporal — El vehículo se asigna por un período específico con fecha de inicio y fin.',firmaDerechaLabel:'Quien autoriza',firmaDerecha:'REINA TORRES',puestoD:'DIRECTORA ADMINISTRATIVA',mostrarPuestoT:false,mostrarFechas:true,mantenimiento:'std'}
 };
 
 function setTipo(t){
@@ -1241,7 +1241,7 @@ function setTipo(t){
   document.getElementById('lbl-firmaD').textContent=cfg.firmaDerechaLabel;
   document.getElementById('firmaD').value=cfg.firmaDerecha;
   document.getElementById('puestoD').value=cfg.puestoD;
-  document.getElementById('puesto-firmaD-wrap').style.display=cfg.mostrarPuestoT?'':'none';
+  document.getElementById('puesto-firmaD-wrap').style.display='';
   document.getElementById('puesto-firmaT-wrap').style.display=cfg.mostrarPuestoT?'':'none';
 }
 setTipo(4);
@@ -1280,7 +1280,7 @@ function getData(){
     firmaT:v('nombre'),firmaD:v('firmaD'),puestoD:v('puestoD'),puestoT:v('puestoT'),
     lugar:v('lugar')+(v('fecha')?' a '+v('fecha'):''),
     tituloDoc:'CARTA RESPONSIVA DE USO Y CUIDADO DE VEHÍCULO',
-    labelDerecha:(tipoActual==='temporal')?'DIRECTORA ADMINISTRATIVA':'AUTORIZA'
+    labelDerecha:(tipoActual==='temporal')?(v('puestoD')||'DIRECTORA ADMINISTRATIVA').toUpperCase():'AUTORIZA'
   };
 }
 
