@@ -25,6 +25,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.webkit.CookieManager;
+import android.webkit.GeolocationPermissions;
 import android.webkit.JavascriptInterface;
 import android.webkit.JsPromptResult;
 import android.webkit.JsResult;
@@ -76,6 +77,7 @@ public class MainActivity extends Activity {
     private static final int REQ_PERMISO_ESCRITURA = 11;
     private static final int REQ_CAMARA = 12;
     private static final int REQ_AVISOS = 13;
+    private static final int REQ_UBICACION = 14;
     private static final long REVISAR_CADA_MS = 6L * 3600 * 1000;
 
     private static final String PAGINA_SIN_CONEXION = "<!DOCTYPE html><html lang='es'><head><meta charset='UTF-8'>"
@@ -104,6 +106,8 @@ public class MainActivity extends Activity {
     private final Map<String, Recepcion> enCurso = new HashMap<>();
     private Recepcion pendienteDePermiso;
     private PermissionRequest camaraPendiente;   /* la página pidió la cámara y Android aún no da permiso */
+    private String ubicacionOrigen;              /* la página pidió el GPS y Android aún no da permiso */
+    private GeolocationPermissions.Callback ubicacionPendiente;
     private String seccionPendiente;             /* sección a abrir al tocar una notificación */
 
     /* Archivo que la página está mandando en trozos (base64) para guardarlo. */
@@ -395,6 +399,21 @@ public class MainActivity extends Activity {
             if (camaraPendiente == r) camaraPendiente = null;
         }
 
+        /* GPS para llenar ciudad y estado en las cartas responsivas. Solo para páginas del Monitor. */
+        @Override
+        public void onGeolocationPermissionsShowPrompt(String origen, GeolocationPermissions.Callback cb) {
+            if (!esDeLaApp(Uri.parse(origen))) { cb.invoke(origen, false, false); return; }
+            if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                    || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                cb.invoke(origen, true, false);
+            } else {
+                if (ubicacionPendiente != null) ubicacionPendiente.invoke(ubicacionOrigen, false, false);
+                ubicacionOrigen = origen;
+                ubicacionPendiente = cb;
+                requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, REQ_UBICACION);
+            }
+        }
+
         @Override
         public boolean onJsAlert(WebView v, String url, String msg, JsResult r) { return dialogoJs("alert", msg, null, r); }
 
@@ -529,6 +548,17 @@ public class MainActivity extends Activity {
                 if (ok) p.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});
                 else { p.deny(); aviso("Para escanear, permite la cámara en Ajustes › Apps › Auditoría Kuroda › Permisos"); }
             }
+            return;
+        }
+        if (req == REQ_UBICACION) {
+            /* Basta con la aproximada (el usuario puede elegir "Ubicación aproximada"). */
+            boolean alguna = false;
+            for (int g : resultados) if (g == PackageManager.PERMISSION_GRANTED) alguna = true;
+            GeolocationPermissions.Callback cb = ubicacionPendiente;
+            String origen = ubicacionOrigen;
+            ubicacionPendiente = null;
+            ubicacionOrigen = null;
+            if (cb != null) cb.invoke(origen, alguna, false);
             return;
         }
         if (req != REQ_PERMISO_ESCRITURA) return;
