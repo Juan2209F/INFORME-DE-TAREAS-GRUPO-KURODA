@@ -1594,14 +1594,21 @@ function renderPendRank(tareas){
   const el=document.getElementById('pend-rank');
   if(!arr.length){el.innerHTML='<div class="empty">✅ Sin tareas pendientes en el período.</div>';return;}
   /* Estado binario: Atrasada (fuera de fecha de término) o Vigente (en plazo,
-     sin importar cuántos días falten). */
+     sin importar cuántos días falten). La barra se divide: rojo = atrasadas,
+     azul = vigentes, para no pintar toda la sucursal de rojo por una sola. */
+  const R='#dc2626',B='#2563eb';
   el.innerHTML=arr.map((s,i)=>{
-    const c=s.venc>0?'#dc2626':'#2563eb';
-    return `<div class="rank-item">
+    const vig=s.n-s.venc;
+    const c=s.venc>0?R:B;
+    const num=s.venc>0&&vig>0
+      ?`<span style="color:${R}">${s.venc}</span><span style="color:var(--muted);font-weight:400"> · </span><span style="color:${B}">${vig}</span>`
+      :`<span style="color:${c}">${s.n}</span>`;
+    return `<div class="rank-item" title="${s.venc} atrasada${s.venc===1?'':'s'} · ${vig} vigente${vig===1?'':'s'}">
     <div class="rank-num" style="background:${c}">${i+1}</div>
     <div class="rank-name">${s.t}</div>
-    <div class="rank-bar-wrap"><div class="rank-bg"><div class="rank-fill" style="width:${s.n/max*100}%;background:${c}"></div></div>
-      <span class="rank-pct" style="color:${c}">${s.n}</span></div></div>`;
+    <div class="rank-bar-wrap"><div class="rank-bg"><div style="display:flex;height:100%;width:${s.n/max*100}%;border-radius:4px;overflow:hidden;transition:width .6s ease">
+      <div style="width:${s.venc/s.n*100}%;background:${R}"></div><div style="width:${vig/s.n*100}%;background:${B}"></div></div></div>
+      <span class="rank-pct" style="white-space:nowrap">${num}</span></div></div>`;
   }).join('');
 }
 
