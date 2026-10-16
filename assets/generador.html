@@ -1883,6 +1883,7 @@ function bloquesDeMeses(n) {
 function planDiapositivas(R) {
   const s = R.p.sec, out = [
     { k:'portada', t:'Portada', d:`${R.ok.length} de ${R.tiendas.length} tiendas cumplen la meta` },
+    { k:'clave', t:'Lo importante del mes', d:'Conclusiones en frases sencillas' },
     { k:'resumen', t:'Resumen del mes', d:'Cumplen · en riesgo · no cumplen' },
   ];
   // Agrega una sección en tantas diapositivas como hagan falta (1/2, 2/2…).
@@ -1945,9 +1946,13 @@ async function buildPptxEjecutivo(R) {
     n++;
     s.background = { color: PX.bg };
     s.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.33, h:0.9, fill:{ color:PX.navy } });
-    s.addText(titulo, { x:0.5, y:0.12, w:9.5, h:0.45, fontFace:FONT, fontSize:22, bold:true, color:PX.white });
-    s.addText(sub || `${p.mes} · ${empresa}`, { x:0.5, y:0.52, w:9.5, h:0.3, fontFace:FONT, fontSize:11, color:'C7D2FE' });
-    s.addText(`Meta: ${p.meta}%`, { x:10.3, y:0.25, w:2.55, h:0.4, fontFace:FONT, fontSize:12, bold:true, color:PX.gold, align:'right' });
+    s.addText(titulo, { x:0.5, y:0.12, w:8.2, h:0.45, fontFace:FONT, fontSize:22, bold:true, color:PX.white });
+    s.addText(sub || `${p.mes} · ${empresa}`, { x:0.5, y:0.52, w:7.6, h:0.3, fontFace:FONT, fontSize:11, color:'C7D2FE' });
+    s.addText(`Meta: ${p.meta}%`, { x:10.3, y:0.1, w:2.55, h:0.38, fontFace:FONT, fontSize:12, bold:true, color:PX.gold, align:'right' });
+    // Leyenda del semáforo en todas las diapositivas: qué significa cada color.
+    const ley = [['4ADE80', `Cumple ≥${p.meta}%`], ['FBBF24', `En riesgo ${Math.max(p.meta - 20, 0)}–${p.meta - 1}%`], ['F87171', `No cumple <${Math.max(p.meta - 20, 0)}%`]];
+    s.addText(ley.flatMap(([c, t], i) => [{ text:'● ', options:{ color:c } }, { text: t + (i < ley.length - 1 ? '    ' : ''), options:{ color:'C7D2FE' } }]),
+      { x:7.6, y:0.5, w:5.25, h:0.3, fontFace:FONT, fontSize:9.5, align:'right' });
     s.addText(`${n} / ${total}`, { x:11.8, y:7.1, w:1.1, h:0.3, fontFace:FONT, fontSize:9, color:PX.mute, align:'right' });
   };
   const celda = (texto, o={}) => ({ text: String(texto), options: Object.assign({ fontFace:FONT, fontSize:11, color:PX.text, valign:'middle', margin:0.05 }, o) });
@@ -1992,6 +1997,41 @@ async function buildPptxEjecutivo(R) {
         ] : []),
       ], { x:9.0, y:3.5, w:3.4, h:2.2, fontFace:FONT, valign:'middle', align:'center' });
       s.addText(`Generado el ${new Date().toLocaleDateString('es-MX', { day:'numeric', month:'long', year:'numeric' })}`, { x:0.8, y:6.7, w:8, h:0.3, fontFace:FONT, fontSize:10, color:'8899AA' });
+    }
+
+    // Lo importante del mes: 3 o 4 conclusiones en frases sencillas, calculadas con los datos.
+    else if (sl.k === 'clave') {
+      encabezado(s, 'Lo importante del mes');
+      const n = R.tiendas.length, puntos = [];
+      const conDelta = R.tiendas.filter(t => t.delta !== null);
+      const subieron = conDelta.filter(t => Math.round(t.delta) > 0).length, bajaron = conDelta.filter(t => Math.round(t.delta) < 0).length;
+      if (R.delta !== null && R.comp.etiqueta) {
+        const d = Math.round(R.delta), verbo = d > 0 ? 'subió' : d < 0 ? 'bajó' : 'se mantuvo';
+        puntos.push(['📈', d === 0 ? `El promedio general se mantuvo en ${pctTxt(R.prom)}.` : `El promedio general ${verbo} de ${pctTxt(R.promAnt)} a ${pctTxt(R.prom)}.`,
+          `${subieron} ${subieron === 1 ? 'tienda mejoró' : 'tiendas mejoraron'} y ${bajaron} ${bajaron === 1 ? 'bajó' : 'bajaron'} contra ${R.comp.etiqueta}.`]);
+      } else puntos.push(['📈', `El promedio general fue de ${pctTxt(R.prom)}.`, 'No hay un mes anterior guardado para comparar.']);
+      const mejor = R.tiendas[0], masSubio = conDelta.slice().sort((a,b) => b.delta - a.delta)[0];
+      puntos.push(['✅', `${R.ok.length} de ${n} tiendas cumplen la meta del ${p.meta}%.`,
+        [mejor ? `La mejor fue ${mejor.tienda} con ${pctTxt(mejor.pct)}.` : '', masSubio && Math.round(masSubio.delta) > 0 ? `La que más subió: ${masSubio.tienda} (${deltaTxt(masSubio.delta)} pts).` : ''].join(' ').trim()]);
+      const abajo = [...R.bad, ...R.warn].sort((a,b) => sn(a.pct) - sn(b.pct));
+      if (abajo.length) {
+        const nom = abajo.slice(0, 8).map(t => `${t.tienda} (${pctTxt(t.pct)})`).join(' · ') + (abajo.length > 8 ? ` · y ${abajo.length - 8} más` : '');
+        puntos.push(['⚠️', `${abajo.length} ${abajo.length === 1 ? 'tienda está' : 'tiendas están'} por debajo de la meta.`, nom]);
+      } else puntos.push(['🏆', 'Todas las tiendas cumplen la meta.', 'Ninguna tienda quedó por debajo este mes.']);
+      if (R.procesos.length) {
+        const peor = R.procesos[R.procesos.length-1];
+        puntos.push(['🔧', `El proceso más bajo es ${peor.nombre} con ${pctTxt(peor.val)}.`,
+          R.hayAdmin && R.personas.length ? `${R.conPendientes.length} de ${R.personas.length} personas no cumplieron al menos un proceso.` : 'Promedio de las tiendas que lo califican.']);
+      } else if (R.hayAdmin && R.personas.length)
+        puntos.push(['👥', `${R.alDia.length} de ${R.personas.length} personas cumplieron todos sus procesos.`, `${R.conPendientes.length} tienen al menos un proceso pendiente.`]);
+      const paso = Math.min(1.42, 5.75 / puntos.length), alto = paso - 0.17;
+      puntos.forEach(([ic, t, d], i) => {
+        const y = 1.2 + i * paso;
+        s.addShape(pres.ShapeType.roundRect, { x:0.5, y, w:12.33, h:alto, fill:{ color:PX.white }, line:{ color:PX.line, width:0.75 }, rectRadius:0.08 });
+        s.addText(ic, { x:0.7, y, w:0.9, h:alto, fontSize:28, align:'center', valign:'middle' });
+        s.addText([{ text:t, options:{ fontSize:20, bold:true, color:PX.navy, breakLine:!!d } }, ...(d ? [{ text:d, options:{ fontSize:13, color:PX.mute } }] : [])],
+          { x:1.75, y, w:10.9, h:alto, fontFace:FONT, valign:'middle' });
+      });
     }
 
     else if (sl.k === 'resumen') {
