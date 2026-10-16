@@ -451,6 +451,9 @@
   .dc-v { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .dc-v.ok { color: var(--green); } .dc-v.bad { color: var(--red); } .dc-v.na { color: var(--gray-400); font-weight: 400; }
   .dc-table tr.tot td { background: var(--gray-100); font-weight: 700; }
+  .dc-table tr.sub td { background: var(--gray-50); font-weight: 600; font-size: .78rem; }
+  .dc-table tr.fin td { background: var(--gray-100); font-weight: 700; border-top: 2px solid var(--gray-200); }
+  .dc-table tr.fin td.n { color: var(--teal); }
   .dc-foot { padding: .55rem 1rem .75rem; font-size: .72rem; color: var(--gray-400); border-top: 1px solid var(--gray-100); line-height: 1.45; }
   [data-theme="dark"] .dc-table th { background: rgba(255,255,255,.04); }
   [data-theme="dark"] .dc-score.ok { background: rgba(74,222,128,.12); }
@@ -2854,7 +2857,8 @@ function renderDetalleCards() {
   };
   const score = (etq, pct, cumplio) => {
     const e = siNo(cumplio, pct);
-    return `<div class="dc-score ${e.cls}"><span>${etq}</span><b>${pct === null || pct === undefined ? '—' : `${fx1(pct)}%`}</b><em>${e.txt}</em></div>`;
+    // Mismo formato que el Excel: porcentaje sin decimales (0.672 → 67%).
+    return `<div class="dc-score ${e.cls}"><span>${etq}</span><b>${pct === null || pct === undefined ? '—' : `${Math.round(pct)}%`}</b><em>${e.txt}</em></div>`;
   };
   wrap.innerHTML = data.map(r => {
     const detalle = r.detalle && r.detalle.length ? r.detalle : [];
@@ -2878,8 +2882,17 @@ function renderDetalleCards() {
     const nCols = pers ? 3 : 2;
     const totAdm = pers && pers.adminProcesosPct !== null ? `${Math.round(pers.adminProcesosPct)}%` : '—';
     const totGer = r.promedio !== null ? `${Math.round(r.promedio)}%` : '—';
-    const foot = pers && pers.adminPct !== null && pers.frogmi !== null
-      ? `Calificación del administrativo = procesos ${totAdm} × 80% + Frogmi ${fx1(pers.frogmi)}% × 20%.` : '';
+    // Renglones finales del bloque del Excel, con los mismos nombres y valores:
+    // Calificación Administrativo (procesos × 80%), Total Corte de Procesos Frogmi (Frogmi × 20%)
+    // y Calificación Total Administrativo.
+    const pctX = v => v === null || v === undefined ? '' : `${Math.round(v)}%`;
+    const filasAdm = pers ? [
+      // Tiendas sin Frogmi (ej. CEDIS) dejan estos dos renglones vacíos en el Excel.
+      ['Calificación Administrativo', pers.adminProcesosPct !== null && pers.frogmi !== null ? pers.adminProcesosPct * 0.8 : null, 'sub'],
+      ['Total Corte de Procesos Frogmi', pers.frogmi !== null ? pers.frogmi * 0.2 : null, 'sub'],
+      ['Calificación Total Administrativo', pers.adminPct, 'fin'],
+    ].filter(([, v]) => v !== null && v !== undefined)
+     .map(([etq, v, cls]) => `<tr class="${cls}"><td>${etq}</td><td class="n">${pctX(v)}</td><td></td></tr>`).join('') : '';
     return `<div class="detalle-card" data-tienda="${esc(r.tienda)}" data-mes="${esc(r.mes)}">
       <div class="dc-head">
         <div class="dc-tienda">${esc(r.tienda)}</div>
@@ -2899,10 +2912,10 @@ function renderDetalleCards() {
         <thead><tr><th>Proceso</th>${pers ? '<th class="n" title="Administrativo">Adm.</th><th class="n" title="Gerente">Ger.</th>' : '<th class="n">%</th>'}</tr></thead>
         <tbody>
           ${rowsHtml || `<tr><td colspan="${nCols}" style="text-align:center;color:var(--gray-400)">Sin detalle por proceso</td></tr>`}
-          <tr class="tot"><td>Total</td>${pers ? `<td class="n">${totAdm}</td>` : ''}<td class="n">${totGer}</td></tr>
+          <tr class="tot"><td>${pers ? 'Total Procesos' : 'Total'}</td>${pers ? `<td class="n">${totAdm}</td>` : ''}<td class="n">${totGer}</td></tr>
+          ${filasAdm}
         </tbody>
       </table>
-      ${foot ? `<div class="dc-foot">${foot}</div>` : ''}
     </div>`;
   }).join('');
 }
