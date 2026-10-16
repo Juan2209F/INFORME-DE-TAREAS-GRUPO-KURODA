@@ -1246,6 +1246,27 @@ function setTipo(t){
 }
 setTipo(4);
 
+/* Fecha y lugar automáticos: la fecha sale del dispositivo y el lugar del GPS
+   (ciudad y estado). Solo se llenan si están vacíos; siguen siendo editables. */
+(function(){
+  var fe=document.getElementById('fecha'),lu=document.getElementById('lugar');
+  if(!fe.value){
+    var M=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    var h=new Date();fe.value=h.getDate()+' de '+M[h.getMonth()]+' de '+h.getFullYear();
+  }
+  if(!navigator.geolocation)return;
+  navigator.geolocation.getCurrentPosition(function(p){
+    fetch('https://nominatim.openstreetmap.org/reverse?format=json&zoom=10&accept-language=es&lat='+p.coords.latitude+'&lon='+p.coords.longitude)
+    .then(function(r){return r.json();})
+    .then(function(j){
+      var a=j&&j.address||{};
+      var ciudad=a.city||a.town||a.village||a.municipality||a.county||'';
+      var txt=[ciudad,a.state].filter(Boolean).join(', ');
+      if(txt&&!lu.value)lu.value=txt;
+    }).catch(function(){});
+  },function(){},{timeout:15000,maximumAge:600000});
+})();
+
 
 function getData(){
   var cfg=TIPOS[tipoActual];
