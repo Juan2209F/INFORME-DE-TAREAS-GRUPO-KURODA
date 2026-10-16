@@ -418,8 +418,43 @@
   .storage-actions { display: flex; gap: 0.5rem; margin-top: 0.85rem; }
 
   /* Tarjetas de Detalle Individual (replican el bloque Gerente/Tienda/Concepto del Excel) */
-  .detalle-cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem; }
-  .detalle-card { border: 1px solid var(--gray-200); border-radius: 10px; overflow: hidden; background: var(--white); }
+  .detalle-cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 1.1rem; margin-top: 1rem; align-items: start; }
+  .detalle-card { border: 1px solid var(--gray-200); border-radius: 12px; overflow: hidden; background: var(--white); display: flex; flex-direction: column; }
+  /* Tarjeta por tienda: encabezado, personas, calificaciones y procesos, cada cosa en su bloque */
+  .dc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; padding: .85rem 1rem .5rem; }
+  .dc-tienda { font-size: 1rem; font-weight: 700; color: var(--gray-800); line-height: 1.25; }
+  .dc-tags { display: flex; gap: .3rem; flex-wrap: wrap; justify-content: flex-end; flex-shrink: 0; }
+  .dc-tag { font-size: .66rem; font-weight: 700; padding: .15rem .5rem; border-radius: 20px; background: var(--gray-100); color: var(--gray-600); white-space: nowrap; }
+  .dc-tag.audit { background: #2E75B6; color: #fff; }
+  .dc-people { display: grid; grid-template-columns: auto 1fr; gap: .2rem .6rem; padding: 0 1rem .7rem; font-size: .78rem; }
+  .dc-people span { color: var(--gray-400); }
+  .dc-people b { color: var(--gray-800); font-weight: 600; }
+  .dc-people .sin { color: var(--orange); font-weight: 600; }
+  .dc-scores { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: .5rem; padding: 0 1rem .8rem; }
+  .dc-score { border-radius: 10px; padding: .5rem .65rem; background: var(--gray-100); display: flex; flex-direction: column; gap: .05rem; }
+  .dc-score span { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--gray-600); }
+  .dc-score b { font-size: 1.35rem; line-height: 1.1; color: var(--gray-800); }
+  .dc-score em { font-style: normal; font-size: .72rem; font-weight: 700; }
+  .dc-score.ok { background: rgba(46,125,50,.1); } .dc-score.ok b, .dc-score.ok em { color: var(--green); }
+  .dc-score.bad { background: rgba(198,40,40,.08); } .dc-score.bad b, .dc-score.bad em { color: var(--red); }
+  .dc-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+  .dc-table th { font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--gray-400); padding: .4rem 1rem; text-align: left; border-top: 1px solid var(--gray-200); border-bottom: 1px solid var(--gray-200); background: var(--gray-50); }
+  .dc-table th.n, .dc-table td.n { text-align: right; width: 64px; padding-left: .3rem; }
+  .dc-table td { padding: .45rem 1rem; border-bottom: 1px solid var(--gray-100); color: var(--gray-800); vertical-align: top; }
+  .dc-table td small { display: block; font-size: .72rem; color: var(--gray-400); margin-top: 1px; }
+  .dc-table td small.na { font-style: italic; }
+  .dc-table tr:last-child td { border-bottom: none; }
+  .dc-table tr.hi td:first-child { font-weight: 700; color: var(--teal); }
+  .dc-table td.audit { background: rgba(46,117,182,.14); color: #2E75B6; font-size: .68rem; font-weight: 700; text-align: center; }
+  .dc-v { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .dc-v.ok { color: var(--green); } .dc-v.bad { color: var(--red); } .dc-v.na { color: var(--gray-400); font-weight: 400; }
+  .dc-table tr.tot td { background: var(--gray-100); font-weight: 700; }
+  .dc-foot { padding: .55rem 1rem .75rem; font-size: .72rem; color: var(--gray-400); border-top: 1px solid var(--gray-100); line-height: 1.45; }
+  [data-theme="dark"] .dc-table th { background: rgba(255,255,255,.04); }
+  [data-theme="dark"] .dc-score.ok { background: rgba(74,222,128,.12); }
+  [data-theme="dark"] .dc-score.bad { background: rgba(252,129,129,.12); }
+  [data-theme="dark"] .dc-tag.audit { background: #3b5f8a; }
+  [data-theme="dark"] .dc-table td.audit { color: #9cc3f0; }
   .detalle-card-head { padding: 0.7rem 0.85rem 0.5rem; }
   .detalle-card-head .gerente { font-size: 0.72rem; color: var(--gray-400); font-weight: 600; }
   .detalle-card-head .tienda { font-size: 0.9rem; font-weight: 700; color: var(--gray-800); margin-top: 2px; }
@@ -445,6 +480,12 @@
     font-family: 'Inter', sans-serif; cursor: pointer;
   }
   .ms-dropdown-btn:hover { border-color: var(--teal); }
+  .ms-dropdown-btn { display: flex; align-items: center; gap: .45rem; }
+  .ms-dropdown-btn .tx { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ms-dropdown-btn .ar { color: var(--gray-400); font-size: .75rem; }
+  /* El panel ahora es un calendario (mismo diseño que el de Parámetros) */
+  .ms-dropdown-panel { width: 310px; padding: .8rem; border-radius: 12px; }
+  .wz-cal-m.todos { background: var(--teal-light); border-color: var(--teal); color: var(--teal); font-weight: 600; }
   .ms-dropdown-panel {
     position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; width: 300px; max-width: 90vw;
     background: var(--white); border: 1px solid var(--gray-200); border-radius: 10px;
@@ -708,6 +749,22 @@
   @media (max-width: 700px) { .wz-fit col.c-tienda { width: 30%; } .wz-fit th, .wz-fit td { font-size: .66rem; padding: .35rem .15rem; } }
   .wz-meta-line { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--gray-600); pointer-events: none; z-index: 1; }
   .wz-meta-line span { position: absolute; right: 0; top: -1.2rem; font-size: .7rem; font-weight: 700; color: var(--gray-600); }
+  /* Confirmación del personal antes de descargar */
+  .wz-confirma { border: 2px solid var(--gold); border-radius: 12px; padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: .8rem; background: var(--gold-light); }
+  .wz-confirma[hidden] { display: none; }
+  .wz-confirma h3 { font-size: 1rem; color: var(--gray-800); }
+  .wz-confirma p { font-size: .84rem; color: var(--gray-600); line-height: 1.5; }
+  .wz-confirma .wz-table-wrap { background: var(--white); max-height: 420px; overflow: auto; }
+  .wz-confirma td { vertical-align: top; }
+  .wz-confirma .procs { font-size: .76rem; color: var(--gray-600); line-height: 1.55; }
+  .wz-confirma .procs b { color: var(--gray-800); font-weight: 600; }
+  .wz-confirma .na { color: var(--gray-400); font-style: italic; }
+  .wz-confirma .vac { color: var(--red); font-weight: 600; }
+  .wz-confirma .acciones { display: flex; gap: .6rem; flex-wrap: wrap; justify-content: flex-end; }
+  .wz-link { font: inherit; font-size: .76rem; font-weight: 600; color: var(--teal); background: none; border: 0; cursor: pointer; padding: 0; text-decoration: underline; }
+  [data-theme="dark"] .wz-confirma { background: rgba(255,201,77,.08); }
+  [data-theme="dark"] .wz-confirma .wz-table-wrap { background: #161b3d; }
+
   /* Modo oscuro del asistente: superficies sólidas (no translúcidas) para que se lean igual
      dentro del Monitor que abierto por separado. */
   [data-theme="dark"] .wz-panel, [data-theme="dark"] .wz-steps li { background: #121633; border-color: rgba(255,255,255,.12); }
@@ -718,7 +775,7 @@
   [data-theme="dark"] .wz-btn, [data-theme="dark"] .wz-chip, [data-theme="dark"] .wz-chip-actions button,
   [data-theme="dark"] .wz-cal-m, [data-theme="dark"] .wz-cal-head button, [data-theme="dark"] .wz-cal-rapidos button { background: #1b2148; border-color: rgba(255,255,255,.16); }
   [data-theme="dark"] .wz-btn.primary, [data-theme="dark"] .wz-cal-m.on { background: var(--teal); color: #0a0e23; border-color: var(--teal); }
-  [data-theme="dark"] .wz-chip.on { background: rgba(61,220,151,.16); color: var(--teal); border-color: var(--teal); }
+  [data-theme="dark"] .wz-chip.on, [data-theme="dark"] .wz-cal-m.todos { background: rgba(61,220,151,.16); color: var(--teal); border-color: var(--teal); }
   [data-theme="dark"] .wz-table th { color: #9aa3c7; }
   [data-theme="dark"] .wz-fit tr.prom td { background: #1b2148; }
   [data-theme="dark"] .wz-datos { background: rgba(61,220,151,.12); }
@@ -916,6 +973,8 @@
         </div>
       </div>
 
+      <div class="wz-confirma" id="wzConfirma" hidden></div>
+
       <div class="wz-evo" id="wzEvo" hidden>
         <h3 class="wz-h3" id="wzEvoTitulo">Evolución</h3>
         <div class="wz-bars" id="wzBars"></div>
@@ -950,10 +1009,8 @@
           <option value="all">Todos los años</option>
         </select>
         <div class="ms-dropdown" id="histMesDropdown">
-          <button type="button" class="ms-dropdown-btn" onclick="toggleHistMesDropdown()" id="histMesBtn">Todos los meses ▾</button>
+          <button type="button" class="ms-dropdown-btn" onclick="toggleHistMesDropdown()" id="histMesBtn"><span class="ic">📅</span><span class="tx">Todos los meses</span><span class="ar">▾</span></button>
           <div class="ms-dropdown-panel" id="histMesPanel" style="display:none">
-            <div class="ms-quick-row" id="histMesQuick"></div>
-            <div class="ms-checklist" id="histMesChecklist"></div>
           </div>
         </div>
         <select id="processFilterHist" onchange="renderStorageTable()">
@@ -990,10 +1047,8 @@
       <div class="storage-filters">
         <select id="filterRazonDetalle" onchange="cambiarRazonFrom('filterRazonDetalle')" style="display:none"></select>
         <div class="ms-dropdown" id="detalleMesDropdown">
-          <button type="button" class="ms-dropdown-btn" onclick="toggleMesDropdown()" id="detalleMesBtn">Todos los meses ▾</button>
+          <button type="button" class="ms-dropdown-btn" onclick="toggleMesDropdown()" id="detalleMesBtn"><span class="ic">📅</span><span class="tx">Todos los meses</span><span class="ar">▾</span></button>
           <div class="ms-dropdown-panel" id="detalleMesPanel" style="display:none">
-            <div class="ms-quick-row" id="detalleMesQuick"></div>
-            <div class="ms-checklist" id="detalleMesChecklist"></div>
           </div>
         </div>
         <select id="detalleTienda" onchange="renderDetalleCards()"></select>
@@ -1058,10 +1113,8 @@
           <option value="all">Todos los años</option>
         </select>
         <div class="ms-dropdown" id="trendMesDropdown">
-          <button type="button" class="ms-dropdown-btn" onclick="toggleTrendMesDropdown()" id="trendMesBtn">Todos los meses ▾</button>
+          <button type="button" class="ms-dropdown-btn" onclick="toggleTrendMesDropdown()" id="trendMesBtn"><span class="ic">📅</span><span class="tx">Todos los meses</span><span class="ar">▾</span></button>
           <div class="ms-dropdown-panel" id="trendMesPanel" style="display:none">
-            <div class="ms-quick-row" id="trendMesQuick"></div>
-            <div class="ms-checklist" id="trendMesChecklist"></div>
           </div>
         </div>
         <select id="trendFilterProceso" onchange="renderTrend(currentTrendTab)">
@@ -2009,7 +2062,7 @@ async function buildPptxEjecutivo(R) {
         if (o.tipo === 'obra') {
           const e = o.cumple === null ? 'na' : o.cumple ? 'ok' : 'bad', [c, bg] = colEstado(e);
           filas.push([
-            celda(o.nombres.length ? o.nombres.join(', ') : 'Sin responsable', { italic: !o.nombres.length, color: o.nombres.length ? PX.text : PX.mute, bold: !!o.nombres.length }),
+            celda(o.nombres.length ? o.nombres.join(', ') : 'No aplica', { italic: !o.nombres.length, color: o.nombres.length ? PX.text : PX.mute, bold: !!o.nombres.length }),
             celda(o.tienda),
             { text: [{ text:'Entrega en Obra', options:{ color: o.cumple === false ? PX.bad : PX.text } }, { text:'  · informativo', options:{ color: PX.mute, italic:true } }],
               options: { fontFace:FONT, fontSize:10.5, valign:'middle', margin:0.05, fill:{ color:'F8FAFC' } } },
@@ -2492,68 +2545,111 @@ function populateStorageFilters() {
 }
 
 // ── Selector múltiple de meses — Historial (mismo patrón que Detalle/Cargar) ──
-function toggleHistMesDropdown() {
-  const p = document.getElementById('histMesPanel');
-  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+function toggleHistMesDropdown() { msToggle('hist'); }
+function populateHistMeses(allMeses) { msPoblar('hist', allMeses); }
+
+// ── Filtro de meses tipo calendario (Historial, Tendencia y Detalle) ──
+// Un botón abre un calendario por año. Con "Todos", tocar un mes muestra solo ese mes;
+// después, cada mes que se toca se agrega o se quita. Atajos: Todos, Último mes,
+// Últimos 3 y Todo el año. Sin ningún mes elegido se vuelve a "Todos".
+const MSF = {
+  hist:    { panel: 'histMesPanel',    btn: 'histMesBtn',    sel: () => histMesesSel,    custom: () => histMesesCustom,
+             set: (s, c) => { histMesesSel = s; histMesesCustom = c; },       pintar: () => renderStorageTable() },
+  detalle: { panel: 'detalleMesPanel', btn: 'detalleMesBtn', sel: () => detalleMesesSel, custom: () => detalleMesesCustom,
+             set: (s, c) => { detalleMesesSel = s; detalleMesesCustom = c; }, pintar: () => renderDetalleCards() },
+  trend:   { panel: 'trendMesPanel',   btn: 'trendMesBtn',   sel: () => trendMesesSel,   custom: () => trendMesesCustom,
+             set: (s, c) => { trendMesesSel = s; trendMesesCustom = c; },     pintar: () => renderTrend(currentTrendTab) },
+};
+const MSF_MESES = {}, MSF_ANIO = {};
+function msPoblar(key, meses) {
+  const c = MSF[key];
+  MSF_MESES[key] = meses;
+  const quedan = new Set([...c.sel()].filter(m => meses.includes(m)));
+  if (c.custom() && quedan.size) c.set(quedan, true); else c.set(new Set(meses), false);
+  const anios = meses.map(m => Number(getYear(m))).filter(Boolean);
+  if (!anios.includes(MSF_ANIO[key])) MSF_ANIO[key] = anios.length ? Math.max(...anios) : new Date().getFullYear();
+  msEtiqueta(key);
+  msPintar(key);
 }
-document.addEventListener('click', (e) => {
-  const dd = document.getElementById('histMesDropdown');
-  if (dd && !dd.contains(e.target)) { const p = document.getElementById('histMesPanel'); if(p) p.style.display = 'none'; }
-});
-function updateHistMesBtnLabel(allMeses) {
-  const btn = document.getElementById('histMesBtn');
+function msTodos(key) {
+  const c = MSF[key], n = c.sel().size;
+  return !c.custom() || n === 0 || n === (MSF_MESES[key] || []).length;
+}
+function msEtiqueta(key) {
+  const btn = document.getElementById(MSF[key].btn);
   if (!btn) return;
-  if (histMesesSel.size === 0 || histMesesSel.size === allMeses.length) btn.textContent = 'Todos los meses ▾';
-  else if (histMesesSel.size === 1) btn.textContent = `${[...histMesesSel][0]} ▾`;
-  else btn.textContent = `${histMesesSel.size} meses seleccionados ▾`;
-}
-function histMesToggleOne(m) {
-  if (histMesesSel.has(m)) histMesesSel.delete(m); else histMesesSel.add(m);
-  histMesesCustom = true;
-  const allMeses = [...document.querySelectorAll('#histMesChecklist input')].map(i=>i.value);
-  updateHistMesBtnLabel(allMeses);
-  renderStorageTable();
-}
-function histMesQuickSelect(kind, allMeses) {
-  if (kind === 'all') { histMesesSel = new Set(allMeses); histMesesCustom = false; }
-  else if (kind === 'none') { histMesesSel = new Set(); histMesesCustom = true; }
-  else if (kind.startsWith('year:')) {
-    const y = kind.slice(5);
-    histMesesSel = new Set(allMeses.filter(m => getYear(m) === y));
-    histMesesCustom = true;
-  } else if (kind.startsWith('sem:')) {
-    const [, y, semNum] = kind.split(':');
-    const wanted = semNum === '1' ? 'Semestre 1 (Ene–Jun)' : 'Semestre 2 (Jul–Dic)';
-    histMesesSel = new Set(allMeses.filter(m => getYear(m) === y && getSemestre(m) === wanted));
-    histMesesCustom = true;
+  const sel = [...MSF[key].sel()].sort((a,b) => monthKey(a) - monthKey(b));
+  let txt;
+  if (msTodos(key)) txt = 'Todos los meses';
+  else if (sel.length === 1) txt = sel[0];
+  else {
+    const seguidos = sel.every((m,i) => !i || monthKey(m) - monthKey(sel[i-1]) === 1);
+    txt = seguidos ? `${mesCorto(sel[0])} – ${mesCorto(sel[sel.length-1])} (${sel.length} meses)` : `${sel.length} meses elegidos`;
   }
-  document.querySelectorAll('#histMesChecklist input').forEach(i => { i.checked = histMesesSel.has(i.value); });
-  updateHistMesBtnLabel(allMeses);
-  renderStorageTable();
+  btn.innerHTML = `<span class="ic">📅</span><span class="tx">${esc(txt)}</span><span class="ar">▾</span>`;
 }
-function populateHistMeses(allMeses) {
-  if (!histMesesCustom) histMesesSel = new Set(allMeses);
-  else histMesesSel = new Set([...histMesesSel].filter(m => allMeses.includes(m)));
-  const checklist = document.getElementById('histMesChecklist');
-  checklist.innerHTML = allMeses.map(m => `<label>
-      <input type="checkbox" value="${m}" ${histMesesSel.has(m)?'checked':''} onchange="histMesToggleOne('${m}')">
-      ${m}
-    </label>`).join('');
-  const years = [...new Set(allMeses.map(getYear).filter(Boolean))].sort();
-  const mesesJs = '[' + allMeses.map(m=>`'${m}'`).join(',') + ']';
-  const quickHtml = [`<button type="button" class="ms-quick-btn" onclick="histMesQuickSelect('all',${mesesJs})">Todos</button>`,
-                      `<button type="button" class="ms-quick-btn" onclick="histMesQuickSelect('none',${mesesJs})">Ninguno</button>`];
-  years.forEach(y => {
-    quickHtml.push(`<button type="button" class="ms-quick-btn" onclick="histMesQuickSelect('year:${y}',${mesesJs})">Año ${y}</button>`);
-    ['1','2'].forEach(semNum => {
-      const wanted = semNum === '1' ? 'Semestre 1 (Ene–Jun)' : 'Semestre 2 (Jul–Dic)';
-      const has = allMeses.some(m => getYear(m) === y && getSemestre(m) === wanted);
-      if (has) quickHtml.push(`<button type="button" class="ms-quick-btn" onclick="histMesQuickSelect('sem:${y}:${semNum}',${mesesJs})">Sem ${semNum} · ${y}</button>`);
-    });
-  });
-  document.getElementById('histMesQuick').innerHTML = quickHtml.join('');
-  updateHistMesBtnLabel(allMeses);
+function msPintar(key) {
+  const panel = document.getElementById(MSF[key].panel);
+  if (!panel) return;
+  const meses = MSF_MESES[key] || [], con = new Set(meses), sel = MSF[key].sel(), todos = msTodos(key);
+  if (!meses.length) { panel.innerHTML = '<div class="wz-cal-aviso">Aún no hay meses guardados.</div>'; return; }
+  const anios = meses.map(m => Number(getYear(m))).filter(Boolean);
+  const aMin = Math.min(...anios), aMax = Math.max(...anios), anio = MSF_ANIO[key];
+  const celdas = MESES_CORTOS.map((corto, i) => {
+    const m = mesDe(i, anio);
+    if (!con.has(m)) return `<button type="button" class="wz-cal-m off" disabled title="Sin datos">${corto}</button>`;
+    const cls = todos ? ' todos' : sel.has(m) ? ' on' : '';
+    return `<button type="button" class="wz-cal-m${cls}" title="${esc(m)}" onclick="msMes('${key}','${m}')">${corto}</button>`;
+  }).join('');
+  const n = todos ? meses.length : sel.size;
+  panel.innerHTML = `
+    <div class="wz-cal-head">
+      <button type="button" onclick="msAnio('${key}',-1)"${anio <= aMin ? ' disabled' : ''} aria-label="Año anterior">‹</button>
+      <strong>${anio}</strong>
+      <button type="button" onclick="msAnio('${key}',1)"${anio >= aMax ? ' disabled' : ''} aria-label="Año siguiente">›</button>
+    </div>
+    <div class="wz-cal-grid">${celdas}</div>
+    <div class="wz-cal-aviso">${todos ? `Viendo todos los meses (${n}). Toca un mes para ver solo ese.`
+      : `${n} ${n === 1 ? 'mes elegido' : 'meses elegidos'}. Toca otros meses para agregarlos o quitarlos.`}</div>
+    <div class="wz-cal-rapidos">
+      <button type="button" onclick="msRapido('${key}','todos')">Todos</button>
+      <button type="button" onclick="msRapido('${key}','ultimo')">Último mes</button>
+      <button type="button" onclick="msRapido('${key}','ult3')">Últimos 3</button>
+      <button type="button" onclick="msRapido('${key}','anio')">Todo ${anio}</button>
+    </div>
+    <div class="wz-cal-pie"><button type="button" class="wz-btn primary" onclick="msToggle('${key}', false)">Listo</button></div>`;
 }
+function msAplicar(key, sel) {
+  const meses = MSF_MESES[key] || [];
+  if (!sel.size || sel.size === meses.length) MSF[key].set(new Set(meses), false);
+  else MSF[key].set(sel, true);
+  msEtiqueta(key); msPintar(key); MSF[key].pintar();
+}
+function msMes(key, m) {
+  if (msTodos(key)) return msAplicar(key, new Set([m]));
+  const sel = new Set(MSF[key].sel());
+  if (sel.has(m)) sel.delete(m); else sel.add(m);
+  msAplicar(key, sel);
+}
+function msRapido(key, tipo) {
+  const meses = (MSF_MESES[key] || []).slice().sort((a,b) => monthKey(a) - monthKey(b));
+  const lista = tipo === 'ultimo' ? meses.slice(-1) : tipo === 'ult3' ? meses.slice(-3)
+    : tipo === 'anio' ? meses.filter(m => Number(getYear(m)) === MSF_ANIO[key]) : meses;
+  msAplicar(key, new Set(lista));
+}
+function msAnio(key, d) { MSF_ANIO[key] += d; msPintar(key); }
+function msToggle(key, abrir) {
+  const p = document.getElementById(MSF[key].panel);
+  if (!p) return;
+  const ver = abrir === undefined ? p.style.display === 'none' : abrir;
+  Object.keys(MSF).forEach(k => { const o = document.getElementById(MSF[k].panel); if (o) o.style.display = 'none'; });
+  if (ver) { msPintar(key); p.style.display = 'block'; }
+}
+// Cerrar al hacer clic fuera (si el botón clicado se redibujó, ya no está en la página: no se cierra).
+document.addEventListener('click', e => {
+  if (!document.contains(e.target) || e.target.closest('.ms-dropdown')) return;
+  Object.keys(MSF).forEach(k => { const o = document.getElementById(MSF[k].panel); if (o) o.style.display = 'none'; });
+});
 
 function renderStorageTable() {
   let data = lsLoad();
@@ -2666,79 +2762,14 @@ async function descargarCapturaVista(){
   }
 }
 
-function toggleMesDropdown() {
-  const p = document.getElementById('detalleMesPanel');
-  p.style.display = p.style.display === 'none' ? 'block' : 'none';
-}
-document.addEventListener('click', (e) => {
-  const dd = document.getElementById('detalleMesDropdown');
-  if (dd && !dd.contains(e.target)) document.getElementById('detalleMesPanel').style.display = 'none';
-});
-
-function updateMesBtnLabel(allMeses) {
-  const btn = document.getElementById('detalleMesBtn');
-  if (detalleMesesSel.size === 0 || detalleMesesSel.size === allMeses.length) {
-    btn.textContent = 'Todos los meses ▾';
-  } else if (detalleMesesSel.size === 1) {
-    btn.textContent = `${[...detalleMesesSel][0]} ▾`;
-  } else {
-    btn.textContent = `${detalleMesesSel.size} meses seleccionados ▾`;
-  }
-}
-
-function mesToggleOne(m) {
-  if (detalleMesesSel.has(m)) detalleMesesSel.delete(m); else detalleMesesSel.add(m);
-  detalleMesesCustom = true;
-  const allMeses = [...document.querySelectorAll('#detalleMesChecklist input')].map(i=>i.value);
-  updateMesBtnLabel(allMeses);
-  renderDetalleCards();
-}
-
-function mesQuickSelect(kind, allMeses) {
-  if (kind === 'all') { detalleMesesSel = new Set(allMeses); detalleMesesCustom = false; }
-  else if (kind === 'none') { detalleMesesSel = new Set(); detalleMesesCustom = true; }
-  else if (kind.startsWith('year:')) {
-    const y = kind.slice(5);
-    detalleMesesSel = new Set(allMeses.filter(m => getYear(m) === y));
-    detalleMesesCustom = true;
-  } else if (kind.startsWith('sem:')) {
-    const [,y,semNum] = kind.split(':');
-    const wanted = semNum === '1' ? 'Semestre 1 (Ene–Jun)' : 'Semestre 2 (Jul–Dic)';
-    detalleMesesSel = new Set(allMeses.filter(m => getYear(m) === y && getSemestre(m) === wanted));
-    detalleMesesCustom = true;
-  }
-  document.querySelectorAll('#detalleMesChecklist input').forEach(i => { i.checked = detalleMesesSel.has(i.value); });
-  updateMesBtnLabel(allMeses);
-  renderDetalleCards();
-}
+function toggleMesDropdown() { msToggle('detalle'); }
 
 function populateDetalleFilters() {
   const data = lsLoad();
   const meses   = [...new Set(data.map(r=>r.mes))].sort((a,b)=>monthKey(a)-monthKey(b));
   const tiendas = [...new Set(data.map(r=>r.tienda))].sort();
-
-  // Meses: multi-select con casillas + atajos dinámicos por año/semestre
-  if (!detalleMesesCustom) detalleMesesSel = new Set(meses);
-  else detalleMesesSel = new Set([...detalleMesesSel].filter(m => meses.includes(m)));
-  const checklist = document.getElementById('detalleMesChecklist');
-  checklist.innerHTML = meses.map(m => `<label>
-      <input type="checkbox" value="${m}" ${detalleMesesSel.has(m)?'checked':''} onchange="mesToggleOne('${m}')">
-      ${m}
-    </label>`).join('');
-
   const years = [...new Set(meses.map(getYear).filter(Boolean))].sort();
-  const quickHtml = ['<button type="button" class="ms-quick-btn" onclick="mesQuickSelect(\'all\',[' + meses.map(m=>`'${m}'`).join(',') + '])">Todos</button>',
-                      '<button type="button" class="ms-quick-btn" onclick="mesQuickSelect(\'none\',[])">Ninguno</button>'];
-  years.forEach(y => {
-    quickHtml.push(`<button type="button" class="ms-quick-btn" onclick="mesQuickSelect('year:${y}',[${meses.map(m=>`'${m}'`).join(',')}])">Año ${y}</button>`);
-    ['1','2'].forEach(semNum => {
-      const wanted = semNum === '1' ? 'Semestre 1 (Ene–Jun)' : 'Semestre 2 (Jul–Dic)';
-      const has = meses.some(m => getYear(m) === y && getSemestre(m) === wanted);
-      if (has) quickHtml.push(`<button type="button" class="ms-quick-btn" onclick="mesQuickSelect('sem:${y}:${semNum}',[${meses.map(m=>`'${m}'`).join(',')}])">Sem ${semNum} · ${y}</button>`);
-    });
-  });
-  document.getElementById('detalleMesQuick').innerHTML = quickHtml.join('');
-  updateMesBtnLabel(meses);
+  msPoblar('detalle', meses); // calendario de meses
 
   const tSel = document.getElementById('detalleTienda');
   const curT = tSel.value;
@@ -2790,41 +2821,63 @@ function renderDetalleCards() {
     return;
   }
 
-  const pctTxt = v => (v === null || v === undefined) ? '' : `${Math.round(v*100)}%`;
+  // Valor de cada concepto tal cual el Excel (parte del 100% que aporta): ✓ si sumó, ✗ si quedó en 0.
+  const valor = v => v === null || v === undefined ? '<span class="dc-v na">—</span>'
+    : `<span class="dc-v ${v > 0 ? 'ok' : 'bad'}">${v > 0 ? '✓' : '✗'} ${Math.round(v*100)}%</span>`;
+  const siNo = (cumplio, pct) => {
+    const s = cumplio ? stripAcc(String(cumplio)).toLowerCase() : null;
+    const ok = s ? s.startsWith('s') : (pct !== null && pct !== undefined ? pct >= WZ.meta : null);
+    return ok === null ? { cls: '', txt: '' } : ok ? { cls: 'ok', txt: '✓ Cumple' } : { cls: 'bad', txt: '✗ No cumple' };
+  };
+  const score = (etq, pct, cumplio) => {
+    const e = siNo(cumplio, pct);
+    return `<div class="dc-score ${e.cls}"><span>${etq}</span><b>${pct === null || pct === undefined ? '—' : `${fx1(pct)}%`}</b><em>${e.txt}</em></div>`;
+  };
   wrap.innerHTML = data.map(r => {
     const detalle = r.detalle && r.detalle.length ? r.detalle : [];
-    const pers = r.personal || null; // formato nuevo: columna % Administrativo además de % Gerente
-    const nCols = pers ? 3 : 2;
+    const pers = r.personal || null; // formato nuevo: columna Administrativo además de Gerente
+    // Nombres vigentes (Excel + cambios registrados en 👥 Estructura para ese mes).
+    const ef = aplicarEstructura(r), estProcs = (ef.est && ef.est.datos && ef.est.datos.procesos) || {};
+    const gerente = ef.gerente || r.gerente || '';
+    const admin = ef.personal ? ef.personal.administrativo : '';
     const rowsHtml = detalle.map(d => {
-      const isHi = pfVariants && pfVariants.has(d.concepto);
-      const valTxt = (r.auditoria || d.valor === null) ? '' : pctTxt(d.valor);
-      const valCls = r.auditoria ? 'valor audit-cell' : 'valor';
-      return `<tr class="${isHi ? 'detalle-row-highlight' : ''}">
-        <td class="concepto">${d.concepto}</td>
-        ${pers ? `<td class="valor">${pctTxt(d.admin)}</td>` : ''}
-        <td class="${valCls}">${valTxt}</td>
+      const proc = normConcept(d.concepto);
+      const nombres = estProcs[proc] !== undefined ? estProcs[proc] : conceptPeople(d.concepto);
+      const quien = nombres.length ? `<small>${esc(nombres.join(', '))}</small>`
+        : pers && proc === 'Entrega en Obra' ? '<small class="na">No aplica</small>'
+        : pers && estProcs[proc] !== undefined ? '<small class="na">Vacante</small>' : '';
+      return `<tr class="${pfVariants && pfVariants.has(d.concepto) ? 'hi' : ''}">
+        <td>${esc(conceptBase(d.concepto) || d.concepto)}${quien}</td>
+        ${pers ? `<td class="n">${valor(d.admin)}</td>` : ''}
+        ${r.auditoria ? '<td class="n audit" title="Calificada por auditoría">AUD.</td>' : `<td class="n">${valor(d.valor)}</td>`}
       </tr>`;
     }).join('');
-    const pv = r.promedio !== null ? `${Math.round(r.promedio)}%` : '—';
-    const auditBadge = r.auditoria ? '<span class="detalle-badge-audit">AUDITORÍA</span>' : '';
-    const adminTot = pers && pers.adminProcesosPct !== null ? `${Math.round(pers.adminProcesosPct)}%` : '';
-    const adminFoot = pers && pers.adminPct !== null
-      ? `<br>Calif. Administrativo: ${fx1(pers.adminPct)}%${pers.frogmi !== null ? ` (procesos 80% + Frogmi ${fx1(pers.frogmi)}% × 20%)` : ''}${pers.adminCumplio ? ` · Cumplió: ${pers.adminCumplio}` : ''}`
-      : '';
+    const nCols = pers ? 3 : 2;
+    const totAdm = pers && pers.adminProcesosPct !== null ? `${Math.round(pers.adminProcesosPct)}%` : '—';
+    const totGer = r.promedio !== null ? `${Math.round(r.promedio)}%` : '—';
+    const foot = pers && pers.adminPct !== null && pers.frogmi !== null
+      ? `Calificación del administrativo = procesos ${totAdm} × 80% + Frogmi ${fx1(pers.frogmi)}% × 20%.` : '';
     return `<div class="detalle-card">
-      <div class="detalle-card-head">
-        ${r.gerente ? `<div class="gerente">Gerente: ${r.gerente}</div>` : ''}
-        ${pers ? `<div class="gerente">Administrativo: ${pers.administrativo || 'Sin asignar'}</div>` : ''}
-        <div class="tienda">Tienda: ${r.tienda}${auditBadge}</div>
+      <div class="dc-head">
+        <div class="dc-tienda">${esc(r.tienda)}</div>
+        <div class="dc-tags"><span class="dc-tag">${esc(mesCorto(r.mes))}</span>${r.auditoria ? '<span class="dc-tag audit">AUDITORÍA</span>' : ''}</div>
       </div>
-      <table class="detalle-table">
-        <thead><tr><th class="concepto-header">Concepto</th>${pers ? '<th class="pct-header" title="Administrativo">% Adm.</th><th class="pct-header" title="Gerente">% Ger.</th>' : '<th class="pct-header">%</th>'}</tr></thead>
+      <div class="dc-people">
+        <span>Gerente</span>${gerente ? `<b>${esc(gerente)}</b>` : '<b class="sin">Sin asignar</b>'}
+        ${pers ? `<span>Administrativo</span>${admin ? `<b>${esc(admin)}</b>` : '<b class="sin">Sin asignar</b>'}` : ''}
+      </div>
+      <div class="dc-scores">
+        ${score(pers ? 'Gerente' : 'Tienda', r.promedio, r.cumplio)}
+        ${pers ? score('Administrativo', pers.adminPct, pers.adminCumplio) : ''}
+      </div>
+      <table class="dc-table">
+        <thead><tr><th>Proceso</th>${pers ? '<th class="n" title="Administrativo">Adm.</th><th class="n" title="Gerente">Ger.</th>' : '<th class="n">%</th>'}</tr></thead>
         <tbody>
-          ${rowsHtml || `<tr><td colspan="${nCols}" style="text-align:center;color:var(--gray-400);padding:0.6rem">Sin detalle por proceso</td></tr>`}
-          <tr class="detalle-total-row"><td></td>${pers ? `<td class="valor">${adminTot}</td>` : ''}<td class="valor">${pv}</td></tr>
+          ${rowsHtml || `<tr><td colspan="${nCols}" style="text-align:center;color:var(--gray-400)">Sin detalle por proceso</td></tr>`}
+          <tr class="tot"><td>Total</td>${pers ? `<td class="n">${totAdm}</td>` : ''}<td class="n">${totGer}</td></tr>
         </tbody>
       </table>
-      <div class="detalle-card-foot">${r.mes}${r.cumplio ? ` · Cumplió${pers ? ' (Gerente)' : ''}: ${r.cumplio}` : ''}${adminFoot}</div>
+      ${foot ? `<div class="dc-foot">${foot}</div>` : ''}
     </div>`;
   }).join('');
 }
@@ -2865,68 +2918,8 @@ function populateTrendFilters(data) {
 }
 
 // ── Selector múltiple de meses — Tendencia (mismo patrón que Detalle/Cargar/Historial) ──
-function toggleTrendMesDropdown() {
-  const p = document.getElementById('trendMesPanel');
-  p.style.display = p.style.display === 'none' ? 'block' : 'none';
-}
-document.addEventListener('click', (e) => {
-  const dd = document.getElementById('trendMesDropdown');
-  if (dd && !dd.contains(e.target)) { const p = document.getElementById('trendMesPanel'); if(p) p.style.display = 'none'; }
-});
-function updateTrendMesBtnLabel(allMeses) {
-  const btn = document.getElementById('trendMesBtn');
-  if (!btn) return;
-  if (trendMesesSel.size === 0 || trendMesesSel.size === allMeses.length) btn.textContent = 'Todos los meses ▾';
-  else if (trendMesesSel.size === 1) btn.textContent = `${[...trendMesesSel][0]} ▾`;
-  else btn.textContent = `${trendMesesSel.size} meses seleccionados ▾`;
-}
-function trendMesToggleOne(m) {
-  if (trendMesesSel.has(m)) trendMesesSel.delete(m); else trendMesesSel.add(m);
-  trendMesesCustom = true;
-  const allMeses = [...document.querySelectorAll('#trendMesChecklist input')].map(i=>i.value);
-  updateTrendMesBtnLabel(allMeses);
-  renderTrend(currentTrendTab);
-}
-function trendMesQuickSelect(kind, allMeses) {
-  if (kind === 'all') { trendMesesSel = new Set(allMeses); trendMesesCustom = false; }
-  else if (kind === 'none') { trendMesesSel = new Set(); trendMesesCustom = true; }
-  else if (kind.startsWith('year:')) {
-    const y = kind.slice(5);
-    trendMesesSel = new Set(allMeses.filter(m => getYear(m) === y));
-    trendMesesCustom = true;
-  } else if (kind.startsWith('sem:')) {
-    const [, y, semNum] = kind.split(':');
-    const wanted = semNum === '1' ? 'Semestre 1 (Ene–Jun)' : 'Semestre 2 (Jul–Dic)';
-    trendMesesSel = new Set(allMeses.filter(m => getYear(m) === y && getSemestre(m) === wanted));
-    trendMesesCustom = true;
-  }
-  document.querySelectorAll('#trendMesChecklist input').forEach(i => { i.checked = trendMesesSel.has(i.value); });
-  updateTrendMesBtnLabel(allMeses);
-  renderTrend(currentTrendTab);
-}
-function populateTrendMeses(allMeses) {
-  if (!trendMesesCustom) trendMesesSel = new Set(allMeses);
-  else trendMesesSel = new Set([...trendMesesSel].filter(m => allMeses.includes(m)));
-  const checklist = document.getElementById('trendMesChecklist');
-  checklist.innerHTML = allMeses.map(m => `<label>
-      <input type="checkbox" value="${m}" ${trendMesesSel.has(m)?'checked':''} onchange="trendMesToggleOne('${m}')">
-      ${m}
-    </label>`).join('');
-  const years = [...new Set(allMeses.map(getYear).filter(Boolean))].sort();
-  const mesesJs = '[' + allMeses.map(m=>`'${m}'`).join(',') + ']';
-  const quickHtml = [`<button type="button" class="ms-quick-btn" onclick="trendMesQuickSelect('all',${mesesJs})">Todos</button>`,
-                      `<button type="button" class="ms-quick-btn" onclick="trendMesQuickSelect('none',${mesesJs})">Ninguno</button>`];
-  years.forEach(y => {
-    quickHtml.push(`<button type="button" class="ms-quick-btn" onclick="trendMesQuickSelect('year:${y}',${mesesJs})">Año ${y}</button>`);
-    ['1','2'].forEach(semNum => {
-      const wanted = semNum === '1' ? 'Semestre 1 (Ene–Jun)' : 'Semestre 2 (Jul–Dic)';
-      const has = allMeses.some(m => getYear(m) === y && getSemestre(m) === wanted);
-      if (has) quickHtml.push(`<button type="button" class="ms-quick-btn" onclick="trendMesQuickSelect('sem:${y}:${semNum}',${mesesJs})">Sem ${semNum} · ${y}</button>`);
-    });
-  });
-  document.getElementById('trendMesQuick').innerHTML = quickHtml.join('');
-  updateTrendMesBtnLabel(allMeses);
-}
+function toggleTrendMesDropdown() { msToggle('trend'); }
+function populateTrendMeses(allMeses) { msPoblar('trend', allMeses); }
 
 function renderTrend(tab) {
   const content = document.getElementById('trendContent');
@@ -3573,6 +3566,7 @@ function wzPintarResumen() {
   wzPintarEvolucion(R);
   document.getElementById('wzSlides').innerHTML = planDiapositivas(R).map(s => `<li><strong>${esc(s.t)}</strong> <small>— ${esc(s.d)}</small></li>`).join('');
   document.getElementById('wzDescargaMsg').textContent = '';
+  document.getElementById('wzConfirma').hidden = true;
 }
 
 // Paso 3 — gráfica de evolución (barras por mes con línea de meta) y comparativa por tienda.
@@ -3699,7 +3693,11 @@ function aplicarEstructura(r) {
         const c0 = base ? base.cumple : cumpleDe(proc);
         if (c0 === null && !lista.length) return; // proceso que la tienda no califica
         const nombres = procs[proc];
-        if (!nombres.length) { nuevos.push({ nombre: 'Vacante', proceso: proc, cumple: c0, vacante: true }); return; }
+        if (!nombres.length) {
+          // Entrega en Obra sin nombre = "No aplica" (es informativa), no un puesto vacante.
+          if (proc !== 'Entrega en Obra') nuevos.push({ nombre: 'Vacante', proceso: proc, cumple: c0, vacante: true });
+          return;
+        }
         nombres.forEach((nm, i) => {
           const c = lista[i] && lista[i].cumple !== null && lista[i].cumple !== undefined ? lista[i].cumple : c0;
           nuevos.push({ nombre: nm, proceso: proc, cumple: c, vacante: esVacante(nm) });
@@ -3768,6 +3766,12 @@ async function estAbrir() {
     `<optgroup label="Próximos meses (aún sin Excel)">${futuros.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('')}</optgroup>`;
   if (tiendas.includes(tAntes)) selT.value = tAntes;
   selD.value = opciones.includes(dAntes) ? dAntes : (cargados[cargados.length-1] || opciones[0] || '');
+  // Llegando desde "Corregir" en la confirmación del PowerPoint: esa tienda y ese mes.
+  if (EST_IR) {
+    if (tiendas.includes(EST_IR.tienda)) selT.value = EST_IR.tienda;
+    if (opciones.includes(EST_IR.mes)) selD.value = EST_IR.mes;
+    EST_IR = null;
+  }
   estPintar();
 }
 
@@ -3810,8 +3814,11 @@ function estPintar() {
       campo('estGer', 'Gerente', val.gerente, excel.gerente, 'Nombre del gerente') +
       campo('estAdm', 'Administrativo', val.administrativo, excel.administrativo, 'Vacío = sin asignar') +
     `</div><div class="est-grupo"><h4>Personal por proceso <small>(varios nombres separados por coma · vacío = vacante)</small></h4>` +
-      Object.entries(val.procesos).map(([p, nombres], i) =>
-        campo('estP' + i, esc(p), nombres.join(', '), (excel.procesos[p] || []).join(', '), 'Vacante').replace('<input ', `<input data-proceso="${esc(p)}" `)).join('') +
+      Object.entries(val.procesos).map(([p, nombres], i) => {
+        const obra = p === 'Entrega en Obra'; // informativa: vacía = "No aplica"
+        return campo('estP' + i, esc(p) + (obra ? ' <small>(informativo · vacío = no aplica)</small>' : ''), nombres.join(', '),
+          (excel.procesos[p] || []).join(', '), obra ? 'No aplica' : 'Vacante').replace('<input ', `<input data-proceso="${esc(p)}" `);
+      }).join('') +
     `</div>`;
   document.getElementById('estGuardar').disabled = !puede;
   const bb = document.getElementById('estBorrar'); bb.disabled = !puede || !exacto; bb.style.visibility = exacto ? 'visible' : 'hidden';
@@ -3830,7 +3837,10 @@ function estHistorial(tienda) {
     const cambios = [];
     const dif = (et, a, b) => { if (collapseWs(a || '') !== collapseWs(b || '')) cambios.push(`<strong>${esc(et)}:</strong> ${esc(a || 'sin asignar')} → ${esc(b || 'sin asignar')}`); };
     dif('Gerente', prev.gerente, e.datos.gerente); dif('Administrativo', prev.administrativo, e.datos.administrativo);
-    Object.entries(e.datos.procesos || {}).forEach(([p, ns]) => dif(p, ((prev.procesos || {})[p] || []).join(', ') || 'vacante', ns.join(', ') || 'vacante'));
+    Object.entries(e.datos.procesos || {}).forEach(([p, ns]) => {
+      const vacio = p === 'Entrega en Obra' ? 'no aplica' : 'vacante';
+      dif(p, ((prev.procesos || {})[p] || []).join(', ') || vacio, ns.join(', ') || vacio);
+    });
     const quien = [e.actualizado_por, e.actualizado ? new Date(e.actualizado).toLocaleDateString('es-MX') : null].filter(Boolean).join(' · ');
     return `<div class="est-hist"><div class="est-hist-mes">Desde ${esc(e.desde)}</div>
       <div>${cambios.length ? cambios.join('<br>') : '<span class="wz-help">Sin diferencias con lo anterior</span>'}</div>
@@ -3981,9 +3991,97 @@ async function descargarPptx(pres, nombre){
   }
   descargarBlobLocal(b64ToBlobPptx(b64), nombre);
 }
+// ─── Confirmación del personal antes de descargar ───
+// Si para el mes del reporte no se registró ningún cambio de estructura, se pide confirmar
+// que gerentes, administrativos y responsables siguen siendo correctos (bajas, reemplazos…).
+
+// Nombres efectivos de una tienda en un mes (Excel + estructura vigente), con los
+// responsables agrupados por proceso. Entrega en Obra sin nombre = "No aplica".
+function personalEfectivo(r) {
+  const ef = aplicarEstructura(r), pe = ef.personal;
+  const porProc = new Map();
+  if (pe) (pe.responsables || []).forEach(x => {
+    if (!porProc.has(x.proceso)) porProc.set(x.proceso, []);
+    if (!x.vacante && !porProc.get(x.proceso).includes(x.nombre)) porProc.get(x.proceso).push(x.nombre);
+  });
+  const obra = r.procesos ? r.procesos['Entrega en Obra'] : undefined;
+  if (pe && obra !== null && obra !== undefined && !porProc.has('Entrega en Obra')) porProc.set('Entrega en Obra', []);
+  const orden = p => { const i = PROCESSES.indexOf(p); return i < 0 ? 99 : i; };
+  return {
+    gerente: ef.gerente || '', administrativo: pe ? (pe.administrativo || '') : '', est: ef.est,
+    procesos: [...porProc.entries()].sort((a,b) => orden(a[0]) - orden(b[0])).map(([proceso, nombres]) => ({ proceso, nombres })),
+  };
+}
+
+function wzRevisionPersonal(p) {
+  const k = monthKey(p.mes), datos = lsLoad();
+  const mesAnt = histMeses().filter(m => monthKey(m) < k).pop() || null;
+  const firma = x => JSON.stringify([collapseWs(x.gerente), collapseWs(x.administrativo), x.procesos.map(q => [q.proceso, q.nombres.join(',')])]);
+  return datos.filter(r => r.mes === p.mes && r.personal && p.tiendas.has(collapseWs(r.tienda)))
+    .sort((a,b) => a.tienda.localeCompare(b.tienda))
+    .map(r => {
+      const pe = personalEfectivo(r), n = normStore(r.tienda);
+      const ant = mesAnt ? datos.find(x => x.mes === mesAnt && x.personal && normStore(x.tienda) === n) : null;
+      return Object.assign({ tienda: collapseWs(r.tienda), mesAnt,
+        cambioMes: ESTR.some(e => e.tienda_norm === n && e.desde_clave === k),
+        igualAnterior: ant ? firma(personalEfectivo(ant)) === firma(pe) : null }, pe);
+    });
+}
+// La confirmación vale para esta razón, mes, tiendas y estructura; si algo cambia se vuelve a pedir.
+function wzFirmaConfirma(p) {
+  return [RAZON_ACTIVA, p.mes, [...p.tiendas].sort().join('|'),
+          ESTR.map(e => `${e.tienda_norm}:${e.desde_clave}:${e.actualizado}`).sort().join('|')].join('#');
+}
+function wzPedirConfirmacion(p, filas) {
+  const box = document.getElementById('wzConfirma');
+  const sin = filas.filter(f => !f.cambioMes).length, puede = estPuedeEditar();
+  const nombre = v => v ? esc(v) : '<span class="vac">Sin asignar</span>';
+  const estado = f => f.cambioMes ? '<span class="wz-pill ok">Actualizada este mes</span>'
+    : f.igualAnterior ? `<span class="wz-pill warn">Igual que ${esc(mesCorto(f.mesAnt))}</span>`
+    : '<span class="wz-pill warn">Sin cambios registrados</span>';
+  box.innerHTML =
+    `<h3>⚠️ Antes de descargar, confirma el personal de ${esc(p.mes)}</h3>
+     <p>No se registraron cambios de estructura en <strong>${sin} de ${filas.length}</strong> tiendas para ${esc(p.mes)}.
+       Revisa que gerentes, administrativos y responsables de proceso sean correctos (bajas, reemplazos, cambios de tienda).
+       Si algo cambió, usa <strong>Corregir</strong> para actualizarlo en 👥 Estructura.</p>
+     <div class="wz-table-wrap"><table class="wz-table">
+       <thead><tr><th>Tienda</th><th>Gerente</th><th>Administrativo</th><th>Responsables por proceso</th><th>Estado</th></tr></thead><tbody>` +
+    filas.map(f => `<tr>
+       <td><strong>${esc(f.tienda)}</strong>${puede ? `<br><button type="button" class="wz-link" data-t="${esc(f.tienda)}" onclick="estIrA(this.dataset.t, WZ.mes)">Corregir</button>` : ''}</td>
+       <td>${nombre(f.gerente)}</td><td>${nombre(f.administrativo)}</td>
+       <td class="procs">${f.procesos.map(q => `<b>${esc(q.proceso)}:</b> ${q.nombres.length ? esc(q.nombres.join(', '))
+          : q.proceso === 'Entrega en Obra' ? '<span class="na">No aplica</span>' : '<span class="vac">Vacante</span>'}`).join('<br>') || '<span class="na">—</span>'}</td>
+       <td>${estado(f)}</td></tr>`).join('') +
+    `</tbody></table></div>
+     <div class="acciones">
+       <button type="button" class="wz-btn" onclick="document.getElementById('wzConfirma').hidden = true">Cancelar</button>
+       <button type="button" class="wz-btn primary" onclick="wzConfirmarPersonal()">✅ Sí, el personal es correcto · Descargar</button>
+     </div>`;
+  box.hidden = false;
+  box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function wzConfirmarPersonal() {
+  WZ.confirmado = wzFirmaConfirma(wzParametros());
+  document.getElementById('wzConfirma').hidden = true;
+  wzDescargar();
+}
+// Abre la pestaña Estructura en esa tienda y mes para corregir.
+let EST_IR = null;
+function estIrA(tienda, mes) {
+  EST_IR = { tienda, mes };
+  document.getElementById('wzConfirma').hidden = true;
+  switchGenView('estructura');
+}
+
+document.getElementById('downloadBtn').addEventListener('click', () => {
+  const p = wzParametros(), filas = wzRevisionPersonal(p);
+  if (filas.some(f => !f.cambioMes) && WZ.confirmado !== wzFirmaConfirma(p)) { wzPedirConfirmacion(p, filas); return; }
+  wzDescargar();
+});
+
 // Cada clic arma una presentación NUEVA: escribir dos veces la misma con PptxGenJS
 // corrompe el archivo (PowerPoint ya no lo abre).
-document.getElementById('downloadBtn').addEventListener('click', async () => {
+async function wzDescargar() {
   const btn = document.getElementById('downloadBtn'), msg = document.getElementById('wzDescargaMsg');
   btn.disabled = true; btn.innerHTML = '<span>⏳</span> Armando el PowerPoint…';
   try {
@@ -3996,7 +4094,7 @@ document.getElementById('downloadBtn').addEventListener('click', async () => {
     console.error(e); msg.textContent = 'No se pudo armar el PowerPoint: ' + (e.message || e);
   }
   btn.disabled = false; btn.innerHTML = '<span>⬇️</span> Descargar PowerPoint';
-});
+}
 
 document.getElementById('fileInput').addEventListener('change', e => {
   if (e.target.files[0]) handleFile(e.target.files[0]);
