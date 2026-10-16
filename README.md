@@ -137,6 +137,29 @@ select * from public.correos_envios order by id desc;                       -- b
 
 Migraciones: `20260930_correos_token_sesion.sql` y `20261001_archivero_rol_sistemas.sql`.
 
+## Generador: estructura de personal (gerentes, administrativos y responsables)
+
+- Pestaña **👥 Estructura** del Generador: por tienda se capturan el gerente, el administrativo y
+  los responsables de cada proceso, con un mes **"vigente desde"**. Sirve para bajas, reemplazos y
+  reestructuras sin perder quién estaba antes.
+- Para cada mes del reporte se usa el cambio más reciente cuyo inicio sea ese mes o uno anterior;
+  si no hay ninguno, se usan los nombres del Excel de ese mes. **Solo cambian los nombres**: el
+  cumplimiento de cada proceso siempre sale del Excel.
+- Varios nombres por proceso se separan con coma; un proceso vacío queda como **vacante**.
+- Editan: admin, admin_auditor y auditor, cada uno en sus razones sociales. Los viewers solo consultan.
+- Se guarda por razón social y **cifrado** (igual que el gerente del historial) en la tabla
+  `generador_estructura`.
+
+Migración (aplicar una vez en Supabase → SQL Editor): `supabase/migrations/20261016_generador_estructura.sql`
+(requiere `20261012_notificaciones_bandeja.sql`). Mientras no se aplique, el Generador avisa y guarda los
+cambios solo en el navegador de quien los captura.
+
+Prueba rápida en el SQL Editor después de aplicarla:
+
+```sql
+select razon, tienda, desde, actualizado, actualizado_por from public.generador_estructura order by actualizado desc;
+```
+
 ## Nota de seguridad
 
 Este proyecto no contiene tokens ni contraseñas — solo la llave pública de Supabase,
