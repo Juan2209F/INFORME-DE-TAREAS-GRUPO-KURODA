@@ -1736,11 +1736,11 @@ function histMeses() {
   return [...new Set(lsLoad().map(r => r.mes).filter(Boolean))].sort((a,b) => monthKey(a) - monthKey(b));
 }
 function mesCorto(m) { return toMonthLabel(m); }
-// "Ene→Sep" (o "Oct '25→Sep '26" si cruza de año), para el encabezado de la columna Cambio.
+// "Ene a Sep" (o "Oct '25 a Sep '26" si cruza de año), para el encabezado de la columna Subió / bajó.
 function rangoCambio(E) {
   const a = E[0].mes, b = E[E.length-1].mes, mismo = getYear(a) === getYear(b);
   const corto = m => mismo ? mesCorto(m).replace(/\s*'\d+$/, '') : mesCorto(m);
-  return `${corto(a)}→${corto(b)}`;
+  return `${corto(a)} a ${corto(b)}`;
 }
 // "Septiembre 2026" → "Septiembre 2025"
 function mesAnioAnterior(m) {
@@ -1935,7 +1935,10 @@ async function buildPptxEjecutivo(R) {
   const plan = planDiapositivas(R);
   const total = plan.length;
   const empresa = razonNombre(RAZON_ACTIVA);
-  const compTxt = R.comp.etiqueta ? `vs ${R.comp.etiqueta}` : '';
+  // Portada: "vs Agosto 2026" o "vs promedio de Enero a Agosto 2026" (meses completos, sin abreviar).
+  const cm = R.comp.meses || [];
+  const compPortada = !cm.length ? '' : cm.length === 1 ? `vs ${cm[0]}`
+    : `vs promedio de ${getYear(cm[0]) === getYear(cm[cm.length-1]) ? cm[0].replace(/\s*\d{4}$/, '') : cm[0]} a ${cm[cm.length-1]}`;
   let n = 0;
 
   const encabezado = (s, titulo, sub) => {
@@ -1981,8 +1984,13 @@ async function buildPptxEjecutivo(R) {
       s.addText([
         { text:pctTxt(R.prom), options:{ fontSize:48, bold:true, color:PX.white, breakLine:true } },
         { text:'promedio general', options:{ fontSize:14, color:'C7D2FE', breakLine:true } },
-        { text: R.delta !== null ? `${deltaTxt(R.delta)} pts ${compTxt}` : '', options:{ fontSize:13, bold:true, color: R.delta === null ? 'C7D2FE' : R.delta >= 0 ? '86EFAC' : 'FCA5A5' } },
-      ], { x:9.0, y:3.55, w:3.4, h:2.1, fontFace:FONT, valign:'middle', align:'center' });
+        // La variación y contra qué se compara van en renglones separados para que no se corten:
+        // "▲ +13 pts" / "vs promedio de Enero a Agosto 2026".
+        ...(R.delta !== null ? [
+          { text:`${deltaTxt(R.delta)} pts`, options:{ fontSize:18, bold:true, color: R.delta >= 0 ? '86EFAC' : 'FCA5A5', breakLine:true, paraSpaceBefore:6 } },
+          { text: compPortada, options:{ fontSize:11, color:'C7D2FE' } },
+        ] : []),
+      ], { x:9.0, y:3.5, w:3.4, h:2.2, fontFace:FONT, valign:'middle', align:'center' });
       s.addText(`Generado el ${new Date().toLocaleDateString('es-MX', { day:'numeric', month:'long', year:'numeric' })}`, { x:0.8, y:6.7, w:8, h:0.3, fontFace:FONT, fontSize:10, color:'8899AA' });
     }
 
@@ -2027,8 +2035,11 @@ async function buildPptxEjecutivo(R) {
       encabezado(s, 'Cumplimiento por tienda' + sufijo(sl));
       const conComp = !!R.comp.etiqueta;
       const head = [cab('Tienda'), cab('Gerente'), cab('% Tienda')];
-      if (conComp) head.push(cab(R.comp.meses.length === 1 ? `vs ${mesCorto(R.comp.meses[0])}` : 'vs prom. año'));
+      // Encabezado claro: cuántos puntos subió o bajó la tienda contra el mes (o promedio) de comparación.
+      if (conComp) head.push(cab(R.comp.meses.length === 1 ? `Subió / bajó\nvs ${mesCorto(R.comp.meses[0])}` : `Subió / bajó vs\npromedio ${rangoCambio(R.comp.meses.map(mes => ({ mes })))}`));
       head.push(cab('Estado'));
+      // Encabezados de las columnas numéricas centrados, igual que sus valores.
+      head.forEach((c, i) => { if (i >= 2) c.options.align = 'center'; });
       const filas = [head];
       deHoja(sl, R.tiendas).forEach(t => {
         const f = [celda(t.tienda, { bold:true }), celda(t.gerente || '—', { fontSize:10 }), celdaPct(t.pct, t.estado)];
@@ -2039,8 +2050,9 @@ async function buildPptxEjecutivo(R) {
       // Sin columna de administrativo: ese dato ya está en su propia diapositiva.
       const colW = [3.0, 3.1, 1.4]; if (conComp) colW.push(1.4); colW.push(1.8);
       const esc = 12.33 / colW.reduce((a,b)=>a+b,0); for (let i=0;i<colW.length;i++) colW[i] *= esc;
-      tabla(s, filas, colW, 1.15, 5.7);
-      if (ultimaHoja(sl)) s.addText(`% Tienda = calificación del gerente en el Excel.${R.tiendas.some(t=>t.auditoria) ? ' Tiendas calificadas por auditoría: ' + R.tiendas.filter(t=>t.auditoria).map(t=>t.tienda).join(', ') + '.' : ''}${conComp ? ' Comparación en puntos ' + compTxt + '.' : ''}`,
+      // 5.5 de alto: el encabezado de dos renglones y 14 tiendas caben sin tocar la nota de abajo.
+      tabla(s, filas, colW, 1.15, 5.5);
+      if (ultimaHoja(sl)) s.addText(`% Tienda = calificación del gerente en el Excel.${R.tiendas.some(t=>t.auditoria) ? ' Tiendas calificadas por auditoría: ' + R.tiendas.filter(t=>t.auditoria).map(t=>t.tienda).join(', ') + '.' : ''}${conComp ? ' Subió / bajó = puntos de diferencia contra ' + R.comp.etiqueta.replace(/^Promedio/, 'el promedio de') + '.' : ''}`,
         { x:0.5, y:6.95, w:11.2, h:0.35, fontFace:FONT, fontSize:9, color:PX.mute, italic:true });
     }
 
@@ -2181,7 +2193,7 @@ async function buildPptxEjecutivo(R) {
       const wM = (12.33 - wT - wC) / nm;                   // cada mes
       const etiqueta = m => nm > 9 ? mesCorto(m).replace(" '", "\n'") : mesCorto(m); // "Ene\n'26" si hay muchos
       const head = [cab('Tienda'), ...E.map(e => cab(etiqueta(e.mes)))];
-      if (conCambio) head.push(cab(`Cambio\n${rangoCambio(R.evolucion)}`));
+      if (conCambio) head.push(cab(`Subió / bajó\n${rangoCambio(R.evolucion)}`));
       head.forEach((c,i) => { c.options.fontSize = fsH; if (i) c.options.align = 'center'; });
       const filas = [head];
       deHoja(sl, R.evoTiendas).forEach(t => {
@@ -2199,7 +2211,7 @@ async function buildPptxEjecutivo(R) {
       tabla(s, filas, conCambio ? [wT, ...Array(nm).fill(wM), wC] : [wT, ...Array(nm).fill(wM)], 1.15, 5.65);
       const pie = [];
       if (sl.nb > 1) pie.push(`Bloque ${sl.bi+1} de ${sl.nb}: ${E[0].mes} a ${E[nm-1].mes}.`);
-      if (conCambio && ultimaHoja(sl)) pie.push(`Cambio = puntos que subió (▲) o bajó (▼) cada tienda de ${R.evolucion[0].mes} a ${R.evolucion[R.evolucion.length-1].mes}. Ej.: de 80% a 100% = ▲ +20.`);
+      if (conCambio && ultimaHoja(sl)) pie.push(`Subió / bajó = puntos que subió (▲) o bajó (▼) cada tienda de ${R.evolucion[0].mes} a ${R.evolucion[R.evolucion.length-1].mes}. Ej.: de 80% a 100% = ▲ +20.`);
       if (pie.length) s.addText(pie.join(' '), { x:0.5, y:6.95, w:11, h:0.3, fontFace:FONT, fontSize:9, color:PX.mute, italic:true });
     }
 
@@ -3599,7 +3611,7 @@ function wzPintarResumen() {
   const pill = e => `<span class="wz-pill ${e}">${ESTADO_TXT[e]}</span>`;
   const delta = d => d === null ? '<span class="wz-eq">—</span>' : `<span class="${Math.round(d) === 0 ? 'wz-eq' : d > 0 ? 'wz-up' : 'wz-down'}">${esc(deltaTxt(d))}</span>`;
   document.getElementById('wzTabla').innerHTML =
-    `<thead><tr><th>Tienda</th><th>Gerente</th><th class="n">% Tienda</th>${conComp ? '<th class="n">Vs comp.</th>' : ''}<th>Estado</th></tr></thead><tbody>` +
+    `<thead><tr><th>Tienda</th><th>Gerente</th><th class="n">% Tienda</th>${conComp ? '<th class="n" title="Puntos que subió o bajó contra la comparación">Subió / bajó</th>' : ''}<th>Estado</th></tr></thead><tbody>` +
     R.tiendas.map(t => `<tr><td><strong>${esc(t.tienda)}</strong>${t.auditoria ? ' <small title="Calificada por auditoría">(A)</small>' : ''}</td>
       <td>${esc(t.gerente || '—')}</td><td class="n">${pctTxt(t.pct)}</td>${conComp ? `<td class="n">${delta(t.delta)}</td>` : ''}
       <td>${pill(t.estado)}</td></tr>`).join('') + '</tbody>';
@@ -3644,7 +3656,7 @@ function wzPintarEvolucion(R) {
     return (bloques.length > 1 ? `<div class="wz-bloque-tit">${esc(EB[0].mes)} – ${esc(EB[EB.length-1].mes)}</div>` : '') +
       `<div class="wz-table-wrap"><table class="${cls}">` +
       `<colgroup><col class="c-tienda">${EB.map(() => '<col>').join('')}${ult ? '<col class="c-cambio">' : ''}</colgroup>` +
-      `<thead><tr><th>Tienda</th>${EB.map(e => `<th class="n">${esc(mesCorto(e.mes))}</th>`).join('')}${ult ? `<th class="n" title="Puntos que subió o bajó la tienda del primer al último mes">Cambio ${esc(rangoCambio(E))}</th>` : ''}</tr></thead><tbody>` +
+      `<thead><tr><th>Tienda</th>${EB.map(e => `<th class="n">${esc(mesCorto(e.mes))}</th>`).join('')}${ult ? `<th class="n" title="Puntos que subió o bajó la tienda del primer al último mes">Subió / bajó ${esc(rangoCambio(E))}</th>` : ''}</tr></thead><tbody>` +
       R.evoTiendas.map(t => `<tr><td><strong>${esc(t.tienda)}</strong></td>${t.vals.slice(b0, b1).map((v,j) => celda(v, EB[j].meta)).join('')}${ult ? cambio(t.cambio) : ''}</tr>`).join('') +
       `<tr class="prom"><td><strong>Promedio</strong></td>${EB.map(e => `<td class="n"><strong>${pctTxt(e.val)}</strong></td>`).join('')}${ult ? '<td></td>' : ''}</tr></tbody></table></div>`;
   }).join('');
