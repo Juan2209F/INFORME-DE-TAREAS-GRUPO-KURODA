@@ -10,6 +10,10 @@
     <!-- Escáner de códigos de Activos. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Ciudad y estado automáticos en las cartas responsivas (GPS). -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
     <!-- Notificaciones de cambios (Android 13 o más pide permiso). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Entrar con huella (Huella.java). USE_FINGERPRINT solo lo usa Android 9. -->
