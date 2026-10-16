@@ -1247,9 +1247,10 @@ function setTipo(t){
 setTipo(4);
 
 /* Fecha y lugar automáticos: la fecha sale del dispositivo y el lugar del GPS
-   (ciudad y estado). Solo se llenan si están vacíos; siguen siendo editables. */
+   (ciudad y estado), en todas las cartas. Solo se llenan si están vacíos; siguen siendo editables. */
 (function(){
-  var fe=document.getElementById('fecha'),lu=document.getElementById('lugar');
+  var fe=document.getElementById('fecha');
+  var lugares=['lugar','f_ciudad','e_ciudad','pc_ciudad'].map(function(id){return document.getElementById(id);}).filter(Boolean);
   if(!fe.value){
     var M=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
     var h=new Date();fe.value=h.getDate()+' de '+M[h.getMonth()]+' de '+h.getFullYear();
@@ -1262,7 +1263,7 @@ setTipo(4);
       var a=j&&j.address||{};
       var ciudad=a.city||a.town||a.village||a.municipality||a.county||'';
       var txt=[ciudad,a.state].filter(Boolean).join(', ');
-      if(txt&&!lu.value)lu.value=txt;
+      if(txt)lugares.forEach(function(lu){if(!lu.value)lu.value=txt;});
     }).catch(function(){});
   },function(){},{timeout:15000,maximumAge:600000});
 })();
