@@ -1705,6 +1705,19 @@ function asegurarFiltroVinculo(){
     '<option value="ALL">Todas</option><option value="sin">⚠ Sin auditoría</option><option value="con">Vinculadas</option></select>';
   fg.parentNode.insertBefore(nuevo,fg.nextSibling);
 }
+/* Crea el buscador por ID al inicio de los filtros de la vista Tareas. */
+function asegurarBuscarId(){
+  if(document.getElementById('tar-f-id'))return;
+  var suc=document.getElementById('tar-f-tienda');
+  var fg=suc&&suc.closest('.fg');
+  if(!fg)return;
+  var nuevo=document.createElement('div');
+  nuevo.className='fg';
+  nuevo.innerHTML='<label>BUSCAR POR ID</label><input id="tar-f-id" type="search" inputmode="numeric" autocomplete="off" '+
+    'placeholder="Ej. 13725746 (varios: separados por coma)" oninput="applyTareasFilters()" '+
+    'onkeydown="if(event.key===\'Escape\'){this.value=\'\';applyTareasFilters();}">';
+  fg.parentNode.insertBefore(nuevo,fg);
+}
 function verTareasSinAuditoria(){
   asegurarFiltroVinculo();
   var sel=document.getElementById('tar-f-vinc');
@@ -1714,7 +1727,16 @@ function verTareasSinAuditoria(){
 function applyTareasFilters(){
   let tareas=_tareasViewBase||[];
   asegurarFiltroVinculo();
+  asegurarBuscarId();
   _tareasLigadas=clavesTareasVinculadas();
+  /* Búsqueda por ID: busca en TODAS las tareas (sin filtros de periodo, sucursal ni
+     estado) para que la tarea aparezca siempre. Acepta varios IDs y parte del número. */
+  const idEl=document.getElementById('tar-f-id');
+  const ids=String(idEl&&idEl.value||'').split(/[\s,;]+/).map(s=>s.trim()).filter(Boolean);
+  if(ids.length){
+    renderTareasTable((STORE.tareas||[]).filter(t=>ids.some(x=>String(t.id==null?'':t.id).includes(x))),ids.length);
+    return;
+  }
   const suc=document.getElementById('tar-f-tienda');
   const est=document.getElementById('tar-f-estado');
   const vinc=document.getElementById('tar-f-vinc');
@@ -1724,12 +1746,16 @@ function applyTareasFilters(){
   else if(vinc&&vinc.value==='con')tareas=tareas.filter(t=>_tareasLigadas&&!tareaSinAuditoria(t));
   renderTareasTable(tareas);
 }
-function renderTareasTable(tareas){
+function renderTareasTable(tareas,nIdsBuscados){
   const cnt=document.getElementById('tareas-count');
   const nSin=tareas.filter(tareaSinAuditoria).length;
   const vincSel=(document.getElementById('tar-f-vinc')||{}).value;
   if(!document.getElementById('tareas-table'))return;
-  if(cnt)cnt.innerHTML=`${tareas.length} tarea(s)`+
+  if(nIdsBuscados){
+    if(cnt)cnt.innerHTML=`${tareas.length} tarea(s) · <span style="color:var(--blue,#4f46e5)">búsqueda por ID en todas las tareas (sin filtros)</span>`;
+    if(!tareas.length){document.getElementById('tareas-table').innerHTML='<div class="empty">No hay tareas con ese ID.</div>';return;}
+  }
+  else if(cnt)cnt.innerHTML=`${tareas.length} tarea(s)`+
     (!_tareasLigadas?' <span style="color:var(--muted);font-weight:500">· verificando auditorías…</span>':
      nSin&&vincSel!=='sin'?` · <a href="javascript:void(0)" onclick="verTareasSinAuditoria()" style="color:var(--k-red,#dc2626);font-weight:700;text-decoration:underline" title="Ver solo las tareas que ninguna auditoría reclama">⚠ ${nSin} sin auditoría</a>`:'');
   const el=document.getElementById('tareas-table');
