@@ -1004,6 +1004,9 @@ function filteredAuditorias(){
 ════════════════════════════════════════════════════════════════════ */
 function esPendiente(t){if(t.fechaCumpl)return false;return norm(t.estado).includes('abierta')||esEstadoNoResuelta(t.estado);}
 function esResuelta(t){if(t.fechaCumpl)return true;return norm(t.estado).includes('resuelta')&&!esEstadoNoResuelta(t.estado);}
+/* Abierta = pendiente que todavía se puede cerrar. Las "No resueltas" ya se cerraron sin
+   resolverse, así que en los KPIs van en su propia tarjeta y no cuentan como pendientes. */
+function esAbierta(t){return esPendiente(t)&&!esEstadoNoResuelta(t.estado);}
 /* Vencida = pendiente y su fechaTerm ya pasó — calculado por FECHA, no por
    el texto "atrasada" guardado en estado. El texto solo se corrige cuando
    corre actualizarEstadosVencidos() (se dispara al abrir el dashboard o
@@ -1206,7 +1209,7 @@ function actualizarStrip(){
     if(stF)stF.title=finList.length+' con todas sus tareas resueltas + '+cerradasConNR.length+' cerradas con tareas no resueltas';
   }
   var elT=document.getElementById('ds-tar'); if(elT)elT.textContent=STORE.tareas.length;
-  var elP=document.getElementById('ds-pend'); if(elP)elP.textContent=STORE.tareas.filter(esPendiente).length;
+  var elP=document.getElementById('ds-pend'); if(elP)elP.textContent=STORE.tareas.filter(esAbierta).length;
 
   var baseNoFin=(typeof auditoriasVigentesDeduplicadas==='function'&&typeof filteredAudByNoFin==='function')
     ? auditoriasVigentesDeduplicadas(filteredAudByNoFin())
@@ -1312,10 +1315,10 @@ function renderKPIs(tareas,aud){
   const avgCumpl=aud.length?aud.reduce((a,r)=>a+r.pctCumpl,0)/aud.length:0;
   const total=tareas.length;
   const res=tareas.filter(esResuelta).length;
-  const pend=tareas.filter(esPendiente).length;
-  /* Vencidas = pendientes cuya fecha de término ya pasó, más las No resueltas (que ya
-     están fuera de plazo aunque su estatus se haya congelado a mano). */
-  const vencidas=tareas.filter(t=>esPendiente(t)&&(esEstadoNoResuelta(t.estado)||(diasVenc(t)!==null&&diasVenc(t)<0))).length;
+  /* Pendientes = solo las abiertas. Las No resueltas tienen su propia tarjeta. */
+  const pend=tareas.filter(esAbierta).length;
+  /* Vencidas = abiertas cuya fecha de término ya pasó. */
+  const vencidas=tareas.filter(t=>esAbierta(t)&&diasVenc(t)!==null&&diasVenc(t)<0).length;
   const pctRes=total?res/total:0;
 
   // delta de tendencia: comparar último bucket vs anterior (% cumplimiento)
@@ -1348,8 +1351,9 @@ function renderKPIs(tareas,aud){
     {c:'k-blue',ico:'📊',lbl:'Cumplimiento prom.',val:Math.round(avgCumpl*100)+'%',sub:deltaHtml},
     {c:'k-teal',ico:'📋',lbl:'Tareas en período',val:total,sub:`${aud.length} auditorías`},
     {c:'k-green',ico:'✅',lbl:'Resueltas',val:res,sub:pctStr(pctRes)+' del total'},
-    {c:'k-orange',ico:'⏳',lbl:'Pendientes',val:pend,sub:total?pctStr(pend/total)+` sin cerrar (${abOk+abAtr} abiertas + ${expiradas} no resueltas)`:'—'},
-    {c:'k-red',ico:'🚨',lbl:'Pend. vencidas',val:vencidas,sub:`fuera de fecha de término (${abAtr} atrasadas + ${expiradas} no resueltas)`},
+    {c:'k-orange',ico:'⏳',lbl:'Pendientes',val:pend,sub:total?pctStr(pend/total)+` abiertas (${abOk} en plazo + ${abAtr} atrasadas)`:'—'},
+    {c:'k-dark',ico:'⛔',lbl:'No resueltas',val:expiradas,sub:total?pctStr(expiradas/total)+' del total · cerradas sin resolver':'—'},
+    {c:'k-red',ico:'🚨',lbl:'Pend. vencidas',val:vencidas,sub:'abiertas fuera de fecha de término'},
     {c:'k-teal',ico:'🎯',lbl:'% Resolución',val:Math.round(pctRes*100)+'%',sub:'tareas cerradas'},
     {c:'k-blue',ico:'🏬',lbl:'Sucursales',val:uniq(tareas.map(t=>t.tienda)).length,sub:'con tareas en período'},
     {c:'k-orange',ico:'📈',lbl:'Cumpl. ponderado',val:Math.round((aud.reduce((a,r)=>a+r.pctCumpl*(r.tareas||1),0)/(aud.reduce((a,r)=>a+(r.tareas||1),0)||1))*100)+'%',sub:'por nº de tareas'},
@@ -1357,7 +1361,6 @@ function renderKPIs(tareas,aud){
     {c:'k-orange',ico:'🟠',lbl:'Resueltas atrasadas',val:resAtr,sub:total?pctStr(resAtr/total)+' del total':'—'},
     {c:'k-blue',ico:'🔵',lbl:'Abiertas en plazo',val:abOk,sub:total?pctStr(abOk/total)+' del total':'—'},
     {c:'k-red',ico:'🔴',lbl:'Abiertas atrasadas',val:abAtr,sub:total?pctStr(abAtr/total)+' del total':'—'},
-    {c:'k-dark',ico:'⛔',lbl:'No resueltas',val:expiradas,sub:total?pctStr(expiradas/total)+' del total':'—'},
   ];
   // render only selected KPIs
   const sel=loadKpiSelection()||[];
@@ -1387,8 +1390,8 @@ function openKpiCfg(){
   // group by category
   const groups=[
     {lbl:'Cumplimiento',keys:['Cumplimiento prom.','Cumpl. ponderado','% Resolución']},
-    {lbl:'Volumen de tareas',keys:['Tareas en período','Resueltas','Pendientes','Pend. vencidas','Sucursales']},
-    {lbl:'Distribución de estado',keys:['Resueltas a tiempo','Resueltas atrasadas','Abiertas en plazo','Abiertas atrasadas','No resueltas']},
+    {lbl:'Volumen de tareas',keys:['Tareas en período','Resueltas','Pendientes','No resueltas','Pend. vencidas','Sucursales']},
+    {lbl:'Distribución de estado',keys:['Resueltas a tiempo','Resueltas atrasadas','Abiertas en plazo','Abiertas atrasadas']},
   ];
   let html='';
   groups.forEach(g=>{
@@ -2159,8 +2162,8 @@ function downloadPendientesPNG(btnEl){
 function buildDashboardPngHTML(){
   const tareas=filteredTareas(),aud=filteredAuditorias();
   const avgCumpl=aud.length?Math.round(aud.reduce((a,r)=>a+r.pctCumpl,0)/aud.length*100):0;
-  const res=tareas.filter(esResuelta).length,pend=tareas.filter(esPendiente).length;
-  const venc=tareas.filter(t=>esPendiente(t)&&diasVenc(t)!==null&&diasVenc(t)<0).length;
+  const res=tareas.filter(esResuelta).length,pend=tareas.filter(esAbierta).length;
+  const venc=tareas.filter(t=>esAbierta(t)&&diasVenc(t)!==null&&diasVenc(t)<0).length;
   const expiradas=tareas.filter(t=>norm(t.estado).includes('no resuelta')).length;
   const kpiHTML=`<div class="kpi-row">
     <div class="kpi-b" style="border-left-color:#2563eb"><div class="l">Cumplimiento prom.</div><div class="v">${avgCumpl}%</div><div class="s">${aud.length} auditorías</div></div>
@@ -4765,8 +4768,8 @@ function generatePpt(opts){
   var total=tareas.length||1;
   var avgCumpl=aud.length?aud.reduce(function(a,r){return a+r.pctCumpl;},0)/aud.length:0;
   var res=tareas.filter(esResuelta).length;
-  var pend=tareas.filter(esPendiente).length;
-  var vencidas=tareas.filter(function(t){return esPendiente(t)&&diasVenc(t)!==null&&diasVenc(t)<0;}).length;
+  var pend=tareas.filter(esAbierta).length;
+  var vencidas=tareas.filter(function(t){return esAbierta(t)&&diasVenc(t)!==null&&diasVenc(t)<0;}).length;
   var pctRes=res/total;
   var resOk=tareas.filter(function(t){return esResuelta(t)&&!norm(t.estado).includes('atrasad');}).length;
   var resAtr=tareas.filter(function(t){return esResuelta(t)&&norm(t.estado).includes('atrasad');}).length;
@@ -4899,16 +4902,16 @@ function generatePpt(opts){
       {id:'cumpl_prom', v:Math.round(avgCumpl*100)+'%', l:'Cumplimiento prom.',   su:'promedio de auditorías',    ac:BLU, bg:PBLU},
       {id:'tareas',     v:tareas.length,                l:'Tareas en período',     su:aud.length+' auditorías',    ac:TEA, bg:PTEA},
       {id:'resueltas',  v:res,                          l:'Resueltas',             su:pp(res)+' del total',        ac:GRN, bg:PGRN},
-      {id:'pendientes', v:pend,                         l:'Pendientes',            su:pp(pend)+' sin cerrar',      ac:ORG, bg:PORG},
-      {id:'venc',       v:vencidas,                     l:'Pend. vencidas',        su:'fuera de fecha de término', ac:RED, bg:PRED},
+      {id:'pendientes', v:pend,                         l:'Pendientes',            su:pp(pend)+' abiertas',        ac:ORG, bg:PORG},
+      {id:'expiradas',  v:expiradas,                     l:'No resueltas',          su:pp(expiradas)+' del total',  ac:SLT, bg:LIN},
+      {id:'venc',       v:vencidas,                     l:'Pend. vencidas',        su:'abiertas fuera de plazo',   ac:RED, bg:PRED},
       {id:'pct_res',    v:Math.round(pctRes*100)+'%',   l:'% Resolución',          su:'tareas cerradas',           ac:TEA, bg:PTEA},
       {id:'sucursales', v:sucursales,                   l:'Sucursales',            su:'con tareas en período',     ac:BLU, bg:PBLU},
       {id:'cumpl_pond', v:cumplPond+'%',                l:'Cumpl. ponderado',      su:'por nº de tareas',          ac:ORG, bg:PORG},
       {id:'res_ok',     v:resOk,                        l:'Resueltas a tiempo',    su:pp(resOk)+' del total',      ac:GRN, bg:PGRN},
       {id:'res_atr',    v:resAtr,                       l:'Resueltas atrasadas',   su:pp(resAtr)+' del total',     ac:AMB, bg:PAMB},
       {id:'ab_ok',      v:abOk,                         l:'Abiertas en plazo',     su:pp(abOk)+' del total',       ac:BLU, bg:PBLU},
-      {id:'ab_atr',     v:abAtr,                        l:'Abiertas atrasadas',    su:pp(abAtr)+' del total',      ac:RED, bg:PRED},
-      {id:'expiradas',  v:expiradas,                     l:'No resueltas',          su:pp(expiradas)+' del total',  ac:SLT, bg:LIN}
+      {id:'ab_atr',     v:abAtr,                        l:'Abiertas atrasadas',    su:pp(abAtr)+' del total',      ac:RED, bg:PRED}
     ];
     var sel=(opts.kpis&&opts.kpis.length)?opts.kpis:CAT.map(function(k){return k.id;});
     var kpis=CAT.filter(function(k){return sel.indexOf(k.id)>=0;});
