@@ -6,7 +6,7 @@
    No toca nada de otros sitios (Supabase, librerías de CDN) ni peticiones que no sean GET. */
 'use strict';
 
-var CACHE = 'gk-monitor-v2';
+var CACHE = 'gk-monitor-v3';
 var NUCLEO = [
   './', 'index.html', 'manifest.webmanifest',
   'css/main.css', 'css/movil.css', 'css/notificaciones.css', 'css/apk.css', 'css/ios.css',
