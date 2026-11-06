@@ -6269,7 +6269,8 @@ function setPill(state){
 /* Etiqueta legible de cada rol (según definición de Grupo Kuroda) */
 function rolLabel(rol){
   return {admin:'Administrador',admin_auditor:'Auditor Señior',
-          auditor:'Auditor Jr',viewer:'Viewer · solo lectura',sistemas:'Sistemas'}[rol]||rol;
+          auditor:'Auditor Jr',viewer:'Viewer · solo lectura',sistemas:'Sistemas',
+          activos_vehiculos:'Activos · Vehículos'}[rol]||rol;
 }
 /* ¿El usuario tiene otorgada explícitamente una vista? (vistas_permitidas) */
 function tieneVista(v){
@@ -6357,7 +6358,11 @@ function applyVistasRestriction(){
   var visibles=[];
   Object.entries(navMap).forEach(function(e){
     var key=e[1],permitido;
-    if(_session.rol==='sistemas'){
+    if(_session.rol==='activos_vehiculos'){
+      /* Rol Activos · Vehículos: ningún módulo del Monitor. Solo ve "Activos"
+         (js/app-activos.js), y ahí únicamente la categoría Vehículos. */
+      permitido=false;
+    }else if(_session.rol==='sistemas'){
       /* Rol Sistemas: solo Documentos (ahí únicamente ve las cartas de celular y de
          equipo de cómputo) y el Archivero (js/app-archivero.js). */
       permitido=(key==='documentos');
@@ -6839,7 +6844,7 @@ function onRolChange(){
   /* Mostrar/ocultar opciones de auditor según el rol */
   var rol=document.getElementById('nu-rol').value;
   var opts=document.getElementById('nu-auditor-opts');
-  if(opts)opts.style.display=['auditor','admin_auditor','viewer','editor','sistemas'].includes(rol)?'flex':'none';
+  if(opts)opts.style.display=['auditor','admin_auditor','viewer','editor','sistemas','activos_vehiculos'].includes(rol)?'flex':'none';
 }
 function onRazonAllChange(cb){
   /* Si marca "Todas", desmarcar el resto */
@@ -6907,7 +6912,7 @@ function openEditUsuario(uid){
   if(!_session||!['admin','admin_auditor'].includes(_session.rol)){toast('⚠ Sin permisos');return;}
   var u=(window._usrEditMap||{})[uid];
   if(!u){toast('⚠ No se encontraron datos del usuario');return;}
-  var ROLES=['auditor','admin_auditor','viewer','admin','sistemas'];
+  var ROLES=['auditor','admin_auditor','viewer','admin','sistemas','activos_vehiculos'];
   document.getElementById('eu-overlay').classList.add('show');
   document.getElementById('eu-titulo').textContent='Editar — '+u.username;
   document.getElementById('eu-id').value=u.id;
