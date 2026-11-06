@@ -6,13 +6,15 @@
    Sesión única: ACTIVOS usa la misma sesión de Supabase Auth del Monitor; no tiene cuentas
    propias. Su perfil lo genera el Monitor según el rol.
 
-   Acceso: admin, admin_auditor, auditor, sistemas y viewer (viewer en SOLO CONSULTA).
+   Acceso: admin, admin_auditor, auditor, sistemas y viewer (viewer en SOLO CONSULTA) y
+   activos_vehiculos (SOLO CONSULTA y únicamente la categoría Vehículos; lo impone la base de datos).
    Depende de: js/app-core.js (_sb, _session, VIEW, setView, applyVistasRestriction, doLogout). */
 (function () {
   'use strict';
 
   var AUTH_KEY = 'kuroda-activos-auth'; /* sesión de Supabase Auth de la app de activos */
-  var ROLES = ['admin', 'admin_auditor', 'auditor', 'sistemas', 'viewer'];
+  var ROLES = ['admin', 'admin_auditor', 'auditor', 'sistemas', 'viewer', 'activos_vehiculos'];
+  var soloVeh = function () { return typeof _session !== 'undefined' && _session && _session.rol === 'activos_vehiculos'; };
   var $ = function (id) { return document.getElementById(id); };
   var puedeVer = function () { return typeof _session !== 'undefined' && _session && ROLES.indexOf(_session.rol) >= 0; };
   var oscuro = function () { return document.documentElement.getAttribute('data-theme') === 'dark'; };
@@ -131,7 +133,8 @@
     if (typeof window.setView === 'function' && !window.setView._act) {
       var sv = window.setView;
       window.setView = function (v) {
-        if (v === 'activos' && !puedeVer()) v = 'documentos';
+        if (soloVeh()) v = 'activos'; /* único módulo de este rol */
+        else if (v === 'activos' && !puedeVer()) v = 'documentos';
         var r = sv.apply(this, [v].concat([].slice.call(arguments, 1)));
         mostrarVista(v === 'activos');
         return r;
@@ -148,6 +151,7 @@
         var r = avr.apply(this, arguments);
         if (enAct) { VIEW = 'activos'; if (!puedeVer()) setView('dash'); }
         actualizarMenu();
+        if (soloVeh() && VIEW !== 'activos') setView('activos');
         /* Tras entrar, Activos se va cargando oculto para que al dar clic ya esté listo. */
         setTimeout(precargar, 2500);
         return r;
