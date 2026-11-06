@@ -127,6 +127,11 @@
     '@keyframes act-ambar{0%,60%{background-color:rgba(245,158,11,.38)}}' +
     E + '.act-resalta{outline:2px solid #f59e0b;outline-offset:-2px;animation:act-ambar 4.5s ease-out}' +
     E + 'tr.act-resalta>td{animation:act-ambar 4.5s ease-out}' +
+    /* Rol "Activos · Vehículos" (usuarios2.puesto = VEHICULOS): solo el directorio de activos, sin menú,
+       y la categoría fija en Vehículos. La base de datos ya solo le entrega vehículos (RLS
+       activos_solo_vehiculos); esto solo evita pantallas vacías o controles que no le corresponden. */
+    'html.act-solo-veh .sidebar{display:none!important}' +
+    'html.act-solo-veh #filtro-categoria-activo{display:none!important}' +
     /* Solo consulta (viewer del Monitor): sin controles que crean, modifican o borran. La base de
        datos también lo impide (RLS es_editor_activos), esto solo evita botones que fallarían. */
     [ '[onclick^="resetAssetForm"]', '#btnNuevoLevantamiento', '[onclick^="finalizarInventario"]', '[onclick^="cancelarInventario"]',
@@ -234,8 +239,17 @@
       var perfil = await cargarPerfilActual();
       if (!perfil || !perfil.activo) throw new Error('Tu usuario no tiene acceso a Inventarios de activos');
       document.documentElement.classList.toggle('act-solo-lectura', perfil.role === 'viewer');
+      var soloVeh = perfil.role === 'viewer' && perfil.puesto === 'VEHICULOS';
+      document.documentElement.classList.toggle('act-solo-veh', soloVeh);
       currentUser = perfilAAppUser(perfil);
       await showDashboard();
+      if (soloVeh) {
+        /* Directo al directorio de activos, filtrado a Vehículos (todas las tiendas). */
+        var navAct = document.querySelector('.nav-item[onclick^="switchTab(\'activos\'"]');
+        if (typeof switchTab === 'function') switchTab('activos', navAct);
+        var fc = document.getElementById('filtro-categoria-activo');
+        if (fc) { fc.value = 'vehiculos'; if (typeof filtrarActivos === 'function') filtrarActivos(); }
+      }
       if (perfil.role === 'viewer') {
         var sr = document.getElementById('session-rol'); if (sr) sr.textContent = 'Consulta';
       }
