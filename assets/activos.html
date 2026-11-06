@@ -2733,9 +2733,13 @@
             try {
                 do {
                     _pendiente = false;
-                    const denegadas = (await Promise.all([
-                        sincronizarTabla('centros', centros.map(centroARow)),
-                        sincronizarTabla('activos', assets.map(assetARow)),
+                    /* Orden: primero centros y activos, y hasta que terminan se guardan los registros que
+                       dependen de ellos (movimientos.activo_id → activos.id). Antes iban todos a la vez
+                       y, al dar de alta un activo, su movimiento "alta" podía llegar antes que el activo
+                       y la base lo rechazaba (error 409 de llave foránea). */
+                    const prim = await sincronizarTabla('centros', centros.map(centroARow));
+                    const segu = await sincronizarTabla('activos', assets.map(assetARow));
+                    const denegadas = [prim, segu].concat(await Promise.all([
                         sincronizarTabla('movimientos', movimientos.map(movARow), true),
                         sincronizarTabla('inventarios', inventarios.map(invARow))
                     ])).reduce((a, b) => a + b, 0);
