@@ -117,14 +117,16 @@ textarea{resize:vertical;min-height:46px}
 @media print{
   body > *:not(#print-preview){display:none!important}
   #print-preview{display:block!important;font-family:Tahoma,Geneva,Verdana,sans-serif;font-size:10pt;color:#000;margin:0;padding:0}
+  /* margin:0 evita que el navegador imprima URL y fecha; los márgenes los da cada documento */
   @page{size:letter;margin:0}
+  html,body{margin:0;padding:0;background:#fff!important}
   .pp-page{page-break-after:always;padding:1.5cm;box-sizing:border-box}
   .pp-page:last-child{page-break-after:avoid}
   .pp-p{margin:0 0 5pt 0;font-size:10pt;text-align:justify;line-height:1.3}
   .pp-pi{margin:0 0 3pt 28pt;font-size:10pt;text-align:justify;line-height:1.3}
   .pp-pc{margin:0 0 3pt 0;font-size:10pt;text-align:center}
-  .pp-firma-table{width:100%;border-collapse:collapse;font-size:10pt;margin-top:40pt}
-  .pp-firma-td{width:45%;text-align:center;border-top:1pt solid #000;padding-top:4pt}
+  .pp-firma-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:10pt;margin-top:40pt;page-break-inside:avoid}
+  .pp-firma-td{width:45%;text-align:center;vertical-align:top;overflow-wrap:anywhere;border-top:1pt solid #000;padding-top:4pt}
   .pp-firma-td2{width:10%}
 }
 </style>
@@ -298,6 +300,8 @@ textarea{resize:vertical;min-height:46px}
       <div><label>Entrega — puesto</label><input id="f_entp" placeholder="Ej. Coordinadora Administrativa"></div>
       <div><label>Recibe — nombre</label><input id="f_recn" placeholder="Ej. Ana Ramírez Soto"></div>
       <div><label>Recibe — puesto</label><input id="f_recp" placeholder="Ej. Enc. Administrativa"></div>
+      <div><label>Quien entrega es</label><select id="f_entg"><option value="">Selecciona…</option><option value="F">Mujer (la C.)</option><option value="M">Hombre (el C.)</option></select></div>
+      <div><label>Quien recibe es</label><select id="f_recg"><option value="">Selecciona…</option><option value="F">Mujer (la C.)</option><option value="M">Hombre (el C.)</option></select></div>
     </div></div>
   </div>
 
@@ -324,6 +328,8 @@ textarea{resize:vertical;min-height:46px}
       <div><label>Entrega — puesto</label><input id="e_entp" placeholder="Ej. Enc. Administrativa"></div>
       <div><label>Recibe — nombre</label><input id="e_recn" placeholder="Ej. Ana Ramírez Soto"></div>
       <div><label>Recibe — puesto</label><input id="e_recp" placeholder="Ej. Enc. Administrativa"></div>
+      <div><label>Quien entrega es</label><select id="e_entg"><option value="">Selecciona…</option><option value="F">Mujer (la C.)</option><option value="M">Hombre (el C.)</option></select></div>
+      <div><label>Quien recibe es</label><select id="e_recg"><option value="">Selecciona…</option><option value="F">Mujer (la C.)</option><option value="M">Hombre (el C.)</option></select></div>
     </div></div>
   </div>
 
@@ -449,7 +455,7 @@ textarea{resize:vertical;min-height:46px}
       <div><label>Marca</label><input id="pc_marca" placeholder="Ej. DELL"></div>
       <div><label>Modelo</label><input id="pc_modelo" placeholder="Ej. LATITUDE 3520"></div>
       <div><label>No. de serie</label><input id="pc_serie" placeholder="Ej. FZ9WBL3"></div>
-      <div class="span2"><label>Características</label><textarea id="pc_carac" placeholder="Ej. INTEL CORE i5-1135 2.4 ghz, MEMORIA RAM 16 GB, DISCO DURO SSD 256 GB, GRAFICOS INTEGRADOS, PANTALLA 15.6&quot;, CAMARA, LAN100M/1000M RED INALAMBRICA, WINDOWS 11 PRO, TECLADO NUMERICO ESPAÑOL, LECTOR SD-MS/PRO-MMC, COLOR INTERIOR Y EXTERIOR GRIS OSCURO, CARGADOR ORIGINAL."></textarea></div>
+      <div class="span2"><label>Características</label><textarea id="pc_carac" placeholder="Ej. INTEL CORE i5-1135 2.4 ghz, MEMORIA RAM 16 GB, DISCO DURO SSD 256 GB, GRÁFICOS INTEGRADOS, PANTALLA 15.6&quot;, CÁMARA, LAN100M/1000M RED INALÁMBRICA, WINDOWS 11 PRO, TECLADO NUMÉRICO ESPAÑOL, LECTOR SD-MS/PRO-MMC, COLOR INTERIOR Y EXTERIOR GRIS OSCURO, CARGADOR ORIGINAL."></textarea></div>
     </div></div>
   </div>
 
@@ -733,7 +739,7 @@ function numLetra(num,moneda){
     var s='',c=Math.floor(x/100);x=x%100;
     if(c) s+=C[c]+(x?' ':'');
     if(x<=20) s+=U[x];
-    else if(x<30) s+=(x===20?'VEINTE':'VEINTI'+U[x-20]);
+    else if(x<30) s+=['VEINTIÚN','VEINTIDÓS','VEINTITRÉS','VEINTICUATRO','VEINTICINCO','VEINTISÉIS','VEINTISIETE','VEINTIOCHO','VEINTINUEVE'][x-21];
     else{var d=Math.floor(x/10),u=x%10;s+=D[d]+(u?' Y '+U[u]:'');}
     return s.trim();
   }
@@ -748,6 +754,7 @@ function numLetra(num,moneda){
   }
   var esUsd=(moneda==='usd');
   var unidad=esUsd?(ent===1?' DÓLAR ':' DÓLARES '):(ent===1?' PESO ':' PESOS ');
+  if(ent>0&&ent%1000000===0) unidad=' DE'+unidad; /* "un millón de pesos" */
   var suf=esUsd?'/100':'/100 M.N.';
   var s=out+unidad+String(cent).padStart(2,'0')+suf;
   /* Sentence case, conservando M.N. */
@@ -759,13 +766,15 @@ function fLetra(){var m=v('f_monto');document.getElementById('f_letra').value=(m
 
 /* ═══════════ FONDOS ═══════════ */
 function fonData(){
+  if(faltaTrato(['f_entg','f_recg'],'f_status')) return null;
   var ciudad=v('f_ciudad'), monto=money(v('f_monto')), letra=v('f_letra')||numLetra(v('f_monto'),v('f_moneda')||'mxn');
   return {
     ciudad:ciudad, ciudadCorta:ciudad.split(',')[0].trim(),
     fecha:fechaLarga(v('f_fecha')), razon:v('f_razon'),
     monto:monto, letra:letra, concepto:v('f_concepto'),
     tienda:v('f_tienda'), dom:v('f_dom'),
-    entn:v('f_entn'), entp:v('f_entp'), recn:v('f_recn'), recp:v('f_recp')
+    entn:v('f_entn'), entp:v('f_entp'), recn:v('f_recn'), recp:v('f_recp'),
+    entg:trato('f_entg'), recg:trato('f_recg')
   };
 }
 function fonCuerpoParts(d){
@@ -774,9 +783,9 @@ function fonCuerpoParts(d){
     {t:'$'+d.monto,b:true},
     {t:' ('+d.letra+') propiedad de la razón social '},
     {t:d.razon,b:true},
-    {t:', por parte de la '+d.entp+' '},
+    {t:', por parte '+frase(d.entg.de,d.entp)+' '},
     {t:d.entn,b:true},
-    {t:' a la '+d.recp+' '},
+    {t:' '+frase(d.recg.a,d.recp)+' '},
     {t:d.recn,b:true},
     {t:', quien acepta tener bajo su custodia, dentro de las instalaciones de '+d.tienda+' ubicadas en '+d.dom+', de la ciudad de '+d.ciudadCorta+', un fondo por '},
     {t:'$'+d.monto,b:true},
@@ -784,48 +793,49 @@ function fonCuerpoParts(d){
   ];
 }
 function fonPDF(){
-  var d=fonData();
+  var d=fonData(); if(!d) return;
   function bH(parts){return parts.map(function(s){return s.b?'<b>'+esc(s.t)+'</b>':esc(s.t);}).join('');}
-  var h='<div style="min-height:27cm;display:flex;flex-direction:column;justify-content:center;padding:1.5cm;box-sizing:border-box">'
-   +'<div style="font-family:\'Times New Roman\',Times,serif;font-size:12pt;max-width:680px;margin:0 auto;padding:0 30px;line-height:1.6;color:#000;text-align:justify">'
-   +'<p style="text-align:right">'+esc(d.ciudad)+' a '+esc(d.fecha)+'.</p>'
-   +'<p style="margin:22px 0 14px"><b>A QUIEN CORRESPONDA:</b></p>'
-   +'<p>'+bH(fonCuerpoParts(d))+'</p>'
-   +'<p style="margin-top:14px">Asimismo, acepto manejarlo de acuerdo con las políticas de la empresa.</p>'
-   +'<table style="width:100%;margin-top:70px;text-align:center;font-size:12pt"><tr>'
-   +'<td style="width:50%"><b>Entregó Fondos</b><div style="border-top:1px solid #000;width:80%;margin:8px auto 0;padding-top:5px"><b>'+esc(d.entn)+'</b><br><b>'+esc(d.entp)+'</b></div></td>'
-   +'<td style="width:50%"><b>Recibió Fondos</b><div style="border-top:1px solid #000;width:80%;margin:8px auto 0;padding-top:5px"><b>'+esc(d.recn)+'</b><br><b>'+esc(d.recp)+'</b></div></td>'
-   +'</tr></table></div></div>';
+  function firma(rol,n,p){return '<td style="width:50%;vertical-align:top"><b>'+esc(rol)+'</b><div style="border-top:1px solid #000;width:80%;margin:6pt auto 0;padding-top:5px"><b>'+esc(n)+'</b><br><b>'+esc(p)+'</b></div></td>';}
+  /* Misma posición que el Word: el texto arranca a 6 cm y un nombre largo solo agrega renglones hacia abajo. */
+  var h='<div style="padding:6cm 2.5cm 1.5cm;font-family:\'Times New Roman\',Times,serif;font-size:12pt;line-height:1.6;color:#000;text-align:justify">'
+   +'<p style="text-align:right;margin:0 0 13pt">'+esc(d.ciudad)+' a '+esc(d.fecha)+'.</p>'
+   +'<p style="margin:0 0 10pt"><b>A QUIEN CORRESPONDA:</b></p>'
+   +'<p style="margin:0 0 10pt">'+bH(fonCuerpoParts(d))+'</p>'
+   +'<p style="margin:0">Asimismo, acepto manejarlo de acuerdo con las políticas de la empresa.</p>'
+   +'<table style="width:100%;table-layout:fixed;overflow-wrap:anywhere;margin-top:45pt;text-align:center;font-size:12pt;page-break-inside:avoid"><tr>'
+   +firma('Entregó Fondos',d.entn,d.entp)
+   +firma('Recibió Fondos',d.recn,d.recp)
+   +'</tr></table></div>';
   imprimir(h);
 }
 function fonDocx(){withDocx(function(){
-  var d=fonData();
+  var d=fonData(); if(!d) return;
   var D=docx, A=D.AlignmentType;
   function tr(t,b){return new D.TextRun({text:t,bold:!!b,font:'Times New Roman',size:24});}
-  function P(children,opts){opts=opts||{};return new D.Paragraph({alignment:opts.align,spacing:{after:opts.after||0,before:opts.before||0},children:Array.isArray(children)?children:[children]});}
+  function P(children,opts){opts=opts||{};return new D.Paragraph({alignment:opts.align,spacing:{after:opts.after||0,before:opts.before||0,line:336},children:Array.isArray(children)?children:[children]});}
   var cuerpo=fonCuerpoParts(d).map(function(s){return tr(s.t,s.b);});
-  var vAlign=(D.VerticalAlignType?D.VerticalAlignType.CENTER:'center');
-  var doc=new D.Document({sections:[{properties:{page:{margin:{top:1200,bottom:1200,left:1400,right:1400}},verticalAlign:vAlign},children:[
+  var doc=new D.Document({sections:[{properties:{page:{size:HOJA_CARTA,margin:{top:3402,bottom:850,left:1418,right:1418}}},children:[
     P(tr(d.ciudad+' a '+d.fecha+'.'),{align:A.RIGHT,after:260}),
     P(tr('A QUIEN CORRESPONDA:',true),{align:A.LEFT,after:200}),
     P(cuerpo,{align:A.JUSTIFIED,after:200}),
     P(tr('Asimismo, acepto manejarlo de acuerdo con las políticas de la empresa.'),{align:A.JUSTIFIED,after:900}),
-    new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},borders:sinBordes(),rows:[new D.TableRow({children:[
-      celdaFirmaFondo(d.entn,d.entp,'Entregó Fondos'),
-      celdaFirmaFondo(d.recn,d.recp,'Recibió Fondos')
-    ]})]})
+    tablaFija([4702,4702],[new D.TableRow({cantSplit:true,children:[
+      celdaFirmaFondo(d.entn,d.entp,'Entregó Fondos',4702),
+      celdaFirmaFondo(d.recn,d.recp,'Recibió Fondos',4702)
+    ]})],{borders:sinBordes()})
   ]}]});
   bajar(doc,'Carta_Responsiva_Fondo_'+(d.tienda||'Documento').replace(/\s+/g,'_')+'.docx','f_status');
 },'f_status');}
-function celdaFirmaFondo(nombre,puesto,rol){
+function celdaFirmaFondo(nombre,puesto,rol,ancho){
   var D=docx,A=D.AlignmentType;
   function r(t){return new D.TextRun({text:t,bold:true,font:'Times New Roman',size:24});}
+  var sangria={left:350,right:350};
   var kids=[
     new D.Paragraph({alignment:A.CENTER,children:[r(rol)]}),
-    new D.Paragraph({alignment:A.CENTER,border:{top:{style:D.BorderStyle.SINGLE,size:6,color:'000000',space:2}},spacing:{before:120},children:[r(nombre)]}),
-    new D.Paragraph({alignment:A.CENTER,children:[r(puesto)]})
+    new D.Paragraph({alignment:A.CENTER,indent:sangria,border:{top:{style:D.BorderStyle.SINGLE,size:6,color:'000000',space:2}},spacing:{before:120},children:[r(nombre)]}),
+    new D.Paragraph({alignment:A.CENTER,indent:sangria,children:[r(puesto)]})
   ];
-  return new D.TableCell({margins:{top:80,bottom:80,left:120,right:120},children:kids});
+  return new D.TableCell({width:{size:ancho,type:D.WidthType.DXA},margins:{top:80,bottom:80,left:120,right:120},children:kids});
 }
 
 /* ═══════════ CELULAR ═══════════ */
@@ -843,13 +853,13 @@ function celData(){
 var CEL_CLAUSULAS=[
   'El colaborador se compromete al cuidado del equipo para un buen funcionamiento, en caso de daño o maltrato, el empleado deberá cubrir la reparación total del mismo y/o adquirir un equipo de características iguales.',
   'El Colaborador se compromete a NO instalar aplicaciones adicionales en el equipo celular sin contar previamente con la validación y autorización de TI, conforme a lo establecido en las Políticas de Equipos de Telefonía Celular.',
-  'La contratación y/o asignación de las líneas será por medio del dpto. de sistemas, en base a la solicitud que realice el Gerente de la sucursal o responsable del Área por escrito; justificando el beneficio que obtiene la empresa al adquirir esta línea.',
+  'La contratación y/o asignación de las líneas será por medio del dpto. de sistemas, con base en la solicitud que realice el Gerente de la sucursal o responsable del Área por escrito; justificando el beneficio que obtiene la empresa al adquirir esta línea.',
   'La empresa en todo momento es propietaria de la línea y equipo, definiendo la libre asignación entre su personal.',
-  'El plan y equipo es asignado en base a la función y uso del usuario final.',
+  'El plan y equipo es asignado con base en la función y uso del usuario final.',
   'Al concluir la vigencia del contrato y/o en caso de separación del empleado de la empresa, el equipo se deberá entregar al representante del dpto. de Sistemas de la empresa, salvo que exista una cesión previamente autorizada por la Coordinadora Administrativa.',
-  'Para el personal de ventas que no sean de calle, choferes y personal de almacén, el equipo quedará en resguardo en la sucursal al término de la jornada de trabajo, en ningún momento se podrán llevar el equipo celular. Cuando se cubran vacaciones el gerente deberá notificarlo al dpto. de sistemas para asignar una responsiva por los días que estarán cubriendo por el equipo.',
-  'Es responsabilidad del usuario contar con datos necesarios para desempeñar su trabajo, si se acaba los datos del plan por usar aplicaciones no autorizadas (YouTube, Facebook, Twitter, etc.), deberá agregar paquete de datos haciendo el depósito correspondiente por su cuenta.',
-  'El equipo tiene un año de garantía por defectos de fábrica, si el equipo empieza a fallar y aun cuenta con garantía es responsabilidad del usuario final llevarlo a revisión a cualquier centro atención Telcel presentándose y dando su número de línea corporativa.'
+  'Para el personal de ventas que no sea de calle, choferes y personal de almacén, el equipo quedará en resguardo en la sucursal al término de la jornada de trabajo, en ningún momento podrá llevarse el equipo celular. Cuando se cubran vacaciones el gerente deberá notificarlo al dpto. de sistemas para asignar una responsiva por los días que estarán cubriendo por el equipo.',
+  'Es responsabilidad del usuario contar con datos necesarios para desempeñar su trabajo, si se acaban los datos del plan por usar aplicaciones no autorizadas (YouTube, Facebook, Twitter, etc.), deberá agregar paquete de datos haciendo el depósito correspondiente por su cuenta.',
+  'El equipo tiene un año de garantía por defectos de fábrica, si el equipo empieza a fallar y aún cuenta con garantía es responsabilidad del usuario final llevarlo a revisión a cualquier centro de atención Telcel presentándose y dando su número de línea corporativa.'
 ];
 var CEL_ROBO_A='El empleado deberá notificar a su jefe inmediato y a la representación del dpto. de sistemas de la empresa y presentar una denuncia por robo. Este equipo deberá reponerse a la brevedad por uno de características iguales o similares, el cual Dirección Administrativa decidirá la reposición del equipo por parte de la empresa.';
 var CEL_ROBO_B='En caso de robo o extravío del equipo, el Colaborador deberá cubrir el porcentaje del valor de factura que corresponda, de acuerdo con la antigüedad del equipo, conforme a la siguiente tabla:';
@@ -857,10 +867,10 @@ var CEL_ROBO_TABLA=[['Hasta 6 meses','100%'],['Más de 6 meses y hasta 12 meses'
 
 /* sz (opcional): tamaño de letra en medios puntos; la carta de celular usa uno menor para
    caber en una hoja. Sin sz queda igual que antes (10 pt). */
-function firmaBloque(label,nombre,puesto,sz){
+function firmaBloque(label,nombre,puesto,sz,ancho){
   var D=docx,A=D.AlignmentType;
   function r(t,b){return new D.TextRun({text:t||'',bold:!!b,font:'Tahoma',size:sz||20});}
-  return new D.TableCell({width:{size:45,type:D.WidthType.PERCENTAGE},margins:{top:80,bottom:80,left:120,right:120},children:[
+  return new D.TableCell({width:{size:ancho,type:D.WidthType.DXA},margins:{top:80,bottom:80,left:120,right:120},children:[
     new D.Paragraph({alignment:A.CENTER,children:[r(label,true)]}),
     new D.Paragraph({alignment:A.CENTER,spacing:{before:sz?420:500},border:{top:{style:D.BorderStyle.SINGLE,size:6,color:'000000',space:2}},children:[r(nombre)]}),
     new D.Paragraph({alignment:A.CENTER,children:[r(puesto)]})
@@ -871,12 +881,12 @@ function firmaBloque(label,nombre,puesto,sz){
    letra de 8.5–9 pt, poco espacio entre párrafos y la tabla de robo/extravío en horizontal. */
 function celPDF(){
   var d=celData();
-  var P='style="text-align:justify;font-size:9.3pt;margin:0 0 3pt 0;line-height:1.28"';
-  var PI='style="text-align:justify;font-size:9.3pt;margin:0 0 3pt 14pt;line-height:1.28"';
+  var P='style="text-align:justify;font-size:9pt;margin:0 0 3pt 0;line-height:1.25"';
+  var PI='style="text-align:justify;font-size:9pt;margin:0 0 3pt 14pt;line-height:1.25"';
   var TH='style="border:1px solid #000;background:#eee;padding:2pt 3pt;font-size:8.2pt"';
   var TD='style="border:1px solid #000;padding:2pt 3pt;font-size:8.8pt;text-align:center"';
   function tbl(headers,vals){
-    return '<table style="width:100%;border-collapse:collapse;margin:2pt 0 5pt">'+
+    return '<table style="width:100%;table-layout:fixed;overflow-wrap:anywhere;border-collapse:collapse;margin:2pt 0 5pt">'+
       '<tr>'+headers.map(function(h){return '<th '+TH+'>'+esc(h)+'</th>';}).join('')+'</tr>'+
       '<tr>'+vals.map(function(x){return '<td '+TD+'>'+esc(x)+'</td>';}).join('')+'</tr>'+
     '</table>';
@@ -891,7 +901,7 @@ function celPDF(){
   items+='<table style="width:90%;margin:1pt 0 4pt 14pt;border-collapse:collapse"><tr><th '+TH.replace('padding:2pt 3pt','padding:1pt 3pt')+'>Tiempo del equipo</th><th '+TH.replace('padding:2pt 3pt','padding:1pt 3pt')+'>% del valor de factura</th></tr>'+
     CEL_ROBO_TABLA.map(function(r){return '<tr><td '+TR+'>'+esc(r[0])+'</td><td '+TR+'>'+esc(r[1])+'</td></tr>';}).join('')+'</table>';
   CEL_CLAUSULAS.slice(5).forEach(function(t){items+='<p '+P+'>'+n+'. '+esc(t)+'</p>';n++;});
-  var FT='style="width:45%;text-align:center;border-top:1pt solid #000;padding-top:3pt;font-size:9.3pt"';
+  var FT='style="width:45%;text-align:center;vertical-align:top;border-top:1pt solid #000;padding-top:3pt;font-size:9.3pt"';
   var h='<div class="pp-page" style="font-family:Tahoma,Geneva,sans-serif;padding:1.1cm 1.3cm">'+
     '<p style="text-align:center;font-weight:bold;font-size:12pt;margin:0 0 6pt">CARTA RESPONSIVA</p>'+
     '<p '+P+'>Se entrega el equipo que ampara el presente documento por parte de la empresa <b>'+esc(d.empresa)+'</b> en calidad de resguardo, para uso exclusivo del empleado como una herramienta de trabajo, con las siguientes características:</p>'+
@@ -901,7 +911,7 @@ function celPDF(){
     tbl(['Marca','Modelo','IMEI','Incluye cargador','Valor del equipo','Estado'],[d.marca,d.modelo,d.imei,d.cargador,'$'+d.valor,d.estado])+
     '<p style="border:1px solid #000;padding:3pt 4pt;font-size:8.5pt;margin:0 0 6pt"><b>Observaciones:</b> '+esc(d.obs)+'</p>'+
     items+
-    '<table style="width:100%;border-collapse:collapse;margin-top:40pt;page-break-inside:avoid"><tr>'+
+    '<table style="width:100%;table-layout:fixed;overflow-wrap:anywhere;border-collapse:collapse;margin-top:32pt;page-break-inside:avoid"><tr>'+
       '<td '+FT+'><b>Recibió</b><br>'+esc(d.recn)+'<br>'+esc(d.recp)+'</td>'+
       '<td style="width:10%"></td>'+
       '<td '+FT+'><b>Validó</b><br>'+esc(d.valn)+'<br>'+esc(d.valp)+'</td>'+
@@ -916,13 +926,14 @@ function celDocx(){withDocx(function(){
   function tr(t,b,sz){return new D.TextRun({text:t,bold:!!b,font:'Tahoma',size:sz||19});}
   function P(runs,opts){opts=opts||{};return new D.Paragraph({alignment:opts.align||A.JUSTIFIED,spacing:{after:opts.after!=null?opts.after:50,before:opts.before||0,line:240},indent:opts.indent,children:Array.isArray(runs)?runs:[runs]});}
   var M={top:30,bottom:30,left:60,right:60};
-  function thCell(t){return new D.TableCell({shading:{fill:'F0F0F0'},margins:M,children:[new D.Paragraph({alignment:A.CENTER,children:[tr(t,true,16)]})]});}
-  function tdCell(t){return new D.TableCell({margins:M,children:[new D.Paragraph({alignment:A.CENTER,children:[tr(String(t),false,17)]})]});}
+  var C6=[1794,1794,1793,1793,1793,1793];
+  function thCell(t,i){return new D.TableCell({width:{size:C6[i],type:D.WidthType.DXA},shading:{fill:'F0F0F0'},margins:M,children:[new D.Paragraph({alignment:A.CENTER,children:[tr(t,true,16)]})]});}
+  function tdCell(t,i){return new D.TableCell({width:{size:C6[i],type:D.WidthType.DXA},margins:M,children:[new D.Paragraph({alignment:A.CENTER,children:[tr(String(t),false,17)]})]});}
   function tabla(headers,vals){
-    return new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},rows:[
+    return tablaFija(C6,[
       new D.TableRow({children:headers.map(thCell)}),
       new D.TableRow({children:vals.map(tdCell)})
-    ]});
+    ]);
   }
   var body=[];
   body.push(new D.Paragraph({alignment:A.CENTER,spacing:{after:100},children:[tr('CARTA RESPONSIVA',true,24)]}));
@@ -945,11 +956,11 @@ function celDocx(){withDocx(function(){
   body.push(new D.Paragraph({spacing:{before:60}}));
   CEL_CLAUSULAS.slice(5).forEach(function(t){body.push(P([tr(n+'. '+t)]));n++;});
   body.push(new D.Paragraph({spacing:{before:120}}));
-  body.push(new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},borders:sinBordes(),rows:[new D.TableRow({cantSplit:true,children:[
-    firmaBloque('Recibió',d.recn,d.recp,19),
-    firmaBloque('Validó',d.valn,d.valp,19)
-  ]})]}));
-  var doc=new D.Document({sections:[{properties:{page:{size:{width:12240,height:15840},margin:{top:620,bottom:620,left:740,right:740}}},children:body}]});
+  body.push(tablaFija([5380,5380],[new D.TableRow({cantSplit:true,children:[
+    firmaBloque('Recibió',d.recn,d.recp,19,5380),
+    firmaBloque('Validó',d.valn,d.valp,19,5380)
+  ]})],{borders:sinBordes()}));
+  var doc=new D.Document({sections:[{properties:{page:{size:HOJA_CARTA,margin:{top:620,bottom:620,left:740,right:740}}},children:body}]});
   bajar(doc,'Carta_Responsiva_Celular_'+(d.recn||'Documento').replace(/\s+/g,'_')+'.docx','cel_status');
 },'cel_status');}
 
@@ -969,24 +980,27 @@ var PC_ACUERDOS=[
   'Por ningún motivo deberá ser usado por personas ajenas a la empresa.',
   'Está estrictamente prohibido cambiar la configuración del equipo por parte del empleado.',
   'Deberá contener exclusivamente las aplicaciones que la empresa instaló para el desempeño de la labor del empleado.',
-  'En caso de que el usuario instale cualquier aplicación es expresamente responsable por el mal funcionamiento del equipo, como de cualquier proceso legal que derive ésta instalación por el uso de programas sin licencias.',
+  'En caso de que el usuario instale cualquier aplicación es expresamente responsable por el mal funcionamiento del equipo, como de cualquier proceso legal que derive de esta instalación por el uso de programas sin licencias.',
   'El mantenimiento preventivo y correctivo del equipo se realizará exclusivamente por personal de sistemas de la empresa.',
-  'En caso de robo o extravío del equipo por parte del empleado, deberá notificar al contralor y encargado se sistemas de la empresa. Este equipo se cobrará conforme a su valor en libros (en base a la política de equipo de cómputo) y en el supuesto que se encuentra totalmente depreciado, se cobrará el 20% del valor original de compra.',
+  'En caso de robo o extravío del equipo por parte del empleado, deberá notificar al contralor y encargado de sistemas de la empresa. Este equipo se cobrará conforme a su valor en libros (con base en la política de equipo de cómputo) y en el supuesto de que se encuentre totalmente depreciado, se cobrará el 20% del valor original de compra.',
   'En caso de separación del trabajador de la empresa, éste deberá entregar en tiempo y forma el equipo en resguardo a la empresa.'
 ];
+/* Anchos de columna (twips) compartidos por el PDF y el Word: no dependen del contenido. */
+var PC_T1=[1600,1400,1600,1500,4438], PC_T2=[1900,4438,1900,2300];
 function pcPDF(){
   var d=pcData();
-  var P='style="text-align:justify;font-size:10pt;margin:0 0 6pt 0;line-height:1.35"';
-  var tabla1='<table style="width:100%;border-collapse:collapse;margin:6pt 0 10pt;font-size:9pt">'+
+  /* Va en una sola hoja carta incluso con nombres largos: letra de 9.5 pt y poco espacio. */
+  var P='style="text-align:justify;font-size:9.5pt;margin:0 0 4pt 0;line-height:1.25"';
+  var tabla1='<table style="width:100%;table-layout:fixed;overflow-wrap:anywhere;border-collapse:collapse;margin:6pt 0 10pt;font-size:9pt">'+colsHTML(PC_T1)+
     '<tr><th style="border:1px solid #000;background:#eee;padding:4pt">Descripción</th><th style="border:1px solid #000;background:#eee;padding:4pt">Marca</th><th style="border:1px solid #000;background:#eee;padding:4pt">Modelo</th><th style="border:1px solid #000;background:#eee;padding:4pt">No. Serie</th><th style="border:1px solid #000;background:#eee;padding:4pt">Características</th></tr>'+
     '<tr><td style="border:1px solid #000;padding:4pt;text-align:center">'+esc(d.desc)+'</td><td style="border:1px solid #000;padding:4pt;text-align:center">'+esc(d.marca)+'</td><td style="border:1px solid #000;padding:4pt;text-align:center">'+esc(d.modelo)+'</td><td style="border:1px solid #000;padding:4pt;text-align:center">'+esc(d.serie)+'</td><td style="border:1px solid #000;padding:4pt">'+esc(d.carac)+'</td></tr>'+
   '</table>';
-  var tabla2='<table style="width:100%;border-collapse:collapse;margin:0 0 10pt;font-size:9pt">'+
+  var tabla2='<table style="width:100%;table-layout:fixed;overflow-wrap:anywhere;border-collapse:collapse;margin:0 0 10pt;font-size:9pt">'+colsHTML(PC_T2)+
     '<tr><th style="border:1px solid #000;background:#eee;padding:4pt">Fecha de compra</th><th style="border:1px solid #000;background:#eee;padding:4pt">Proveedor</th><th style="border:1px solid #000;background:#eee;padding:4pt">No. factura</th><th style="border:1px solid #000;background:#eee;padding:4pt">Costo</th></tr>'+
     '<tr><td style="border:1px solid #000;padding:4pt;text-align:center">'+esc(d.fcompra)+'</td><td style="border:1px solid #000;padding:4pt;text-align:center">'+esc(d.prov)+'</td><td style="border:1px solid #000;padding:4pt;text-align:center">'+esc(d.factura)+'</td><td style="border:1px solid #000;padding:4pt;text-align:center">'+esc(d.costo)+'</td></tr>'+
   '</table>';
-  var acuerdos='<ul style="margin:4pt 0 10pt;padding-left:18pt;font-size:10pt;line-height:1.4">'+
-    PC_ACUERDOS.map(function(t){return '<li style="margin-bottom:4pt">'+esc(t)+'</li>';}).join('')+'</ul>';
+  var acuerdos='<ul style="margin:2pt 0 6pt;padding-left:18pt;font-size:9.5pt;line-height:1.25">'+
+    PC_ACUERDOS.map(function(t){return '<li style="margin-bottom:2pt">'+esc(t)+'</li>';}).join('')+'</ul>';
   var h='<div class="pp-page" style="font-family:Tahoma,Geneva,sans-serif">'+
     '<p style="text-align:center;font-weight:bold;font-size:13pt;margin:0 0 10pt">CARTA RESPONSIVA</p>'+
     '<p '+P+'>Se entrega el equipo que ampara el presente documento por parte de la empresa <b>'+esc(d.empresa)+'</b> en calidad de resguardo para uso exclusivo del empleado, como una herramienta de trabajo.</p>'+
@@ -996,49 +1010,47 @@ function pcPDF(){
     '<p '+P+'>Se acuerda con el empleado que el equipo:</p>'+
     acuerdos+
     '<p '+P+'>Recibo el equipo descrito anteriormente en buen funcionamiento y acepto los términos de los acuerdos en '+esc(d.ciudad)+' a '+esc(d.fecha)+'.</p>'+
-    '<table class="pp-firma-table" style="margin-top:44pt"><tr><td class="pp-firma-td" style="width:100%">'+esc(d.nombre)+'<br>'+esc(d.puesto)+'</td></tr></table>'+
-    '<table class="pp-firma-table" style="margin-top:30pt"><tr>'+
+    '<table class="pp-firma-table" style="width:60%;margin:30pt auto 0"><tr><td class="pp-firma-td" style="width:100%">'+esc(d.nombre)+'<br>'+esc(d.puesto)+'</td></tr></table>'+
+    '<table class="pp-firma-table" style="margin-top:26pt"><tr>'+
       '<td class="pp-firma-td">Testigo<br>'+esc(d.test1)+'</td>'+
       '<td class="pp-firma-td2"></td>'+
       '<td class="pp-firma-td">Testigo<br>'+esc(d.test2)+'</td>'+
     '</tr></table>'+
-    '<p style="font-size:8.5pt;font-style:italic;margin-top:20pt">Fundamento: Art. 134 frac. VI Ley Federal del Trabajo. Conservar en buen estado los útiles de trabajo.</p>'+
+    '<p style="font-size:8.5pt;font-style:italic;margin-top:10pt;text-align:right">Fundamento: Art. 134 frac. VI Ley Federal del Trabajo. Conservar en buen estado los útiles de trabajo.</p>'+
   '</div>';
   imprimir(h);
 }
 function pcDocx(){withDocx(function(){
   var d=pcData();
   var D=docx,A=D.AlignmentType;
-  function tr(t,b,sz,i){return new D.TextRun({text:t,bold:!!b,italics:!!i,font:'Tahoma',size:sz||20});}
-  function P(runs,opts){opts=opts||{};return new D.Paragraph({alignment:opts.align||A.JUSTIFIED,spacing:{after:opts.after!=null?opts.after:120,before:opts.before||0},children:Array.isArray(runs)?runs:[runs]});}
-  function thCell(t){return new D.TableCell({shading:{fill:'F0F0F0'},margins:{top:60,bottom:60,left:80,right:80},children:[new D.Paragraph({alignment:A.CENTER,children:[tr(t,true,15)]})]});}
-  function tdCell(t){return new D.TableCell({margins:{top:60,bottom:60,left:80,right:80},children:[new D.Paragraph({alignment:A.CENTER,children:[tr(String(t||''),false,15)]})]});}
+  function tr(t,b,sz,i){return new D.TextRun({text:t,bold:!!b,italics:!!i,font:'Tahoma',size:sz||19});}
+  function P(runs,opts){opts=opts||{};return new D.Paragraph({alignment:opts.align||A.JUSTIFIED,spacing:{after:opts.after!=null?opts.after:80,before:opts.before||0},children:Array.isArray(runs)?runs:[runs]});}
+  function thCell(t,w){return new D.TableCell({width:{size:w,type:D.WidthType.DXA},shading:{fill:'F0F0F0'},margins:{top:60,bottom:60,left:80,right:80},children:[new D.Paragraph({alignment:A.CENTER,children:[tr(t,true,18)]})]});}
+  function tdCell(t,w){return new D.TableCell({width:{size:w,type:D.WidthType.DXA},margins:{top:60,bottom:60,left:80,right:80},children:[new D.Paragraph({alignment:A.CENTER,children:[tr(String(t||''),false,18)]})]});}
+  function filas(anchos,headers,vals){return [
+    new D.TableRow({children:headers.map(function(t,i){return thCell(t,anchos[i]);})}),
+    new D.TableRow({children:vals.map(function(t,i){return tdCell(t,anchos[i]);})})
+  ];}
   var body=[];
   body.push(new D.Paragraph({alignment:A.CENTER,spacing:{after:200},children:[tr('CARTA RESPONSIVA',true,26)]}));
   body.push(P([tr('Se entrega el equipo que ampara el presente documento por parte de la empresa '),tr(d.empresa,true),tr(' en calidad de resguardo para uso exclusivo del empleado, como una herramienta de trabajo.')]));
   body.push(P([tr('El equipo que a continuación se detalla se encuentra en óptimas condiciones de uso y con el software requerido por el empleado para realizar su función.')],{after:160}));
-  body.push(new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},rows:[
-    new D.TableRow({children:[thCell('Descripción'),thCell('Marca'),thCell('Modelo'),thCell('No. Serie'),thCell('Características')]}),
-    new D.TableRow({children:[tdCell(d.desc),tdCell(d.marca),tdCell(d.modelo),tdCell(d.serie),tdCell(d.carac)]})
-  ]}));
+  body.push(tablaFija(PC_T1,filas(PC_T1,['Descripción','Marca','Modelo','No. Serie','Características'],[d.desc,d.marca,d.modelo,d.serie,d.carac])));
   body.push(new D.Paragraph({spacing:{before:120,after:160},children:[]}));
-  body.push(new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},rows:[
-    new D.TableRow({children:[thCell('Fecha de compra'),thCell('Proveedor'),thCell('No. factura'),thCell('Costo')]}),
-    new D.TableRow({children:[tdCell(d.fcompra),tdCell(d.prov),tdCell(d.factura),tdCell(d.costo)]})
-  ]}));
+  body.push(tablaFija(PC_T2,filas(PC_T2,['Fecha de compra','Proveedor','No. factura','Costo'],[d.fcompra,d.prov,d.factura,d.costo])));
   body.push(new D.Paragraph({spacing:{before:200}}));
   body.push(P([tr('El empleado se compromete al cuidado de cada uno de los componentes del equipo para un buen funcionamiento, para los que fueron confinados; evitando el mal funcionamiento y daños al equipo.')]));
   body.push(P([tr('Se acuerda con el empleado que el equipo:')],{after:60}));
-  PC_ACUERDOS.forEach(function(t){body.push(P([tr('•  '+t)],{after:70}));});
-  body.push(P([tr('Recibo el equipo descrito anteriormente en buen funcionamiento y acepto los términos de los acuerdos en '+d.ciudad+' a '+d.fecha+'.')],{before:120,after:600}));
-  body.push(new D.Table({width:{size:60,type:D.WidthType.PERCENTAGE},borders:sinBordes(),rows:[new D.TableRow({children:[celdaFirma(d.nombre,d.puesto,'')]})]}));
-  body.push(new D.Paragraph({spacing:{before:500,after:80},children:[]}));
-  body.push(new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},borders:sinBordes(),rows:[new D.TableRow({children:[
-    celdaFirma(d.test1,'','Testigo'),
-    celdaFirma(d.test2,'','Testigo')
-  ]})]}));
-  body.push(new D.Paragraph({alignment:A.RIGHT,spacing:{before:400},children:[tr('Fundamento: Art. 134 frac. VI Ley Federal del Trabajo. Conservar en buen estado los útiles de trabajo.',false,15,true)]}));
-  var doc=new D.Document({sections:[{properties:{page:{margin:{top:1000,bottom:1000,left:1200,right:1200}}},children:body}]});
+  PC_ACUERDOS.forEach(function(t){body.push(P([tr('•  '+t)],{after:40}));});
+  body.push(P([tr('Recibo el equipo descrito anteriormente en buen funcionamiento y acepto los términos de los acuerdos en '+d.ciudad+' a '+d.fecha+'.')],{before:80,after:560}));
+  body.push(tablaFija([6322],[new D.TableRow({cantSplit:true,children:[celdaFirma(d.nombre,d.puesto,'',6322,'Tahoma')]})],{borders:sinBordes(),alignment:A.CENTER}));
+  body.push(new D.Paragraph({spacing:{before:260,after:40},children:[]}));
+  body.push(tablaFija([5269,5269],[new D.TableRow({cantSplit:true,children:[
+    celdaFirma(d.test1,'','Testigo',5269,'Tahoma'),
+    celdaFirma(d.test2,'','Testigo',5269,'Tahoma')
+  ]})],{borders:sinBordes()}));
+  body.push(new D.Paragraph({alignment:A.RIGHT,spacing:{before:200},children:[tr('Fundamento: Art. 134 frac. VI Ley Federal del Trabajo. Conservar en buen estado los útiles de trabajo.',false,15,true)]}));
+  var doc=new D.Document({sections:[{properties:{page:{size:HOJA_CARTA,margin:{top:851,bottom:851,left:851,right:851}}},children:body}]});
   bajar(doc,'Carta_Responsiva_Computo_'+(d.nombre||'Documento').replace(/\s+/g,'_')+'.docx','pc_status');
 },'pc_status');}
 
@@ -1095,8 +1107,10 @@ function entCcObs(){
   return 'arroj\u00f3 una diferencia faltante de $'+money(-c.diff)+' pesos';
 }
 function entData(){
+  if(faltaTrato(['e_entg','e_recg'],'e_status')) return null;
   var f=leerFacturas();
   return {
+    entg:trato('e_entg'), recg:trato('e_recg'),
     fecha:fechaLarga(v('e_fecha')), ciudad:v('e_ciudad'), tienda:v('e_tienda'),
     razon:v('e_razon'), dom:v('e_dom'),
     entn:v('e_entn'), entp:v('e_entp'), recn:v('e_recn'), recp:v('e_recp'),
@@ -1109,14 +1123,16 @@ function entData(){
   };
 }
 function entIntro(d){
-  return 'Siendo el día '+d.fecha+' en la ciudad de '+d.ciudad+', se da inicio al acta de entrega de administración de la tienda identificada como "'+d.tienda+'", perteneciente a la razón social de '+d.razon+', ubicada en '+d.dom+'. En este acto, quien entrega es la '+d.entp+' '+d.entn+' y quien recibe es la '+d.recp+' '+d.recn+'.';
+  return 'Siendo el día '+d.fecha+' en la ciudad de '+d.ciudad+', se da inicio al acta de entrega de administración de la tienda identificada como "'+d.tienda+'", perteneciente a la razón social de '+d.razon+', ubicada en '+d.dom+'. En este acto, quien entrega es '+frase(d.entg.art,d.entp,d.entn)+' y quien recibe es '+frase(d.recg.art,d.recp,d.recn)+'.';
 }
+/* Anchos de la tabla de facturas (twips), iguales en PDF y Word. */
+var ENT_T=[1300,1500,2800,2900,1340];
 function entPDF(){
-  var d=entData();
+  var d=entData(); if(!d) return;
   var ded=d.fact.filter(function(r){return !r[5];}), nod=d.fact.filter(function(r){return r[5];});
   var bd='border:1px solid #000;padding:4px';
   function fila(r){return '<tr><td style="'+bd+'">'+esc(r[0])+'</td><td style="'+bd+'">'+esc(r[1])+'</td><td style="'+bd+'">'+esc(r[2])+'</td><td style="'+bd+'">'+esc(r[3])+'</td><td style="'+bd+';text-align:right">'+money(r[4])+'</td></tr>';}
-  var tbl='<table style="width:100%;border-collapse:collapse;font-size:10pt;margin-top:8px"><thead><tr>'
+  var tbl='<table style="width:100%;table-layout:fixed;overflow-wrap:anywhere;border-collapse:collapse;font-size:10pt;margin-top:8px">'+colsHTML(ENT_T)+'<thead><tr>'
     +'<th style="'+bd+';background:#f2f2f2">Fecha</th><th style="'+bd+';background:#f2f2f2">Factura</th>'
     +'<th style="'+bd+';background:#f2f2f2">Nombre</th><th style="'+bd+';background:#f2f2f2">Concepto</th>'
     +'<th style="'+bd+';background:#f2f2f2">Importe</th></tr></thead><tbody>';
@@ -1130,23 +1146,23 @@ function entPDF(){
   if(d.useRevd)secs+=sec('FONDO REVOLVENTE EN DÓLARES')+'<p style="text-align:justify">Se entrega el fondo revolvente en dólares por <b>$'+d.revd+'</b>, el cual '+esc(d.revdobs)+'.</p>';
   if(d.useCc)secs+=sec('FONDO DE CAJA CHICA')
     +'<p style="text-align:justify">Se entrega el fondo de caja chica por <b>$'+d.cc+'</b>, el cual '+esc(d.ccobs)+'.</p>'
-    +'<p style="text-align:justify;margin-top:8px">Al momento de realizar el arqueo al fondo de caja chica se consideró la cantidad en efectivo de <b>$'+d.efe+'</b>, así como las facturas que a continuación se relacionan y las cuales están pendientes de rembolsar:</p>'
+    +'<p style="text-align:justify;margin-top:8px">Al momento de realizar el arqueo al fondo de caja chica se consideró la cantidad en efectivo de <b>$'+d.efe+'</b>, así como las facturas que a continuación se relacionan y las cuales están pendientes de reembolsar:</p>'
     +tbl
-    +'<p style="text-align:justify;margin-top:10px">Estos fondos fueron entregados por la C. '+esc(d.entn)+' y quien recibe es la C. '+esc(d.recn)+'.</p>';
-  var h='<div style="font-family:Arial,Helvetica,sans-serif;font-size:11pt;max-width:700px;margin:0 auto;padding:1.5cm 30px;line-height:1.5;color:#000">'
+    +'<p style="text-align:justify;margin-top:10px">Estos fondos fueron entregados por '+d.entg.art+' C. '+esc(d.entn)+' y quien recibe es '+d.recg.art+' C. '+esc(d.recn)+'.</p>';
+  var FIRMAS='<table style="width:100%;table-layout:fixed;overflow-wrap:anywhere;margin-top:40px;text-align:center;font-size:10pt;page-break-inside:avoid"><tr>';
+  var TD_F='<td style="width:50%;vertical-align:top">';
+  var h='<div style="font-family:Arial,Helvetica,sans-serif;font-size:10pt;line-height:1.5;color:#000">'
    +'<h2 style="text-align:center;font-size:12pt;margin-bottom:4px">'+esc(d.razon)+'</h2>'
    +'<h3 style="text-align:center;font-size:12pt;margin-bottom:16px">ACTA DE ENTREGA – RECEPCIÓN ADMINISTRACIÓN</h3>'
    +'<p style="text-align:justify">'+esc(entIntro(d))+'</p>'
-   +'<p style="text-align:justify;margin-top:10px"><b><i>Corte de fondos a responsabilidad de la C. '+esc(d.entn)+'.</i></b></p>'
+   +'<p style="text-align:justify;margin-top:10px"><b><i>Corte de fondos a responsabilidad '+d.entg.de+' C. '+esc(d.entn)+'.</i></b></p>'
    +secs
-   +'<p style="text-align:justify;margin-top:16px">Se concluye la presente acta objeto del proceso entrega - recepción de administración de la tienda "'+esc(d.tienda)+'" identificada por la empresa <b>'+esc(d.razon)+'</b> el día '+esc(d.fecha)+' en la ciudad de '+esc(d.ciudad)+'.</p>'
-   +'<table style="width:100%;margin-top:40px;text-align:center;font-size:11pt"><tr>'
-   +'<td>'+firmaHTML(d.entn,d.entp,'ENTREGA')+'</td><td>'+firmaHTML(d.recn,d.recp,'RECIBE')+'</td></tr></table>'
-   +'<p style="text-align:center;font-weight:bold;margin-top:34px">TESTIGOS</p>'
-   +'<table style="width:100%;margin-top:40px;text-align:center;font-size:11pt"><tr>'
-   +'<td>'+firmaHTML(d.t1n,d.t1p,'')+'</td><td>'+firmaHTML(d.t2n,d.t2p,'')+'</td></tr></table>'
+   +'<p style="text-align:justify;margin-top:16px">Se concluye la presente acta objeto del proceso de entrega-recepción de administración de la tienda "'+esc(d.tienda)+'" identificada por la empresa <b>'+esc(d.razon)+'</b> el día '+esc(d.fecha)+' en la ciudad de '+esc(d.ciudad)+'.</p>'
+   +FIRMAS+TD_F+firmaHTML(d.entn,d.entp,'ENTREGA')+'</td>'+TD_F+firmaHTML(d.recn,d.recp,'RECIBE')+'</td></tr></table>'
+   +'<div style="page-break-inside:avoid"><p style="text-align:center;font-weight:bold;margin-top:34px">TESTIGOS</p>'
+   +FIRMAS+TD_F+firmaHTML(d.t1n,d.t1p,'')+'</td>'+TD_F+firmaHTML(d.t2n,d.t2p,'')+'</td></tr></table></div>'
    +'</div>';
-  imprimir(h);
+  imprimir(hojaImpresion(h,'1.76cm','1.76cm','2.12cm'));
 }
 function firmaHTML(n,p,rol){
   return '<div style="border-top:1px solid #000;width:78%;margin:0 auto;padding-top:5px">'
@@ -1154,58 +1170,102 @@ function firmaHTML(n,p,rol){
     +esc(n)+'<br>'+esc(p)+'</div>';
 }
 function entDocx(){withDocx(function(){
-  var d=entData();
+  var d=entData(); if(!d) return;
   var D=docx, A=D.AlignmentType;
   function runs(text,it){
     var parts=text.split('**'),arr=[];
     for(var i=0;i<parts.length;i++){if(parts[i]!=='')arr.push(new D.TextRun({text:parts[i],bold:(i%2===1),italics:!!it,font:'Arial',size:20}));}
     return arr.length?arr:[new D.TextRun({text:'',font:'Arial',size:20})];
   }
-  function P(text,opts){opts=opts||{};return new D.Paragraph({alignment:opts.align,spacing:{after:(opts.after==null?120:opts.after),before:opts.before||0},children:runs(text,opts.it)});}
+  function P(text,opts){opts=opts||{};return new D.Paragraph({alignment:opts.align,spacing:{after:(opts.after==null?120:opts.after),before:opts.before||0,line:312},children:runs(text,opts.it)});}
   function head(t){return new D.Paragraph({alignment:A.LEFT,spacing:{before:180,after:80},children:[new D.TextRun({text:t,bold:true,italics:true,font:'Arial',size:22})]});}
   var ded=d.fact.filter(function(r){return !r[5];}), nod=d.fact.filter(function(r){return r[5];});
-  function th(t){return new D.TableCell({shading:{fill:'F2F2F2'},children:[new D.Paragraph({alignment:A.CENTER,children:[new D.TextRun({text:t,bold:true,size:19,font:'Arial'})]})]});}
-  function td(t,al){return new D.TableCell({children:[new D.Paragraph({alignment:al||A.LEFT,children:[new D.TextRun({text:t,size:19,font:'Arial'})]})]});}
-  var rows=[new D.TableRow({tableHeader:true,children:[th('Fecha'),th('Factura'),th('Nombre'),th('Concepto'),th('Importe')]})];
-  ded.forEach(function(r){rows.push(new D.TableRow({children:[td(r[0]),td(r[1]),td(r[2]),td(r[3]),td(money(r[4]),A.RIGHT)]}));});
+  function anchoCelda(w){return {size:w,type:D.WidthType.DXA};}
+  function th(t,i){return new D.TableCell({width:anchoCelda(ENT_T[i]),shading:{fill:'F2F2F2'},children:[new D.Paragraph({alignment:A.CENTER,children:[new D.TextRun({text:t,bold:true,size:20,font:'Arial'})]})]});}
+  function td(t,i,al){return new D.TableCell({width:anchoCelda(ENT_T[i]),children:[new D.Paragraph({alignment:al||A.LEFT,children:[new D.TextRun({text:t,size:20,font:'Arial'})]})]});}
+  function filaF(r){return new D.TableRow({cantSplit:true,children:[td(r[0],0),td(r[1],1),td(r[2],2),td(r[3],3),td(money(r[4]),4,A.RIGHT)]});}
+  var rows=[new D.TableRow({tableHeader:true,children:['Fecha','Factura','Nombre','Concepto','Importe'].map(th)})];
+  ded.forEach(function(r){rows.push(filaF(r));});
   if(nod.length){
-    rows.push(new D.TableRow({children:[new D.TableCell({columnSpan:5,shading:{fill:'F2F2F2'},children:[new D.Paragraph({alignment:A.CENTER,children:[new D.TextRun({text:'NO DEDUCIBLE',bold:true,size:19,font:'Arial'})]})]})]}));
-    nod.forEach(function(r){rows.push(new D.TableRow({children:[td(r[0]),td(r[1]),td(r[2]),td(r[3]),td(money(r[4]),A.RIGHT)]}));});
+    rows.push(new D.TableRow({children:[new D.TableCell({columnSpan:5,width:anchoCelda(9840),shading:{fill:'F2F2F2'},children:[new D.Paragraph({alignment:A.CENTER,children:[new D.TextRun({text:'NO DEDUCIBLE',bold:true,size:19,font:'Arial'})]})]})]}));
+    nod.forEach(function(r){rows.push(filaF(r));});
   }
-  rows.push(new D.TableRow({children:[new D.TableCell({columnSpan:4,children:[new D.Paragraph({alignment:A.RIGHT,children:[new D.TextRun({text:'TOTAL',bold:true,size:19,font:'Arial'})]})]}),td(money(d.total),A.RIGHT)]}));
+  rows.push(new D.TableRow({children:[new D.TableCell({columnSpan:4,width:anchoCelda(8500),children:[new D.Paragraph({alignment:A.RIGHT,children:[new D.TextRun({text:'TOTAL',bold:true,size:20,font:'Arial'})]})]}),td(money(d.total),4,A.RIGHT)]}));
 
   var body=[
     new D.Paragraph({alignment:A.CENTER,spacing:{after:40},children:[new D.TextRun({text:d.razon,bold:true,font:'Arial',size:22})]}),
     new D.Paragraph({alignment:A.CENTER,spacing:{after:220},children:[new D.TextRun({text:'ACTA DE ENTREGA – RECEPCIÓN ADMINISTRACIÓN',bold:true,font:'Arial',size:22})]}),
     P(entIntro(d),{align:A.JUSTIFIED,after:160}),
-    P('**Corte de fondos a responsabilidad de la C. '+d.entn+'.**',{after:120,it:true})
+    P('**Corte de fondos a responsabilidad '+d.entg.de+' C. '+d.entn+'.**',{after:120,it:true})
   ];
   if(d.useRev){body.push(head('FONDO REVOLVENTE'));body.push(P('Se entrega el fondo revolvente por **$'+d.rev+'**, el cual '+d.revobs+'.',{align:A.JUSTIFIED}));}
   if(d.useRevd){body.push(head('FONDO REVOLVENTE EN DÓLARES'));body.push(P('Se entrega el fondo revolvente en dólares por **$'+d.revd+'**, el cual '+d.revdobs+'.',{align:A.JUSTIFIED}));}
   if(d.useCc){
     body.push(head('FONDO DE CAJA CHICA'));
     body.push(P('Se entrega el fondo de caja chica por **$'+d.cc+'**, el cual '+d.ccobs+'.',{align:A.JUSTIFIED}));
-    body.push(P('Al momento de realizar el arqueo al fondo de caja chica se consideró la cantidad en efectivo de **$'+d.efe+'**, así como las facturas que a continuación se relacionan y las cuales están pendientes de rembolsar:',{align:A.JUSTIFIED,after:120}));
-    body.push(new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},rows:rows}));
-    body.push(P('Estos fondos fueron entregados por la C. '+d.entn+' y quien recibe es la C. '+d.recn+'.',{align:A.JUSTIFIED,before:120}));
+    body.push(P('Al momento de realizar el arqueo al fondo de caja chica se consideró la cantidad en efectivo de **$'+d.efe+'**, así como las facturas que a continuación se relacionan y las cuales están pendientes de reembolsar:',{align:A.JUSTIFIED,after:120}));
+    body.push(tablaFija(ENT_T,rows));
+    body.push(P('Estos fondos fueron entregados por '+d.entg.art+' C. '+d.entn+' y quien recibe es '+d.recg.art+' C. '+d.recn+'.',{align:A.JUSTIFIED,before:120}));
   }
-  body.push(P('Se concluye la presente acta objeto del proceso entrega - recepción de administración de la tienda "'+d.tienda+'" identificada por la empresa **'+d.razon+'** el día '+d.fecha+' en la ciudad de '+d.ciudad+'.',{align:A.JUSTIFIED,before:200,after:600}));
-  body.push(new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},borders:sinBordes(),rows:[new D.TableRow({children:[celdaFirma(d.entn,d.entp,'ENTREGA'),celdaFirma(d.recn,d.recp,'RECIBE')]})]}));
-  body.push(new D.Paragraph({alignment:A.CENTER,spacing:{before:500,after:500},children:[new D.TextRun({text:'TESTIGOS',bold:true,font:'Arial',size:20})]}));
-  body.push(new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},borders:sinBordes(),rows:[new D.TableRow({children:[celdaFirma(d.t1n,d.t1p,''),celdaFirma(d.t2n,d.t2p,'')]})]}));
+  body.push(P('Se concluye la presente acta objeto del proceso de entrega-recepción de administración de la tienda "'+d.tienda+'" identificada por la empresa **'+d.razon+'** el día '+d.fecha+' en la ciudad de '+d.ciudad+'.',{align:A.JUSTIFIED,before:200,after:600}));
+  function firmas(a,b){return tablaFija([4920,4920],[new D.TableRow({cantSplit:true,children:[a,b]})],{borders:sinBordes()});}
+  body.push(firmas(celdaFirma(d.entn,d.entp,'ENTREGA',4920),celdaFirma(d.recn,d.recp,'RECIBE',4920)));
+  body.push(new D.Paragraph({alignment:A.CENTER,keepNext:true,spacing:{before:500,after:500},children:[new D.TextRun({text:'TESTIGOS',bold:true,font:'Arial',size:20})]}));
+  body.push(firmas(celdaFirma(d.t1n,d.t1p,'',4920),celdaFirma(d.t2n,d.t2p,'',4920)));
 
-  var doc=new D.Document({sections:[{properties:{page:{margin:{top:1000,bottom:1000,left:1200,right:1200}}},children:body}]});
+  var doc=new D.Document({sections:[{properties:{page:{size:HOJA_CARTA,margin:{top:1000,bottom:1000,left:1200,right:1200}}},children:body}]});
   bajar(doc,'Acta_Entrega_Recepcion_'+(d.tienda||'Documento').replace(/\s+/g,'_')+'.docx','e_status');
 },'e_status');}
 
 /* ═══════════ HELPERS DOCX/PDF ═══════════ */
 function sinBordes(){var n={style:docx.BorderStyle.NONE,size:0,color:'FFFFFF'};return {top:n,bottom:n,left:n,right:n,insideHorizontal:n,insideVertical:n};}
-function celdaFirma(nombre,puesto,rol){
-  var D=docx,A=D.AlignmentType,kids=[];
-  kids.push(new D.Paragraph({alignment:A.CENTER,border:{top:{style:D.BorderStyle.SINGLE,size:6,color:'000000',space:2}},spacing:{before:60},children:[new D.TextRun({text:nombre,bold:true,font:'Arial',size:20})]}));
-  kids.push(new D.Paragraph({alignment:A.CENTER,children:[new D.TextRun({text:puesto,font:'Arial',size:20})]}));
-  if(rol) kids.push(new D.Paragraph({alignment:A.CENTER,children:[new D.TextRun({text:rol,italics:true,font:'Arial',size:20})]}));
-  return new D.TableCell({margins:{top:80,bottom:80,left:120,right:120},children:kids});
+/* Mismo orden que el PDF: línea de firma, rol, nombre y puesto. */
+function celdaFirma(nombre,puesto,rol,ancho,fuente){
+  var D=docx,A=D.AlignmentType,kids=[],f=fuente||'Arial',sangria={left:420,right:420};
+  function txt(t,b){return new D.TextRun({text:t,bold:!!b,font:f,size:20});}
+  var linea={top:{style:D.BorderStyle.SINGLE,size:6,color:'000000',space:2}};
+  if(rol){
+    kids.push(new D.Paragraph({alignment:A.CENTER,indent:sangria,border:linea,spacing:{before:60},children:[txt(rol,true)]}));
+    kids.push(new D.Paragraph({alignment:A.CENTER,indent:sangria,children:[txt(nombre)]}));
+  }else{
+    kids.push(new D.Paragraph({alignment:A.CENTER,indent:sangria,border:linea,spacing:{before:60},children:[txt(nombre)]}));
+  }
+  kids.push(new D.Paragraph({alignment:A.CENTER,indent:sangria,children:[txt(puesto)]}));
+  return new D.TableCell({width:{size:ancho,type:D.WidthType.DXA},margins:{top:80,bottom:80,left:120,right:120},children:kids});
+}
+/* Hoja carta explícita: sin esto la librería genera A4 y la impresión se desfasa. */
+var HOJA_CARTA={width:12240,height:15840};
+/* Tabla de Word con columnas fijas: un nombre largo hace crecer el renglón, no la columna. */
+function tablaFija(anchos,rows,extra){
+  var D=docx,total=anchos.reduce(function(a,b){return a+b;},0);
+  return new D.Table(Object.assign({width:{size:total,type:D.WidthType.DXA},columnWidths:anchos,layout:D.TableLayoutType.FIXED,rows:rows},extra||{}));
+}
+function colsHTML(anchos){
+  var total=anchos.reduce(function(a,b){return a+b;},0);
+  return '<colgroup>'+anchos.map(function(w){return '<col style="width:'+(w/total*100).toFixed(2)+'%">';}).join('')+'</colgroup>';
+}
+/* Margen arriba y abajo en TODAS las hojas de un documento largo, conservando @page margin:0
+   (con margen real en @page el navegador imprime la URL y la fecha). */
+function hojaImpresion(html,arriba,abajo,lados){
+  function hueco(h){return '<tr><td style="padding:0;border:0"><div style="height:'+h+'"></div></td></tr>';}
+  return '<table style="width:100%;border-collapse:collapse"><thead>'+hueco(arriba)+'</thead><tfoot>'+hueco(abajo)+'</tfoot>'+
+    '<tbody><tr><td style="padding:0 '+lados+';border:0">'+html+'</td></tr></tbody></table>';
+}
+/* Artículos según lo que se elija en el formulario (mujer / hombre). */
+function trato(id){var h=v(id)==='M';return {art:h?'el':'la',de:h?'del':'de la',a:h?'al':'a la'};}
+function frase(){return Array.prototype.filter.call(arguments,Boolean).join(' ');}
+function faltaTrato(ids,statusId){
+  var s=document.getElementById(statusId);
+  for(var i=0;i<ids.length;i++){
+    if(!v(ids[i])){
+      var el=document.getElementById(ids[i]);
+      if(s){s.className='status err';s.textContent='Selecciona si es mujer u hombre en: '+el.previousElementSibling.textContent+'.';}
+      el.focus();
+      return true;
+    }
+  }
+  if(s){s.className='status';s.textContent='';}
+  return false;
 }
 function st(id,msg){var e=document.getElementById(id);if(e)e.textContent=msg;}
 function withDocx(fn,statusId){
@@ -1235,10 +1295,10 @@ function imprimir(html){
 var tipoActual = 4;
 
 var TIPOS = {
-  1:{titulo:'TIPO 1',usoTexto:'El vehículo será utilizado como herramienta de trabajo y en cumplimiento exclusivo de las funciones propias del puesto, por lo tanto, la unidad solo será utilizada por "EL TRABAJADOR" única y exclusivamente para el trabajo más no para el uso personal; por ningún motivo el trabajador se llevará el automóvil a su domicilio, en horas inhábiles ni fines de semana, debiendo resguardarla después de su jornada de trabajo en el lugar asignado por la empresa. Así como también en el supuesto de que "EL TRABAJADOR" se encuentre de vacaciones o días festivos (Inhábiles), responsabilizándose "EL TRABAJADOR", de cualquier siniestro que le suceda a la unidad en las horas que "EL TRABAJADOR" la tenga a su cargo o bien bajo su resguardo.',infoUso:'📋 Tipo 1 — El vehículo NO puede llevarse a domicilio. Se resguarda en la empresa fuera del horario laboral, fines de semana y días festivos.',firmaDerechaLabel:'Quien autoriza',firmaDerecha:'ING. REINA TORRES LOPEZ',puestoD:'DIRECTORA ADMINISTRATIVA',mostrarPuestoT:true,mostrarFechas:false,mantenimiento:'tipo1'},
-  2:{titulo:'TIPO 2',usoTexto:'El vehículo será utilizado por el trabajador como herramienta de trabajo y en cumplimiento exclusivo de las funciones propias del puesto y dentro de su jornada laboral, por lo tanto, el trabajador queda facultado de resguardar la unidad en su domicilio particular de todos los días de la semana incluyendo fines de semana, excepto en los siguientes casos; El trabajador queda obligado a de dejar el vehículo en "LA EMPRESA" cuando "EL TRABAJADOR" se encuentre de vacaciones o días festivos (inhábiles), o bien cuando así se lo solicite su patronal, responsabilizándose "EL TRABAJADOR", de cualquier siniestro que le suceda a la unidad en las horas que "EL TRABAJADOR" la tenga a su cargo y/o bajo su resguardo.',infoUso:'📋 Tipo 2 — El trabajador puede resguardar el vehículo en su domicilio todos los días incluidos fines de semana, excepto vacaciones y días festivos.',firmaDerechaLabel:'Directora Administrativa',firmaDerecha:'ING. REINA TORRES LOPEZ',puestoD:'DIRECTORA ADMINISTRATIVA',mostrarPuestoT:true,mostrarFechas:false,mantenimiento:'std'},
+  1:{titulo:'TIPO 1',usoTexto:'El vehículo será utilizado como herramienta de trabajo y en cumplimiento exclusivo de las funciones propias del puesto, por lo tanto, la unidad solo será utilizada por "EL TRABAJADOR" única y exclusivamente para el trabajo, mas no para el uso personal; por ningún motivo el trabajador se llevará el automóvil a su domicilio, en horas inhábiles ni fines de semana, debiendo resguardarla después de su jornada de trabajo en el lugar asignado por la empresa. Así como también en el supuesto de que "EL TRABAJADOR" se encuentre de vacaciones o días festivos (inhábiles), responsabilizándose "EL TRABAJADOR", de cualquier siniestro que le suceda a la unidad en las horas que "EL TRABAJADOR" la tenga a su cargo o bien bajo su resguardo.',infoUso:'📋 Tipo 1 — El vehículo NO puede llevarse a domicilio. Se resguarda en la empresa fuera del horario laboral, fines de semana y días festivos.',firmaDerechaLabel:'Quien autoriza',firmaDerecha:'ING. REINA TORRES LÓPEZ',puestoD:'DIRECTORA ADMINISTRATIVA',mostrarPuestoT:true,mostrarFechas:false,mantenimiento:'tipo1'},
+  2:{titulo:'TIPO 2',usoTexto:'El vehículo será utilizado por el trabajador como herramienta de trabajo y en cumplimiento exclusivo de las funciones propias del puesto y dentro de su jornada laboral, por lo tanto, el trabajador queda facultado de resguardar la unidad en su domicilio particular todos los días de la semana incluyendo fines de semana, excepto en los siguientes casos; El trabajador queda obligado a dejar el vehículo en "LA EMPRESA" cuando "EL TRABAJADOR" se encuentre de vacaciones o días festivos (inhábiles), o bien cuando así se lo solicite su patronal, responsabilizándose "EL TRABAJADOR", de cualquier siniestro que le suceda a la unidad en las horas que "EL TRABAJADOR" la tenga a su cargo y/o bajo su resguardo.',infoUso:'📋 Tipo 2 — El trabajador puede resguardar el vehículo en su domicilio todos los días incluidos fines de semana, excepto vacaciones y días festivos.',firmaDerechaLabel:'Directora Administrativa',firmaDerecha:'ING. REINA TORRES LÓPEZ',puestoD:'DIRECTORA ADMINISTRATIVA',mostrarPuestoT:true,mostrarFechas:false,mantenimiento:'std'},
   3:{titulo:'TIPO 3',usoTexto:'El vehículo será utilizado como herramienta de trabajo y en cumplimiento exclusivo de las funciones propias del puesto, por lo tanto, la unidad solo será utilizada por "EL TRABAJADOR" en horas laborables y no laborales de todos los días, no incluyendo fines de semana, deberá dejar el vehículo en "LA EMPRESA" cuando "EL TRABAJADOR" se encuentre de vacaciones o días festivos, responsabilizándose "EL TRABAJADOR", de cualquier siniestro que le suceda a la unidad en las horas que "EL TRABAJADOR" la tenga a su cargo.',infoUso:'📋 Tipo 3 — Uso de lunes a viernes. El vehículo se deja en la empresa los fines de semana, vacaciones y días festivos.',firmaDerechaLabel:'Quien autoriza',firmaDerecha:'Lic. Jorge Humberto Ortiz Gómez',puestoD:'GERENTE REGIONAL',mostrarPuestoT:true,mostrarFechas:false,mantenimiento:'std'},
-  4:{titulo:'TIPO 4',usoTexto:'El vehículo será utilizado por el Trabajador como herramienta de trabajo, en cumplimiento exclusivo de las funciones propias del puesto, por lo tanto, la unidad será utilizada por "EL TRABAJADOR" en horas no laborables de todos los días incluyendo fines de semana, vacaciones y días festivos, responsabilizándose "EL TRABAJADOR", de cualquier siniestro que le suceda a la unidad en las horas que "EL TRABAJADOR" la tenga a su cargo y/o bajo su resguardo.',infoUso:'📋 Tipo 4 — Uso todos los días del año, incluyendo fines de semana, vacaciones y días festivos.',firmaDerechaLabel:'Directora Administrativa',firmaDerecha:'ING. REINA ISABEL TORRES LOPEZ',puestoD:'DIRECTORA ADMINISTRATIVA',mostrarPuestoT:true,mostrarFechas:false,mantenimiento:'std'},
+  4:{titulo:'TIPO 4',usoTexto:'El vehículo será utilizado por el Trabajador como herramienta de trabajo, en cumplimiento exclusivo de las funciones propias del puesto, por lo tanto, la unidad será utilizada por "EL TRABAJADOR" en horas no laborables de todos los días incluyendo fines de semana, vacaciones y días festivos, responsabilizándose "EL TRABAJADOR", de cualquier siniestro que le suceda a la unidad en las horas que "EL TRABAJADOR" la tenga a su cargo y/o bajo su resguardo.',infoUso:'📋 Tipo 4 — Uso todos los días del año, incluyendo fines de semana, vacaciones y días festivos.',firmaDerechaLabel:'Directora Administrativa',firmaDerecha:'ING. REINA ISABEL TORRES LÓPEZ',puestoD:'DIRECTORA ADMINISTRATIVA',mostrarPuestoT:true,mostrarFechas:false,mantenimiento:'std'},
   temporal:{titulo:'TEMPORAL',usoTexto:null,infoUso:'📋 Temporal — El vehículo se asigna por un período específico con fecha de inicio y fin.',firmaDerechaLabel:'Quien autoriza',firmaDerecha:'REINA TORRES',puestoD:'DIRECTORA ADMINISTRATIVA',mostrarPuestoT:false,mostrarFechas:true,mantenimiento:'std'}
 };
 
@@ -1323,7 +1383,7 @@ async function genVehDocx(){
     function pJi(runs){return new Paragraph({spacing:{before:0,after:60,line:276,lineRule:'auto'},alignment:AlignmentType.JUSTIFIED,indent:{left:560},children:Array.isArray(runs)?runs:[runs]});}
 
     var introText=(tipoActual==='temporal')
-      ?'En los apartados siguientes se reglamentan los aspectos relacionados con el cuidado y uso del vehículo como herramienta de trabajo, se le proporciona a "EL TRABAJADOR" '+d.nombre+' el cual se desempeña como '+d.puesto+' de las sucursales de '+d.sucursales+', el cual tiene a su cargo y desde este momento es totalmente responsable.'
+      ?'En los apartados siguientes se reglamentan los aspectos relacionados con el cuidado y uso del vehículo que, como herramienta de trabajo, se le proporciona a "EL TRABAJADOR" '+d.nombre+' el cual se desempeña como '+d.puesto+' de las sucursales de '+d.sucursales+', el cual tiene a su cargo y desde este momento es totalmente responsable.'
       :'En los apartados siguientes se reglamentan los aspectos relacionados con el cuidado y uso del vehículo que, como herramienta de trabajo, se le proporciona a "EL TRABAJADOR" '+d.nombre+', el cual se desempeña como '+d.puesto+' de la tienda '+d.sucursales+', el cual tiene a su cargo y desde este momento es totalmente responsable.';
 
     var usoDescTxt=(tipoActual==='temporal'||cfg.mostrarFechas)
@@ -1336,7 +1396,7 @@ async function genVehDocx(){
 
     var mantP2=(cfg.mantenimiento==='tipo1')
       ?pJ(normal('Acuerdan que, para el buen funcionamiento e imagen de la unidad motriz de referencia, esta podrá ser llevada, en una ocasión por mes, al servicio de lavado que la empresa autorice, con costo para la empresa, y únicamente por el usuario que se autoriza mediante el presente instrumento y siempre y cuando el vehículo lo requiera.'))
-      :pJ(normal('El usuario se obliga a efectuar, en todo momento, por su cuenta y costo, el lavado del vehículo en comento, y se compromete a mantenerlo siempre limpio y en condiciones óptimas de higiene; En caso de incumplimiento de este requisito el propietario del vehículo podrá en cualquier momento retirar la autorización de uso concedido en el presente instrumento. Asimismo, se acuerda que la empresa apoyará con el servicio de lavado al usuario autorizado, única y exclusivamente, cuando el vehículo haya sido objeto de un traslado foráneo, con fines estrictamente laborales a beneficio de la empresa y previo aviso.'));
+      :pJ(normal('El usuario se obliga a efectuar, en todo momento, por su cuenta y costo, el lavado del vehículo en comento, y se compromete a mantenerlo siempre limpio y en condiciones óptimas de higiene; en caso de incumplimiento de este requisito el propietario del vehículo podrá en cualquier momento retirar la autorización de uso concedida en el presente instrumento. Asimismo, se acuerda que la empresa apoyará con el servicio de lavado al usuario autorizado, única y exclusivamente, cuando el vehículo haya sido objeto de un traslado foráneo, con fines estrictamente laborales a beneficio de la empresa y previo aviso.'));
 
     var noBorder={top:{style:BorderStyle.NONE,size:0,color:'FFFFFF'},bottom:{style:BorderStyle.NONE,size:0,color:'FFFFFF'},left:{style:BorderStyle.NONE,size:0,color:'FFFFFF'},right:{style:BorderStyle.NONE,size:0,color:'FFFFFF'}};
     var topBorder={top:{style:BorderStyle.SINGLE,size:6,color:'000000'},bottom:{style:BorderStyle.NONE,size:0,color:'FFFFFF'},left:{style:BorderStyle.NONE,size:0,color:'FFFFFF'},right:{style:BorderStyle.NONE,size:0,color:'FFFFFF'}};
@@ -1345,19 +1405,19 @@ async function genVehDocx(){
       var rows=[new Paragraph({alignment:AlignmentType.CENTER,children:[bold(label)]})];
       if(name)rows.push(new Paragraph({alignment:AlignmentType.CENTER,spacing:{before:60},children:[normal(name)]}));
       if(puesto)rows.push(new Paragraph({alignment:AlignmentType.CENTER,children:[normal(puesto)]}));
-      return new TableCell({width:{size:45,type:WidthType.PERCENTAGE},borders:hasBorder?topBorder:noBorder,children:rows});
+      return new TableCell({width:{size:4742,type:WidthType.DXA},borders:hasBorder?topBorder:noBorder,children:rows});
     }
     function spacerCell(){
-      return new TableCell({width:{size:10,type:WidthType.PERCENTAGE},borders:noBorder,children:[new Paragraph('')]});
+      return new TableCell({width:{size:1054,type:WidthType.DXA},borders:noBorder,children:[new Paragraph('')]});
     }
 
-    var firmaTable=new Table({width:{size:100,type:WidthType.PERCENTAGE},rows:[
-      new TableRow({children:[
+    var firmaTable=tablaFija([4742,1054,4742],[
+      new TableRow({cantSplit:true,children:[
         firmaCell('EL TRABAJADOR',d.firmaT,cfg.mostrarPuestoT?d.puestoT:'',true),
         spacerCell(),
         firmaCell(d.labelDerecha,d.firmaD,cfg.mostrarPuestoT?d.puestoD:'',true)
       ]})
-    ]});
+    ]);
 
     // Encabezado: col izquierda vacía | col central empresa+título centrado | col derecha TIPO
     var ShadingType=docxLib.ShadingType||{CLEAR:'clear'};
@@ -1420,21 +1480,21 @@ async function genVehDocx(){
           new Paragraph({spacing:{after:80},children:[]}),
           pJ(normal(introText)),
           pJ(normal('El vehículo será asignado a "EL TRABAJADOR" exclusivamente como herramienta de trabajo, debiendo "EL TRABAJADOR" firmar de conformidad el presente documento y donde se describe el estado actual del vehículo y una vez recibido éste será responsabilidad de "EL TRABAJADOR", que deberá firmar la cédula de inventario vehicular.')),
-          pJ([bold('DESCRIPCIÓN DEL VEHÍCULO.- '),normal('MARCA '+d.marca+', TIPO '+d.tipo_v+', MODELO '+d.modelo+', COLOR '+d.color+', PLACAS '+d.placas+', No Serie '+d.serie+', en condiciones óptimas de funcionamiento tanto mecánicamente como de carrocería.')]),
+          pJ([bold('DESCRIPCIÓN DEL VEHÍCULO.- '),normal('MARCA '+d.marca+', TIPO '+d.tipo_v+', MODELO '+d.modelo+', COLOR '+d.color+', PLACAS '+d.placas+', No. de Serie '+d.serie+', en condiciones óptimas de funcionamiento tanto mecánicamente como de carrocería.')]),
           pJ(usoRuns),
           pJ(normal('Si el vehículo es utilizado para realizar actos de índole personal por el autorizado o cualquier persona a la que esta le haya permitido, sin autorización de la persona moral, su uso temporal y/o permanente ya sea dentro o fuera de su horario laboral, y el vehículo sufre algún siniestro que afecte materialmente en forma parcial o total el mismo, ya sea con motivo de su uso o estancia del mismo, y que los mismos no sean considerados por su uso normal a favor de la empresa, el autorizado será responsable al 100% de los costos de los daños generados y/o deducible correspondiente según sea el caso.')),
           pJ([bold('INFRACCIONES.- '),normal('Cuando se infrinja el Reglamento de Tránsito las multas serán pagadas de manera directa por "EL TRABAJADOR".')]),
           pJ([bold('ACCIDENTES.- '),normal('En caso de que "EL TRABAJADOR" se vea involucrado en un incidente o siniestro en donde el vehículo de "LA EMPRESA" que, como herramienta de trabajo tiene asignado, resulte dañado o se causen daños a terceras personas o bienes, el pago de dichos daños se llevará de acuerdo a lo siguiente:')]),
           pJi(normal('a) Si de acuerdo al peritaje que realice la compañía aseguradora o la autoridad correspondiente en el incidente o siniestro, "EL TRABAJADOR" no tuvo culpa alguna, "LA EMPRESA" absorberá el 100% del costo de los daños o deducible del seguro en su caso.')),
           pJi(normal('b) Si de acuerdo al peritaje que realice la compañía aseguradora o la autoridad correspondiente en el incidente o siniestro, "EL TRABAJADOR" tuvo culpa, deberá pagar por su cuenta el 100% de los daños ocasionados al vehículo o deducible del seguro en su caso.')),
-          pJi(normal('c) Si el empleado presta la unidad a persona ajena a la empresa, la responsabilidad de reparar los daños y costos que resulten (o deducible del seguro en su caso) será totalmente del empleado, aún así, que el operador de la unidad propiedad de la empresa no haya tenido la culpa en el accidente.')),
-          pJ([bold('LICENCIA DE MANEJO.- '),normal('En todos los supuestos anteriormente señalados, el conductor deberá contar con la licencia de conducir correspondiente (conductor o chofer) vigente, en el supuesto de que un trabajador incumpla en la anterior, este será responsable de cualquier daño ocasionado durante el tiempo en uso de la unidad. Asimismo, es facultad del director general suspender en forma permanente o temporal el uso del vehículo en caso de que se detecte que el conductor no cuente con licencia o que esta se encuentre vencida.')]),
+          pJi(normal('c) Si el empleado presta la unidad a persona ajena a la empresa, la responsabilidad de reparar los daños y costos que resulten (o deducible del seguro en su caso) será totalmente del empleado, aun cuando el operador de la unidad propiedad de la empresa no haya tenido la culpa en el accidente.')),
+          pJ([bold('LICENCIA DE MANEJO.- '),normal('En todos los supuestos anteriormente señalados, el conductor deberá contar con la licencia de conducir correspondiente (conductor o chofer) vigente, en el supuesto de que un trabajador incumpla lo anterior, este será responsable de cualquier daño ocasionado durante el tiempo en uso de la unidad. Asimismo, es facultad del director general suspender en forma permanente o temporal el uso del vehículo en caso de que se detecte que el conductor no cuente con licencia o que esta se encuentre vencida.')]),
 
           new Paragraph({spacing:{before:0,after:0},pageBreakBefore:true,children:[bold('MANTENIMIENTO VEHICULAR.- '),normal('Al recibir asignación del vehículo "EL TRABAJADOR" es responsable de checar de manera constante los siguientes puntos del vehículo:')]}),
           pJi(normal('1) Revisión de niveles: combustible, aceite, líquido de frenos y anticongelante.')),
           pJi(normal('2) Revisión de carrocería: sin rayones, funcional, etc.')),
-          pJi(normal('3) Revisión de funcionamiento: Sin problemas mecánicos')),
-          pJi([normal('4) Revisión de documentos: Tarjeta de circulación, placas (2) y engomados y '),bold('PÓLIZA DE SEGURO VIGENTE'),normal('.')]),
+          pJi(normal('3) Revisión de funcionamiento: sin problemas mecánicos.')),
+          pJi([normal('4) Revisión de documentos: tarjeta de circulación, placas (2) y engomados y '),bold('PÓLIZA DE SEGURO VIGENTE'),normal('.')]),
           pJ(normal('En caso de que "EL TRABAJADOR" se percate de que alguno de los puntos anteriores se encuentra en mal estado o tratándose de documentos, estos no estén en regla, deberá dar aviso inmediato a "LA EMPRESA", ya que de no hacerlo, "EL TRABAJADOR" será responsable de cualquier percance.')),
           mantP2,
           pJ([bold('DESCUENTOS DE SALARIOS PARA PAGO DE DAÑOS.- '),normal('En caso de que "LA EMPRESA" cubra alguna cantidad por concepto de reparación de daños y perjuicios y el siniestro hubiere sido imputable a "EL TRABAJADOR", éste autoriza de antemano que sea repetido a su cargo, mediante descuentos en la nómina, sin exceder el límite que al efecto establece la Ley Federal del Trabajo.')]),
@@ -1469,7 +1529,7 @@ function imprimirPDF(){
     var P='class="pp-p"', PC='class="pp-pc"', PI='class="pp-pi"';
 
     var introText=(tipoActual==='temporal')
-      ?'En los apartados siguientes se reglamentan los aspectos relacionados con el cuidado y uso del vehículo como herramienta de trabajo, se le proporciona a "EL TRABAJADOR" '+b(d.nombre)+' el cual se desempeña como '+b(d.puesto)+' de las sucursales de '+b(d.sucursales)+', el cual tiene a su cargo y desde este momento es totalmente responsable.'
+      ?'En los apartados siguientes se reglamentan los aspectos relacionados con el cuidado y uso del vehículo que, como herramienta de trabajo, se le proporciona a "EL TRABAJADOR" '+b(d.nombre)+' el cual se desempeña como '+b(d.puesto)+' de las sucursales de '+b(d.sucursales)+', el cual tiene a su cargo y desde este momento es totalmente responsable.'
       :'En los apartados siguientes se reglamentan los aspectos relacionados con el cuidado y uso del vehículo que, como herramienta de trabajo, se le proporciona a "EL TRABAJADOR" '+b(d.nombre)+', el cual se desempeña como '+b(d.puesto)+' de la tienda '+b(d.sucursales)+', el cual tiene a su cargo y desde este momento es totalmente responsable.';
 
     var usoDescTxtP=(tipoActual==='temporal'||cfg.mostrarFechas)
@@ -1482,7 +1542,7 @@ function imprimirPDF(){
 
     var mantText=(cfg.mantenimiento==='tipo1')
       ?'Acuerdan que, para el buen funcionamiento e imagen de la unidad motriz de referencia, esta podrá ser llevada, en una ocasión por mes, al servicio de lavado que la empresa autorice, con costo para la empresa, y únicamente por el usuario que se autoriza mediante el presente instrumento y siempre y cuando el vehículo lo requiera.'
-      :'El usuario se obliga a efectuar, en todo momento, por su cuenta y costo, el lavado del vehículo en comento, y se compromete a mantenerlo siempre limpio y en condiciones óptimas de higiene; En caso de incumplimiento de este requisito el propietario del vehículo podrá en cualquier momento retirar la autorización de uso concedido en el presente instrumento. Asimismo, se acuerda que la empresa apoyará con el servicio de lavado al usuario autorizado, única y exclusivamente, cuando el vehículo haya sido objeto de un traslado foráneo, con fines estrictamente laborales a beneficio de la empresa y previo aviso.';
+      :'El usuario se obliga a efectuar, en todo momento, por su cuenta y costo, el lavado del vehículo en comento, y se compromete a mantenerlo siempre limpio y en condiciones óptimas de higiene; en caso de incumplimiento de este requisito el propietario del vehículo podrá en cualquier momento retirar la autorización de uso concedida en el presente instrumento. Asimismo, se acuerda que la empresa apoyará con el servicio de lavado al usuario autorizado, única y exclusivamente, cuando el vehículo haya sido objeto de un traslado foráneo, con fines estrictamente laborales a beneficio de la empresa y previo aviso.';
 
     var html=
       '<div class="pp-page">'+
@@ -1501,22 +1561,22 @@ function imprimirPDF(){
         '<p style="margin:8pt 0 4pt 0;font-size:10pt;"> </p>'+
         '<p '+P+'>'+introText+'</p>'+
         '<p '+P+'>El vehículo será asignado a "EL TRABAJADOR" exclusivamente como herramienta de trabajo, debiendo "EL TRABAJADOR" firmar de conformidad el presente documento y donde se describe el estado actual del vehículo y una vez recibido éste será responsabilidad de "EL TRABAJADOR", que deberá firmar la cédula de inventario vehicular.</p>'+
-        '<p '+P+'>'+b('DESCRIPCIÓN DEL VEHÍCULO.- ')+' MARCA '+b(d.marca)+', TIPO '+b(d.tipo_v)+', MODELO '+b(d.modelo)+', COLOR '+b(d.color)+', PLACAS '+b(d.placas)+', No Serie '+b(d.serie)+', en condiciones óptimas de funcionamiento tanto mecánicamente como de carrocería.</p>'+
+        '<p '+P+'>'+b('DESCRIPCIÓN DEL VEHÍCULO.- ')+' MARCA '+b(d.marca)+', TIPO '+b(d.tipo_v)+', MODELO '+b(d.modelo)+', COLOR '+b(d.color)+', PLACAS '+b(d.placas)+', No. de Serie '+b(d.serie)+', en condiciones óptimas de funcionamiento tanto mecánicamente como de carrocería.</p>'+
         '<p '+P+'>'+usoText+'</p>'+
         '<p '+P+'>Si el vehículo es utilizado para realizar actos de índole personal por el autorizado o cualquier persona a la que esta le haya permitido, sin autorización de la persona moral, su uso temporal y/o permanente ya sea dentro o fuera de su horario laboral, y el vehículo sufre algún siniestro que afecte materialmente en forma parcial o total el mismo, ya sea con motivo de su uso o estancia del mismo, y que los mismos no sean considerados por su uso normal a favor de la empresa, el autorizado será responsable al 100% de los costos de los daños generados y/o deducible correspondiente según sea el caso.</p>'+
         '<p '+P+'>'+b('INFRACCIONES.- ')+' Cuando se infrinja el Reglamento de Tránsito las multas serán pagadas de manera directa por "EL TRABAJADOR".</p>'+
         '<p '+P+'>'+b('ACCIDENTES.- ')+' En caso de que "EL TRABAJADOR" se vea involucrado en un incidente o siniestro en donde el vehículo de "LA EMPRESA" que, como herramienta de trabajo tiene asignado, resulte dañado o se causen daños a terceras personas o bienes, el pago de dichos daños se llevará de acuerdo a lo siguiente:</p>'+
         '<p '+PI+'>a) Si de acuerdo al peritaje que realice la compañía aseguradora o la autoridad correspondiente en el incidente o siniestro, "EL TRABAJADOR" no tuvo culpa alguna, "LA EMPRESA" absorberá el 100% del costo de los daños o deducible del seguro en su caso.</p>'+
         '<p '+PI+'>b) Si de acuerdo al peritaje que realice la compañía aseguradora o la autoridad correspondiente en el incidente o siniestro, "EL TRABAJADOR" tuvo culpa, deberá pagar por su cuenta el 100% de los daños ocasionados al vehículo o deducible del seguro en su caso.</p>'+
-        '<p '+PI+'>c) Si el empleado presta la unidad a persona ajena a la empresa, la responsabilidad de reparar los daños y costos que resulten (o deducible del seguro en su caso) será totalmente del empleado, aún así, que el operador de la unidad propiedad de la empresa no haya tenido la culpa en el accidente.</p>'+
-        '<p '+P+'>'+b('LICENCIA DE MANEJO.- ')+' En todos los supuestos anteriormente señalados, el conductor deberá contar con la licencia de conducir correspondiente (conductor o chofer) vigente, en el supuesto de que un trabajador incumpla en la anterior, este será responsable de cualquier daño ocasionado durante el tiempo en uso de la unidad. Asimismo, es facultad del director general suspender en forma permanente o temporal el uso del vehículo en caso de que se detecte que el conductor no cuente con licencia o que esta se encuentre vencida.</p>'+
+        '<p '+PI+'>c) Si el empleado presta la unidad a persona ajena a la empresa, la responsabilidad de reparar los daños y costos que resulten (o deducible del seguro en su caso) será totalmente del empleado, aun cuando el operador de la unidad propiedad de la empresa no haya tenido la culpa en el accidente.</p>'+
+        '<p '+P+'>'+b('LICENCIA DE MANEJO.- ')+' En todos los supuestos anteriormente señalados, el conductor deberá contar con la licencia de conducir correspondiente (conductor o chofer) vigente, en el supuesto de que un trabajador incumpla lo anterior, este será responsable de cualquier daño ocasionado durante el tiempo en uso de la unidad. Asimismo, es facultad del director general suspender en forma permanente o temporal el uso del vehículo en caso de que se detecte que el conductor no cuente con licencia o que esta se encuentre vencida.</p>'+
       '</div>'+
       '<div class="pp-page">'+
         '<p '+P+'>'+b('MANTENIMIENTO VEHICULAR.- ')+' Al recibir asignación del vehículo "EL TRABAJADOR" es responsable de checar de manera constante los siguientes puntos del vehículo:</p>'+
         '<p '+PI+'>1) Revisión de niveles: combustible, aceite, líquido de frenos y anticongelante.</p>'+
         '<p '+PI+'>2) Revisión de carrocería: sin rayones, funcional, etc.</p>'+
-        '<p '+PI+'>3) Revisión de funcionamiento: Sin problemas mecánicos</p>'+
-        '<p '+PI+'>4) Revisión de documentos: Tarjeta de circulación, placas (2) y engomados y '+b('PÓLIZA DE SEGURO VIGENTE')+'.</p>'+
+        '<p '+PI+'>3) Revisión de funcionamiento: sin problemas mecánicos.</p>'+
+        '<p '+PI+'>4) Revisión de documentos: tarjeta de circulación, placas (2) y engomados y '+b('PÓLIZA DE SEGURO VIGENTE')+'.</p>'+
         '<p '+P+'>En caso de que "EL TRABAJADOR" se percate de que alguno de los puntos anteriores se encuentra en mal estado o tratándose de documentos, estos no estén en regla, deberá dar aviso inmediato a "LA EMPRESA", ya que de no hacerlo, "EL TRABAJADOR" será responsable de cualquier percance.</p>'+
         '<p '+P+'>'+mantText+'</p>'+
         '<p '+P+'>'+b('DESCUENTOS DE SALARIOS PARA PAGO DE DAÑOS.- ')+' En caso de que "LA EMPRESA" cubra alguna cantidad por concepto de reparación de daños y perjuicios y el siniestro hubiere sido imputable a "EL TRABAJADOR", éste autoriza de antemano que sea repetido a su cargo, mediante descuentos en la nómina, sin exceder el límite que al efecto establece la Ley Federal del Trabajo.</p>'+
