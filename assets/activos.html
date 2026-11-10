@@ -1966,7 +1966,7 @@
             <div class="modal-buttons" style="justify-content:flex-start; flex-wrap:wrap; gap:0.5rem;">
                 <button class="btn-primary" onclick="descargarInformePDF(window.__ultimoInventarioId)"><i class="fas fa-file-pdf"></i> Descargar PDF</button>
                 <button class="btn-secondary" onclick="descargarInformeWord(window.__ultimoInventarioId)"><i class="fas fa-file-word"></i> Descargar Word</button>
-                <button class="btn-success" id="inf-btn-excel" style="display:none;" onclick="exportarExcelVehiculos(window.__ultimoInventarioId)"><i class="fas fa-file-excel"></i> Excel de vehículos</button>
+                <button class="btn-success" id="inf-btn-excel" style="display:none;" onclick="exportarExcelVehiculos(window.__ultimoInventarioId)"><i class="fas fa-file-excel"></i> Excel de documentos</button>
             </div>
             <div class="modal-buttons">
                 <button class="btn-secondary" onclick="closeModal('modalInformeAuditoria')">Cerrar</button>
@@ -4383,7 +4383,7 @@
             document.getElementById('informe-resumen-body').innerHTML = `
                 <p><strong>Tienda:</strong> ${esc(inv.tienda)} &nbsp; <strong>Categoría:</strong> ${esc(nombreCategoria(inv.categoria))}</p>
                 <div style="display:flex; gap:1.2rem; flex-wrap:wrap; margin-top:0.6rem;">
-                    <div>📦 Activos a revisar<br><strong>${r.universoTotal ?? 0}</strong></div>
+                    <div>📦 Universo<br><strong>${r.universoTotal ?? 0}</strong></div>
                     <div style="color:var(--success-color);">✅ Encontrados<br><strong>${r.encontradosTotal ?? 0}</strong></div>
                     <div style="color:var(--info-color);">🔧 En reparación<br><strong>${r.reparacionTotal ?? 0}</strong></div>
                     <div style="color:#888;">🗑️ Dados de baja<br><strong>${r.bajaTotal ?? 0}</strong></div>
@@ -4397,7 +4397,7 @@
                 </div>
             `;
             document.getElementById('inf-btn-excel').style.display =
-                inv.categoria === 'vehiculos' || (inv.categoria === 'todas' && (inv.items || []).some(i => (assets.find(a => a.id === i.assetId) || {}).categoria === 'vehiculos')) ? '' : 'none';
+                inv.categoria === 'vehiculos' && ((inv.vehiculos || []).length || (inv.otraRazon || []).length || inv.vehTipo === 'documentos') ? '' : 'none';
             const f = leerFirmas(inv);
             document.getElementById('inf-realiza-nombre').value = f.realiza.nombre;
             document.getElementById('inf-realiza-puesto').value = f.realiza.puesto;
@@ -6196,7 +6196,7 @@
                 y = doc.lastAutoTable.finalY + 18;
             };
             if (d.vehDocs.length || inv.vehTipo === 'documentos') {
-                const filasVeh = filasExcelVehiculos(inv, inv.items || [], inv.vehiculos || [], d.faltantes);
+                const filasVeh = filasInformeVehiculos(inv, inv.items || [], inv.vehiculos || [], d.faltantes);
                 seccion('Vehículos y sus documentos', C.marca, filasVeh.length,
                     'OK: el documento está. NO: no está. N/A: no aplica o no se pudo revisar. Vacío: todavía no se revisa.', 'vehículo');
                 tablaDocs(filasVeh, C.marca);
@@ -6256,7 +6256,7 @@
             const seccion = (t, c, total, nota, unidad) => `<h2 style="color:${c};">${++num}. ${esc(t)} <span style="font-size:11pt;">(${plInf(total, unidad || 'activo')})</span></h2>` +
                 (nota ? `<p class="nota">${nota}</p>` : '');
             const bloque = (si, t, c, total, nota, cols, rows, unidad) => si ? `${seccion(t, c, total, nota, unidad)}<table>${th(cols, c)}${filas(rows)}</table>` : '';
-            const filasVehW = filasExcelVehiculos(inv, inv.items || [], inv.vehiculos || [], d.faltantes);
+            const filasVehW = filasInformeVehiculos(inv, inv.items || [], inv.vehiculos || [], d.faltantes);
             const tablaDocsW = rows => `<table>${th(COLS_INFORME.map(x => x[0] + (x[1] ? ' ' + x[1] : '')), C.marca)}
                 ${rows.map((f, i) => { const bg = i % 2 ? C.suave : '#ffffff'; return `<tr>
                     <td style="background:${bg};">${esc(f.situacion)}</td>
@@ -6381,41 +6381,25 @@
         }
 
         // Genera un .xlsx con los activos de una sucursal (o todos, si nombreCentro es null)
-        async function exportarActivosCentro(nombreCentro) {
-            const lista = (nombreCentro ? assets.filter(a => a.centro === nombreCentro) : assets.slice())
-                .sort((a, b) => String(a.centro || '').localeCompare(String(b.centro || '')) ||
-                    String(a.categoria || '').localeCompare(String(b.categoria || '')) ||
-                    String(a.nombre || '').localeCompare(String(b.nombre || '')));
+        function exportarActivosCentro(nombreCentro) {
+            const lista = nombreCentro ? assets.filter(a => a.centro === nombreCentro) : assets;
             if (lista.length === 0) {
                 showNotification('No hay activos para exportar', 'warning');
                 return;
             }
-            try { await cargarScript(EXCELJS_LIB, () => !!window.ExcelJS); }
-            catch (e) { showNotification('No se pudo cargar el generador de Excel. Revisa tu conexión.', 'danger'); return; }
-
-            const COLS = [['Activo fijo', 14, 'center', a => a.activoFijo], ['Nombre', 42, 'left', a => a.nombre],
-                ['Categoría', 18, 'left', a => nombreCategoria(a.categoria)], ['Estado', 15, 'center', a => a.estado],
-                ['Serie', 20, 'left', a => a.serie], ['Marca', 15, 'left', a => a.marca], ['Modelo', 17, 'left', a => a.modelo],
-                ['Sucursal', 24, 'left', a => a.centro], ['Asignado a', 26, 'left', a => a.asignado],
-                ['Fecha de compra', 13, 'center', a => a.fechaCompra], ['Proveedor', 24, 'left', a => a.proveedor],
-                ['Factura', 13, 'center', a => a.factura], ['Notas', 34, 'left', a => a.notas]];
-            const wb = new ExcelJS.Workbook();
-            const ws = xlsHoja(wb, 'Activos', COLS.map(c => c[1]),
-                nombreCentro ? `Catálogo de activos · ${nombreCentro}` : 'Catálogo de activos · Todas las sucursales',
-                `${razonSocial || 'Grupo Kuroda'}   ·   ${lista.length} activo(s)   ·   Generado ${new Date().toLocaleDateString('es-MX')}`);
-            xlsEncabezado(ws, 3, COLS.map(c => c[0]));
-            lista.forEach((a, i) => {
-                const r = ws.getRow(4 + i);
-                COLS.forEach(([, , al, val], k) => {
-                    const c = r.getCell(k + 1);
-                    c.value = val(a) || '';
-                    xlsCelda(c, al, i);
-                });
-                const est = XLS_ESTADO[a.estado];
-                if (est) xlsMarca(r.getCell(4), est);
-            });
-            xlsTabla(ws, 3, lista.length, COLS.length);
-            await descargarXlsx(wb, `activos_${(nombreCentro || 'todas_las_sucursales').replace(/[^\w]+/g, '_')}_${new Date().toISOString().slice(0,10)}.xlsx`);
+            const filas = lista.map(a => ({
+                'Activo fijo': a.activoFijo || '', 'Serie': a.serie || '', 'Nombre': a.nombre || '',
+                'Categoría': a.categoria || '', 'Estado': a.estado || '', 'Marca': a.marca || '',
+                'Modelo': a.modelo || '', 'Centro': a.centro || '', 'Asignado a': a.asignado || '',
+                'Fecha de compra': a.fechaCompra || '', 'Proveedor': a.proveedor || '', 'Factura': a.factura || '',
+                'Notas': a.notas || ''
+            }));
+            const ws = XLSX.utils.json_to_sheet(filas);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Activos');
+            const nombreArchivo = `activos_${(nombreCentro || 'todas_las_sucursales').replace(/[^\w]+/g, '_')}_${new Date().toISOString().slice(0,10)}.xlsx`;
+            XLSX.writeFile(wb, nombreArchivo);
+            showNotification('✅ Excel exportado correctamente', 'success');
         }
 
         // ---- Inventario de documentos vehiculares (Excel, informe PDF y Word) ----
@@ -6458,7 +6442,7 @@
         }
         // Una fila por unidad: todas las encontradas (aunque estén registradas en otra sucursal,
         // no existan en el catálogo o tengan otra categoría) y las del universo que no aparecieron.
-        function filasExcelVehiculos(inv, items, vehs, faltantes) {
+        function filasInformeVehiculos(inv, items, vehs, faltantes) {
             const filas = [], usados = new Set();
             const activoDe = (codigo, id) => (id && assets.find(a => a.id === id)) || (codigo ? buscarActivoPorCodigo(codigo) : null) || {};
             // En un levantamiento de tienda completa solo cuentan los vehículos.
@@ -6505,6 +6489,40 @@
             return filas.sort((x, y) => x.grupo - y.grupo || x.equipo.localeCompare(y.equipo));
         }
 
+        function filasExcelVehiculos(inv, items, vehs, faltantes) {
+            const filas = [], usados = new Set();
+            const activoDe = (codigo, id) => (id && assets.find(a => a.id === id)) || (codigo ? buscarActivoPorCodigo(codigo) : null) || {};
+            const fila = (equipo, fecha, responsable, docs, estatus, nota, rojo) => ({
+                fecha: fechaCorta(fecha), equipo: String(equipo || '').toUpperCase(), responsable: String(responsable || '').toUpperCase(),
+                docs, estatus: estatus || '', nota: nota || '', respRojo: rojo !== undefined ? rojo : RESP_ROJO.includes(String(responsable || '').toUpperCase())
+            });
+            const NA = EXCEL_DOC_KEYS.map(() => 'N/A');
+            vehs.forEach(v => {
+                const a = activoDe(v.codigo);
+                const d = docsDe(v);
+                [v.codigo, a.activoFijo, a.codigo, a.id].filter(Boolean).forEach(c => usados.add(normCodigo(c)));
+                const enOtra = v.ubicacion === 'otra';
+                const resp = enOtra && (!v.responsable || v.responsable === 'N/A') ? `EN ${v.sucursal || 'OTRA SUCURSAL'}` : v.responsable;
+                filas.push(fila(v.equipo, v.fechaAlta || a.fechaCompra, resp, EXCEL_DOC_KEYS.map(k => txtDoc(d[k])), codigoEstatusDe(v),
+                    [enOtra ? `En otra sucursal: ${v.sucursal || '-'}` : '', v.comentario || ''].filter(Boolean).join(' · '), enOtra || undefined));
+            });
+            const yaEsta = (...c) => c.some(x => x && usados.has(normCodigo(x)));
+            items.filter(i => (i.enUniverso !== undefined ? i.enUniverso : !i.alerta)).forEach(i => {
+                const a = activoDe(i.code, i.assetId);
+                if (yaEsta(i.code, a.activoFijo, a.codigo, a.id)) return;
+                usados.add(normCodigo(a.id || i.code));
+                const est = estatusDe(i);
+                if (est === 'En otra sucursal') filas.push(fila(a.nombre || i.name, a.fechaCompra, `EN ${i.sucursalReal || 'OTRA SUCURSAL'}`, NA, '', `En otra sucursal: ${i.sucursalReal || '-'}`, true));
+                else if (est === 'Encontrado') filas.push(fila(a.nombre || i.name, a.fechaCompra, a.asignado || '', EXCEL_DOC_KEYS.map(() => ''), '', 'Documentos sin revisar', false));
+                else filas.push(fila(a.nombre || i.name, a.fechaCompra, a.asignado || '', NA, '', est + (i.comentario ? ': ' + i.comentario : ''), false));
+            });
+            (faltantes || []).forEach(f => {
+                const a = activoDe(f.activoFijo || f.codigo, f.id);
+                if (yaEsta(f.activoFijo, f.codigo, a.id)) return;
+                filas.push(fila(f.nombre || a.nombre, a.fechaCompra, 'NO ENCONTRADO', NA, '', f.comentario || '', true));
+            });
+            return filas.sort((x, y) => x.equipo.localeCompare(y.equipo));
+        }
         function filasExcelOtraRazon(lista) {
             return (lista || []).map(u => {
                 const eq = String(u.equipo || '').toUpperCase();
@@ -6542,181 +6560,107 @@
             const faltantes = enCurso ? calcularResumen(inv, items).faltantes : (inv.faltantesList || []);
             // La carta responsiva se revisa en la app (protocolo) pero no va en el Excel.
             const sinCarta = f => ({ ...f, docs: f.docs.filter((x, k) => EXCEL_DOC_KEYS[k] !== 'carta') });
+            const COLS = EXCEL_VEH_COLS.filter(([a]) => a !== 'CARTA');
             const filas = filasExcelVehiculos(inv, items, vehs, faltantes).map(sinCarta);
             const otras = filasExcelOtraRazon(inv.otraRazon).map(sinCarta);
             if (!filas.length && !otras.length) { showNotification('No hay datos de vehículos para exportar', 'warning'); return; }
             try { await cargarScript(EXCELJS_LIB, () => !!window.ExcelJS); }
             catch (e) { showNotification('No se pudo cargar el generador de Excel. Revisa tu conexión.', 'danger'); return; }
 
-            const folio = inv.id.slice(0, 8).toUpperCase();
-            const empresa = razonSocial || 'Grupo Kuroda';
-            const subtitulo = `${inv.tienda}   ·   Levantamiento ${fechaCorta(inv.fecha)}   ·   Folio ${folio}${enCurso ? '   ·   EN CURSO' : ''}`;
             const wb = new ExcelJS.Workbook();
-
-            // ---- Hoja 1: resumen para leer de un vistazo ----
-            const rs = xlsHoja(wb, 'Resumen', [40, 14, 12], 'Inventario de vehículos y documentos', `${empresa}   ·   ${subtitulo}`, 'portrait');
-            const cuenta = fn => filas.filter(fn).length;
-            const encontrados = filas.filter(f => f.grupo === 1);
-            const total = filas.length;
-            let n = 3;
-            const bloque = (titulo, cols, renglones, base) => {
-                xlsEncabezado(rs, n, [titulo, ...cols]);
-                n++;
-                renglones.forEach(([txt, val, marca], i) => {
-                    const r = rs.getRow(n);
-                    r.getCell(1).value = txt; xlsCelda(r.getCell(1), 'left', i);
-                    r.getCell(2).value = val; xlsCelda(r.getCell(2), 'center', i);
-                    r.getCell(2).font = { size: 11, bold: true, color: { argb: XLS.texto } };
-                    if (marca && val) xlsMarca(r.getCell(2), marca);
-                    if (cols.length > 1) {
-                        r.getCell(3).value = base ? val / base : 0;
-                        r.getCell(3).numFmt = '0%';
-                        xlsCelda(r.getCell(3), 'center', i);
-                    }
-                    n++;
-                });
-                n++;
-            };
-            bloque('Resultado de la revisión', ['Unidades', '%'], [
-                ['Vehículos encontrados', encontrados.length, XLS.ok],
-                ['   · De ellos, registrados en otra sucursal', cuenta(f => /de otra sucursal/.test(f.situacion)), XLS.aviso],
-                ['   · De ellos, sin registro u otra observación', cuenta(f => /sin registro|otra categoría|dado de baja/.test(f.situacion)), XLS.aviso],
-                ['No encontrados', cuenta(f => f.grupo === 2), XLS.mal],
-                ['Están en otra sucursal', cuenta(f => f.grupo === 3), XLS.aviso],
-                ['En reparación o dados de baja', cuenta(f => f.grupo === 4), XLS.neutro],
-                ['Total de vehículos en la lista', total, null]
-            ], total);
-            bloque('Documentos de los vehículos encontrados', ['Unidades', '%'], [
-                ['Documentos completos', encontrados.filter(f => f.docs.every(x => x === 'OK' || x === 'N/A')).length, XLS.ok],
-                ['Con documentos faltantes', encontrados.filter(f => f.docs.includes('NO')).length, XLS.mal],
-                ['Sin revisar', encontrados.filter(f => !f.docs.includes('NO') && f.docs.includes('')).length, XLS.neutro]
-            ], encontrados.length);
-            if (otras.length) bloque('Otras unidades', ['Unidades'], [['Unidades de otra razón social (no registradas)', otras.length, XLS.aviso]]);
-            xlsEncabezado(rs, n, ['Cómo leer las columnas de documentos', '', '']);
-            rs.mergeCells(n, 1, n, 3);
-            n++;
-            [['OK', 'El documento está y es correcto', XLS.ok], ['NO', 'El documento no está', XLS.mal],
-                ['N/A', 'No aplica o no se pudo revisar (unidad no localizada o en otra sucursal)', XLS.neutro],
-                ['Vacío', 'Todavía no se revisa', null]].forEach(([cod, txt, marca]) => {
-                const r = rs.getRow(n);
-                rs.mergeCells(n, 2, n, 3);
-                r.getCell(1).value = cod; xlsCelda(r.getCell(1), 'center', 0);
-                if (marca) xlsMarca(r.getCell(1), marca);
-                r.getCell(2).value = txt; xlsCelda(r.getCell(2), 'left', 0);
-                r.getCell(3).border = XLS_BORDES;
-                r.height = 30;
-                n++;
+            const ws = wb.addWorksheet('Documentos vehiculares', {
+                pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 1 }
             });
-
-            // ---- Hojas de detalle: una tabla con filtros, encabezado fijo y una fila por unidad ----
-            const COLS = [['No.', 5, 'center'], ['FECHA', 11, 'center'], ['EQUIPO DE TRANSPORTE', 40, 'left'], ['ACTIVO FIJO', 13, 'center'],
-                ['SERIE', 20, 'left'], ['RESPONSABLE', 28, 'left'], ['SITUACIÓN', 25, 'left'], ['PÓLIZA FÍSICA', 9, 'center'],
-                ['TARJETA CIRCULACIÓN', 12, 'center'], ['LICENCIA VIGENTE', 10, 'center'], ['ESTATUS', 10, 'center'], ['OBSERVACIONES', 40, 'left']];
+            ws.columns = [12, 46, 30, 11, 14, 11, 10].map(width => ({ width }));
             const N = COLS.length;
-            const detalle = (nombre, titulo, lista, leyenda) => {
-                const ws = xlsHoja(wb, nombre, COLS.map(c => c[1]), titulo, `${empresa}   ·   ${subtitulo}   ·   ${lista.length} unidad(es)`);
-                xlsEncabezado(ws, 3, COLS.map(c => c[0]));
-                lista.forEach((f, i) => {
-                    const r = ws.getRow(4 + i);
-                    [i + 1, f.fecha, f.equipo, f.activoFijo, f.serie, f.responsable, f.situacion, ...f.docs, f.estatus, f.nota].forEach((v, k) => {
-                        const c = r.getCell(k + 1);
-                        c.value = v;
-                        xlsCelda(c, COLS[k][2], i);
-                        c.alignment = { ...c.alignment, wrapText: k === 2 || k === 6 || k === N - 1 };
-                    });
-                    if (f.respRojo) r.getCell(6).font = { size: 10, bold: true, color: { argb: XLS.mal.txt } };
-                    xlsMarca(r.getCell(7), f.grupo === 2 ? XLS.mal : f.grupo === 3 || f.situacion.includes('·') ? XLS.aviso : f.grupo === 4 ? XLS.neutro : XLS.ok);
-                    f.docs.forEach((x, k) => { const m = { OK: XLS.ok, NO: XLS.mal, 'N/A': XLS.neutro }[x]; if (m) xlsMarca(r.getCell(8 + k), m); });
-                    r.getCell(11).fill = xlsRelleno('FFFFF8E1');
-                    r.getCell(11).dataValidation = { type: 'list', allowBlank: true, formulae: [`"${CODIGOS_ESTATUS.join(',')}"`] };
-                });
-                xlsTabla(ws, 3, lista.length, N);
-                if (leyenda) {
-                    let f = 3 + lista.length + 2;
-                    ws.getCell(f, 1).value = 'Estatus:';
-                    ws.getCell(f, 1).font = { bold: true, size: 11 };
-                    f += 4; // espacio para que auditoría escriba la leyenda de estatus
-                    ws.mergeCells(f, 1, f, N);
-                    ws.getCell(f, 1).value = 'N/A = No aplica o no se pudo revisar (unidad no localizada o en otra sucursal).   NO = el documento no está.';
-                    ws.getCell(f, 1).font = { size: 9, italic: true, color: { argb: XLS.gris } };
-                }
+            const borde = { style: 'thin', color: { argb: 'FF000000' } };
+            const bordes = { top: borde, left: borde, bottom: borde, right: borde };
+            const relleno = argb => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
+            const rojo = { argb: 'FFFF0000' };
+            let fila = 1;
+            const titulo = texto => {
+                ws.mergeCells(fila, 1, fila, N);
+                const c = ws.getCell(fila, 1);
+                c.value = texto;
+                c.font = { bold: true, size: 12 };
+                c.alignment = { horizontal: 'center', vertical: 'middle' };
+                c.fill = relleno('FFBFBFBF');
+                for (let k = 1; k <= N; k++) ws.getCell(fila, k).border = bordes;
+                ws.getRow(fila).height = 20;
+                fila++;
             };
-            if (filas.length) detalle('Vehículos', 'Vehículos y documentos', filas, true);
-            if (otras.length) detalle('Otra razón social', 'Unidades de otra razón social (no registradas)', otras, false);
+            const encabezado = () => {
+                const r1 = fila, r2 = fila + 1;
+                COLS.forEach(([a, b], k) => {
+                    const col = k + 1;
+                    if (!b) ws.mergeCells(r1, col, r2, col);
+                    else ws.getCell(r2, col).value = b;
+                    ws.getCell(r1, col).value = a;
+                });
+                [r1, r2].forEach((r, n) => {
+                    for (let k = 1; k <= N; k++) {
+                        const c = ws.getCell(r, k);
+                        c.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+                        c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+                        c.fill = relleno(n === 0 ? 'FF1F3864' : 'FF203F55');
+                        c.border = bordes;
+                    }
+                });
+                fila += 2;
+            };
+            const datos = (lista, vacio) => {
+                if (!lista.length) {
+                    ws.mergeCells(fila, 1, fila, N);
+                    const c = ws.getCell(fila, 1);
+                    c.value = vacio;
+                    c.font = { italic: true, color: { argb: 'FF808080' }, size: 10 };
+                    c.alignment = { horizontal: 'center' };
+                    for (let k = 1; k <= N; k++) ws.getCell(fila, k).border = bordes;
+                    fila++;
+                    return;
+                }
+                lista.forEach(f => {
+                    const r = ws.getRow(fila);
+                    r.values = [f.fecha, f.equipo, f.responsable, ...f.docs, f.estatus];
+                    for (let k = 1; k <= N; k++) {
+                        const c = r.getCell(k);
+                        c.border = bordes;
+                        c.font = { size: 10 };
+                        c.alignment = { horizontal: k === 2 || k === 3 ? 'left' : 'center', vertical: 'middle', wrapText: k === 2 };
+                    }
+                    if (f.respRojo) r.getCell(3).font = { size: 10, bold: true, color: rojo };
+                    f.docs.forEach((x, k) => { if (x === 'NO') r.getCell(4 + k).font = { size: 10, bold: true, color: rojo }; });
+                    r.getCell(N).font = { size: 10, bold: true, color: rojo };
+                    if (f.nota) r.getCell(2).note = f.nota;
+                    fila++;
+                });
+            };
 
-            await descargarXlsx(wb, `Vehiculos_y_Documentos_${inv.tienda}_${new Date().toISOString().slice(0, 10)}`.replace(/[^\w\-]+/g, '_') + '.xlsx');
-        }
+            titulo('INVENTARIO DE DOCUMENTOS VEHICULARES');
+            ws.mergeCells(fila, 1, fila, N);
+            ws.getCell(fila, 1).value = `Sucursal: ${inv.tienda}   ·   Levantamiento: ${fechaCorta(inv.fecha)}   ·   Folio ${inv.id.slice(0, 8).toUpperCase()}${enCurso ? '   ·   (en curso)' : ''}`;
+            ws.getCell(fila, 1).font = { italic: true, size: 9, color: { argb: 'FF595959' } };
+            fila++;
+            encabezado();
+            datos(filas, 'Sin unidades registradas');
+            fila += 2;
+            titulo('INVENTARIO DE DOCUMENTOS VEHICULARES ( NO REGISTRADAS)');
+            encabezado();
+            datos(otras, 'Sin unidades de otra razón social');
+            fila += 1;
+            ws.getCell(fila, 1).value = 'Estatus:';
+            ws.getCell(fila, 1).font = { bold: true, size: 11 };
+            fila += 4; // espacio para que auditoría escriba la leyenda de estatus
+            ws.mergeCells(fila, 1, fila, N);
+            ws.getCell(fila, 1).value = 'N/A = No aplica o no se pudo revisar (unidad no localizada o en otra sucursal).   NO = el documento no está.';
+            ws.getCell(fila, 1).font = { size: 9, italic: true, color: { argb: 'FF595959' } };
 
-        // ---- Formato común de los Excel de Activos ----
-        const XLS = {
-            marca: 'FF1A1F3C', acento: 'FF5E72E4', texto: 'FF282C3C', gris: 'FF6E7687', zebra: 'FFF4F6FB', linea: 'FFD9DEE8',
-            ok: { txt: 'FF1B7A4F', fondo: 'FFDFF3E8' }, mal: { txt: 'FFB3261E', fondo: 'FFFBE0DE' },
-            aviso: { txt: 'FF8A5A00', fondo: 'FFFFF0CC' }, neutro: { txt: 'FF5B6375', fondo: 'FFE9ECF2' }
-        };
-        const XLS_ESTADO = { 'Activo': XLS.ok, 'En reparación': XLS.aviso, 'Dado de baja': XLS.neutro };
-        const XLS_LINEA = { style: 'thin', color: { argb: XLS.linea } };
-        const XLS_BORDES = { top: XLS_LINEA, left: XLS_LINEA, bottom: XLS_LINEA, right: XLS_LINEA };
-        const xlsRelleno = argb => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
-        // Hoja con banda de título (fila 1) y subtítulo (fila 2); la tabla empieza en la fila 3.
-        function xlsHoja(wb, nombre, anchos, titulo, subtitulo, orientacion) {
-            const ws = wb.addWorksheet(nombre, {
-                pageSetup: { orientation: orientacion || 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 1,
-                    margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.6, header: 0.2, footer: 0.3 } },
-                headerFooter: { oddFooter: '&L&8' + (razonSocial || 'Grupo Kuroda') + '&R&8Página &P de &N' },
-                views: [{ showGridLines: false }]
-            });
-            ws.columns = anchos.map(width => ({ width }));
-            const N = anchos.length;
-            ws.mergeCells(1, 1, 1, N);
-            const t = ws.getCell(1, 1);
-            t.value = titulo;
-            t.font = { bold: true, size: 15, color: { argb: 'FFFFFFFF' } };
-            t.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
-            t.fill = xlsRelleno(XLS.marca);
-            ws.getRow(1).height = 32;
-            ws.mergeCells(2, 1, 2, N);
-            const s = ws.getCell(2, 1);
-            s.value = subtitulo;
-            s.font = { size: 10, color: { argb: XLS.gris } };
-            s.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
-            for (let k = 1; k <= N; k++) ws.getCell(2, k).border = { bottom: { style: 'medium', color: { argb: XLS.acento } } };
-            ws.getRow(2).height = 22;
-            return ws;
-        }
-        function xlsEncabezado(ws, fila, titulos) {
-            titulos.forEach((txt, k) => {
-                const c = ws.getCell(fila, k + 1);
-                c.value = txt;
-                c.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
-                c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-                c.fill = xlsRelleno(XLS.marca);
-                c.border = XLS_BORDES;
-            });
-            ws.getRow(fila).height = 34;
-        }
-        function xlsCelda(c, alineacion, indice) {
-            c.font = { size: 10, color: { argb: XLS.texto } };
-            c.alignment = { horizontal: alineacion, vertical: 'middle' };
-            c.border = XLS_BORDES;
-            if (indice % 2) c.fill = xlsRelleno(XLS.zebra);
-        }
-        function xlsMarca(c, m) {
-            c.font = { size: 10, bold: true, color: { argb: m.txt } };
-            c.fill = xlsRelleno(m.fondo);
-        }
-        // Encabezado siempre visible y filtros en cada columna, también al imprimir.
-        function xlsTabla(ws, filaEnc, nDatos, nCols) {
-            ws.views = [{ state: 'frozen', ySplit: filaEnc, showGridLines: false }];
-            ws.autoFilter = { from: { row: filaEnc, column: 1 }, to: { row: filaEnc + nDatos, column: nCols } };
-            ws.pageSetup.printTitlesRow = `1:${filaEnc}`;
-        }
-        async function descargarXlsx(wb, nombre) {
             const buf = await wb.xlsx.writeBuffer();
             const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = nombre;
+            a.download = `Documentos_Vehiculares_${inv.tienda}_${new Date().toISOString().slice(0, 10)}`.replace(/[^\w\-]+/g, '_') + '.xlsx';
             document.body.appendChild(a);
             a.click();
             a.remove();
