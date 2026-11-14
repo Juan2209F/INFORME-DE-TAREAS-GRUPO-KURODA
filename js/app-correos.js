@@ -295,8 +295,8 @@
   }
   function vistaCartera() {
     var nota = '<p class="kc-note">El aviso semanal de <b>Cartera</b> es de seguimiento (no lleva calificación) y se envía ÚNICAMENTE a estos correos, ' +
-      'no a los de "Correos por tienda". <b>Para</b>: quien da seguimiento a la cartera. <b>CC</b>: copia solo de esta tienda. ' +
-      'Las copias de la razón social ("Copias y envío automático") también lo reciben. Si una tienda no tiene correo Para de Cartera, su aviso de Cartera no se envía.</p>';
+      'no a los de "Correos por tienda" ni a las copias de "Copias y envío automático". <b>Para</b>: quien da seguimiento a la cartera. <b>CC</b>: copia solo de esta tienda. ' +
+      'Si alguien más debe recibirlo (por ejemplo, un auditor), agrégalo aquí. Si una tienda no tiene correo Para de Cartera, su aviso de Cartera no se envía.</p>';
     if (CA === null) {
       return nota + '<p class="kc-empty kc-warn">Falta aplicar en Supabase el script de correos de Cartera ' +
         '(supabase/migrations/20261114_correos_cartera.sql). Mientras tanto no se envían avisos de Cartera.</p>';
