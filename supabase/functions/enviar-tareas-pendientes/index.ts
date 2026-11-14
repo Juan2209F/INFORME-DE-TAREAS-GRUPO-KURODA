@@ -6,10 +6,13 @@
    - Solo envía las razones sociales activas en correos_razones, cada una con
      sus propias tareas. Por tienda se envían como máximo dos correos:
        1) Colaboración + Orden y Limpieza: uno solo, con una sección por tipo.
-       2) Cartera: aparte, solo si la tienda tiene tareas de cartera.
+       2) Cartera: aparte, solo si la tienda tiene tareas de cartera (seguimiento, sin calificación).
      Cada tarea lleva su ID. La firma es "AUDITORÍA <razón social>".
    - Para: correos capturados en la tienda como "para" (tienda_correos).
    - CC: correos "cc" de la tienda + copias de la razón social (correos_copias).
+   - Cartera usa su propia lista por tienda (tienda_correos_cartera): Para y CC de Cartera
+     + copias de la razón social. Nunca se manda a los correos de la tienda; sin Para de
+     Cartera, ese correo no se envía.
 
    Se envía por Gmail (SMTP smtp.gmail.com:465; Supabase bloquea 25 y 587).
    Secretos requeridos (Supabase → Edge Functions → Secrets):
@@ -22,6 +25,8 @@
      dry          true → arma los correos y los regresa sin enviarlos
      force        true → reenvía aunque la tienda/tipo ya tenga correo enviado hoy
                   (los envíos desde el panel siempre lo hacen; solo pg_cron evita duplicados)
+     reanudar     true → desde el panel, envía solo lo que todavía no salió hoy
+     tipos        "cartera" → solo los correos de Cartera; "operacion" → solo Colaboración + O&L
      prueba       ["a@x.com", ...] → manda los correos SOLO a esas direcciones,
                   sin copias y con "[PRUEBA]" en el asunto; no se registra.
                   Sin tienda_id manda solo el primer correo (con todas: true, todos).
@@ -32,6 +37,9 @@ import nodemailer from "npm:nodemailer@6";
 
 const TZ = "America/Tijuana";
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+/* Deja de enviar a los 110 s para responder antes de que Supabase corte la petición (150 s).
+   Lo que no alcanza a salir se reporta en sin_tiempo y se puede reanudar sin duplicar. */
+const LIMITE_MS = 110_000;
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-token",
@@ -82,7 +90,7 @@ function claseDe(tipo: string | null): Clase {
 const TITULO: Record<Clase, string> = {
   col: "Auditoría de Colaboración",
   ol: "Auditoría de Orden y Limpieza",
-  cartera: "Auditoría de Cartera",
+  cartera: "Seguimiento de Cartera",
 };
 const CORTO: Record<Clase, string> = { col: "Colaboración", ol: "Orden y Limpieza", cartera: "Cartera" };
 const ORDEN: Record<Clase, number> = { col: 1, ol: 2, cartera: 3 };
@@ -123,7 +131,8 @@ const CIFRADOS: (keyof Tarea)[] = ["actividad", "nombre", "area_resp"];
 const PARECE = /^[A-Za-z0-9+/=]{16}:[A-Za-z0-9+/=]{16,}$/;
 const desdeB64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 async function clavesDatos(sb: ReturnType<typeof createClient>): Promise<CryptoKey[]> {
-  const { data } = await sb.rpc("_claves_servidor");
+  const { data, error } = await sb.rpc("_claves_servidor");
+  if (error) console.error(`No se pudieron leer las claves de datos: ${error.message}`);
   const out: CryptoKey[] = [];
   for (const k of [data?.nueva, data?.anterior]) {
     if (k) out.push(await crypto.subtle.importKey("raw", desdeB64(k), { name: "AES-GCM" }, false, ["decrypt"]));
@@ -136,7 +145,22 @@ async function descifrar(claves: CryptoKey[], v: string | null): Promise<string 
   for (const k of claves) {
     try { return new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: desdeB64(iv) }, k, desdeB64(ct))); } catch { /* otra clave */ }
   }
-  return v;
+  // Nunca se manda texto cifrado a una tienda: quien llama descarta esa tienda y lo reporta.
+  throw new Error("Dato cifrado sin clave válida");
+}
+
+/* Razones que puede enviar un administrador del panel: [] = todas, null = no se pudo saber.
+   Mismo criterio que _razonesAsignadas() de app-core.js. El usuario se busca igual que en
+   _es_admin_kuroda(): tabla usuarios, username en mayúsculas y sin espacios a los lados. */
+async function razonesDelAdmin(sb: ReturnType<typeof createClient>, admin: string): Promise<string[] | null> {
+  const { data, error } = await sb.from("usuarios").select("razones_permitidas").eq("username", admin.trim().toUpperCase()).limit(2);
+  if (error || data?.length !== 1) {
+    console.error(`No se pudieron leer las razones de ${admin}: ${error?.message ?? `${data?.length ?? 0} coincidencias`}`);
+    return null;
+  }
+  let r: unknown = data[0].razones_permitidas;
+  if (typeof r === "string") { try { r = JSON.parse(r); } catch { r = []; } }
+  return Array.isArray(r) ? r.map((s) => String(s).trim().toUpperCase()).filter(Boolean) : [];
 }
 
 const esc = (s: unknown) =>
@@ -252,10 +276,12 @@ function armarCorreo(p: Paquete, remitente: string, hoy: string) {
     ? `${TITULO.cartera} — ${p.tienda}: ${pendientes}`
     : `Tareas pendientes — ${p.tienda}: ${pendientes} (${p.secciones.map((s) => `${s.tareas.length} ${CORTO[s.clase]}`).join(" · ")})`;
   const cabecera = p.cartera
-    ? { fondo: "#4C1D95", etiqueta: "#DDD6FE", texto: "AVISO SEMANAL · AUDITORÍA DE CARTERA", sub: "#DDD6FE" }
+    ? { fondo: "#4C1D95", etiqueta: "#DDD6FE", texto: "AVISO SEMANAL · SEGUIMIENTO DE CARTERA", sub: "#DDD6FE" }
     : { fondo: "#0D1B3E", etiqueta: "#F0A500", texto: "AVISO SEMANAL · TAREAS PENDIENTES", sub: "#C7D2FE" };
+  // Cartera llega a personal distinto al de la tienda: saludo general.
+  const saludo = p.cartera ? "Buen día." : "Buen día, Gerente y equipo de almacén.";
   const intro = p.cartera
-    ? "Les informamos que, a la fecha de corte, la tienda cuenta con las siguientes tareas pendientes de la <b>Auditoría de Cartera</b>. Las marcadas en rojo ya pasaron su fecha límite."
+    ? "Les compartimos las tareas de <b>Cartera</b> que, a la fecha de corte, siguen pendientes de seguimiento en esta tienda. Las marcadas en rojo ya pasaron su fecha límite."
     : `Les informamos que, a la fecha de corte, la tienda cuenta con las siguientes tareas pendientes${p.secciones.length > 1 ? ", separadas por tipo de auditoría" : ""}. Las marcadas en rojo ya pasaron su fecha límite.`;
 
   const html = `<!DOCTYPE html>
@@ -270,7 +296,7 @@ function armarCorreo(p: Paquete, remitente: string, hoy: string) {
       <div style="font-size:13px;color:${cabecera.sub};margin-top:2px">${esc(empresa)}${p.centro ? ` · Centro ${esc(p.centro)}` : ""} · ${fechaLarga(hoy)}</div>
     </td></tr>
     <tr><td style="padding:20px 26px 6px;${F};color:#1F2937">
-      <p style="margin:0 0 8px;font-size:14px;line-height:21px">Buen día, Gerente y equipo de almacén.</p>
+      <p style="margin:0 0 8px;font-size:14px;line-height:21px">${saludo}</p>
       <p style="margin:0 0 14px;font-size:14px;line-height:21px">${intro}</p>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>${tarjetas}</tr></table>
       ${vencidas ? `<p style="margin:10px 0 0;font-size:12px;color:#DC2626;font-weight:bold">⚠ ${vencidas} de ${n} tarea${n === 1 ? "" : "s"} ya ${vencidas === 1 ? "está vencida" : "están vencidas"}.</p>` : ""}
@@ -291,10 +317,10 @@ function armarCorreo(p: Paquete, remitente: string, hoy: string) {
 
   // Versión en texto plano: los correos solo-HTML son más sospechosos para los filtros de spam
   const text = [
-    `${firma} · ${p.cartera ? "Aviso semanal · Auditoría de Cartera" : "Aviso semanal · Tareas pendientes"}`,
+    `${firma} · ${p.cartera ? "Aviso semanal · Seguimiento de Cartera" : "Aviso semanal · Tareas pendientes"}`,
     `${p.tienda} | ${empresa}${p.centro ? ` | Centro ${p.centro}` : ""} | ${fechaLarga(hoy)}`,
     "",
-    "Buen día, Gerente y equipo de almacén.",
+    saludo,
     "",
     intro.replace(/<[^>]+>/g, ""),
     p.secciones.map((s) => `${CORTO[s.clase]}: ${s.tareas.length}`).join(" · ") +
@@ -321,7 +347,11 @@ function crearTransporte() {
   const user = Deno.env.get("GMAIL_USER");
   const pass = (Deno.env.get("GMAIL_APP_PASSWORD") || "").replace(/\s+/g, "");
   if (!user || !pass) return null;
-  const tr = nodemailer.createTransport({ host: "smtp.gmail.com", port: 465, secure: true, auth: { user, pass } });
+  // Tiempos cortos: el valor por defecto (2 min) dejaría que un solo correo agote la petición
+  const tr = nodemailer.createTransport({
+    host: "smtp.gmail.com", port: 465, secure: true, auth: { user, pass },
+    connectionTimeout: 15_000, greetingTimeout: 15_000, socketTimeout: 30_000,
+  });
   return (remitente: string, to: string[], cc: string[], subject: string, html: string, text: string) =>
     tr.sendMail({
       from: `"${remitente.replace(/"/g, "")}" <${user}>`,
@@ -349,14 +379,29 @@ Deno.serve(async (req) => {
 
   const dry = body.dry === true;
   // Los envíos manuales del panel siempre salen; solo el automático (pg_cron) evita duplicados del día
-  const force = body.force === true || !token;
+  const force = body.force === true || (!token && body.reanudar !== true);
   const soloRazon = typeof body.razon === "string" && body.razon.trim() ? body.razon.trim().toUpperCase() : null;
+
+  // El panel siempre envía una razón concreta y solo las que el administrador tiene permitidas
+  if (!token) {
+    if (!soloRazon) return json({ error: "Falta indicar la razón social. No se envió nada." }, 400);
+    const permitidas = await razonesDelAdmin(sb, String(body.admin || ""));
+    if (!permitidas) return json({ error: "No se pudieron verificar tus razones sociales. No se envió nada." }, 500);
+    if (permitidas.length && !permitidas.includes(soloRazon)) {
+      return json({ error: `No tienes permiso para enviar correos de ${soloRazon}. No se envió nada.` }, 403);
+    }
+  }
+
   const soloTienda = typeof body.tienda_id === "string" && body.tienda_id ? body.tienda_id : null;
-  const prueba = (Array.isArray(body.prueba) ? body.prueba : typeof body.prueba === "string" ? body.prueba.split(/[\s,;]+/) : [])
-    .map((s: unknown) => String(s).trim().toLowerCase())
-    .filter((s: string) => EMAIL_RE.test(s));
+  const prueba: string[] = (Array.isArray(body.prueba) ? body.prueba : typeof body.prueba === "string" ? body.prueba.split(/[\s,;]+/) : [])
+    .map((s: unknown) => String(s ?? "").trim().toLowerCase())
+    .filter(Boolean);
+  // Una prueba con direcciones malas se rechaza: nunca debe convertirse en un envío real
+  const invalidos = prueba.filter((s) => !EMAIL_RE.test(s));
+  if (invalidos.length) return json({ error: `Correo de prueba no válido: ${invalidos.join(", ")}. No se envió nada.` }, 400);
   const pruebaManual = prueba.length > 0;
   const esPrueba = pruebaManual || body.prueba_real === true;
+  const soloTipo = body.tipos === "cartera" || body.tipos === "operacion" ? body.tipos : null;
 
   const enviar = crearTransporte();
   if (!dry && !enviar) {
@@ -381,26 +426,64 @@ Deno.serve(async (req) => {
   const res = {
     fecha: hoy, dry, prueba: esPrueba, razones: razones.map((r) => r.razon),
     enviadas: [] as unknown[], omitidas: [] as unknown[], sin_destinatario: [] as string[], errores: [] as unknown[],
+    sin_tiempo: [] as string[],
   };
+  const inicio = Date.now();
   const limitePrueba = pruebaManual && !soloTienda && body.todas !== true ? 1 : Infinity;
   let armados = 0;
   const claves = await clavesDatos(sb);
 
+  // Correos de Cartera por tienda. Si la tabla aún no existe, Cartera no se envía (nunca a la tienda).
+  const { data: cartRows, error: carteraErr } = await sb.from("tienda_correos_cartera").select("tienda_id, email, tipo").eq("activo", true);
+  const carteraPorTienda = new Map<string, { para: string[]; cc: string[] }>();
+  (cartRows || []).forEach((c) => {
+    const k = String(c.tienda_id);
+    const x = carteraPorTienda.get(k) || { para: [], cc: [] };
+    (c.tipo === "cc" ? x.cc : x.para).push(String(c.email).trim().toLowerCase());
+    carteraPorTienda.set(k, x);
+  });
+
   for (const r of razones) {
     const { data, error } = await sb.rpc("correos_pendientes_semana", { p_razon: r.razon });
     if (error) { res.errores.push({ razon: r.razon, detalle: error.message }); continue; }
+    // Copias de la razón social (auditores): también van en el correo de Cartera.
+    const { data: cps } = await sb.from("correos_copias").select("email").ilike("razon", r.razon);
+    const copiasRazon = (cps || []).map((c) => String(c.email).trim().toLowerCase());
 
     const grupos = ((data || []) as Grupo[]).filter((g) => !soloTienda || g.tienda_id === soloTienda);
+    const ilegibles = new Set<string>();
     for (const g of grupos) {
-      for (const t of g.tareas || []) {
-        for (const c of CIFRADOS) (t as Record<string, unknown>)[c] = await descifrar(claves, t[c] as string | null);
+      try {
+        for (const t of g.tareas || []) {
+          for (const c of CIFRADOS) (t as Record<string, unknown>)[c] = await descifrar(claves, t[c] as string | null);
+        }
+      } catch {
+        ilegibles.add(g.tienda_id);
+      }
+    }
+    // Una tienda con tareas ilegibles no recibe correo: mejor avisar que mandar un correo incompleto
+    for (const g of grupos.filter((x) => ilegibles.has(x.tienda_id))) {
+      const detalle = "No se pudieron descifrar sus tareas; no se envió el correo de esta tienda";
+      res.errores.push({ grupo: `${r.razon} · ${g.tienda} · ${g.tipo_tarea}`, detalle });
+      if (!dry && !esPrueba) {
+        await sb.from("correos_envios").insert({
+          fecha: hoy, tienda_id: g.tienda_id, tienda: g.tienda, razon: r.razon, tipo_tarea: g.tipo_tarea,
+          destinatarios: g.destinatarios || [], cc: g.cc || [], n_tareas: (g.tareas || []).length, estado: "error", detalle,
+        });
       }
     }
 
-    for (const p of armarPaquetes(grupos)) {
+    for (const p of armarPaquetes(grupos.filter((x) => !ilegibles.has(x.tienda_id)))) {
       if (armados >= limitePrueba) break;
+      if (soloTipo && (soloTipo === "cartera") !== p.cartera) continue;
       const tipoRegistro = p.cartera ? TIPO_REGISTRO.cartera : TIPO_REGISTRO.combinado;
       const etiqueta = `${r.razon} · ${p.tienda} · ${p.cartera ? "Cartera" : p.secciones.map((s) => CORTO[s.clase]).join(" + ")}`;
+      if (p.cartera && !pruebaManual) {
+        if (carteraErr) { res.errores.push({ grupo: etiqueta, detalle: "Falta aplicar en Supabase el script de correos de Cartera; no se envió" }); continue; }
+        const lista = carteraPorTienda.get(String(p.tienda_id)) || { para: [], cc: [] };
+        p.destinatarios = [...new Set(lista.para)];
+        p.cc = [...new Set([...lista.cc, ...copiasRazon])].filter((e) => !p.destinatarios.includes(e));
+      }
       const nTareas = p.secciones.reduce((a, s) => a + s.tareas.length, 0);
       const to = pruebaManual ? prueba : p.destinatarios;
       const cc = pruebaManual ? [] : p.cc;
@@ -410,18 +493,27 @@ Deno.serve(async (req) => {
         p.secciones.some((s) => yaEnviadas.has(`${p.tienda_id}|${s.tipo_tarea}`));
       if (enviadoHoy) { res.omitidas.push({ grupo: etiqueta, motivo: "ya enviado hoy" }); continue; }
 
+      const registro = { fecha: hoy, tienda_id: p.tienda_id, tienda: p.tienda, razon: r.razon, tipo_tarea: tipoRegistro, destinatarios: to, cc, n_tareas: nTareas };
+      if (!dry && Date.now() - inicio > LIMITE_MS) {
+        res.sin_tiempo.push(etiqueta);
+        if (!esPrueba) await sb.from("correos_envios").insert({ ...registro, estado: "error", detalle: "No alcanzó el tiempo del envío; quedó sin enviar" });
+        continue;
+      }
+
       const correo = armarCorreo(p, r.remitente, hoy);
       const subject = esPrueba ? `[PRUEBA] ${correo.subject}` : correo.subject;
       armados++;
       if (dry) { res.enviadas.push({ grupo: etiqueta, de: r.remitente, to, cc, subject, tareas: nTareas }); continue; }
 
-      const registro = { fecha: hoy, tienda_id: p.tienda_id, tienda: p.tienda, razon: r.razon, tipo_tarea: tipoRegistro, destinatarios: to, cc, n_tareas: nTareas };
       try {
         const info = await enviar!(r.remitente, to, cc, subject, correo.html, correo.text);
         // Respuesta del SMTP de Gmail: quién aceptó/rechazó el correo
-        const smtp = { aceptados: info.accepted, rechazados: info.rejected, respuesta: info.response, id: info.messageId };
+        const rechazados = (info.rejected || []).map(String);
+        const smtp = { aceptados: (info.accepted || []).map(String), rechazados, respuesta: info.response, id: info.messageId };
         res.enviadas.push({ grupo: etiqueta, to, cc, subject, tareas: nTareas, smtp });
-        if (!esPrueba) await sb.from("correos_envios").insert({ ...registro, estado: "enviado" });
+        if (!esPrueba) {
+          await sb.from("correos_envios").insert({ ...registro, estado: "enviado", ...(rechazados.length ? { detalle: `Rechazados: ${rechazados.join(", ")}` } : {}) });
+        }
       } catch (e) {
         const detalle = e instanceof Error ? e.message : String(e);
         res.errores.push({ grupo: etiqueta, detalle });
@@ -435,7 +527,7 @@ Deno.serve(async (req) => {
   console.log(JSON.stringify({
     origen: token ? "cron" : `panel:${body.admin}`,
     pedido: { razon: soloRazon, tienda_id: soloTienda, dry, force, prueba_manual: prueba, prueba_real: body.prueba_real === true },
-    enviadas: res.enviadas, omitidas: res.omitidas, sin_destinatario: res.sin_destinatario, errores: res.errores,
+    enviadas: res.enviadas, omitidas: res.omitidas, sin_destinatario: res.sin_destinatario, errores: res.errores, sin_tiempo: res.sin_tiempo,
   }));
   return json(res);
 });
