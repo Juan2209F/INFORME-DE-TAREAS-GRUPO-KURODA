@@ -18,9 +18,11 @@
   'use strict';
 
   var TOKEN_KEY = 'kc_token', TAB_KEY = 'kc_tab';
-  var TABS = ['correos', 'envio', 'enviar', 'usuarios', 'tiendas'];
-  var pass = null, U = [], T = [], R = [], CP = [], PEND = {}, tab = 'correos', q = '', razF = '', soloSinDest = false;
-  var envio = { razon: '', tienda: '', modo: 'prueba', destino: 'config', para: '', res: null, cargando: false };
+  var TABS = ['correos', 'cartera', 'envio', 'enviar', 'usuarios', 'tiendas'];
+  /* CA: correos de Cartera (null = falta aplicar el script de Cartera en Supabase). */
+  var pass = null, U = [], T = [], R = [], CP = [], CA = [], PEND = {}, tab = 'correos', q = '', razF = '', soloSinDest = false;
+  var ENVIO_INI = { razon: '', tienda: '', tipos: '', modo: 'prueba', destino: 'config', para: '', res: null, cargando: false };
+  var envio = Object.assign({}, ENVIO_INI);
   var EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) {
@@ -98,7 +100,8 @@
       rpc('listar_correos_tiendas'),
       rpc('listar_correos_razones'),
       rpc('listar_correos_copias'),
-      rpc('resumen_pendientes_correos')
+      rpc('resumen_pendientes_correos'),
+      listarCartera()
     ]);
     var vis = null;
     if (res[2] && !res[2].error && typeof filtrarUsuariosPorRazonSesion === 'function') {
@@ -117,7 +120,21 @@
     CP = (res[5] || []).filter(function (c) { return razOk(c.razon); });
     PEND = {};
     (res[6] || []).forEach(function (p) { PEND[p.tienda_id + '|' + razKey(p.razon)] = p.pendientes; });
+    repartirCartera(res[7]);
   }
+
+  /* Correos de Cartera. Si el script de Cartera aún no está aplicado, el resto del panel sigue
+     funcionando y la pestaña lo avisa. */
+  function listarCartera() {
+    return rpc('listar_correos_cartera').catch(function (e) { if (!pass) throw e; return null; });
+  }
+  function repartirCartera(lista) {
+    CA = lista;
+    var por = {};
+    (lista || []).forEach(function (c) { (por[c.tienda_id] = por[c.tienda_id] || []).push(c); });
+    T.forEach(function (t) { t.cartera = por[t.id] || []; });
+  }
+  async function cargarCartera() { repartirCartera(await listarCartera()); }
 
   /* Recargas parciales: después de agregar o quitar un correo solo se vuelve a pedir
      esa lista (1 consulta) en lugar de las 7 de cargar(). */
@@ -139,6 +156,7 @@
     U.forEach(function (u) { if (u.email) vistos[u.email.toLowerCase()] = u.email; });
     T.forEach(function (t) { (t.correos || []).forEach(function (c) { vistos[c.email.toLowerCase()] = c.email; }); });
     CP.forEach(function (c) { vistos[c.email.toLowerCase()] = c.email; });
+    (CA || []).forEach(function (c) { vistos[c.email.toLowerCase()] = c.email; });
     return Object.keys(vistos).sort().map(function (k) { return vistos[k]; });
   }
 
@@ -271,9 +289,50 @@
       }).join('') + '</tbody></table></div>';
   }
 
+  /* ---------- Correos de Cartera (lista aparte por tienda) ---------- */
+  function nDestCartera(t) {
+    return (t.cartera || []).filter(function (c) { return c.activo !== false && c.tipo !== 'cc'; }).length;
+  }
+  function vistaCartera() {
+    var nota = '<p class="kc-note">El aviso semanal de <b>Cartera</b> es de seguimiento (no lleva calificación) y se envía ÚNICAMENTE a estos correos, ' +
+      'no a los de "Correos por tienda". <b>Para</b>: quien da seguimiento a la cartera. <b>CC</b>: copia solo de esta tienda. ' +
+      'Las copias de la razón social ("Copias y envío automático") también lo reciben. Si una tienda no tiene correo Para de Cartera, su aviso de Cartera no se envía.</p>';
+    if (CA === null) {
+      return nota + '<p class="kc-empty kc-warn">Falta aplicar en Supabase el script de correos de Cartera ' +
+        '(supabase/migrations/20261114_correos_cartera.sql). Mientras tanto no se envían avisos de Cartera.</p>';
+    }
+    var activas = filtraTiendas().filter(function (t) { return t.activa !== false; })
+      .sort(function (a, b) { return (nDestCartera(a) > 0) - (nDestCartera(b) > 0) || a.nombre.localeCompare(b.nombre); });
+    if (!activas.length) return nota + '<p class="kc-empty">Sin tiendas</p>';
+    var conCorreos = activas.filter(function (t) { return (t.cartera || []).length; });
+    var sin = activas.filter(function (t) { return !nDestCartera(t); }).length;
+    return nota + '<p class="kc-sub" style="margin:0 0 8px">' + (sin ? '⚠ ' + sin + ' tienda' + (sin === 1 ? '' : 's') + ' sin destinatario de Cartera' : '✓ Todas las tiendas tienen destinatario de Cartera') + '</p>' +
+      '<div class="kc-wrap"><table class="kc-t"><thead><tr><th>Tienda</th><th>Para (Cartera)</th><th>CC (Cartera)</th><th>Copiar de otra tienda</th></tr></thead><tbody>' +
+      activas.map(function (t) {
+        var n = nDestCartera(t);
+        var celda = function (tipo) {
+          return '<td>' + (t.cartera || []).filter(function (c) { return (c.tipo || 'para') === tipo; })
+            .map(function (c) { return correoChip(c, 'del-cartera', c.id); }).join('') +
+            '<div class="kc-row"><input type="text" class="kc-in kc-mail" list="kc-dl" data-act="cartera-' + tipo + '" placeholder="' +
+            (tipo === 'para' ? 'cartera@kuroda.com, credito@kuroda.com' : 'copia@kuroda.com') + '">' +
+            '<button class="kc-btn" data-act="' + (tipo === 'para' ? 'add-cpara' : 'add-ccc') + '">Agregar</button></div></td>';
+        };
+        var otras = conCorreos.filter(function (o) { return o.id !== t.id; });
+        return '<tr data-tid="' + t.id + '"' + (n ? '' : ' class="kc-sin"') + '>' +
+          '<td><b>' + esc(t.nombre) + '</b><div class="kc-sub">' + esc([t.razon, t.centro].filter(Boolean).join(' · ')) + '</div>' +
+          '<div class="kc-est ' + (n ? 'ok' : 'mal') + '">' + (n ? '✓ ' + n + ' destinatario' + (n === 1 ? '' : 's') : '⚠ Sin destinatario: no recibe el aviso de Cartera') + '</div></td>' +
+          celda('para') + celda('cc') +
+          '<td>' + (otras.length
+            ? '<select class="kc-in kc-sel" data-act="copiar-cartera"><option value="">Copiar Para y CC de…</option>' +
+              otras.map(function (o) { return '<option value="' + o.id + '">' + esc(o.nombre) + ' (' + o.cartera.length + ')</option>'; }).join('') + '</select>'
+            : '<span class="kc-sub">—</span>') + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+
   function vistaEnvio() {
-    var nota = '<p class="kc-note">Cada lunes a las 8:00 am (hora del Pacífico) se envía un correo por tienda y por tipo de tarea ' +
-      '(el tipo va en el asunto). Cada razón social activa solo envía sus propias tareas.</p>';
+    var nota = '<p class="kc-note">Cada lunes a las 8:00 am (hora del Pacífico) cada tienda recibe hasta dos correos: uno con Colaboración y ' +
+      'Orden y Limpieza (a "Correos por tienda"), y otro aparte de seguimiento de Cartera (a "Correos de Cartera") si tiene tareas de ese tipo. ' +
+      'Cada razón social activa solo envía sus propias tareas. La casilla "Activo" se guarda al marcarla.</p>';
     if (!R.length) return nota + '<p class="kc-empty">Sin razones sociales</p>';
     return nota + '<div class="kc-wrap"><table class="kc-t"><thead><tr><th>Razón social</th><th>Remitente</th><th>Envío automático</th>' +
       '<th>Copia en todos los correos (auditores y otros)</th></tr></thead><tbody>' +
@@ -296,10 +355,14 @@
     var h = '<p class="kc-note">Envía los avisos ahora mismo, sin esperar al lunes. <b>Prueba</b>: lleva "[PRUEBA]" en el asunto y no cuenta ' +
       'como enviado (no bloquea el envío del lunes); puede ir a los destinatarios configurados de la tienda o solo a los correos que escribas. ' +
       '<b>Envío real</b>: a los correos Para y CC configurados, aunque ya se haya enviado hoy. ' +
-      'Solo reciben correo las tiendas con tareas pendientes y con correo <b>Para</b>.</p>' +
+      'Solo reciben correo las tiendas con tareas pendientes y con correo <b>Para</b>. Cartera usa sus propios correos ("Correos de Cartera").</p>' +
       '<div class="kc-grid">' +
       '<label>Razón social<select class="kc-in" id="kc-e-raz">' +
       R.map(function (r) { return '<option value="' + esc(r.razon) + '"' + (r.razon === envio.razon ? ' selected' : '') + '>' + esc(r.razon) + ' — ' + esc(r.remitente) + '</option>'; }).join('') +
+      '</select></label>' +
+      '<label>Qué enviar<select class="kc-in" id="kc-e-tipos">' +
+      [['', 'Todo (Colaboración, Orden y Limpieza y Cartera)'], ['operacion', 'Solo Colaboración y Orden y Limpieza'], ['cartera', 'Solo Cartera']]
+        .map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === envio.tipos ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') +
       '</select></label>' +
       '<label>Tienda<select class="kc-in" id="kc-e-tienda"><option value="">Todas las tiendas con pendientes</option>' +
       tiendas.map(function (t) { return { t: t, n: nPend(t, envio.razon) }; })
@@ -318,7 +381,8 @@
           '<label><input type="radio" name="kc-e-dest" value="manual"' + (envio.destino === 'manual' ? ' checked' : '') +
           '> Solo a los correos que escriba</label></div>' +
           (envio.destino === 'manual'
-            ? '<label class="kc-full">Enviar la prueba a<input class="kc-in" id="kc-e-para" value="' + esc(envio.para) + '" placeholder="correo@kuroda.com, otro@kuroda.com"></label>'
+            ? '<label class="kc-full">Enviar la prueba a<input class="kc-in" id="kc-e-para" value="' + esc(envio.para) + '" placeholder="correo@kuroda.com, otro@kuroda.com"></label>' +
+              (envio.tienda ? '' : '<p class="kc-note kc-full">Con "Todas las tiendas" la prueba manda solo un correo de muestra. Para ver el de una tienda, selecciónala.</p>')
             : '')
         : '') +
       '</div><div class="kc-row" style="margin-top:12px">' +
@@ -331,26 +395,47 @@
         h += '<div class="kc-res kc-warn">Error: ' + esc(r.error) + '</div>';
       } else {
         var li = function (x) {
+          var rech = (x.smtp && x.smtp.rechazados) || [];
           return '<li><b>' + esc(x.grupo) + '</b> — ' + esc(x.subject || '') + '<div class="kc-sub">Para: ' + esc((x.to || []).join(', ')) +
-            ((x.cc || []).length ? ' · CC: ' + esc(x.cc.join(', ')) : '') + '</div></li>';
+            ((x.cc || []).length ? ' · CC: ' + esc(x.cc.join(', ')) : '') + '</div>' +
+            (rech.length ? '<div class="kc-warn">Rechazados por Gmail (no les llegó): ' + esc(rech.join(', ')) + '</div>' : '') + '</li>';
         };
-        var vacio = !r.enviadas.length && !r.sin_destinatario.length && !r.omitidas.length && !r.errores.length;
+        var vacio = !r.enviadas.length && !r.sin_destinatario.length && !r.omitidas.length && !r.errores.length && !r.sin_tiempo.length;
         h += '<div class="kc-res"><b>' + (r.dry ? 'Vista previa: se enviarían ' : 'Enviados: ') + r.enviadas.length + ' correo(s)</b>' +
           (vacio ? '<div class="kc-warn">No hay tareas pendientes de ' + esc(envio.razon) + (envio.tienda ? ' en esta tienda' : '') +
             ', así que no hay nada que enviar.</div>' : '') +
           (r.enviadas.length ? '<ul>' + r.enviadas.map(li).join('') + '</ul>' : '') +
-          (r.sin_destinatario.length ? '<div class="kc-warn">No se enviaron porque la tienda no tiene correo <b>Para</b> ' +
-            '(agrégalo en "Correos por tienda" o usa "Solo a los correos que escriba"): ' + esc(r.sin_destinatario.join(' | ')) + '</div>' : '') +
+          (r.sin_destinatario.length ? '<div class="kc-warn">No se enviaron porque no tienen correo <b>Para</b> ' +
+            '(agrégalo en "Correos por tienda", o en "Correos de Cartera" si es de Cartera, o usa "Solo a los correos que escriba"): ' + esc(r.sin_destinatario.join(' | ')) + '</div>' : '') +
           (r.omitidas.length ? '<div class="kc-warn">No se reenviaron porque ya se enviaron hoy: ' + esc(r.omitidas.map(function (o) { return o.grupo; }).join(' | ')) + '</div>' : '') +
           (r.errores.length ? '<div class="kc-warn">Errores: ' + esc(r.errores.map(function (e) { return (e.grupo || e.razon) + ': ' + e.detalle; }).join(' | ')) + '</div>' : '') +
+          (r.sin_tiempo.length ? '<div class="kc-warn">No alcanzó el tiempo y estos correos no salieron: ' + esc(r.sin_tiempo.join(' | ')) +
+            (envio.modo === 'real'
+              ? '<div style="margin-top:8px"><button class="kc-btn kc-pri" data-act="enviar-faltantes">Enviar los faltantes</button></div>'
+              : '<div>Selecciona una tienda para probarla por separado.</div>') + '</div>' : '') +
           '</div>';
       }
     }
     return h;
   }
 
-  async function enviarManual(dry) {
+  /* Convierte la respuesta en un resultado que la vista siempre puede pintar. Los errores
+     de la pasarela de Supabase traen "message" en vez de "error" y ninguna lista. */
+  function resultadoEnvio(status, ok, datos) {
+    if (!ok || !datos || !Array.isArray(datos.enviadas)) {
+      var e = (datos && (datos.error || datos.message)) || 'Respuesta inválida del servidor (' + status + ')';
+      return { error: status >= 500 ? e + '. Algunos correos pudieron salir: revisa la bitácora antes de repetir el envío.' : e };
+    }
+    ['omitidas', 'sin_destinatario', 'errores', 'sin_tiempo'].forEach(function (k) {
+      if (!Array.isArray(datos[k])) datos[k] = [];
+    });
+    return datos;
+  }
+
+  async function enviarManual(dry, reanudar) {
+    if (!envio.razon) { msg('No hay una razón social disponible para enviar'); return; }
     var body = { admin: _session.username, pass: pass, razon: envio.razon, tienda_id: envio.tienda || null, dry: dry };
+    if (envio.tipos) body.tipos = envio.tipos;
     if (envio.modo === 'prueba' && envio.destino === 'manual') {
       var lista = listaCorreos(envio.para);
       if (!lista) return;
@@ -359,6 +444,10 @@
       body.prueba_real = true;
       if (!dry && !confirm('La prueba se enviará a los destinatarios configurados (Para y CC) de ' +
         (envio.tienda ? 'la tienda seleccionada' : 'TODAS las tiendas ' + envio.razon) + '. ¿Continuar?')) return;
+    } else if (reanudar) {
+      // Sin force: el servidor omite lo que ya salió hoy y manda solo lo que faltó
+      body.reanudar = true;
+      if (!confirm('Se enviarán solo los correos que todavía no han salido hoy. ¿Continuar?')) return;
     } else {
       // El envío manual siempre envía, aunque ya se haya mandado hoy (solo el automático del lunes evita duplicados)
       body.force = true;
@@ -372,17 +461,21 @@
         headers: { 'Content-Type': 'application/json', apikey: SB_KEY },
         body: JSON.stringify(body)
       });
-      envio.res = await r.json().catch(function () { return { error: 'Respuesta inválida (' + r.status + ')' }; });
+      var datos = await r.json().catch(function () { return null; });
       if (r.status === 401) {
         envio.cargando = false; pass = null; borrarToken();
         return pintarAuth('Tu acceso a correos venció. Confirma tu contraseña para continuar.');
       }
+      envio.res = resultadoEnvio(r.status, r.ok, datos);
     } catch (e) {
       envio.res = { error: e.message || String(e) };
     }
     envio.cargando = false;
     pintar();
-    if (!dry && envio.res && !envio.res.error) msg(envio.res.enviadas.length + ' correo(s) enviados');
+    if (!dry && envio.res && !envio.res.error) {
+      var conRechazo = envio.res.enviadas.filter(function (x) { return x.smtp && (x.smtp.rechazados || []).length; }).length;
+      msg(envio.res.enviadas.length + ' correo(s) enviados' + (conRechazo ? ', ' + conRechazo + ' con destinatarios rechazados' : ''));
+    }
   }
 
   function pintar() {
@@ -414,6 +507,7 @@
     }
     $('kc-body').innerHTML = tab === 'usuarios' ? vistaUsuarios()
       : tab === 'correos' ? vistaCorreos()
+      : tab === 'cartera' ? vistaCartera()
       : tab === 'envio' ? vistaEnvio()
       : tab === 'enviar' ? vistaEnviar()
       : vistaTiendas();
@@ -552,6 +646,35 @@
       var cid = el.getAttribute('data-cid');
       return correr(function () { return rpc('quitar_correo_tienda', { p_id: cid }); }, 'Correo quitado', cargarCorreos);
     }
+    if (a === 'add-cpara' || a === 'add-ccc') {
+      var tipoC = a === 'add-cpara' ? 'para' : 'cc';
+      var listaC = listaCorreos(row.querySelector('[data-act="cartera-' + tipoC + '"]').value);
+      if (!listaC) return;
+      var tiendaC = T.filter(function (x) { return String(x.id) === String(tid); })[0] || { cartera: [] };
+      var nuevosC = sinRepetir(listaC, (tiendaC.cartera || []).filter(function (c) { return (c.tipo || 'para') === tipoC; }));
+      if (!nuevosC.length) { msg('Esos correos ya estaban en ' + (tipoC === 'cc' ? 'CC' : 'Para') + ' de Cartera'); return; }
+      return correr(function () {
+        return Promise.all(nuevosC.map(function (m) { return rpc('agregar_correo_cartera', { p_tienda_id: tid, p_email: m, p_nombre: null, p_tipo: tipoC }); }));
+      }, nuevosC.length + ' correo(s) de Cartera agregado(s)' + avisoRepetidos(listaC, nuevosC), cargarCartera);
+    }
+    if (a === 'del-cartera') {
+      var caid = el.getAttribute('data-cid');
+      return correr(function () { return rpc('quitar_correo_cartera', { p_id: caid }); }, 'Correo de Cartera quitado', cargarCartera);
+    }
+    if (a === 'copiar-cartera' && el.value) {
+      var origenC = T.filter(function (x) { return String(x.id) === String(el.value); })[0];
+      var destinoC = T.filter(function (x) { return String(x.id) === String(tid); })[0];
+      if (!origenC || !destinoC) return;
+      var yaC = {};
+      (destinoC.cartera || []).forEach(function (c) { yaC[(c.tipo || 'para') + '|' + c.email.toLowerCase()] = 1; });
+      var copiarC = (origenC.cartera || []).filter(function (c) { return c.activo !== false && !yaC[(c.tipo || 'para') + '|' + c.email.toLowerCase()]; });
+      if (!copiarC.length) { el.value = ''; msg(destinoC.nombre + ' ya tiene todos los correos de Cartera de ' + origenC.nombre); return; }
+      if (!confirm('Se copiarán ' + copiarC.length + ' correo(s) de Cartera de ' + origenC.nombre + ' a ' + destinoC.nombre + ':\n\n' +
+        copiarC.map(function (c) { return ((c.tipo || 'para') === 'cc' ? 'CC: ' : 'Para: ') + c.email; }).join('\n') + '\n\n¿Continuar?')) { el.value = ''; return; }
+      return correr(function () {
+        return Promise.all(copiarC.map(function (c) { return rpc('agregar_correo_cartera', { p_tienda_id: tid, p_email: c.email, p_nombre: c.nombre || null, p_tipo: c.tipo || 'para' }); }));
+      }, copiarC.length + ' correo(s) de Cartera copiado(s) de ' + origenC.nombre, cargarCartera);
+    }
     if (a === 'add-copias' || a === 'add-auditores') {
       var rzc = row.getAttribute('data-raz');
       var copias = a === 'add-copias'
@@ -570,14 +693,19 @@
       return correr(function () { return rpc('quitar_correo_copia', { p_id: cpid }); }, 'Copia quitada', cargarCopias);
     }
     if (a === 'enviar' || a === 'enviar-dry') return enviarManual(a === 'enviar-dry');
-    if (a === 'save-razon') {
+    if (a === 'enviar-faltantes') return enviarManual(false, true);
+    if (a === 'save-razon' || a === 'raz-activo') {
       var raz = row.getAttribute('data-raz');
-      var rem = limpia(row.querySelector('[data-act="remitente"]').value);
+      /* La casilla guarda el remitente ya registrado, no lo que esté a medio escribir. */
+      var guardada = R.filter(function (x) { return x.razon === raz; })[0];
+      var rem = a === 'raz-activo' && guardada ? guardada.remitente : limpia(row.querySelector('[data-act="remitente"]').value);
       if (!rem) { msg('Escribe el nombre del remitente'); return; }
       var on = row.querySelector('[data-act="raz-activo"]').checked;
       return correr(function () {
         return rpc('guardar_correo_razon', { p_razon: raz, p_remitente: rem, p_activo: on });
-      }, raz + (on ? ': envío activo' : ': envío desactivado'), cargarRazones);
+      }, raz + (on ? ': envío activo' : ': envío desactivado'), cargarRazones).then(function () {
+        if (pass) pintar(); /* si falló, la casilla vuelve a mostrar lo que está guardado */
+      });
     }
   }
 
@@ -602,8 +730,8 @@
       if (pass) iniciar(); else pintarAuth('');
     }
     if (!visible && antes) {
-      pass = null; U = []; T = []; R = []; CP = []; PEND = {};
-      envio = { razon: '', tienda: '', modo: 'prueba', destino: 'config', para: '', res: null, cargando: false };
+      pass = null; U = []; T = []; R = []; CP = []; CA = []; PEND = {};
+      envio = Object.assign({}, ENVIO_INI);
     }
   }
 
@@ -679,6 +807,7 @@
       '<div id="kc-main" style="display:none">' +
       '<div class="kc-bar"><div class="kc-tabs">' +
       '<button class="kc-tab" data-kc-tab="correos">Correos por tienda</button>' +
+      '<button class="kc-tab" data-kc-tab="cartera">Correos de Cartera</button>' +
       '<button class="kc-tab" data-kc-tab="envio">Copias y envío automático</button>' +
       '<button class="kc-tab" data-kc-tab="enviar">Enviar ahora</button>' +
       '<span class="kc-tabsep"></span>' +
@@ -707,16 +836,18 @@
     d.addEventListener('change', function (e) {
       if (e.target.id === 'kc-e-raz') { envio.razon = e.target.value; envio.tienda = ''; envio.res = null; return pintar(); }
       if (e.target.id === 'kc-e-tienda') { envio.tienda = e.target.value; envio.res = null; return pintar(); }
+      if (e.target.id === 'kc-e-tipos') { envio.tipos = e.target.value; envio.res = null; return pintar(); }
       if (e.target.name === 'kc-e-modo') { envio.modo = e.target.value; envio.res = null; return pintar(); }
       if (e.target.name === 'kc-e-dest') { envio.destino = e.target.value; envio.res = null; return pintar(); }
       var el = e.target.closest('[data-act]');
-      if (el && ['toggle', 'add-tienda', 'add-usuario', 'copiar-de'].indexOf(el.getAttribute('data-act')) >= 0) act(el);
+      if (el && ['toggle', 'add-tienda', 'add-usuario', 'copiar-de', 'copiar-cartera', 'raz-activo'].indexOf(el.getAttribute('data-act')) >= 0) act(el);
     });
     d.addEventListener('keydown', function (e) {
       if (e.key !== 'Enter') return;
       if (e.target.id === 'kc-pass') return entrar();
       var da = e.target.getAttribute && e.target.getAttribute('data-act');
-      var destino = { email: 'save-email', 'correos-para': 'add-para', 'correos-cc': 'add-cc', copias: 'add-copias', remitente: 'save-razon' }[da];
+      var destino = { email: 'save-email', 'correos-para': 'add-para', 'correos-cc': 'add-cc', 'cartera-para': 'add-cpara', 'cartera-cc': 'add-ccc',
+        copias: 'add-copias', remitente: 'save-razon' }[da];
       if (destino) {
         var btn = e.target.closest('tr').querySelector('[data-act="' + destino + '"]');
         if (btn) act(btn);
