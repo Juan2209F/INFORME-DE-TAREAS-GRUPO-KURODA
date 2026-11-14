@@ -60,23 +60,31 @@ monitor-cumplimiento-v2/
 
 ## Correos automáticos de tareas pendientes
 
-Cada **lunes a las 8:00 am hora del Pacífico** se envía **un correo por tienda y por tipo
-de tarea** (el tipo va en el asunto, p. ej. `TAREAS ORDEN Y LIMPIEZA — KN TECATE: 14 tareas
-pendientes`) con sus tareas pendientes (**Abierta** y **Abierta atrasada**, sin fecha de
-cumplimiento; las "No resuelta" no se envían). El correo tiene diseño formal compatible con
-Outlook y cierra con "Favor de atender y realizar las tareas a la brevedad posible. Saludos.
-GRUPO DE AUDITORES KURODA".
+Cada **lunes a las 8:00 am hora del Pacífico** cada tienda recibe **hasta dos correos**: uno
+con Colaboración y Orden y Limpieza (una sección por tipo) y otro aparte con Cartera, si tiene
+tareas de ese tipo. Incluyen sus tareas pendientes (**Abierta** y **Abierta atrasada**, sin
+fecha de cumplimiento; las "No resuelta" no se envían). El correo tiene diseño formal compatible
+con Outlook y cierra con "Favor de atender y realizar las tareas a la brevedad posible. Saludos.
+AUDITORÍA <razón social>".
 
 No hay destinatarios por defecto: los avisos se envían **únicamente** a los correos
 capturados. Todo se administra en **Gestión de Usuarios → Correos y tiendas**:
 - **Correos por tienda**: correos **Para** (quien atiende las tareas) y **CC** (copia solo de
   esa tienda). Se pueden pegar varios separados por coma. Una tienda sin Para no se envía.
-- **Envío por razón**: qué razones sociales envían, con qué remitente, y las **copias para
+- **Correos de Cartera**: lista aparte por tienda para el aviso de **seguimiento de Cartera**
+  (sin calificación). Ese correo va solo a su Para y CC de Cartera, más las copias de la razón
+  social; nunca a los correos de la tienda. Sin Para de Cartera, ese aviso no se envía. Requiere
+  aplicar una vez `supabase/migrations/20261114_correos_cartera.sql` (tabla
+  `tienda_correos_cartera`); mientras no se aplique, los avisos de Cartera no salen y el panel lo avisa.
+- **Copias y envío automático**: qué razones sociales envían, con qué remitente, y las **copias para
   todos los correos** de esa razón (auditores y otros; el botón "+ Auditores" agrega a los
   usuarios con rol auditor que tienen correo). Hoy solo **KNO** está activa (**AUDITORIA KNO**).
-- **Enviar**: envío manual sin esperar al lunes. *Prueba*: solo a los correos que escribas,
-  sin copias y con `[PRUEBA]` en el asunto. *Envío real*: a Para + CC configurados.
-  "Vista previa" muestra qué se mandaría sin enviar nada.
+- **Enviar ahora**: envío manual sin esperar al lunes. *Prueba*: con `[PRUEBA]` en el asunto, a
+  los destinatarios configurados o solo a los correos que escribas (con "Todas las tiendas" manda
+  un correo de muestra). *Envío real*: a Para + CC configurados. "Vista previa" muestra qué se
+  mandaría sin enviar nada. Cada envío se detiene a los 110 segundos; si faltaron correos, el
+  botón "Enviar los faltantes" manda solo los que no salieron ese día. "Qué enviar" permite
+  mandar todo, solo Colaboración y Orden y Limpieza, o solo Cartera.
 - **Tiendas / Usuarios**: asignación de usuarios a tiendas (no se usa para los correos).
 
 Migraciones (aplicar en orden): `20260925_correos_tareas_pendientes.sql`,
@@ -87,12 +95,13 @@ Migraciones (aplicar en orden): `20260925_correos_tareas_pendientes.sql`,
   (15:00 y 16:00 UTC; solo dispara el que cae a las 8:00 en `America/Tijuana`, así
   funciona con y sin horario de verano).
 - `supabase/functions/enviar-tareas-pendientes/index.ts` → arma y envía los correos
-  por Gmail (SMTP `smtp.gmail.com:465`). No reenvía a una tienda que ya recibió correo ese día.
+  por Gmail (SMTP `smtp.gmail.com:465`). El envío automático no reenvía a una tienda que ya
+  recibió correo ese día; el "Envío real" del panel sí, a propósito.
 
 Secretos de la Edge Function (Supabase → Edge Functions → Secrets):
 `GMAIL_USER` (la cuenta que envía) y `GMAIL_APP_PASSWORD` (contraseña de aplicación de
 16 letras: myaccount.google.com/apppasswords, requiere verificación en 2 pasos).
-El nombre del remitente se configura por razón social en la pestaña "Envío por razón".
+El nombre del remitente se configura por razón social en la pestaña "Copias y envío automático".
 
 Pruebas manuales desde el SQL Editor:
 
