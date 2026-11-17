@@ -52,6 +52,9 @@ main{max-width:1600px;margin:0 auto;padding:24px 32px 64px}
 .ill-veh{background:linear-gradient(135deg,#5e72e4,#825ee4)}
 .ill-fon{background:linear-gradient(135deg,#2dce89,#2dceb0)}
 .ill-ent{background:linear-gradient(135deg,#fbb140,#fb6340)}
+.ill-des{background:linear-gradient(135deg,#f5365c,#f56036)}
+.des-mot{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 16px}
+@media (max-width:560px){.des-mot{grid-template-columns:1fr}}
 .ill-ppt{background:linear-gradient(135deg,#1e4fa3,#4f7fd6)}
 .ill-cum{background:linear-gradient(135deg,#2e7d32,#66bb6a)}
 .ill-cel{background:linear-gradient(135deg,#0ea5a4,#0891b2)}
@@ -175,6 +178,13 @@ textarea{resize:vertical;min-height:46px}
       </div>
       <h3>Entrega – Recepción</h3>
       <p>Entrega-recepción de administración.</p>
+    </div>
+    <div class="home-card" onclick="showView('des')">
+      <div class="ill ill-des">
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h10l2 2v16l-2-1-2 1-2-1-2 1-2-1-2 1V5z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>
+      </div>
+      <h3>Formato de Descuento</h3>
+      <p>Descuento a empleado con pagaré.</p>
     </div>
     <div class="home-card" onclick="showView('cel')">
       <div class="ill ill-cel">
@@ -384,6 +394,66 @@ textarea{resize:vertical;min-height:46px}
   </div>
   <p class="status" id="e_status"></p>
 </section>
+<!-- ══════════ FORMATO DE DESCUENTO ══════════ -->
+<section class="view" id="view-des">
+  <span class="badge">✦ Elige la sucursal y se llenan solos el domicilio y la ciudad del pagaré</span>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon icon-amber">🏬</span><h2>Datos generales</h2></div>
+    <div class="card-body"><div class="grid">
+      <div><label>Fecha</label><input id="d_fecha" type="date"></div>
+      <div><label>Razón social</label><select id="d_razon" onchange="desRazon()">
+        <option>KSA</option><option>KSC</option><option selected>KNO</option><option>KST</option><option>VME</option><option>RMO</option></select></div>
+      <div class="span2"><label>Sucursal</label><input id="d_suc" list="d_sucs" placeholder="Escribe o elige una sucursal" oninput="desSucursal()" onchange="desSucursal()"><datalist id="d_sucs"></datalist></div>
+      <div class="span2"><label>Pagaré a la orden de (razón social completa)</label><input id="d_orden" placeholder="Ej. KURODA NORTE S.A. de C.V."></div>
+      <div class="span2"><label>Domicilio del pagaré</label><input id="d_dom" placeholder="Calle, número, colonia, ciudad, estado y C.P."></div>
+      <div class="span2"><label>Ciudad donde se paga</label><input id="d_ciudad" placeholder="Ej. TIJUANA, BAJA CALIFORNIA"></div>
+    </div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon icon-blue">👤</span><h2>Empleado</h2></div>
+    <div class="card-body"><div class="grid">
+      <div class="span2"><label>Nombre del empleado</label><input id="d_nombre" placeholder="Nombre completo"></div>
+      <div><label>Puesto</label><input id="d_puesto" placeholder="Ej. Chofer"></div>
+      <div><label>Número de empleado</label><input id="d_num" placeholder="Ej. 2406"></div>
+      <div><label>Número de recibo (opcional)</label><input id="d_recibo"></div>
+    </div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon icon-slate">📝</span><h2>Motivo del descuento</h2></div>
+    <div class="card-body">
+      <div class="des-mot" id="d_motivos"></div>
+      <div class="grid" style="margin-top:10px">
+        <div class="span2"><label>Si elegiste "Otros", ¿cuál?</label><input id="d_otros" placeholder="Ej. Préstamo personal"></div>
+        <div class="span2"><label>Detalle del motivo</label><textarea id="d_detalle" placeholder="Ej. Incidencia de 34 cajas de piso quebrado durante el traslado."></textarea></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon icon-green">💵</span><h2>Importe y pagos</h2></div>
+    <div class="card-body"><div class="grid">
+      <div><label>Total a descontar ($)</label><input id="d_total" type="number" step="0.01" min="0" placeholder="Ej. 3832.32" oninput="desResumen()"></div>
+      <div><label>Número de pagos</label><input id="d_pagos" type="number" step="1" min="1" value="1" oninput="desResumen()"></div>
+      <div class="span2"><label>Periodicidad</label>
+        <div style="display:flex;gap:18px;flex-wrap:wrap;padding:6px 0">
+          <label class="fondo-chk" style="margin:0"><input type="radio" name="d_per" value="SEMANALES" checked> Semanales</label>
+          <label class="fondo-chk" style="margin:0"><input type="radio" name="d_per" value="QUINCENALES"> Quincenales</label>
+          <label class="fondo-chk" style="margin:0"><input type="radio" name="d_per" value="MENSUALES"> Mensuales</label>
+        </div></div>
+      <div class="span2"><div class="cuadre ok" id="d_resumen">Escribe el total y el número de pagos: el importe de cada pago y la cantidad con letra se calculan solos.</div></div>
+    </div></div>
+  </div>
+
+  <div class="action-bar">
+    <button class="btn btn-docx" onclick="desExcel()">Descargar Excel (.xlsx)</button>
+    <button class="btn btn-pdf" onclick="desPDF()">Imprimir / Guardar PDF</button>
+  </div>
+  <p class="status" id="d_status"></p>
+</section>
+
 <!-- ══════════ CELULAR ══════════ -->
 <section class="view" id="view-cel">
   <span class="badge">✦ Solo los campos resaltados son editables — el resto es texto fijo corregido</span>
@@ -615,6 +685,7 @@ function showView(id){
   var t={veh:['Cartas de Vehículos','Carta responsiva de uso y cuidado'],
          fon:['Carta Responsiva de Fondo','Completa los campos y descarga'],
          ent:['Acta de Entrega – Recepción','Completa los campos y descarga'],
+         des:['Formato de Descuento','Descuento a empleado con pagaré'],
          cel:['Carta Responsiva de Celular','Completa los campos y descarga'],
          pc:['Carta Responsiva de Equipo de Cómputo','Completa los campos y descarga'],
          ppt:['Actividades de Auditoría','Presentación mensual en PowerPoint'],
@@ -1216,6 +1287,213 @@ function entDocx(){withDocx(function(){
   var doc=new D.Document({sections:[{properties:{page:{size:HOJA_CARTA,margin:{top:1000,bottom:1000,left:1200,right:1200}}},children:body}]});
   bajar(doc,'Acta_Entrega_Recepcion_'+(d.tienda||'Documento').replace(/\s+/g,'_')+'.docx','e_status');
 },'e_status');}
+
+/* ═══════════ FORMATO DE DESCUENTO ═══════════
+   Solo cambian la sucursal, el empleado, el motivo y el importe. El domicilio y la ciudad del
+   pagaré salen del catálogo de sucursales (se pueden corregir a mano). */
+var DES_RAZONES=['KSA','KSC','KNO','KST','VME','RMO'];
+var DES_RAZON_NOMBRE={KNO:'KURODA NORTE S.A. de C.V.'};
+var DES_MOTIVOS=['Deuda contraída con la empresa','Error de entrega','Diferencias de inventario (pérdida)',
+  'Incidencias / negligencias (averías)','Adquisición de material','Otros'];
+var DES_SUCURSALES=[
+  {n:'KURODA 20 DE NOVIEMBRE',r:'KNO',dom:'AV. 20 DE NOVIEMBRE 12177, COL. 20 DE NOVIEMBRE, TIJUANA, BAJA CALIFORNIA. C.P. 22100',c:'TIJUANA, BAJA CALIFORNIA'},
+  {n:'KURODA PROYECTOS TIJUANA',r:'KNO',dom:'BLVD. RUTA INDEPENDENCIA 5001 FRACC. LAS AMERICAS, TIJUANA, BAJA CALIFORNIA. C.P. 22215',c:'TIJUANA, BAJA CALIFORNIA'},
+  {n:'KURODA CEDIS TECATE',r:'KNO',dom:'BLVD. ENCINOS JUAREZ 1515 ENCARTO SUR, TECATE, BAJA CALIFORNIA. C.P. 21440',c:'TECATE, BAJA CALIFORNIA'},
+  {n:'KURODA ENSENADA',r:'KNO',dom:'',c:'ENSENADA, BAJA CALIFORNIA'},
+  {n:'KURODA MEXICALI DESIGN',r:'KNO',dom:'BLVD. LAZARO CARDENAS 640-A COL. EX EJIDO COAHUILA, MEXICALI, BAJA CALIFORNIA. C.P. 21360',c:'MEXICALI, BAJA CALIFORNIA'},
+  {n:'KURODA MEXICALI MENUDEO',r:'KNO',dom:'BLVD. LAZARO CARDENAS 640 OTE COL. EX EJIDO COAHUILA, MEXICALI, BAJA CALIFORNIA. C.P. 21360',c:'MEXICALI, BAJA CALIFORNIA'},
+  {n:'KURODA NOGALES',r:'KNO',dom:'AV. PROL. ALVARO OBREGON 4091 COL. VILLA SONORA, NOGALES, SONORA. C.P. 84093',c:'NOGALES, SONORA'},
+  {n:'KURODA PUERTO PEÑASCO',r:'KNO',dom:'BLVD. JOSEFA ORTIZ DE DOMINGUEZ 322 COL. CENTRO, PUERTO PEÑASCO, SONORA. C.P. 83550',c:'PUERTO PEÑASCO, SONORA'}
+];
+function desInit(){
+  document.getElementById('d_fecha').value=hoyISO();
+  document.getElementById('d_sucs').innerHTML=DES_SUCURSALES.map(function(s){return '<option value="'+esc(s.n)+'">';}).join('');
+  document.getElementById('d_motivos').innerHTML=DES_MOTIVOS.map(function(m,i){
+    return '<label class="fondo-chk" style="margin:0"><input type="checkbox" id="d_m'+i+'"> '+esc(m)+'</label>';}).join('');
+  desRazon();
+  desResumen();
+}
+/* Al elegir una sucursal del catálogo se llenan razón social, domicilio y ciudad. */
+function desSucursal(){
+  var n=v('d_suc').toUpperCase(), s=DES_SUCURSALES.filter(function(x){return x.n===n;})[0];
+  if(!s)return;
+  document.getElementById('d_razon').value=s.r;
+  document.getElementById('d_dom').value=s.dom;
+  document.getElementById('d_ciudad').value=s.c;
+  desRazon(true);
+}
+/* La razón social completa del pagaré se cambia sola mientras no se haya escrito otra a mano. */
+function desRazon(forzar){
+  var el=document.getElementById('d_orden'), auto=Object.keys(DES_RAZON_NOMBRE).map(function(k){return DES_RAZON_NOMBRE[k];});
+  if(forzar||!el.value.trim()||auto.indexOf(el.value.trim())>=0) el.value=DES_RAZON_NOMBRE[v('d_razon')]||'';
+}
+/* Pagos en centavos exactos: si no reparte parejo, el último pago lleva la diferencia. */
+function desCalculo(){
+  var total=Math.round((+v('d_total')||0)*100)/100, n=parseInt(v('d_pagos'),10)||0;
+  var base=n>0?Math.floor(Math.round(total*100)/n)/100:0;
+  var ultimo=n>0?Math.round((total-base*(n-1))*100)/100:0;
+  return {total:total,n:n,base:base,ultimo:ultimo};
+}
+function desPagoTexto(k){return '$'+money(k.base)+(k.n>1&&k.ultimo!==k.base?' (el último de $'+money(k.ultimo)+')':'');}
+function desResumen(){
+  var k=desCalculo(), box=document.getElementById('d_resumen');
+  if(!k.total||k.n<1){box.className='cuadre ok';box.innerHTML='Escribe el total y el número de pagos: el importe de cada pago y la cantidad con letra se calculan solos.';return;}
+  box.className='cuadre ok';
+  box.innerHTML='Total <b>$'+money(k.total)+'</b> ('+esc(numLetra(k.total,'mxn'))+')<br>'+
+    '<b>'+k.n+'</b> pago'+(k.n===1?'':'s')+' de <b>'+esc(desPagoTexto(k))+'</b>';
+}
+function desData(){
+  var k=desCalculo(), per=(document.querySelector('input[name="d_per"]:checked')||{}).value||'';
+  return {fecha:fechaLarga(v('d_fecha')).toUpperCase(), razon:v('d_razon'), orden:v('d_orden'), suc:v('d_suc').toUpperCase(),
+    dom:v('d_dom'), ciudad:v('d_ciudad').toUpperCase(), nombre:v('d_nombre').toUpperCase(), puesto:v('d_puesto').toUpperCase(),
+    num:v('d_num'), recibo:v('d_recibo'), otros:v('d_otros'), detalle:v('d_detalle'), per:per,
+    mot:DES_MOTIVOS.map(function(m,i){return document.getElementById('d_m'+i).checked;}),
+    total:k.total, n:k.n, base:k.base, ultimo:k.ultimo, pagoTexto:desPagoTexto(k),
+    letraTotal:numLetra(k.total,'mxn').toUpperCase(), letraPago:numLetra(k.base,'mxn').toUpperCase()};
+}
+/* Revisa lo indispensable antes de generar; si falta algo lo dice y no genera nada. */
+function desValida(){
+  var d=desData(), falta=[];
+  if(!d.suc)falta.push('sucursal');
+  if(!d.nombre)falta.push('nombre del empleado');
+  if(!d.orden)falta.push('razón social completa del pagaré');
+  if(!d.dom)falta.push('domicilio del pagaré');
+  if(!d.ciudad)falta.push('ciudad donde se paga');
+  if(!d.mot.some(Boolean))falta.push('motivo del descuento');
+  if(!(d.total>0))falta.push('total a descontar');
+  if(!(d.n>=1))falta.push('número de pagos');
+  var s=document.getElementById('d_status');
+  if(falta.length){s.className='status err';s.textContent='Falta: '+falta.join(', ')+'.';return null;}
+  s.className='status';s.textContent='';
+  return d;
+}
+function desPagare(d,html){
+  var b=html?function(t){return '<b>'+esc(t)+'</b>';}:function(t){return t;};
+  var e=html?esc:function(t){return t;};
+  return e('Debo y pagaré incondicionalmente por este pagaré, a la orden de ')+b(d.orden)+e(', en el domicilio ubicado en ')+b(d.dom)+
+    e(', la cantidad de ')+b('$'+money(d.total)+' M.N. (SON: '+d.letraTotal+')')+e(', pagaderos en la ciudad de ')+b(d.ciudad)+e('.');
+}
+function desNombreArchivo(d,ext){
+  return ('Formato_Descuento_'+(d.nombre||'Empleado')+'_'+v('d_fecha')).replace(/[^\wÁÉÍÓÚÑáéíóúñ\-]+/g,'_')+'.'+ext;
+}
+function desPDF(){
+  var d=desValida(); if(!d) return;
+  var caja=function(x){return '<span style="display:inline-block;width:26px;height:16px;border:1.3px solid #000;text-align:center;font-weight:bold;line-height:16px;vertical-align:middle">'+(x?'X':'')+'</span>';};
+  var L='padding:4px 6px;font-weight:bold;width:30%;vertical-align:middle';
+  var V='padding:4px 8px;border:1px solid #000;font-weight:bold;vertical-align:middle';
+  var firma=function(t){return '<td style="width:25%;padding:0 5px"><div style="border:1px solid #000;height:62px;display:flex;align-items:flex-end;justify-content:center;text-align:center;padding:0 4px 4px;font-weight:bold;font-size:8pt">'+t+'</div></td>';};
+  var h='<div class="pp-page" style="font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#000;padding:1.1cm 1.5cm">'+
+    '<table style="width:100%;border-collapse:collapse;margin-bottom:10px"><tr>'+
+      '<td style="width:60%;vertical-align:bottom"><div style="border-left:6px solid #e00000;padding:2px 0 2px 10px;font-size:15pt;font-weight:bold">FORMATO DE DESCUENTO</div></td>'+
+      '<td style="text-align:right;vertical-align:bottom"><b>FECHA:</b> <span style="display:inline-block;border:1px solid #000;padding:3px 10px;min-width:170px;text-align:center">'+esc(d.fecha)+'</span></td>'+
+    '</tr></table>'+
+    '<p style="font-weight:bold;margin:10px 0 6px">DATOS DE IDENTIFICACIÓN</p>'+
+    '<table style="width:100%;table-layout:fixed;border-collapse:collapse;overflow-wrap:anywhere">'+
+      '<tr><td style="'+L+'">RAZÓN SOCIAL</td><td style="padding:6px 8px;border:1px solid #000">'+
+        DES_RAZONES.map(function(r){return '<span style="margin-right:14px;white-space:nowrap"><b>'+r+'</b> '+caja(r===d.razon)+'</span>';}).join('')+'</td></tr>'+
+      '<tr><td style="'+L+'">SUCURSAL</td><td style="'+V+'">'+esc(d.suc)+'</td></tr>'+
+      '<tr><td style="'+L+'">NOMBRE EMPLEADO</td><td style="'+V+'">'+esc(d.nombre)+'</td></tr>'+
+      '<tr><td style="'+L+'">PUESTO</td><td style="'+V+'">'+esc(d.puesto)+'<span style="float:right">Número de empleado: '+esc(d.num)+'</span></td></tr>'+
+      '<tr><td style="'+L+'">NÚMERO DE RECIBO</td><td style="'+V+'">'+esc(d.recibo)+'</td></tr>'+
+    '</table>'+
+    '<p style="font-weight:bold;margin:14px 0 6px">MOTIVO DE DESCUENTO:</p>'+
+    '<table style="width:100%;border-collapse:collapse">'+
+      DES_MOTIVOS.map(function(m,i){return '<tr><td style="padding:3px 6px;width:40%">'+esc(m)+':</td><td style="padding:3px 6px;width:8%">'+caja(d.mot[i])+'</td><td style="padding:3px 6px">'+(i===5&&d.mot[i]&&d.otros?esc(d.otros):'')+'</td></tr>';}).join('')+
+    '</table>'+
+    '<table style="width:100%;border-collapse:collapse;margin-top:12px">'+
+      '<tr><td style="padding:4px 6px;width:40%;font-weight:bold">TOTAL A DESCONTAR:</td><td style="padding:4px 6px"><span style="border-bottom:1px solid #000;padding:0 14px;font-weight:bold">$ '+money(d.total)+'</span> M.N.</td></tr>'+
+      '<tr><td style="padding:4px 6px;font-weight:bold">EL DESCUENTO SE APLICARÁ EN:</td><td style="padding:4px 6px"><span style="display:inline-block;border:1px solid #000;min-width:34px;text-align:center;font-weight:bold">'+d.n+'</span> <b>PAGO'+(d.n===1?'':'S')+'</b> &nbsp; <b>DE:</b> '+esc(d.pagoTexto)+'</td></tr>'+
+      '<tr><td></td><td style="padding:2px 6px 6px">(SON: '+esc(d.letraPago)+')</td></tr>'+
+      ['SEMANALES','QUINCENALES','MENSUALES'].map(function(p){return '<tr><td style="padding:3px 6px;text-align:right;font-weight:bold">'+p+'</td><td style="padding:3px 6px">'+caja(d.per===p)+'</td></tr>';}).join('')+
+    '</table>'+
+    '<p style="font-weight:bold;margin:12px 0 6px">DETALLAR MOTIVO DE DESCUENTO:</p>'+
+    '<div style="border:1px solid #000;min-height:58px;padding:6px 8px;white-space:pre-wrap">'+esc(d.detalle)+'</div>'+
+    '<p style="margin:14px 0 0;text-align:justify;line-height:1.4">'+desPagare(d,true)+'</p>'+
+    '<p style="margin:20px 0 0"><b>Firma:</b> ________________________________________________</p>'+
+    '<table style="width:100%;table-layout:fixed;border-collapse:collapse;margin-top:18px;page-break-inside:avoid"><tr>'+
+      firma('FIRMA DEL EMPLEADO')+firma('FIRMA JEFE INMEDIATO')+firma('FIRMA GERENTE')+firma('RECURSOS HUMANOS')+'</tr></table>'+
+  '</div>';
+  imprimir(h);
+}
+function desCargarExcelJS(){
+  return new Promise(function(ok,mal){
+    if(window.ExcelJS) return ok();
+    var s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+    s.onload=function(){window.ExcelJS?ok():mal();};
+    s.onerror=mal;
+    document.head.appendChild(s);
+  });
+}
+async function desExcel(){
+  var d=desValida(); if(!d) return;
+  st('d_status','Generando Excel…');
+  try{ await desCargarExcelJS(); }catch(e){ st('d_status','No se pudo cargar el generador de Excel. Revisa tu conexión o usa Imprimir / Guardar PDF.'); return; }
+  try{
+    var wb=new ExcelJS.Workbook(), ws=wb.addWorksheet('Descuento',{
+      pageSetup:{paperSize:1,orientation:'portrait',fitToPage:true,fitToWidth:1,fitToHeight:1,horizontalCentered:true,
+        margins:{left:0.5,right:0.5,top:0.5,bottom:0.5,header:0.2,footer:0.2}},
+      views:[{showGridLines:false}]});
+    ws.columns=[2,32,14,14,22,18].map(function(w){return {width:w};});
+    var linea={style:'thin',color:{argb:'FF000000'}}, todo={top:linea,left:linea,bottom:linea,right:linea};
+    var F=function(o){return Object.assign({name:'Arial',size:10},o||{});};
+    var celda=function(ref,valor,o){var c=ws.getCell(ref);c.value=valor;c.font=F(o&&o.font);c.alignment=Object.assign({vertical:'middle',wrapText:true},o&&o.al);if(o&&o.borde)c.border=todo;if(o&&o.fmt)c.numFmt=o.fmt;return c;};
+    var rango=function(r1,c1,r2,c2,valor,o){
+      if(r1!==r2||c1!==c2) ws.mergeCells(r1,c1,r2,c2);
+      var c=ws.getCell(r1,c1);c.value=valor;c.font=F(o&&o.font);c.alignment=Object.assign({vertical:'middle',wrapText:true},o&&o.al);if(o&&o.fmt)c.numFmt=o.fmt;
+      if(o&&o.borde) for(var r=r1;r<=r2;r++) for(var k=c1;k<=c2;k++) ws.getCell(r,k).border=todo;
+      return c;
+    };
+    var caja=function(ref,x){celda(ref,x?'X':'',{font:{bold:true},al:{horizontal:'center'},borde:true});};
+    var B={bold:true};
+    rango(1,2,1,4,'FORMATO DE DESCUENTO',{font:{bold:true,size:15}});
+    ws.getCell('B1').border={left:{style:'thick',color:{argb:'FFE00000'}}};
+    ws.getRow(1).height=26;
+    celda('E2','FECHA:',{font:B,al:{horizontal:'right'}});
+    celda('F2',d.fecha,{al:{horizontal:'center'},borde:true});
+    celda('B4','DATOS DE IDENTIFICACIÓN',{font:B});
+    celda('B5','RAZÓN SOCIAL',{font:B});
+    rango(5,3,5,6,DES_RAZONES.map(function(r){return r+' ['+(r===d.razon?'X':'  ')+']';}).join('     '),{borde:true,font:B});
+    celda('B6','SUCURSAL',{font:B}); rango(6,3,6,6,d.suc,{borde:true,font:B});
+    celda('B7','NOMBRE EMPLEADO',{font:B}); rango(7,3,7,6,d.nombre,{borde:true,font:B});
+    celda('B8','PUESTO',{font:B}); rango(8,3,8,4,d.puesto,{borde:true,font:B});
+    celda('E8','Número de empleado:',{font:B,al:{horizontal:'right'},borde:true}); celda('F8',d.num,{font:B,borde:true});
+    celda('B9','NÚMERO DE RECIBO',{font:B}); rango(9,3,9,6,d.recibo,{borde:true});
+    celda('B11','MOTIVO DE DESCUENTO:',{font:B});
+    DES_MOTIVOS.forEach(function(m,i){
+      var r=12+i; celda('B'+r,m+':'); caja('C'+r,d.mot[i]);
+      if(i===5&&d.mot[i]&&d.otros) rango(r,4,r,6,d.otros);
+    });
+    celda('B19','TOTAL A DESCONTAR:',{font:B});
+    rango(19,3,19,4,d.total,{font:B,fmt:'"$"#,##0.00',al:{horizontal:'center'}});
+    ws.getCell('C19').border={bottom:linea}; ws.getCell('D19').border={bottom:linea};
+    celda('E19','M.N.');
+    celda('B20','EL DESCUENTO SE APLICARÁ EN:',{font:B});
+    celda('C20',d.n,{font:B,al:{horizontal:'center'},borde:true});
+    celda('D20','PAGO'+(d.n===1?'':'S')+' DE:',{font:B,al:{horizontal:'right'}});
+    celda('E20',d.base,{font:B,fmt:'"$"#,##0.00',al:{horizontal:'center'}});
+    if(d.n>1&&d.ultimo!==d.base) celda('F20','(el último de $'+money(d.ultimo)+')',{font:{size:9}});
+    rango(21,3,21,6,'(SON: '+d.letraPago+')',{font:{size:9}});
+    ['SEMANALES','QUINCENALES','MENSUALES'].forEach(function(p,i){celda('B'+(23+i),p,{font:B,al:{horizontal:'right'}});caja('C'+(23+i),d.per===p);});
+    celda('B27','DETALLAR MOTIVO DE DESCUENTO:',{font:B});
+    rango(28,2,31,6,d.detalle,{borde:true,al:{vertical:'top'}});
+    rango(33,2,36,6,desPagare(d,false),{al:{vertical:'top',horizontal:'justify'}});
+    celda('B38','Firma: _______________________________________________');
+    var firma=function(r1,c1,c2,t){rango(r1,c1,r1+2,c2,t,{font:{bold:true,size:9},borde:true,al:{horizontal:'center',vertical:'bottom'}});};
+    firma(40,2,2,'FIRMA DEL EMPLEADO');
+    firma(40,3,4,'FIRMA JEFE INMEDIATO');
+    firma(40,5,5,'FIRMA GERENTE');
+    firma(40,6,6,'RECURSOS HUMANOS');
+    [28,29,30,31].forEach(function(r){ws.getRow(r).height=18;});
+    [33,34,35,36].forEach(function(r){ws.getRow(r).height=17;});
+    [40,41,42].forEach(function(r){ws.getRow(r).height=20;});
+    ws.pageSetup.printArea='A1:F42';
+    var buf=await wb.xlsx.writeBuffer();
+    var nombre=desNombreArchivo(d,'xlsx');
+    dl(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),nombre);
+    st('d_status','✓ Excel generado: '+nombre);
+  }catch(e){ st('d_status','Error al generar Excel: '+e.message); }
+}
 
 /* ═══════════ HELPERS DOCX/PDF ═══════════ */
 function sinBordes(){var n={style:docx.BorderStyle.NONE,size:0,color:'FFFFFF'};return {top:n,bottom:n,left:n,right:n,insideHorizontal:n,insideVertical:n};}
@@ -2519,6 +2797,7 @@ function pptGenerar(){
 document.getElementById('f_fecha').value=hoyISO();
 document.getElementById('e_fecha').value=hoyISO();
 document.getElementById('pc_fecha').value=hoyISO();
+desInit();
 fLetra();
 for(var i=0;i<3;i++){document.getElementById('e_fbody').appendChild(factRow());}
 ftot();
