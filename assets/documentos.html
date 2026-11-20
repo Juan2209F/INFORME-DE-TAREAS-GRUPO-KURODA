@@ -123,6 +123,9 @@ textarea{resize:vertical;min-height:46px}
   /* margin:0 evita que el navegador imprima URL y fecha; los márgenes los da cada documento */
   @page{size:letter;margin:0}
   html,body{margin:0;padding:0;background:#fff!important}
+  /* Formato de descuento: si el navegador usa hoja horizontal, se reduce para caber en una hoja */
+  .des-hoja{width:100%;max-width:21.59cm;margin:0 auto}
+  @media (orientation:landscape){.des-hoja{zoom:.7}}
   .pp-page{page-break-after:always;padding:1.5cm;box-sizing:border-box}
   .pp-page:last-child{page-break-after:avoid}
   .pp-p{margin:0 0 5pt 0;font-size:10pt;text-align:justify;line-height:1.3}
@@ -1387,7 +1390,7 @@ function desPDF(){
   var VAL='padding:2px 4px;border:1px solid #000;font-weight:bold;vertical-align:middle;line-height:1.15';
   var firma=function(t,ancho){return '<div style="width:'+ancho+';height:52px;border:1px solid #000;display:flex;align-items:flex-end;justify-content:center;text-align:center;font-weight:bold;font-size:7.5pt;padding-bottom:2px">'+t+'</div>';};
   var renglon=function(etq,caj,extra){return '<tr><td style="padding:5px 4px;width:205px">'+etq+'</td><td style="padding:5px 4px">'+caj+(extra?'<span style="margin-left:14px">'+extra+'</span>':'')+'</td></tr>';};
-  var h='<div class="pp-page" style="font-family:Tahoma,Verdana,Arial,sans-serif;font-size:8.5pt;color:#000;padding:0.9cm 1cm 0.6cm;line-height:1.25">'+
+  var h='<div class="pp-page des-hoja" style="font-family:Tahoma,Verdana,Arial,sans-serif;font-size:8.5pt;color:#000;padding:0.9cm 1cm 0.6cm;line-height:1.25">'+
     /* Encabezado: datos de identificación, barra roja y título con la fecha */
     '<table style="width:100%;border-collapse:collapse"><tr>'+
       '<td style="width:47%;vertical-align:bottom;padding:0 0 4px 62px;font-weight:bold">DATOS DE IDENTIFICACIÓN</td>'+
@@ -1435,7 +1438,26 @@ function desPDF(){
         firma('FIRMA JEFE INMEDIATO','24%')+firma('FIRMA GERENTE','28.5%')+firma('RECURSOS HUMANOS','30%')+'</div>'+
     '</div>'+
   '</div>';
-  imprimir(h);
+  desImprimir(h,d);
+}
+/* Al imprimir desde dentro de la app, el navegador ignora el tamaño de hoja que pide el
+   formato y puede usar A4 horizontal (sale en 2 hojas). Por eso se imprime en una ventana
+   propia con hoja carta vertical. Si el navegador bloquea la ventana, se imprime como antes,
+   y en ambos casos una hoja horizontal reduce el contenido para que quepa en una sola. */
+var DES_CSS_HOJA='@page{size:letter portrait;margin:0}'+
+  'html,body{margin:0;padding:0;background:#fff}'+
+  '.des-hoja{box-sizing:border-box;width:100%;max-width:21.59cm;margin:0 auto}'+
+  '@media print and (orientation:landscape){.des-hoja{zoom:.7}}';
+function desImprimir(cuerpo,d){
+  var w=null;
+  try{ w=window.open('','_blank'); }catch(e){ w=null; }
+  if(!w||!w.document){ imprimir(cuerpo); return; }
+  var titulo=('Formato de descuento - '+(d.nombre||'')).replace(/[<>&]/g,'');
+  w.document.open();
+  w.document.write('<!doctype html><html lang="es"><head><meta charset="utf-8"><title>'+titulo+'</title><style>'+DES_CSS_HOJA+'</style></head><body>'+cuerpo+'</body></html>');
+  w.document.close();
+  w.onafterprint=function(){ try{ w.close(); }catch(e){} };
+  setTimeout(function(){ try{ w.focus(); w.print(); }catch(e){} },350);
 }
 function desCargarExcelJS(){
   return new Promise(function(ok,mal){
