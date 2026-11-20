@@ -383,6 +383,22 @@ function tipoNorm(t){
   if(n.includes('col')||n.includes('colab')||n.includes('auditoria col'))return 'col';
   return 'col';
 }
+/* Áreas responsables que SIEMPRE son Auditoría de Cartera, sin importar la
+   actividad capturada (p. ej. "CREDITO KNO" con actividad de Colaboración u
+   Orden y Limpieza). Se compara sin acentos ni mayúsculas: "Crédito KNO",
+   "CREDITO  KNO" y "CREDITO KNO " cuentan igual. Para agregar otra área,
+   súmala a esta lista. */
+var AREAS_CARTERA=['credito kno'];
+function esAreaCartera(area){
+  var a=norm(area);
+  if(!a)return false;
+  for(var i=0;i<AREAS_CARTERA.length;i++){if(a.indexOf(AREAS_CARTERA[i])>=0)return true;}
+  return false;
+}
+/* Tipo de tarea definitivo: el área de Crédito manda sobre la actividad. */
+function tipoTareaFinal(tipo,area){
+  return esAreaCartera(area)?'TAREAS CARTERA':(tipo||'');
+}
 function parseWorkbook(buf){
   const wb=XLSX.read(buf,{type:'array',cellDates:true});
   const out={auditorias:[],tareas:[]};
@@ -450,10 +466,10 @@ function parseWorkbook(buf){
            el canónico ya guardado en Supabase y marcaba la tarea como
            "cambiada" en cada re-importación aunque nada real hubiera cambiado. */
         const nombreActN=norm(nombreAct);
-        const tipoTarea = !nombreAct ? 'TAREAS AUDITORIA COL'
+        const tipoTarea = tipoTareaFinal(!nombreAct ? 'TAREAS AUDITORIA COL'
           : (nombreActN.includes('orden')||nombreActN.includes('limpieza')) ? 'TAREAS ORDEN Y LIMPIEZA'
           : nombreActN.includes('cartera') ? 'TAREAS CARTERA'
-          : 'TAREAS AUDITORIA COL';
+          : 'TAREAS AUDITORIA COL', r[c.areaResp]);
         /* El centro trae el nombre canónico de tienda; se respeta el del diccionario.
            canonCentro también resuelve alias de centro (CENTRO_ALIAS), si los hubiera. */
         const centro=canonCentro(String(r[c.centro]||'').trim());
@@ -519,7 +535,7 @@ function parseWorkbook(buf){
           actividad:String(r[c.act]||'').trim(),nombre:String(r[c.nombre]||'').trim(),
           estado:normalizarEstadoTarea(r[c.estado]),
           fechaTerm:toISO(parseDate(fechaCelda(i,c.term,c.pegaTerm))),fechaCumpl:toISO(parseDate(fechaCelda(i,c.cumpl,c.pegaCumpl))),
-          tipoTarea:String(r[c.tipo]||'').trim()
+          tipoTarea:tipoTareaFinal(String(r[c.tipo]||'').trim(),r[c.areaResp])
         });
       }
     }else if(esControl){
@@ -1827,7 +1843,7 @@ function openEdit(id){
           <option value="TAREAS ORDEN Y LIMPIEZA" ${tipoNorm(v.tipoTarea)==='ol'?'selected':''}>Orden y Limpieza</option>
           <option value="TAREAS AUDITORIA COL" ${tipoNorm(v.tipoTarea)==='col'?'selected':''}>Auditoría Colaboración</option>
           <option value="TAREAS CARTERA" ${tipoNorm(v.tipoTarea)==='cartera'?'selected':''}>Cartera</option>
-        </select></div>
+        </select><div style="font-size:10px;color:var(--muted);margin-top:3px">Si el área responsable es CREDITO KNO, se guarda como Cartera.</div></div>
       <div class="form-field full"><label>Nombre de tarea${v.nombre?'':' <span style="font-weight:400;color:var(--muted)">(vacío — se está mostrando "'+esc(v.actividad||'')+'" como nombre en las listas)</span>'}</label><textarea id="e-nombre" rows="2" placeholder="${esc(v.actividad||'')}">${v.nombre||''}</textarea></div>
       <div class="form-field"><label>Razón</label><input id="e-razon" value="${v.razon||''}"></div>
       <div class="form-field"><label>Centro</label><input id="e-centro" value="${v.centro||''}"></div>
@@ -1908,7 +1924,7 @@ function saveTask(isNew){
     id:isNaN(Number(id))?id:Number(id),
     razon:dval('e-razon'),centro:canonCentro(dval('e-centro')),tienda:dval('e-tienda'),
     areaResp:dval('e-areaResp'),areaRev:dval('e-areaRev'),actividad:dval('e-act'),
-    nombre:dval('e-nombre'),estado:dval('e-estado')||estadoAutomatico(fTerm,fCumpl),tipoTarea:dval('e-tipo'),
+    nombre:dval('e-nombre'),estado:dval('e-estado')||estadoAutomatico(fTerm,fCumpl),tipoTarea:tipoTareaFinal(dval('e-tipo'),dval('e-areaResp')),
     fechaCreacion:fCre,fechaTerm:fTerm,fechaCumpl:fCumpl
   };
   const idx=STORE.tareas.findIndex(t=>String(t.id)===id);
@@ -1936,6 +1952,28 @@ function openFileIfAllowed(){
     toast('⚠ Sin permisos para cargar archivos');return;
   }
   document.getElementById('file-input').click();
+}
+/* Guarda en Supabase el tipo "TAREAS CARTERA" de las tareas de área CREDITO KNO
+   que estaban con otro tipo. Solo lo hacen los roles que ya pueden editar
+   tareas; corre en segundo plano y nunca toca otro campo. Actualiza también
+   sb_updated para que editar esa tarea después no muestre un falso aviso de
+   "modificada por otro usuario". */
+async function corregirTipoCreditoEnSupabase(ids){
+  try{
+    if(!ids||!ids.length)return;
+    if(!_session||!['admin','admin_auditor','auditor'].includes(_session.rol))return;
+    var client=_sb||initSupabase();
+    if(!client)return;
+    var porUuid={};
+    STORE.tareas.forEach(function(t){if(t.sb_uuid)porUuid[t.sb_uuid]=t;});
+    var ok=0;
+    for(var i=0;i<ids.length;i+=200){
+      var r=await client.from('tareas').update({tipo_tarea:'TAREAS CARTERA'}).in('id',ids.slice(i,i+200)).select('id,updated_at');
+      if(r.error){console.warn('No se pudo corregir el tipo de tareas de Crédito:',r.error.message);return;}
+      (r.data||[]).forEach(function(x){if(porUuid[x.id])porUuid[x.id].sb_updated=x.updated_at||porUuid[x.id].sb_updated;ok++;});
+    }
+    if(ok)console.info('[Crédito → Cartera] '+ok+' tarea(s) corregida(s) en Supabase');
+  }catch(e){console.warn('corregirTipoCreditoEnSupabase:',e);}
 }
 async function syncTaskToSupabase(rec, isNew){
   var client=_sb||initSupabase();
@@ -6581,14 +6619,22 @@ async function loadDataFromSupabase(){
         sb_id:a.id||null /* id en la base: lo usa la campanita para ubicar la fila (data-nid) */
       };
     });
-    /* Tareas */
+    /* Tareas. Las de área CREDITO KNO guardadas con otro tipo se muestran ya como
+       Cartera y se anotan para corregirlas en Supabase (así el correo semanal y
+       los demás usuarios también las ven como Cartera). */
+    var _tiposACorregir=[];
+    function tipoCreditoAlCargar(t,guardado,area){
+      var fin=tipoTareaFinal(guardado,area);
+      if(fin!==guardado&&t.id)_tiposACorregir.push(t.id);
+      return fin;
+    }
     STORE.tareas=tarDec.map(function(t){
       function safe(v){return(v&&!pareceCifrado(v))?v:'';}
       return{
         id:t.tarea_id||t.id,sb_uuid:t.id,sb_updated:t.updated_at||null,
         razon:safe(t.razon)||'',centro:canonCentro(safe(t.centro))||'',
         tienda:canonTienda(safe(t.centro),safe(t.tienda)),areaResp:safe(t.area_resp)||'',areaRev:safe(t.area_rev)||'',
-        actividad:safe(t.actividad)||'',nombre:safe(t.nombre)||'',tipoTarea:safe(t.tipo_tarea)||'',
+        actividad:safe(t.actividad)||'',nombre:safe(t.nombre)||'',tipoTarea:tipoCreditoAlCargar(t,safe(t.tipo_tarea)||'',safe(t.area_resp)),
         estado:safe(t.estado)||'Abierta',
         fechaCreacion:t.fecha_creacion,fechaTerm:t.fecha_term,fechaCumpl:t.fecha_cumpl
       };
@@ -6617,6 +6663,7 @@ async function loadDataFromSupabase(){
       STORE.auditorias=out;
     })();
     refreshAll();
+    corregirTipoCreditoEnSupabase(_tiposACorregir);
     await loadFinalizadas();
     if(VIEW==='auditorias')renderAuditoriasView();
     await sincronizarTodasAuditorias();
