@@ -10,9 +10,9 @@
      Cada tarea lleva su ID. La firma es "AUDITORÍA <razón social>".
    - Para: correos capturados en la tienda como "para" (tienda_correos).
    - CC: correos "cc" de la tienda + copias de la razón social (correos_copias).
-   - Cartera usa su propia lista por tienda (tienda_correos_cartera): Para y CC de Cartera
-     + copias de la razón social. Nunca se manda a los correos de la tienda; sin Para de
-     Cartera, ese correo no se envía.
+   - Cartera es independiente: va ÚNICAMENTE a su propia lista por tienda
+     (tienda_correos_cartera, Para y CC de Cartera). No lleva los correos de la tienda ni
+     las copias de la razón social; sin Para de Cartera, ese correo no se envía.
 
    Se envía por Gmail (SMTP smtp.gmail.com:465; Supabase bloquea 25 y 587).
    Secretos requeridos (Supabase → Edge Functions → Secrets):
@@ -96,6 +96,35 @@ const CORTO: Record<Clase, string> = { col: "Colaboración", ol: "Orden y Limpie
 const ORDEN: Record<Clase, number> = { col: 1, ol: 2, cartera: 3 };
 /* Lo que se guarda en correos_envios.tipo_tarea para cada correo. */
 const TIPO_REGISTRO = { combinado: "COLABORACION Y ORDEN Y LIMPIEZA", cartera: "TAREAS CARTERA" };
+
+/* Áreas responsables que siempre son Cartera, sin importar la actividad
+   (mismo criterio que AREAS_CARTERA de app-core.js). */
+const AREAS_CARTERA = ["credito kno"];
+const normTxt = (s: string | null) =>
+  String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+const esAreaCartera = (area: string | null) => {
+  const a = normTxt(area);
+  return !!a && AREAS_CARTERA.some((x) => a.includes(x));
+};
+/* Mueve a un grupo de Cartera las tareas de Crédito que vengan con otro tipo
+   (p. ej. guardadas como Colaboración antes de la regla). Se hace después de
+   descifrar, porque el área viaja cifrada. */
+function reclasificarCredito(grupos: Grupo[]): Grupo[] {
+  const out: Grupo[] = [];
+  const extra = new Map<string, Grupo>();
+  for (const g of grupos) {
+    if (claseDe(g.tipo_tarea) === "cartera") { out.push(g); continue; }
+    const credito = (g.tareas || []).filter((t) => esAreaCartera(t.area_resp));
+    if (!credito.length) { out.push(g); continue; }
+    const resto = (g.tareas || []).filter((t) => !esAreaCartera(t.area_resp));
+    if (resto.length) out.push({ ...g, tareas: resto });
+    const k = g.tienda_id;
+    const c = extra.get(k) || { ...g, tipo_tarea: TIPO_REGISTRO.cartera, tareas: [] };
+    c.tareas.push(...credito);
+    extra.set(k, c);
+  }
+  return [...out, ...extra.values()];
+}
 
 /* Agrupa los grupos (tienda × tipo) de la base en correos: uno de Colaboración + Orden y
    Limpieza por tienda y, aparte, uno de Cartera. */
@@ -446,11 +475,11 @@ Deno.serve(async (req) => {
   for (const r of razones) {
     const { data, error } = await sb.rpc("correos_pendientes_semana", { p_razon: r.razon });
     if (error) { res.errores.push({ razon: r.razon, detalle: error.message }); continue; }
-    // Copias de la razón social (auditores): también van en el correo de Cartera.
-    const { data: cps } = await sb.from("correos_copias").select("email").ilike("razon", r.razon);
-    const copiasRazon = (cps || []).map((c) => String(c.email).trim().toLowerCase());
 
     const grupos = ((data || []) as Grupo[]).filter((g) => !soloTienda || g.tienda_id === soloTienda);
+    /* Tareas ilegibles: se bloquea solo el correo al que pertenecen (Cartera o Colaboración + O&L).
+       Un problema en Cartera no detiene el correo de Colaboración + O&L de la misma tienda, ni al revés. */
+    const familia = (g: Grupo) => `${g.tienda_id}|${claseDe(g.tipo_tarea) === "cartera" ? "cartera" : "combinado"}`;
     const ilegibles = new Set<string>();
     for (const g of grupos) {
       try {
@@ -458,12 +487,12 @@ Deno.serve(async (req) => {
           for (const c of CIFRADOS) (t as Record<string, unknown>)[c] = await descifrar(claves, t[c] as string | null);
         }
       } catch {
-        ilegibles.add(g.tienda_id);
+        ilegibles.add(familia(g));
       }
     }
-    // Una tienda con tareas ilegibles no recibe correo: mejor avisar que mandar un correo incompleto
-    for (const g of grupos.filter((x) => ilegibles.has(x.tienda_id))) {
-      const detalle = "No se pudieron descifrar sus tareas; no se envió el correo de esta tienda";
+    // Un correo con tareas ilegibles no se envía: mejor avisar que mandar un correo incompleto
+    for (const g of grupos.filter((x) => ilegibles.has(familia(x)))) {
+      const detalle = "No se pudieron descifrar sus tareas; no se envió este correo de la tienda";
       res.errores.push({ grupo: `${r.razon} · ${g.tienda} · ${g.tipo_tarea}`, detalle });
       if (!dry && !esPrueba) {
         await sb.from("correos_envios").insert({
@@ -473,7 +502,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    for (const p of armarPaquetes(grupos.filter((x) => !ilegibles.has(x.tienda_id)))) {
+    for (const p of armarPaquetes(reclasificarCredito(grupos.filter((x) => !ilegibles.has(familia(x)))))) {
       if (armados >= limitePrueba) break;
       if (soloTipo && (soloTipo === "cartera") !== p.cartera) continue;
       const tipoRegistro = p.cartera ? TIPO_REGISTRO.cartera : TIPO_REGISTRO.combinado;
@@ -482,7 +511,8 @@ Deno.serve(async (req) => {
         if (carteraErr) { res.errores.push({ grupo: etiqueta, detalle: "Falta aplicar en Supabase el script de correos de Cartera; no se envió" }); continue; }
         const lista = carteraPorTienda.get(String(p.tienda_id)) || { para: [], cc: [] };
         p.destinatarios = [...new Set(lista.para)];
-        p.cc = [...new Set([...lista.cc, ...copiasRazon])].filter((e) => !p.destinatarios.includes(e));
+        // Solo la lista de Cartera: sin correos de la tienda ni copias de la razón social.
+        p.cc = [...new Set(lista.cc)].filter((e) => !p.destinatarios.includes(e));
       }
       const nTareas = p.secciones.reduce((a, s) => a + s.tareas.length, 0);
       const to = pruebaManual ? prueba : p.destinatarios;
