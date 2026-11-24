@@ -50,7 +50,8 @@
   function descargar() {
     var f = iframe();
     if (f && f.getAttribute('src')) { f.src = 'about:blank'; f.removeAttribute('src'); }
-    /* El borrador en curso es de quien lo captura: no se deja para la siguiente cuenta. */
+    /* El borrador se queda guardado por usuario (arqueo_monitor_borrador_<usuario>) para que, al
+       volver a entrar, el arqueo siga donde se quedó. Se borra el formato anterior sin usuario. */
     try { localStorage.removeItem('arqueo_monitor_borrador'); } catch (e) {}
   }
 
