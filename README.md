@@ -169,6 +169,25 @@ Prueba rápida en el SQL Editor después de aplicarla:
 select razon, tienda, desde, actualizado, actualizado_por from public.generador_estructura order by actualizado desc;
 ```
 
+## Arqueo de caja
+
+- **Menú "🧮 Arqueo"** (`js/app-arqueo.js`, después de Mermas) abre `assets/arqueo.html?embed=1` en la
+  vista `arqueo`. Usa la misma sesión de Supabase del Monitor; no pide contraseña.
+- Lo ven admin y admin_auditor; auditor y viewer con la razón KNO (o sin razones asignadas); viewer
+  en solo consulta (no guarda ni elimina).
+- Un arqueo por **sucursal y fecha** en `arqueos` (captura completa en `datos`) y un renglón por
+  apartado en `arqueo_apartados` (total, debe tener, diferencia, cumple). Se guarda con la función
+  `guardar_arqueo(p jsonb)`.
+- Abierto por separado (sin el Monitor), `assets/arqueo.html` sigue funcionando y guarda en el navegador.
+
+Migración (aplicar una vez en Supabase → SQL Editor): `supabase/migrations/20261124_arqueos.sql`.
+Mientras no se aplique, el Historial del arqueo avisa "Falta aplicar la migración".
+
+```sql
+select a.fecha, a.sucursal, p.apartado, p.total, p.debe_tener, p.diferencia, p.cumple
+from public.arqueos a join public.arqueo_apartados p on p.arqueo_id = a.id order by a.fecha desc;
+```
+
 ## Nota de seguridad
 
 Este proyecto no contiene tokens ni contraseñas — solo la llave pública de Supabase,
