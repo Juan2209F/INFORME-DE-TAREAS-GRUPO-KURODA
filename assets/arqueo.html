@@ -132,6 +132,8 @@ html.emb .pg{color:#111}
 }
 .cldst.auto{color:var(--mu)}
 .pg .sg .pu{display:block;font-size:11px;color:#333;margin-top:1px}
+.pg.meas{width:calc(215.9mm - 24mm)!important;max-width:none!important;padding:0!important;border:0!important;box-shadow:none!important}
+@media print{.pg .fit{zoom:var(--z,1)}}
 </style>
 </head>
 <body>
@@ -278,7 +280,7 @@ const c999=n=>{if(n==100)return'CIEN';const r=n%100;let t='';if(r<20)t=U[r];else
 const enLetras=(x,k)=>{x=Math.abs(r2(x||0));const e=Math.floor(x),c=Math.round((x-e)*100),mm=Math.floor(e/1e6),th=Math.floor(e%1e6/1000),u=e%1000,p=[];
  if(mm)p.push(mm==1?'UN MILLÓN':c999(mm)+' MILLONES');if(th)p.push(th==1?'MIL':c999(th)+' MIL');if(u)p.push(c999(u));
  return`(${p.join(' ')||'CERO'}${mm&&!th&&!u?' DE':''} ${k=='usd'?(e==1?'DÓLAR':'DÓLARES'):(e==1?'PESO':'PESOS')} ${String(c).padStart(2,'0')}/100 ${k=='usd'?'USD':'M.N.'})`};
-const repVales=r=>{const t=(ttl,l,nb)=>B(`<div class="sh">${ttl}</div><table class="rt">${cg(12,15,29,28,16)}<thead><tr><th>Fecha<th>Factura<th>Nombre<th>Concepto<th class="n">Importe</tr></thead><tbody>${l.map(c=>`<tr><td>${esc((c.f||'').split('-').reverse().join('/'))}<td>${esc(c.r)}<td>${esc(c.n)}<td>${esc(c.c)}<td class="n">${fmt(c.v)}`).join('')||'<tr><td colspan="5" class="mu">Sin registros'}</tbody><tfoot><tr><td colspan="4">Subtotal<td class="n">${fmt(r2(l.reduce((x,c)=>x+c.v,0)))}</tfoot></table>`);return t('Vales comprobables',r.con)+t('No comprobables',r.non,1)};
+const repVales=r=>{const t=(ttl,l,nb)=>B(`<div class="sh">${ttl}</div><table class="rt">${cg(12,15,29,28,16)}<thead><tr><th>Fecha<th>Factura<th>Nombre<th>Concepto<th class="n">Importe</tr></thead><tbody>${l.map(c=>`<tr><td>${esc((c.f||'').split('-').reverse().join('/'))}<td>${esc(c.r)}<td>${esc(c.n)}<td>${esc(c.c)}<td class="n">${fmt(c.v)}`).join('')||'<tr><td colspan="5" class="mu">Sin registros'}</tbody><tfoot><tr><td colspan="4">Subtotal<td class="n">${fmt(r2(l.reduce((x,c)=>x+c.v,0)))}</tfoot></table>`);return(r.con.length?t('Vales comprobables',r.con):'')+(r.non.length?t('No comprobables',r.non,1):'')};
 function usdCntHTML(){const s=S.caja;return`<h3>Dólares en caja (USD)</h3><div class="cnt">${DEN.usd.map(g=>`<div class="sc"><table class="den"><thead><tr><th>${g.g} USD<th class="n">Cantidad<th class="n">Importe</tr></thead><tbody>${g.v.map(d=>`<tr data-ud="${d}"><td class="dl">${lab(d)}<td><input class="q" inputmode="decimal" placeholder="0" data-ud="${d}" value="${esc(s.ru[d])}"><td class="n im">`).join('')}</tbody></table></div>`).join('')}</div>`}
 const repUsd=()=>{const u=(CU.uRows||[]).filter(x=>x.pz);if(!u.length)return'';return B(`<div class="sh">Conteo de dólares en caja</div><table class="rt">${cg(50,20,30)}<thead><tr><th>Denominación<th class="n">Cantidad<th class="n">Importe</tr></thead><tbody>${u.map(x=>`<tr><td>${lab(x.d)} USD<td class="n">${x.pz}<td class="n">${fmt(x.im,'usd')}`).join('')}</tbody><tfoot><tr><td colspan="2">Total dólares<td class="n">${fmt(CU.uEf,'usd')}</tfoot></table>`)};
 function sysHTML(){
@@ -360,12 +362,28 @@ function calc(){
  const ks=Object.keys(S),fd=M.f.split('-').reverse().join('/');
  const hd=(t,cur)=>`<div class="lh"><div><h2>ARQUEO DE CAJA</h2><small>${t}</small></div><div style="text-align:right"><small>Fecha de arqueo</small><br><b>${esc(fd)}</b></div></div><div class="ib"><div><small>Sucursal</small>${esc(M.s)||'—'}</div><div><small>Apartado</small>${t}</div><div><small>Moneda</small>${cur}</div></div>`;
  const sg=(e,v,o,ep,vp)=>`<div class="blk"><div class="ob"><small>Observaciones</small>${o?'<div>'+esc(o).replace(/\n/g,'<br>')+'</div>':''}</div><div class="sg"><div><b>${esc(e)||'&nbsp;'}</b>${ep?`<span class="pu">${esc(ep)}</span>`:''}<small>Elaboró · Nombre, puesto y firma</small></div><div><b>${esc(v)||'&nbsp;'}</b>${vp?`<span class="pu">${esc(vp)}</span>`:''}<small>Confirmó · Nombre, puesto y firma</small></div></div><div class="ft">Documento generado el ${new Date().toLocaleDateString('es-MX')} · Sucursal ${esc(M.s)}</div></div>`;
- const pw=h=>`<div class="pg"><table class="pw"><thead><tr><td><div class="spt"></div></td></tr></thead><tfoot><tr><td><div class="spb"></div></td></tr></tfoot><tbody><tr><td>${h}</td></tr></tbody></table></div>`;
+ const pw=h=>`<div class="pg"><table class="pw"><thead><tr><td><div class="spt"></div></td></tr></thead><tfoot><tr><td><div class="spb"></div></td></tr></tfoot><tbody><tr><td><div class="fit">${h}</div></td></tr></tbody></table></div>`;
  const dic=k=>{const r=R[k];if(k=='caja'&&CU.dict!=null)return CU.dict;return r.dif==null?null:okD(k,r.dif)};
  const res=pw(`${hd('RESUMEN GENERAL','MXN / USD')}<div class="sh">Resumen por apartado</div><table class="rt">${cg(20,12,17,17,20,14)}<thead><tr><th>Apartado<th>Moneda<th class="n">Total contado<th class="n">Debe tener<th class="n">Diferencia<th>Dictamen</tr></thead><tbody>${ks.map(k=>{const r=R[k],v=dic(k);return`<tr><td>${NAMES[k]}<td>${k=='usd'?'USD':'MXN'}<td class="n">${fmt(r.tot,k)}<td class="n">${r.ref==null?'—':fmt(r.ref,k)}<td class="n ${r.dif==null?'':okD(k,r.dif)?'okc':'badc'}">${r.dif==null?'—':r.dif===0?'Cuadra':dl(r.dif)+' '+fmt(Math.abs(r.dif),k)}<td class="${v==null?'':v?'okc':'badc'}">${v==null?'—':v?'Cumple':'No cumple'}`}).join('')}</tbody></table>${sg(M.e,M.v,M.o,M.ep,M.vp)}`);
  const pages=(sel.res?res:'')+ks.filter(k=>sel[k]).map(k=>pw(`${hd(NAMES[k].toUpperCase(),k=='usd'?'USD':'MXN')}${repSec(k,R[k])}${sg(nm(k,'e'),nm(k,'v'),S[k].o,np(k,'e'),np(k,'v'))}`)).join('');
  rp.innerHTML=pages||'<p class="hint">Selecciona al menos un apartado.</p>';
+ if(tab=='rep')requestAnimationFrame(fitPages);
 }
+/* Una hoja por apartado: se mide cada hoja al ancho real de impresión (carta, márgenes de 12 mm)
+   y, si no cabe, se reduce todo su contenido lo necesario (mínimo 55%) para que entre en una sola. */
+const PW_MM=215.9-24,PH_MM=279.4-19-3,MM=96/25.4;
+function fitPages(){
+ document.querySelectorAll('#repbody .pg').forEach(pg=>{
+  const f=pg.querySelector('.fit');if(!f)return;
+  pg.classList.add('meas');f.style.removeProperty('--z');
+  const h=f.getBoundingClientRect().height;
+  pg.classList.remove('meas');
+  /* 0.94: al reducir, bordes y renglones no escalan exacto; se deja holgura para que nada brinque de hoja. */
+  const z=h>PH_MM*MM?Math.max(.55,Math.floor(PH_MM*MM/h*.94*1000)/1000):1;
+  if(z<1)f.style.setProperty('--z',z);
+ });
+}
+addEventListener('beforeprint',()=>{if(tab=='rep')fitPages()});
 document.addEventListener('input',e=>{
  const t=e.target,d=t.dataset;
  if(d.hf!==undefined){hf=t.value;render();return}
