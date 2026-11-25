@@ -150,7 +150,9 @@ html.emb .pg{color:#111}
 <script>
 const $=s=>document.querySelector(s);
 const NAMES={caja:'Caja',fondon:'Fondo revolvente',usd:'Dólares',chica:'Caja chica',rep:'Reporte formal',hist:'Historial'};
-const SUC=['KN00','KN01','KN03','KN04','KN05','KN06','KN07','KN14','KN18','KN19','KN21'];
+const SUCN={KN00:'20 DE NOVIEMBRE',KN01:'MARIANO MATAMOROS',KN03:'ENSENADA MAYOREO',KN04:'ENSENADA MENUDEO',KN05:'MEXICALI MENUDEO',KN06:'MEXICALI MAYOREO',KN07:'PUERTO PEÑASCO',KN09:'MOSAIKOS',KN14:'PROYECTOS TIJUANA',KN16:'CEDIS TECATE',KN17:'ROSARITO',KN18:'PEDREGAL',KN19:'TECATE',KN21:'NOGALES'};
+const SUC=Object.keys(SUCN);
+const sucTxt=s=>SUCN[s]?s+' · '+SUCN[s]:String(s||'');
 /* ARQUEO_EMBED: dentro del Monitor (iframe del mismo origen) el historial vive en Supabase
    (tablas arqueos / arqueo_apartados, migración 20261124_arqueos.sql) y se usa la misma sesión
    del Monitor (window.parent.getSbClient). Abierto solo, sigue usando este navegador. */
@@ -171,12 +173,21 @@ async function cldLoad(){
  CLD.busy--;
  if(error){CLD.ok=false;CLD.err=/arqueos|relation|schema cache|does not exist/i.test(error.message||'')?'Falta aplicar la migración 20261124_arqueos.sql en Supabase':error.message;render();return}
  CLD.ok=true;CLD.err='';H=(data||[]).filter(a=>a.datos&&a.datos.S).map(rowToH);
- /* Borrador que quedó en este navegador (p. ej. se cerró el Monitor antes de que se autoguardara):
-    si es más reciente que lo que hay en Supabase, se sube solo. */
- if(!RO&&hasData()){const h=H.find(x=>x.id==M.s+'|'+M.f),at=h&&Date.parse(h.at)||0;
-  if(BAT>at&&(!h||JSON.stringify(h.S)!==JSON.stringify(S))){AUTO.sucio=true;clearTimeout(AUTO.t);AUTO.t=setTimeout(autoGuardar,800)}}
+ subirPendiente();
  if(CLD.msg==='Cargando historial…')cldMsg('');
  const ae=document.activeElement;if(!ae||ae===document.body||!ae.matches('input,textarea,select'))render();
+}
+/* Arqueo que se estaba haciendo la vez anterior (p. ej. se cerró el Monitor antes de que se
+   autoguardara): si es más reciente que lo que hay en Supabase, se sube solo y queda en el Historial. */
+function subirPendiente(){
+ let p=null;try{p=JSON.parse(localStorage.getItem(PK))}catch(e){}
+ if(!p||!p.S||RO)return;
+ const cS=S,cM=M;let x=null;S=p.S;M=p.M;
+ try{norm();if(hasData()){const id=M.s+'|'+M.f,h=H.find(z=>z.id==id),at=h&&Date.parse(h.at)||0;const suyo=!h||id===p.ab||(p.nv||[]).includes(id);if(suyo&&(p.at||0)>at&&(!h||JSON.stringify(h.S)!==JSON.stringify(S)))x=snap()}}finally{S=cS;M=cM;calc()}
+ const quita=()=>{try{localStorage.removeItem(PK)}catch(e){}};
+ if(!x)return quita();
+ const i=H.findIndex(h=>h.id==x.id);if(i>=0&&H[i].uid)x.uid=H[i].uid;if(i<0)H.push(x);else H[i]=x;
+ cldPut(x,'auto').then(ok=>{if(ok)quita()});
 }
 function payload(x){
  const ap=[];let dict=null;
@@ -230,7 +241,11 @@ const nm=(k,f)=>EMB&&f=='e'?M.e:(S[k]&&S[k][f])||M[f];
 /* Puesto: el del apartado; si no tiene, el general, pero solo cuando firma la misma persona del general. */
 const np=(k,f)=>{if(EMB&&f=='e')return'Auditor';const s=S[k]||{},own=String(s[f]||'').trim();return String(s[f+'p']||'').trim()||(!own||own===String(M[f]||'').trim()?M[f+'p']||'':'')};
 const AK=EMB?'arqueo_monitor_borrador_'+String((SES()||{}).username||'').toLowerCase():'arqueo_v3';
+const PK=AK+'_pend';
 try{st=JSON.parse(localStorage.getItem(AK))}catch(e){}
+/* Dentro del Monitor, cada vez que se abre Arqueo empieza uno nuevo. El que se estaba haciendo
+   queda como pendiente y se sube a Supabase (Historial) si no alcanzó a autoguardarse. */
+if(EMB&&st&&st.S){try{localStorage.setItem(PK,JSON.stringify(st))}catch(e){}st=null}
 if(!st||!st.S)st=fresh(!EMB);
 let{S,M}=st;
 /* Autoguardado: cada cambio queda al instante en este navegador (borrador) y, dentro del Monitor,
@@ -238,13 +253,14 @@ let{S,M}=st;
    el arqueo sigue donde se quedó. */
 const AUTO={t:null,key:null,nuevos:new Set(),sucio:false};
 let BAT=(st&&st.at)||0;
-const save=noAuto=>{BAT=Date.now();try{localStorage.setItem(AK,JSON.stringify({S,M,at:BAT}))}catch(e){}if(EMB&&!RO&&!noAuto){AUTO.sucio=true;clearTimeout(AUTO.t);AUTO.t=setTimeout(autoGuardar,2500)}};
+const save=noAuto=>{BAT=Date.now();try{localStorage.setItem(AK,JSON.stringify({S,M,at:BAT,ab:ABIERTO,nv:[...AUTO.nuevos]}))}catch(e){}if(EMB&&!RO&&!noAuto){AUTO.sucio=true;clearTimeout(AUTO.t);AUTO.t=setTimeout(autoGuardar,2500)}};
 function autoGuardar(){
  clearTimeout(AUTO.t);AUTO.t=null;
  if(!EMB||RO||!AUTO.sucio||!CLD.ok)return;
  AUTO.sucio=false;
  if(!hasData())return;
  const id=M.s+'|'+M.f,existia=H.some(h=>h.id==id);
+ if(choca()){cldMsg('⚠ Ya hay un arqueo de '+M.s+' con esta fecha en el Historial. Ábrelo desde ahí o cambia sucursal/fecha: este no se autoguardó.',1);return}
  /* Si se cambió la sucursal o la fecha, el registro que creó el autoguardado con la clave anterior
     ya no corresponde a nada: se quita para no dejar arqueos duplicados. */
  if(AUTO.key&&AUTO.key!==id&&AUTO.nuevos.has(AUTO.key)){const v=H.find(h=>h.id==AUTO.key);H=H.filter(h=>h.id!==AUTO.key);AUTO.nuevos.delete(AUTO.key);if(v)cldDel(v,1)}
@@ -252,6 +268,10 @@ function autoGuardar(){
  AUTO.key=id;
  upsert('auto');
 }
+/* ABIERTO: el arqueo del Historial que se abrió o se guardó en esta sesión. Un arqueo nuevo con la
+   misma sucursal y fecha que uno ya guardado no lo sobrescribe solo. */
+let ABIERTO=null;
+const choca=()=>{const id=M.s+'|'+M.f;return H.some(h=>h.id==id)&&id!==ABIERTO&&!AUTO.nuevos.has(id)};
 const fijar=()=>{AUTO.nuevos.clear();AUTO.key=null;AUTO.sucio=false;clearTimeout(AUTO.t)};
 if(EMB){addEventListener('pagehide',()=>{if(AUTO.sucio)autoGuardar()});document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&AUTO.sucio)autoGuardar()})}
 const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
@@ -271,8 +291,9 @@ const lab=d=>'$'+(d>=1?d.toLocaleString('es-MX'):d.toFixed(2));
 const dl=v=>v===0?'Cuadra':v>0?'Sobrante':'Faltante';
 const card=(id,l,c)=>`<div class="c ${c||''}" id="${id}"><small>${l}</small><b></b></div>`;
 const set=(id,t)=>{const e=$('#'+id);if(e)e.querySelector('b').textContent=t};
-const FMIN=20;const TOLK=['caja','fondon','chica'];const okD=(k,d)=>d===0||(TOLK.includes(k)&&Math.abs(d)<FMIN);
-function setR(id,v){const e=$('#'+id);if(!e)return;const kk=id.split('-')[0];if(v!=null&&v!==0&&okD(kk,v)){e.className='c r ok';e.querySelector('small').textContent='Diferencia: '+dl(v)+' permitido (menor a $'+FMIN+')';e.querySelector('b').textContent=fmt(Math.abs(v));return}if(v==null){e.className='c r';e.querySelector('small').textContent='Diferencia';e.querySelector('b').textContent='Captura lo que debe tener';return}e.className='c r '+(v===0?'ok':'bad');e.querySelector('small').textContent='Diferencia: '+dl(v);e.querySelector('b').textContent=fmt(Math.abs(v),id.split('-')[0])}
+/* Tolerancia en pesos: faltante o sobrante de hasta $10.00 cumple; más de $10.00 no cumple. Dólares exactos. */
+const FMIN=10;const TOLK=['caja','fondon','chica'];const okD=(k,d)=>d===0||(TOLK.includes(k)&&Math.abs(d)<=FMIN+1e-9);
+function setR(id,v){const e=$('#'+id);if(!e)return;const kk=id.split('-')[0];if(v!=null&&v!==0&&okD(kk,v)){e.className='c r ok';e.querySelector('small').textContent='Diferencia: '+dl(v)+' permitido (hasta $'+FMIN+')';e.querySelector('b').textContent=fmt(Math.abs(v));return}if(v==null){e.className='c r';e.querySelector('small').textContent='Diferencia';e.querySelector('b').textContent='Captura lo que debe tener';return}e.className='c r '+(v===0?'ok':'bad');e.querySelector('small').textContent='Diferencia: '+dl(v);e.querySelector('b').textContent=fmt(Math.abs(v),id.split('-')[0])}
 
 const conHTML=k=>`<h3>${CONL[k]}</h3><div class="sc"><table><thead><tr><th>Concepto<th>Referencia<th class="n">Monto<th></tr></thead><tbody id="cn-${k}" data-grow="c" data-k="${k}">${S[k].con.map((c,i)=>`<tr data-con><td><input class="t" list="cl" data-cc="c" data-k="${k}" data-i="${i}" value="${esc(c.c)}" placeholder="Concepto"><td><input class="t" data-cc="r" data-k="${k}" data-i="${i}" value="${esc(c.r)}" placeholder="Factura / nota"><td><input class="q" inputmode="decimal" data-q data-cc="m" data-k="${k}" data-i="${i}" value="${esc(c.m)}" placeholder="0"><td><button class="x" data-a="dc" data-k="${k}" data-i="${i}" title="Quitar">×</button></tr>`).join('')}</tbody></table></div><div class="bt"><button data-a="ac" data-k="${k}">+ Agregar concepto</button></div>`;
 const vt=(key,title,nb)=>`<h3${nb?' class="nb"':''}>${title}</h3><div class="sc"><table><thead><tr><th>Fecha<th>Factura<th>Nombre<th>Concepto<th class="n">Importe<th></tr></thead><tbody id="${key}-chica" data-grow="v" data-key="${key}">${S.chica[key].map((c,i)=>`<tr><td><input type="date" class="dt" data-vv="f" data-key="${key}" data-i="${i}" value="${esc(c.f)}"><td><input class="t" data-vv="r" data-key="${key}" data-i="${i}" value="${esc(c.r)}"><td><input class="t" data-vv="n" data-key="${key}" data-i="${i}" value="${esc(c.n)}"><td><input class="t" style="min-width:220px" data-vv="c" data-key="${key}" data-i="${i}" value="${esc(c.c)}"><td><input class="q" inputmode="decimal" placeholder="0" data-q data-vv="m" data-key="${key}" data-i="${i}" value="${esc(c.m)}"><td><button class="x" data-a="dv" data-key="${key}" data-i="${i}" title="Quitar">×</button></tr>`).join('')}</tbody><tfoot><tr><td colspan="4">Subtotal<td class="n" id="sub-${key}"><td></tr></tfoot></table></div><div class="bt"><button data-a="av" data-key="${key}">+ Agregar renglón</button></div>`;
@@ -291,7 +312,7 @@ const repUsd=()=>{const u=(CU.uRows||[]).filter(x=>x.pz);if(!u.length)return'';r
 function sysHTML(cnt){
  const y=S.caja.sys;
  const t=g=>{const[ti,c1,c2,c3]=SYG[g],f=f2(g);return`<h3 class="sy">${ti}</h3><div class="sc"><table><thead><tr><th>${c1}<th class="n">${c2}<th class="n">${c3}<th></tr></thead><tbody id="sy-${g}" data-grow="s" data-g="${g}">${y[g].map((c,i)=>`<tr><td><input class="t" style="min-width:230px" data-sy="n" data-g="${g}" data-i="${i}" value="${esc(c.n)}"><td><input class="q" inputmode="decimal" placeholder="0.00" data-q data-sy="p" data-g="${g}" data-i="${i}" value="${esc(c.p)}"><td><input class="q" inputmode="decimal" placeholder="0.00" data-q data-sy="${f}" data-g="${g}" data-i="${i}" value="${esc(c[f])}"><td><button class="x" data-a="dsy" data-g="${g}" data-i="${i}" title="Quitar">×</button></tr>`).join('')}</tbody><tfoot><tr><td>TOTALES<td class="n" id="syt-${g}-p"><td class="n" id="syt-${g}-${f}"><td></tr>${g=='ef'?`<tr class="vu"><td>CONTADO EN CAJA<td class="n" id="ef-cp"><td><input class="q" inputmode="decimal" placeholder="Dólares contados" data-usdc value="${esc(S.caja.usdc)}"><td></tr><tr class="vu"><td>DIFERENCIA<td class="n" id="ef-dp"><td class="n" id="ef-du"><td></tr>`:''}</tfoot></table></div><div class="bt"><button data-a="asy" data-g="${g}">+ Agregar renglón</button></div>`};
- return`<h3 class="nb">Paso 1 · Corte del sistema (formas de pago)</h3><p class="hint">Primero copia los importes tal como vienen en el reporte del sistema (se aceptan negativos con el signo al final: 1,424.67-). El <b>TOTAL de efectivo en pesos</b> de este corte es lo que debe haber en caja: se pasa solo a <b>Total según sistema</b> y se compara contra el <b>CONTADO EN CAJA</b> (los billetes y monedas que cuentas en el paso 2). La <b>DIFERENCIA</b> es contado menos sistema. <b>Regla:</b> en pesos, un faltante o sobrante menor a $20.00 se considera permitido (cumple); de $20.00 en adelante no cumple. Los dólares deben estar exactos: escribe en <b>CONTADO EN CAJA</b> (columna Dólares) los dólares que hay físicamente en la caja. Si no capturas corte, escribe a mano el Total según sistema.</p>${t('ef')}${cnt}<h3 class="nb">Paso 3 · Otras formas de pago del corte</h3>${t('tj')}${t('tr')}${t('inf')}`}
+ return`<h3 class="nb">Paso 1 · Corte del sistema (formas de pago)</h3><p class="hint">Primero copia los importes tal como vienen en el reporte del sistema (se aceptan negativos con el signo al final: 1,424.67-). El <b>TOTAL de efectivo en pesos</b> de este corte es lo que debe haber en caja: se pasa solo a <b>Total según sistema</b> y se compara contra el <b>CONTADO EN CAJA</b> (los billetes y monedas que cuentas en el paso 2). La <b>DIFERENCIA</b> es contado menos sistema. <b>Regla:</b> en pesos, un faltante o sobrante de hasta $10.00 se considera permitido (cumple); de más de $10.00 no cumple. Los dólares deben estar exactos: escribe en <b>CONTADO EN CAJA</b> (columna Dólares) los dólares que hay físicamente en la caja. Si no capturas corte, escribe a mano el Total según sistema.</p>${t('ef')}${cnt}<h3 class="nb">Paso 3 · Otras formas de pago del corte</h3>${t('tj')}${t('tr')}${t('inf')}`}
 function secHTML(k){
  const s=S[k];
  const cnt=`<h3${k=='caja'?' class="nb"':''}>${k=='caja'?'Paso 2 · Conteo de billetes y monedas (contado en caja)':'Conteo de efectivo'}</h3><div class="cnt">${DEN[k].map(g=>`<div class="sc"><table class="den"><thead><tr><th>${g.g}<th class="n">Cantidad<th class="n">Importe</tr></thead><tbody>${g.v.map(d=>`<tr data-d="${d}"><td class="dl">${lab(d)}<td><input class="q" inputmode="decimal" enterkeyhint="next" placeholder="0" data-q data-k="${k}" data-d="${d}" data-c="0" value="${esc((s.r[d]||[])[0])}"><small class="ev"></small><td class="n im">`).join('')}</tbody></table></div>`).join('')}</div>`;
@@ -304,7 +325,7 @@ function secHTML(k){
 
 function render(){
  norm();autor();
- $('#meta').innerHTML=`<label class="f">Fecha<input type="date" data-m="f" value="${esc(M.f)}"></label><label class="f">Sucursal<select data-m="s">${SUC.map(x=>`<option${M.s==x?' selected':''}>${x}</option>`).join('')}${SUC.includes(M.s)?'':`<option selected>${esc(M.s)}</option>`}</select></label>${EMB?`<label class="f">Elaboró (auditor)<input class="auto" value="${esc(M.e)}" readonly title="Se toma del usuario que hace el arqueo"></label><label class="f">Puesto<input class="auto" value="Auditor" readonly></label>`:`<label class="f">Elaboró (general)<input data-m="e" value="${esc(M.e)}" placeholder="Nombre"></label><label class="f">Puesto<input data-m="ep" value="${esc(M.ep)}" placeholder="Puesto"></label>`}<label class="f">Confirmó / verificó<input data-m="v" value="${esc(M.v)}" placeholder="Nombre de quien confirma"></label><label class="f">Puesto de quien confirma<input data-m="vp" value="${esc(M.vp)}" placeholder="Ej. Gerente de sucursal"></label>`;
+ $('#meta').innerHTML=`<label class="f">Fecha<input type="date" data-m="f" value="${esc(M.f)}"></label><label class="f">Sucursal<select data-m="s">${SUC.map(x=>`<option value="${x}"${M.s==x?' selected':''}>${esc(sucTxt(x))}</option>`).join('')}${SUC.includes(M.s)?'':`<option selected>${esc(M.s)}</option>`}</select></label>${EMB?`<label class="f">Elaboró (auditor)<input class="auto" value="${esc(M.e)}" readonly title="Se toma del usuario que hace el arqueo"></label><label class="f">Puesto<input class="auto" value="Auditor" readonly></label>`:`<label class="f">Elaboró (general)<input data-m="e" value="${esc(M.e)}" placeholder="Nombre"></label><label class="f">Puesto<input data-m="ep" value="${esc(M.ep)}" placeholder="Puesto"></label>`}<label class="f">Confirmó / verificó<input data-m="v" value="${esc(M.v)}" placeholder="Nombre de quien confirma"></label><label class="f">Puesto de quien confirma<input data-m="vp" value="${esc(M.vp)}" placeholder="Ej. Gerente de sucursal"></label>`;
  $('#nav').innerHTML=Object.entries(NAMES).map(([k,n])=>`<button data-a="tab" data-k="${k}" class="${tab==k?'on':''}">${n}</button>`).join('')+`<span style="flex:1"></span>${EMB?`<span class="cldst${CLD.bad?' bad':(CLD.msg||'').startsWith('☁')?' auto':''}" id="cldst">${esc(CLD.msg||'')}</span>`:`<button data-a="theme">${TL[th]}</button>`}${RO?'':`<button class="pri" data-a="hsave">💾 Guardar${EMB?'':' en historial'}</button>`}<button data-a="new">Nuevo arqueo</button>`;
  $('#app').innerHTML=Object.keys(S).map(k=>`<section class="sec ${tab==k?'on':''}" id="sec-${k}"><h2>${NAMES[k]}</h2>${secHTML(k)}</section>`).join('')+`<section class="sec rep ${tab=='rep'?'on':''}" id="rep"><div class="noprint" id="repsel"><h2>Reporte formal</h2><p class="hint">Elige qué apartados imprimir. Cada uno sale en su propia hoja con sus propias firmas. Si no abre la impresión, usa Ctrl+P.</p>${[['res','Resumen'],...Object.keys(S).map(k=>[k,NAMES[k]])].map(([k,n])=>`<label class="ck"><input type="checkbox" data-sel="${k}" ${sel[k]?'checked':''}> ${n}</label>`).join('')}<label class="f" style="margin:6px 0 10px">Observaciones del resumen<textarea rows="2" data-m="o" placeholder="Salen arriba de las firmas del resumen">${esc(M.o)}</textarea></label><div class="bt"><button class="pri" data-a="print">Imprimir selección</button> <button data-a="all">Seleccionar todo</button></div></div><div id="repbody"></div></section><section class="sec ${tab=='hist'?'on':''}" id="hist">${histHTML()}</section>`;
  calc();
@@ -316,10 +337,10 @@ function histHTML(){
  const ks=['caja','fondon','usd','chica'],n=s=>H.filter(h=>h.s==s).length,cur=M.s+'|'+M.f;
  const L=H.filter(h=>!hf||h.s==hf).sort((a,b)=>(b.f||'').localeCompare(a.f||'')||(a.s||'').localeCompare(b.s||''));
  const cell=(t,k)=>!t?'<td class="n">—':`<td class="n ${t.dif==null?'':t.dif===0?'hok':'hbad'}" title="Total: ${fmt(t.tot,k)}${t.ref==null?'':' · Debe tener: '+fmt(t.ref,k)}">${t.dif==null?(t.tot?fmt(t.tot,k):'—'):t.dif===0?'Cuadra':dl(t.dif)+' '+fmt(Math.abs(t.dif),k)}`;
- return`<h2>Historial de arqueos</h2><div class="meta" style="margin-bottom:8px;align-items:end"><label class="f">Sucursal<select data-hf>${['',...SUC].map(s=>`<option value="${s}"${hf==s?' selected':''}>${s?s+' ('+n(s)+')':'Todas ('+H.length+')'}</option>`).join('')}</select></label><button data-a="hexp">Exportar respaldo</button>${RO?'':'<button data-a="himp">Importar respaldo</button>'}${EMB?'<button data-a="hrel">↻ Actualizar</button>':''}<input type="file" id="himp" accept=".json,application/json" data-imp hidden></div>
+ return`<h2>Historial de arqueos</h2><div class="meta" style="margin-bottom:8px;align-items:end"><label class="f">Sucursal<select data-hf>${['',...SUC].map(s=>`<option value="${s}"${hf==s?' selected':''}>${s?esc(sucTxt(s))+' ('+n(s)+')':'Todas ('+H.length+')'}</option>`).join('')}</select></label><button data-a="hexp">Exportar respaldo</button>${RO?'':'<button data-a="himp">Importar respaldo</button>'}${EMB?'<button data-a="hrel">↻ Actualizar</button>':''}<input type="file" id="himp" accept=".json,application/json" data-imp hidden></div>
  ${EMB&&CLD.err?`<p class="hint" style="color:var(--bad)"><b>⚠ ${esc(CLD.err)}</b></p>`:''}
  <p class="hint">Se guarda uno por <b>sucursal y fecha</b>: si vuelves a guardar el mismo día, se actualiza. Al abrir otro arqueo o hacer uno nuevo, el actual se guarda solo. ${EMB?'El historial se guarda en <b>Supabase</b> y lo ven todos los usuarios con acceso a Arqueo.'+(RO?' Tu cuenta es de solo consulta.':''):'El historial vive en este navegador: exporta un respaldo de vez en cuando (también sirve para pasarlo a otra computadora).'}</p>
- <div class="sc"><table><thead><tr><th>Fecha<th>Sucursal<th class="n">Caja<th class="n">Fondo revolvente<th class="n">Dólares<th class="n">Caja chica<th>Elaboró<th>Guardado<th></tr></thead><tbody>${L.map(h=>`<tr${h.id==cur?' class="cur"':''}><td>${esc((h.f||'').split('-').reverse().join('/'))}<td><b>${esc(h.s)}</b>${ks.map(k=>cell(h.tot&&h.tot[k],k)).join('')}<td>${esc(h.e)}<td>${h.at?new Date(h.at).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'}):''}<td><button data-a="hopen" data-id="${esc(h.id)}">Abrir</button>${RO?'':` <button class="x" data-a="hdel" data-id="${esc(h.id)}">Eliminar</button>`}`).join('')||`<tr><td colspan="9" class="hint">Aún no hay arqueos guardados${hf?' de '+hf:''}.`}</tbody></table></div>`}
+ <div class="sc"><table><thead><tr><th>Fecha<th>Sucursal<th class="n">Caja<th class="n">Fondo revolvente<th class="n">Dólares<th class="n">Caja chica<th>Elaboró<th>Guardado<th></tr></thead><tbody>${L.map(h=>`<tr${h.id==cur?' class="cur"':''}><td>${esc((h.f||'').split('-').reverse().join('/'))}<td><b>${esc(h.s)}</b>${SUCN[h.s]?`<br><small>${esc(SUCN[h.s])}</small>`:''}${ks.map(k=>cell(h.tot&&h.tot[k],k)).join('')}<td>${esc(h.e)}<td>${h.at?new Date(h.at).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'}):''}<td><button data-a="hopen" data-id="${esc(h.id)}">Abrir</button>${RO?'':` <button class="x" data-a="hdel" data-id="${esc(h.id)}">Eliminar</button>`}`).join('')||`<tr><td colspan="9" class="hint">Aún no hay arqueos guardados${hf?' de '+hf:''}.`}</tbody></table></div>`}
 function repSec(k,r){
  const used=r.rows.filter(x=>x.pz);
  const cnt=`<div class="sh">Conteo de efectivo</div><table class="rt">${cg(50,20,30)}<thead><tr><th>Denominación<th class="n">Cantidad<th class="n">Importe</tr></thead><tbody>${used.map(x=>`<tr><td>${lab(x.d)}<td class="n">${x.pz}<td class="n">${fmt(x.im,k)}`).join('')||'<tr><td colspan="3" class="mu">Sin conteo capturado'}</tbody><tfoot><tr><td>Billetes: ${r.bp} pzas · Monedas: ${r.mp} pzas<td class="n">${r2(r.bp+r.mp)}<td class="n">${fmt(r.ef,k)}</tfoot></table>`;
@@ -327,7 +348,7 @@ function repSec(k,r){
  const dif=r.dif==null?'':`<div class="db ${okD(k,r.dif)?'ok':'bad'}"><span>${dl(r.dif)}${r.dif!==0&&okD(k,r.dif)?' permitido':''}</span><b>${fmt(Math.abs(r.dif),k)}</b></div>${r.dif?`<p class="let"><b>${dl(r.dif)} con letra:</b> ${enLetras(r.dif,k)}</p>`:''}`;
  const cierre=`<div class="sh">Cierre</div><table class="rt cl">${cg(68,32)}<tbody><tr><td>Efectivo contado<td class="n">${fmt(r.ef,k)}<tr><td>${k=='chica'?'Vales (comprobables + no comprobables)':'Otros conceptos (+/−)'}<td class="n">${fmt(r.co,k)}<tr class="st"><td>Total<td class="n">${fmt(r.tot,k)}${r.ref==null?'':`<tr><td>${REFL[k]}<td class="n">${fmt(r.ref,k)}`}</tbody></table><p class="let"><b>Total con letra:</b> ${enLetras(r.tot,k)}</p>${dif}`;
  return(k=='caja'?repCorte():'')+B(cnt)+B(cons)+(k=='chica'?repVales(r):'')+B(cierre)}
-const resTxt=x=>x.pend?'Pendiente de comprobar':x.ok?(x.d!==0?'Cumple ('+dl(x.d).toLowerCase()+' menor a $'+FMIN+')':'Cumple'):'No cumple ('+dl(x.d).toLowerCase()+')';
+const resTxt=x=>x.pend?'Pendiente de comprobar':x.ok?(x.d!==0?'Cumple ('+dl(x.d).toLowerCase()+' hasta $'+FMIN+')':'Cumple'):'No cumple ('+dl(x.d).toLowerCase()+')';
 function repCorte(){
  const y=S.caja.sys,C=CU;if(!C.has&&!C.rows.length&&!y.inf.some(c=>filled(c,'u')))return'';
  const tb=(g,ttl)=>{const[,c1,c2,c3]=SYG[g],f=f2(g),l=y[g].filter(c=>filled(c,f));if(!l.length)return'';const cu=f=='u'?'usd':'';return B(`<div class="sh">${ttl}</div><table class="rt">${cg(52,24,24)}<thead><tr><th>${c1}<th class="n">${c2}<th class="n">${f=='u'?c3:'Comprobado'}</tr></thead><tbody>${l.map(c=>`<tr><td>${esc(c.n)}<td class="n">${fmt(pev(c.p))}<td class="n">${String(c[f]??'').trim()===''?'—':fmt(pev(c[f]),cu)}`).join('')}</tbody><tfoot><tr><td>Totales<td class="n">${fmt(sm(l,'p'))}<td class="n">${fmt(sm(l,f),cu)}</tfoot></table>`)};
@@ -366,7 +387,7 @@ function calc(){
   const dc=$('#caja-dict');if(dc){dc.className='c r'+(CU.dict==null?'':CU.dict?' ok':' bad');dc.querySelector('b').textContent=CU.dict==null?'Captura el corte':CU.dict?'CUMPLE':'NO CUMPLE';dc.querySelector('small').textContent='Dictamen contra corte'+(CU.pend?' · '+CU.pend+' pendiente'+(CU.pend>1?'s':'')+' de comprobar':'')}}
  const rp=$('#repbody');if(!rp)return;
  const ks=Object.keys(S),fd=M.f.split('-').reverse().join('/');
- const hd=(t,cur)=>`<div class="lh"><div><h2>ARQUEO DE CAJA</h2><small>${t}</small></div><div style="text-align:right"><small>Fecha de arqueo</small><br><b>${esc(fd)}</b></div></div><div class="ib"><div><small>Sucursal</small>${esc(M.s)||'—'}</div><div><small>Apartado</small>${t}</div><div><small>Moneda</small>${cur}</div></div>`;
+ const hd=(t,cur)=>`<div class="lh"><div><h2>ARQUEO DE CAJA</h2><small>${t}</small></div><div style="text-align:right"><small>Fecha de arqueo</small><br><b>${esc(fd)}</b></div></div><div class="ib"><div><small>Sucursal</small>${esc(sucTxt(M.s))||'—'}</div><div><small>Apartado</small>${t}</div><div><small>Moneda</small>${cur}</div></div>`;
  const sg=(e,v,o,ep,vp)=>`<div class="blk"><div class="ob"><small>Observaciones</small>${o?'<div>'+esc(o).replace(/\n/g,'<br>')+'</div>':''}</div><div class="sg"><div><b>${esc(e)||'&nbsp;'}</b>${ep?`<span class="pu">${esc(ep)}</span>`:''}<small>${e?'Elaboró (auditor) · Firma':'Elaboró (auditor) · Nombre y firma'}</small></div><div><b>${esc(v)||'&nbsp;'}</b>${vp?`<span class="pu">${esc(vp)}</span>`:''}<small>${v&&vp?'Confirmó / verificó · Firma':'Confirmó / verificó · Nombre, puesto y firma'}</small></div></div><div class="ft">Documento generado el ${new Date().toLocaleDateString('es-MX')} · Sucursal ${esc(M.s)}</div></div>`;
  const pw=h=>`<div class="pg"><table class="pw"><thead><tr><td><div class="spt"></div></td></tr></thead><tfoot><tr><td><div class="spb"></div></td></tr></tfoot><tbody><tr><td><div class="fit">${h}</div></td></tr></tbody></table></div>`;
  const dic=k=>{const r=R[k];if(k=='caja'&&CU.dict!=null)return CU.dict;return r.dif==null?null:okD(k,r.dif)};
@@ -441,11 +462,11 @@ document.addEventListener('click',e=>{
  else if(a=='psec'){sel={res:0,caja:0,fondon:0,usd:0,chica:0};sel[k]=1;tab='rep';render();setTimeout(()=>{try{window.print()}catch(x){}},80);return}
  else if(a=='all')sel={res:1,caja:1,fondon:1,usd:1,chica:1};
  else if(a=='print'){tab='rep';render();setTimeout(()=>{try{window.print()}catch(x){}},80);return}
- else if(a=='new'){if(!window.cf){window.cf=1;b.textContent='¿Seguro? Toca otra vez';setTimeout(()=>{window.cf=0;b.textContent='Nuevo arqueo'},3000);return}window.cf=0;if(hasData())upsert();const n=fresh(false);n.M.s=M.s;S=n.S;M=n.M;fijar();render();save(1);return}
- else if(a=='hsave'){fijar();const nw=upsert();render();save(1);const nb=$('[data-a=hsave]');if(nb){nb.textContent=nw?'✓ Guardado':'✓ Actualizado';setTimeout(()=>{nb.textContent=EMB?'💾 Guardar':'💾 Guardar en historial'},2000)}return}
+ else if(a=='new'){if(!window.cf){window.cf=1;b.textContent='¿Seguro? Toca otra vez';setTimeout(()=>{window.cf=0;b.textContent='Nuevo arqueo'},3000);return}window.cf=0;if(hasData()&&!choca())upsert();const n=fresh(false);n.M.s=M.s;S=n.S;M=n.M;fijar();ABIERTO=null;render();save(1);return}
+ else if(a=='hsave'){if(EMB&&choca()&&!confirm('Ya hay un arqueo guardado de '+sucTxt(M.s)+' con fecha '+M.f.split('-').reverse().join('/')+'.\n¿Reemplazarlo con este?'))return;fijar();ABIERTO=M.s+'|'+M.f;const nw=upsert();render();save(1);const nb=$('[data-a=hsave]');if(nb){nb.textContent=nw?'✓ Guardado':'✓ Actualizado';setTimeout(()=>{nb.textContent=EMB?'💾 Guardar':'💾 Guardar en historial'},2000)}return}
  else if(a=='asy'){const g=d.g;S.caja.sys[g].push({n:'',p:'',[f2(g)]:''});render();save();const l=$(`#sy-${g} tr:last-child input`);if(l)l.focus();return}
  else if(a=='dsy')S.caja.sys[d.g].splice(i,1);
- else if(a=='hopen'){if(hasData())upsert();const h=H.find(x=>x.id==d.id);if(!h)return;S=cl(h.S);M=cl(h.M);norm();tab='caja';fijar();render();save(1);return}
+ else if(a=='hopen'){if(hasData()&&!choca())upsert();const h=H.find(x=>x.id==d.id);if(!h)return;S=cl(h.S);M=cl(h.M);norm();tab='caja';fijar();ABIERTO=h.id;render();save(1);return}
  else if(a=='hdel'){const id=d.id;if(window.cfd!==id){window.cfd=id;b.textContent='¿Seguro? Toca otra vez';setTimeout(()=>{if(window.cfd===id){window.cfd=0;b.textContent='Eliminar'}},3000);return}window.cfd=0;const hx=H.find(h=>h.id===id);H=H.filter(h=>h.id!==id);saveH();if(EMB&&hx)cldDel(hx)}
  else if(a=='hrel'){cldLoad();return}
  else if(a=='hexp'){const bl=new Blob([JSON.stringify(H,null,1)],{type:'application/json'}),l=document.createElement('a');l.href=URL.createObjectURL(bl);l.download='historial-arqueos-'+today()+'.json';l.click();setTimeout(()=>URL.revokeObjectURL(l.href),1000);return}
