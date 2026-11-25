@@ -135,6 +135,17 @@ html.emb .pg{color:#111}
 .pg .sg .pu{display:block;font-size:11px;color:#333;margin-top:1px}
 .pg.meas{width:calc(215.9mm - 24mm)!important;max-width:none!important;padding:0!important;border:0!important;box-shadow:none!important}
 @media print{.pg .fit{zoom:var(--z,1)}}
+/* Firmas: se dibujan con el dedo o el mouse y salen sobre la línea de firma del documento. */
+.pg .sg>div{position:relative}.pg .sg .fi{position:absolute;left:50%;bottom:100%;transform:translateX(-50%);height:46px;max-width:90%;object-fit:contain}
+.pg .sg .fe{display:block;font-size:9px;color:#777}
+.fpan{border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin:10px 0 14px}.fpan h3{margin:0 0 4px}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:600px){.frow{grid-template-columns:1fr}}
+.fbox{border:1px dashed var(--bd);border-radius:8px;padding:8px;text-align:center}.fbox small{display:block;color:var(--mu)}.fbox img{display:block;height:56px;max-width:100%;margin:4px auto;background:#fff;border-radius:4px}.fbox .sin{display:block;color:var(--mu);margin:16px 0;font-size:12px}
+.fov{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:999;display:flex;align-items:center;justify-content:center;padding:12px}
+.fov .fcard{background:var(--card);color:var(--tx);border-radius:12px;padding:14px;width:min(620px,100%);box-shadow:0 10px 40px rgba(0,0,0,.4)}
+.fov canvas{display:block;width:100%;height:200px;background:#fff;border:2px dashed #94a3b8;border-radius:8px;touch-action:none;cursor:crosshair}
+.fov .bt{display:flex;gap:8px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap}
+.hfi{display:inline-block;font-size:11px;margin-left:4px;padding:1px 6px;border-radius:9px;background:var(--acbg,#eef);white-space:nowrap}
 </style>
 </head>
 <body>
@@ -239,6 +250,51 @@ const YO=EMB?String(((SES()||{}).nombre||(SES()||{}).username)||'').trim():'';
 const autor=()=>{if(!EMB)return;if(!RO&&YO&&!String(M.e||'').trim())M.e=YO;M.ep='Auditor'};
 const nm=(k,f)=>EMB&&f=='e'?M.e:(S[k]&&S[k][f])||M[f];
 /* Puesto: el del apartado; si no tiene, el general, pero solo cuando firma la misma persona del general. */
+/* Firmas electrónicas: M.firmas = {e:{png,n,p,at}, v:{...}}. Se guardan dentro del mismo arqueo
+   (datos jsonb en Supabase) como PNG pequeño en blanco y negro. Solo salen en una hoja si el nombre
+   de esa hoja es el de quien firmó (si se cambia el nombre, la firma ya no aplica). */
+const FQ={e:'Elaboró (auditor)',v:'Confirmó / verificó'};
+const firmaDe=(q,nom)=>{const f=(M.firmas||{})[q];return f&&f.png&&String(f.n||'').trim()===String(nom||'').trim()?f:null};
+const fimg=(q,nom)=>{const f=firmaDe(q,nom);return f?`<img class="fi" src="${f.png}" alt="Firma">`:''};
+const fFecha=f=>new Date(f.at).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
+function firmasHTML(){
+ const box=q=>{const nom=q=='e'?M.e:M.v,f=firmaDe(q,nom),vieja=!f&&(M.firmas||{})[q];
+  return`<div class="fbox"><small>${FQ[q]}</small><b>${esc(nom)||'<span style="color:var(--mu)">Sin nombre</span>'}</b>${f?`<img src="${f.png}" alt="Firma"><small>Firmado ${esc(fFecha(f))}</small>`:`<span class="sin">${vieja?'La firma guardada era de '+esc(vieja.n)+'; firma de nuevo':'Sin firma'}</span>`}${RO?'':`<div class="bt" style="justify-content:center"><button class="pri" data-a="firma" data-q="${q}">✍ ${f?'Firmar de nuevo':'Firmar'}</button>${f||vieja?` <button class="x" data-a="fdel" data-q="${q}">Quitar</button>`:''}</div>`}</div>`};
+ return`<div class="fpan"><h3>Firmas</h3><p class="hint">Se firman con el dedo desde el teléfono (o con el mouse). Quedan guardadas en este mismo arqueo y salen sobre la línea de firma del documento. Para la firma de quien confirma, primero escribe su nombre y puesto en el encabezado.</p><div class="frow">${box('e')}${box('v')}</div></div>`}
+function firmar(q){
+ if(RO)return;
+ const nom=String((q=='e'?M.e:M.v)||'').trim();
+ if(!nom){alert(q=='e'?'Falta el nombre de quien elaboró.':'Primero escribe en el encabezado el nombre (y puesto) de quien confirma.');return}
+ const ov=document.createElement('div');ov.className='fov';
+ ov.innerHTML=`<div class="fcard"><h3 style="margin:0 0 2px">Firma · ${FQ[q]}</h3><p class="hint" style="margin:0 0 8px"><b>${esc(nom)}</b>${(q=='e'?(EMB?'Auditor':M.ep):M.vp)?' · '+esc(q=='e'?(EMB?'Auditor':M.ep):M.vp):''} — firma dentro del recuadro.</p><canvas></canvas><div class="bt"><button data-f="lim">Limpiar</button><button data-f="can">Cancelar</button><button class="pri" data-f="ok">Guardar firma</button></div></div>`;
+ document.body.appendChild(ov);
+ const cv=ov.querySelector('canvas'),dpr=Math.min(2,window.devicePixelRatio||1);
+ cv.width=Math.round(cv.clientWidth*dpr);cv.height=Math.round(cv.clientHeight*dpr);
+ const cx=cv.getContext('2d');cx.scale(dpr,dpr);cx.lineWidth=2.6;cx.lineCap=cx.lineJoin='round';cx.strokeStyle='#000';
+ let dib=false,traz=0,bb=null,last=null;
+ const pt=e=>{const r=cv.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}};
+ const amp=p=>{bb=bb?{x0:Math.min(bb.x0,p.x),y0:Math.min(bb.y0,p.y),x1:Math.max(bb.x1,p.x),y1:Math.max(bb.y1,p.y)}:{x0:p.x,y0:p.y,x1:p.x,y1:p.y}};
+ cv.addEventListener('pointerdown',e=>{e.preventDefault();cv.setPointerCapture(e.pointerId);dib=true;last=pt(e);amp(last);cx.beginPath();cx.arc(last.x,last.y,1.3,0,7);cx.fillStyle='#000';cx.fill()});
+ cv.addEventListener('pointermove',e=>{if(!dib)return;e.preventDefault();const p=pt(e);cx.beginPath();cx.moveTo(last.x,last.y);cx.lineTo(p.x,p.y);cx.stroke();last=p;amp(p);traz++});
+ const fin=()=>{dib=false};cv.addEventListener('pointerup',fin);cv.addEventListener('pointercancel',fin);
+ const cerrar=()=>ov.remove();
+ ov.addEventListener('click',e=>{const a=e.target.dataset.f;if(!a)return;
+  if(a=='lim'){cx.clearRect(0,0,cv.width,cv.height);traz=0;bb=null;return}
+  if(a=='can')return cerrar();
+  if(!bb||traz<3){alert('Dibuja la firma en el recuadro.');return}
+  /* Recorta al trazo, reduce a máx. 240×80 px y deja solo negro / transparente: PNG de pocos KB. */
+  const m=4,sx=Math.max(0,(bb.x0-m)*dpr),sy=Math.max(0,(bb.y0-m)*dpr),sw=Math.min(cv.width-sx,(bb.x1-bb.x0+2*m)*dpr),sh=Math.min(cv.height-sy,(bb.y1-bb.y0+2*m)*dpr);
+  const k=Math.min(1,240/sw,80/sh),o=document.createElement('canvas');o.width=Math.max(1,Math.round(sw*k));o.height=Math.max(1,Math.round(sh*k));
+  const ox=o.getContext('2d');ox.drawImage(cv,sx,sy,sw,sh,0,0,o.width,o.height);
+  const im=ox.getImageData(0,0,o.width,o.height),px=im.data;for(let i=0;i<px.length;i+=4){const on=px[i+3]>90;px[i]=px[i+1]=px[i+2]=0;px[i+3]=on?255:0}ox.putImageData(im,0,0);
+  M.firmas=M.firmas||{};M.firmas[q]={png:o.toDataURL('image/png'),n:nom,p:q=='e'?(EMB?'Auditor':M.ep||''):M.vp||'',at:new Date().toISOString(),por:String((SES()||{}).username||'')};
+  cerrar();guardarFirma();
+ });
+}
+/* La firma se guarda en seguida en el mismo arqueo (Supabase dentro del Monitor). */
+function guardarFirma(){render();save(1);if(!hasData()){cldMsg('Firma lista: se guardará con el arqueo cuando captures datos');return}
+ if(EMB&&choca()){cldMsg('⚠ Ya hay un arqueo de '+M.s+' con esta fecha en el Historial: ábrelo desde ahí para firmarlo.',1);return}
+ ABIERTO=M.s+'|'+M.f;upsert();render()}
 const np=(k,f)=>{if(EMB&&f=='e')return'Auditor';const s=S[k]||{},own=String(s[f]||'').trim();return String(s[f+'p']||'').trim()||(!own||own===String(M[f]||'').trim()?M[f+'p']||'':'')};
 const AK=EMB?'arqueo_monitor_borrador_'+String((SES()||{}).username||'').toLowerCase():'arqueo_v3';
 const PK=AK+'_pend';
@@ -327,7 +383,7 @@ function render(){
  norm();autor();
  $('#meta').innerHTML=`<label class="f">Fecha<input type="date" data-m="f" value="${esc(M.f)}"></label><label class="f">Sucursal<select data-m="s">${SUC.map(x=>`<option value="${x}"${M.s==x?' selected':''}>${esc(sucTxt(x))}</option>`).join('')}${SUC.includes(M.s)?'':`<option selected>${esc(M.s)}</option>`}</select></label>${EMB?`<label class="f">Elaboró (auditor)<input class="auto" value="${esc(M.e)}" readonly title="Se toma del usuario que hace el arqueo"></label><label class="f">Puesto<input class="auto" value="Auditor" readonly></label>`:`<label class="f">Elaboró (general)<input data-m="e" value="${esc(M.e)}" placeholder="Nombre"></label><label class="f">Puesto<input data-m="ep" value="${esc(M.ep)}" placeholder="Puesto"></label>`}<label class="f">Confirmó / verificó<input data-m="v" value="${esc(M.v)}" placeholder="Nombre de quien confirma"></label><label class="f">Puesto de quien confirma<input data-m="vp" value="${esc(M.vp)}" placeholder="Ej. Gerente de sucursal"></label>`;
  $('#nav').innerHTML=Object.entries(NAMES).map(([k,n])=>`<button data-a="tab" data-k="${k}" class="${tab==k?'on':''}">${n}</button>`).join('')+`<span style="flex:1"></span>${EMB?`<span class="cldst${CLD.bad?' bad':(CLD.msg||'').startsWith('☁')?' auto':''}" id="cldst">${esc(CLD.msg||'')}</span>`:`<button data-a="theme">${TL[th]}</button>`}${RO?'':`<button class="pri" data-a="hsave">💾 Guardar${EMB?'':' en historial'}</button>`}<button data-a="new">Nuevo arqueo</button>`;
- $('#app').innerHTML=Object.keys(S).map(k=>`<section class="sec ${tab==k?'on':''}" id="sec-${k}"><h2>${NAMES[k]}</h2>${secHTML(k)}</section>`).join('')+`<section class="sec rep ${tab=='rep'?'on':''}" id="rep"><div class="noprint" id="repsel"><h2>Reporte formal</h2><p class="hint">Elige qué apartados imprimir. Cada uno sale en su propia hoja con sus propias firmas. Si no abre la impresión, usa Ctrl+P.</p>${[['res','Resumen'],...Object.keys(S).map(k=>[k,NAMES[k]])].map(([k,n])=>`<label class="ck"><input type="checkbox" data-sel="${k}" ${sel[k]?'checked':''}> ${n}</label>`).join('')}<label class="f" style="margin:6px 0 10px">Observaciones del resumen<textarea rows="2" data-m="o" placeholder="Salen arriba de las firmas del resumen">${esc(M.o)}</textarea></label><div class="bt"><button class="pri" data-a="print">Imprimir selección</button> <button data-a="all">Seleccionar todo</button></div></div><div id="repbody"></div></section><section class="sec ${tab=='hist'?'on':''}" id="hist">${histHTML()}</section>`;
+ $('#app').innerHTML=Object.keys(S).map(k=>`<section class="sec ${tab==k?'on':''}" id="sec-${k}"><h2>${NAMES[k]}</h2>${secHTML(k)}</section>`).join('')+`<section class="sec rep ${tab=='rep'?'on':''}" id="rep"><div class="noprint" id="repsel"><h2>Reporte formal</h2><p class="hint">Elige qué apartados imprimir. Cada uno sale en su propia hoja con sus propias firmas. Si no abre la impresión, usa Ctrl+P.</p>${[['res','Resumen'],...Object.keys(S).map(k=>[k,NAMES[k]])].map(([k,n])=>`<label class="ck"><input type="checkbox" data-sel="${k}" ${sel[k]?'checked':''}> ${n}</label>`).join('')}<label class="f" style="margin:6px 0 10px">Observaciones del resumen<textarea rows="2" data-m="o" placeholder="Salen arriba de las firmas del resumen">${esc(M.o)}</textarea></label><div class="bt"><button class="pri" data-a="print">Imprimir selección</button> <button data-a="all">Seleccionar todo</button></div>${firmasHTML()}</div><div id="repbody"></div></section><section class="sec ${tab=='hist'?'on':''}" id="hist">${histHTML()}</section>`;
  calc();
 }
 const snap=()=>{calc();const tot={};for(const k in R)tot[k]={tot:R[k].tot,ref:R[k].ref,dif:R[k].dif};return{id:M.s+'|'+M.f,f:M.f,s:M.s,e:M.e,v:M.v,at:new Date().toISOString(),tot,S:cl(S),M:cl(M)}};
@@ -340,7 +396,7 @@ function histHTML(){
  return`<h2>Historial de arqueos</h2><div class="meta" style="margin-bottom:8px;align-items:end"><label class="f">Sucursal<select data-hf>${['',...SUC].map(s=>`<option value="${s}"${hf==s?' selected':''}>${s?esc(sucTxt(s))+' ('+n(s)+')':'Todas ('+H.length+')'}</option>`).join('')}</select></label><button data-a="hexp">Exportar respaldo</button>${RO?'':'<button data-a="himp">Importar respaldo</button>'}${EMB?'<button data-a="hrel">↻ Actualizar</button>':''}<input type="file" id="himp" accept=".json,application/json" data-imp hidden></div>
  ${EMB&&CLD.err?`<p class="hint" style="color:var(--bad)"><b>⚠ ${esc(CLD.err)}</b></p>`:''}
  <p class="hint">Se guarda uno por <b>sucursal y fecha</b>: si vuelves a guardar el mismo día, se actualiza. Al abrir otro arqueo o hacer uno nuevo, el actual se guarda solo. ${EMB?'El historial se guarda en <b>Supabase</b> y lo ven todos los usuarios con acceso a Arqueo.'+(RO?' Tu cuenta es de solo consulta.':''):'El historial vive en este navegador: exporta un respaldo de vez en cuando (también sirve para pasarlo a otra computadora).'}</p>
- <div class="sc"><table><thead><tr><th>Fecha<th>Sucursal<th class="n">Caja<th class="n">Fondo revolvente<th class="n">Dólares<th class="n">Caja chica<th>Elaboró<th>Guardado<th></tr></thead><tbody>${L.map(h=>`<tr${h.id==cur?' class="cur"':''}><td>${esc((h.f||'').split('-').reverse().join('/'))}<td><b>${esc(h.s)}</b>${SUCN[h.s]?`<br><small>${esc(SUCN[h.s])}</small>`:''}${ks.map(k=>cell(h.tot&&h.tot[k],k)).join('')}<td>${esc(h.e)}<td>${h.at?new Date(h.at).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'}):''}<td><button data-a="hopen" data-id="${esc(h.id)}">Abrir</button>${RO?'':` <button class="x" data-a="hdel" data-id="${esc(h.id)}">Eliminar</button>`}`).join('')||`<tr><td colspan="9" class="hint">Aún no hay arqueos guardados${hf?' de '+hf:''}.`}</tbody></table></div>`}
+ <div class="sc"><table><thead><tr><th>Fecha<th>Sucursal<th class="n">Caja<th class="n">Fondo revolvente<th class="n">Dólares<th class="n">Caja chica<th>Elaboró<th>Guardado<th></tr></thead><tbody>${L.map(h=>`<tr${h.id==cur?' class="cur"':''}><td>${esc((h.f||'').split('-').reverse().join('/'))}<td><b>${esc(h.s)}</b>${SUCN[h.s]?`<br><small>${esc(SUCN[h.s])}</small>`:''}${ks.map(k=>cell(h.tot&&h.tot[k],k)).join('')}<td>${esc(h.e)}${(()=>{const F=(h.M&&h.M.firmas)||{},n=['e','v'].filter(q=>F[q]).length;return n?`<span class="hfi" title="Firmas guardadas en este arqueo">✍ ${n}/2</span>`:''})()}<td>${h.at?new Date(h.at).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'}):''}<td><button data-a="hopen" data-id="${esc(h.id)}">Abrir</button>${RO?'':` <button data-a="hfirma" data-id="${esc(h.id)}" title="Abrir el documento para firmarlo">✍ Firmar</button>`}${RO?'':` <button class="x" data-a="hdel" data-id="${esc(h.id)}">Eliminar</button>`}`).join('')||`<tr><td colspan="9" class="hint">Aún no hay arqueos guardados${hf?' de '+hf:''}.`}</tbody></table></div>`}
 function repSec(k,r){
  const used=r.rows.filter(x=>x.pz);
  const cnt=`<div class="sh">Conteo de efectivo</div><table class="rt">${cg(50,20,30)}<thead><tr><th>Denominación<th class="n">Cantidad<th class="n">Importe</tr></thead><tbody>${used.map(x=>`<tr><td>${lab(x.d)}<td class="n">${x.pz}<td class="n">${fmt(x.im,k)}`).join('')||'<tr><td colspan="3" class="mu">Sin conteo capturado'}</tbody><tfoot><tr><td>Billetes: ${r.bp} pzas · Monedas: ${r.mp} pzas<td class="n">${r2(r.bp+r.mp)}<td class="n">${fmt(r.ef,k)}</tfoot></table>`;
@@ -388,7 +444,7 @@ function calc(){
  const rp=$('#repbody');if(!rp)return;
  const ks=Object.keys(S),fd=M.f.split('-').reverse().join('/');
  const hd=(t,cur)=>`<div class="lh"><div><h2>ARQUEO DE CAJA</h2><small>${t}</small></div><div style="text-align:right"><small>Fecha de arqueo</small><br><b>${esc(fd)}</b></div></div><div class="ib"><div><small>Sucursal</small>${esc(sucTxt(M.s))||'—'}</div><div><small>Apartado</small>${t}</div><div><small>Moneda</small>${cur}</div></div>`;
- const sg=(e,v,o,ep,vp)=>`<div class="blk"><div class="ob"><small>Observaciones</small>${o?'<div>'+esc(o).replace(/\n/g,'<br>')+'</div>':''}</div><div class="sg"><div><b>${esc(e)||'&nbsp;'}</b>${ep?`<span class="pu">${esc(ep)}</span>`:''}<small>${e?'Elaboró (auditor) · Firma':'Elaboró (auditor) · Nombre y firma'}</small></div><div><b>${esc(v)||'&nbsp;'}</b>${vp?`<span class="pu">${esc(vp)}</span>`:''}<small>${v&&vp?'Confirmó / verificó · Firma':'Confirmó / verificó · Nombre, puesto y firma'}</small></div></div><div class="ft">Documento generado el ${new Date().toLocaleDateString('es-MX')} · Sucursal ${esc(M.s)}</div></div>`;
+ const sg=(e,v,o,ep,vp)=>`<div class="blk"><div class="ob"><small>Observaciones</small>${o?'<div>'+esc(o).replace(/\n/g,'<br>')+'</div>':''}</div><div class="sg"><div>${fimg('e',e)}<b>${esc(e)||'&nbsp;'}</b>${ep?`<span class="pu">${esc(ep)}</span>`:''}<small>${e?'Elaboró (auditor) · Firma':'Elaboró (auditor) · Nombre y firma'}</small></div><div>${fimg('v',v)}<b>${esc(v)||'&nbsp;'}</b>${vp?`<span class="pu">${esc(vp)}</span>`:''}<small>${v&&vp?'Confirmó / verificó · Firma':'Confirmó / verificó · Nombre, puesto y firma'}</small></div></div><div class="ft">Documento generado el ${new Date().toLocaleDateString('es-MX')} · Sucursal ${esc(M.s)}</div></div>`;
  const pw=h=>`<div class="pg"><table class="pw"><thead><tr><td><div class="spt"></div></td></tr></thead><tfoot><tr><td><div class="spb"></div></td></tr></tfoot><tbody><tr><td><div class="fit">${h}</div></td></tr></tbody></table></div>`;
  const dic=k=>{const r=R[k];if(k=='caja'&&CU.dict!=null)return CU.dict;return r.dif==null?null:okD(k,r.dif)};
  const res=pw(`${hd('RESUMEN GENERAL','MXN / USD')}<div class="sh">Resumen por apartado</div><table class="rt">${cg(20,12,17,17,20,14)}<thead><tr><th>Apartado<th>Moneda<th class="n">Total contado<th class="n">Debe tener<th class="n">Diferencia<th>Dictamen</tr></thead><tbody>${ks.map(k=>{const r=R[k],v=dic(k);return`<tr><td>${NAMES[k]}<td>${k=='usd'?'USD':'MXN'}<td class="n">${fmt(r.tot,k)}<td class="n">${r.ref==null?'—':fmt(r.ref,k)}<td class="n ${r.dif==null?'':okD(k,r.dif)?'okc':'badc'}">${r.dif==null?'—':r.dif===0?'Cuadra':dl(r.dif)+' '+fmt(Math.abs(r.dif),k)}<td class="${v==null?'':v?'okc':'badc'}">${v==null?'—':v?'Cumple':'No cumple'}`}).join('')}</tbody></table>${sg(M.e,M.v,M.o,M.ep,M.vp)}`);
@@ -466,6 +522,9 @@ document.addEventListener('click',e=>{
  else if(a=='hsave'){if(EMB&&choca()&&!confirm('Ya hay un arqueo guardado de '+sucTxt(M.s)+' con fecha '+M.f.split('-').reverse().join('/')+'.\n¿Reemplazarlo con este?'))return;fijar();ABIERTO=M.s+'|'+M.f;const nw=upsert();render();save(1);const nb=$('[data-a=hsave]');if(nb){nb.textContent=nw?'✓ Guardado':'✓ Actualizado';setTimeout(()=>{nb.textContent=EMB?'💾 Guardar':'💾 Guardar en historial'},2000)}return}
  else if(a=='asy'){const g=d.g;S.caja.sys[g].push({n:'',p:'',[f2(g)]:''});render();save();const l=$(`#sy-${g} tr:last-child input`);if(l)l.focus();return}
  else if(a=='dsy')S.caja.sys[d.g].splice(i,1);
+ else if(a=='firma'){firmar(d.q);return}
+ else if(a=='fdel'){if(!confirm('¿Quitar la firma de '+FQ[d.q]+'?'))return;if(M.firmas)delete M.firmas[d.q];guardarFirma();return}
+ else if(a=='hfirma'){if(hasData()&&!choca())upsert();const h=H.find(x=>x.id==d.id);if(!h)return;S=cl(h.S);M=cl(h.M);norm();tab='rep';fijar();ABIERTO=h.id;render();save(1);const fp=$('.fpan');if(fp)fp.scrollIntoView({block:'start'});return}
  else if(a=='hopen'){if(hasData()&&!choca())upsert();const h=H.find(x=>x.id==d.id);if(!h)return;S=cl(h.S);M=cl(h.M);norm();tab='caja';fijar();ABIERTO=h.id;render();save(1);return}
  else if(a=='hdel'){const id=d.id;if(window.cfd!==id){window.cfd=id;b.textContent='¿Seguro? Toca otra vez';setTimeout(()=>{if(window.cfd===id){window.cfd=0;b.textContent='Eliminar'}},3000);return}window.cfd=0;const hx=H.find(h=>h.id===id);H=H.filter(h=>h.id!==id);saveH();if(EMB&&hx)cldDel(hx)}
  else if(a=='hrel'){cldLoad();return}
