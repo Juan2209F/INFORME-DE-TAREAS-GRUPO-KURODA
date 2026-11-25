@@ -14,8 +14,12 @@
   /* Misma condición que css/movil.css: teléfonos, tabletas chicas y teléfono acostado. */
   var MEDIA = '(max-width: 768px), (max-height: 500px) and (max-width: 1024px)';
   var mq = window.matchMedia(MEDIA);
-  /* En la app Android (js/app-apk.js pone "gk-apk") siempre es vista de teléfono. */
-  var esApk = function () { return document.documentElement.classList.contains('gk-apk'); };
+  /* En la app Android (js/app-apk.js pone "gk-apk") siempre es vista de teléfono, salvo en
+     tabletas ("gk-tab"), que usan el diseño de computadora. */
+  var esApk = function () {
+    var c = document.documentElement.classList;
+    return c.contains('gk-apk') && !c.contains('gk-tab');
+  };
   var PRINCIPALES = 4;
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) {
