@@ -75,6 +75,15 @@
       '<div class="kc-hdr"><span style="font-size:18px">🧮</span><h3>Arqueo de caja</h3></div>' +
       '<iframe id="iframe-arqueo" title="Arqueo de caja" ' +
       'style="width:100%;height:640px;border:0;display:block;background:transparent"></iframe></div>';
+    /* En el teléfono se quita el marco de la tarjeta para dar todo el ancho al arqueo. */
+    if (!$('css-arqueo')) {
+      var st = document.createElement('style');
+      st.id = 'css-arqueo';
+      st.textContent = '@media (max-width:640px){#view-arqueo>.card{padding:0!important;margin:0!important;' +
+        'background:transparent!important;box-shadow:none!important;border:0!important}' +
+        '#view-arqueo .kc-hdr{display:none!important}}';
+      document.head.appendChild(st);
+    }
     if (ref && ref.parentNode) ref.parentNode.insertBefore(d, ref.nextSibling);
     else document.body.appendChild(d);
     window.addEventListener('resize', function () { if (d.style.display !== 'none') ajustarAlto(); });
