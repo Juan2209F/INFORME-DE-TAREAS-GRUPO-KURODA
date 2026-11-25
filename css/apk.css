@@ -13,8 +13,8 @@ html.gk-apk, html.gk-apk body { zoom: 1 !important; height: auto !important; ove
 .gk-apk body { -webkit-tap-highlight-color: transparent; }
 
 /* ── Barra superior fija (misma tarjeta blanca/oscura del Monitor, pegada arriba) ── */
-.gk-apk .topbar { position: sticky; top: 0; z-index: 70; margin: 0 !important; border-radius: 0 !important;
-  box-shadow: 0 2px 10px rgba(20, 30, 60, .08); }
+.gk-apk .topbar { position: sticky; top: 0; z-index: 70; }
+html.gk-apk:not(.gk-tab) .topbar { margin: 0 !important; border-radius: 0 !important; box-shadow: 0 2px 10px rgba(20, 30, 60, .08); }
 .gk-apk .topbar-title h1 { line-height: 1.15; }
 .gk-apk #apk-seccion { display: block; font-size: 11px; font-weight: 700; color: var(--blue);
   text-transform: uppercase; letter-spacing: .06em; margin-top: 1px; }
@@ -22,11 +22,12 @@ html.gk-apk, html.gk-apk body { zoom: 1 !important; height: auto !important; ove
 html.gk-apk[data-theme="dark"] #apk-seccion { color: #a5b4fc; }
 
 /* ── Contenido entre las dos barras ── */
-.gk-apk .content { padding-top: 12px !important; }
+html.gk-apk:not(.gk-tab) .content { padding-top: 12px !important; }
 
 /* ── Sin menú inferior: las secciones se abren desde el menú lateral (☰). El menú sigue en la
-   página (oculto) porque el menú lateral toma de ahí las secciones y sus permisos. ── */
-.gk-apk nav.sidebar { display: none !important; }
+   página (oculto) porque el menú lateral toma de ahí las secciones y sus permisos.
+   En tabletas (gk-tab) se deja el menú lateral de computadora a la vista. ── */
+html.gk-apk:not(.gk-tab) nav.sidebar { display: none !important; }
 .gk-apk .content { padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)) !important; }
 .gk-apk .main-area { padding-bottom: 0 !important; }
 .gk-apk .toast { bottom: calc(18px + env(safe-area-inset-bottom, 0px)) !important; }
@@ -91,16 +92,16 @@ html.gk-apk[data-theme="dark"] .apk-hamb span { background: #a5b4fc; }
   .apk-menu-lista button i, .apk-menu-pie button i { width: 28px; height: 28px; font-size: 15px; }
 }
 
-/* ── Tabletas (html.gk-tab, js/app-apk.js): tamaño real de la pantalla, sin escalar ──
-   Inicio de sesión con el diseño de computadora (panel lateral + tarjeta centrada) y campos
-   cómodos para el dedo; el contenido no se estira de lado a lado. */
+/* ── Tabletas (html.gk-tab, js/app-apk.js): diseño de computadora en todos los apartados ──
+   Inicio de sesión con panel lateral + tarjeta centrada y campos cómodos para el dedo. */
 .gk-tab #login-page { overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .gk-tab .lp-panel { width: 300px; min-width: 300px; }
 .gk-tab .lp-right { padding: 24px; align-items: center; }
 .gk-tab .lp-card { max-width: 440px; padding: 30px 30px 24px; }
 .gk-tab .lp-field input { font-size: 16px; padding: 12px 14px; }
 .gk-tab .lp-btn { padding: 14px; font-size: 15px; }
-.gk-tab .content { width: 100%; max-width: 1200px; margin-left: auto; margin-right: auto; }
+/* Tableta parada: el menú lateral se abre con ☰ para dejar todo el ancho a las tablas. */
+@media (orientation: portrait) { html.gk-tab nav.sidebar { display: none !important; } }
 /* Tableta parada (angosta): el panel lateral del inicio se vuelve encabezado. */
 @media (max-width: 820px) and (orientation: portrait) {
   .gk-tab #login-page { flex-direction: column; justify-content: flex-start; }
