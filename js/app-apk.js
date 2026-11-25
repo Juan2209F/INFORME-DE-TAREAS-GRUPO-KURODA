@@ -8,7 +8,7 @@
       sola, un aviso con la ventana normal del Monitor para descargar la versión nueva.
    5) Nombre de la sección en la barra superior.  6) Deslizar hacia abajo para recargar.
    7) Notificaciones: registra el teléfono en Supabase al iniciar sesión y abre la sección avisada.
-   8) Pantallas anchas y teléfono girado: siempre el diseño de teléfono, escalado a la pantalla.
+   8) Teléfono girado o muy ancho: diseño de teléfono escalado. Tabletas: diseño de computadora.
    9) Entrar con huella.  10) Menú lateral con todas las secciones.
    En el navegador no hace nada. */
 (function () {
@@ -21,6 +21,14 @@
   if (!esApk) return;
   var html = document.documentElement;
   html.classList.add('gk-apk');
+  /* Tableta (el lado corto de la pantalla mide 600 px o más): todos los apartados con el diseño
+     de computadora (menú lateral, tablas normales). Se marca aquí, antes de que js/app-movil.js
+     decida si usa la vista de teléfono. */
+  var esTableta = (function () {
+    var s = window.screen || {};
+    return Math.min(s.width || window.innerWidth, s.height || window.innerHeight) >= 600;
+  })();
+  if (esTableta) html.classList.add('gk-tab');
 
   var URL_INFO = 'https://xlygkolfmetytowixtnb.supabase.co/storage/v1/object/public/app-releases/latest.json';
   var tieneActualizador = !!(A && typeof A.buscarActualizacion === 'function') || !!IOS;
@@ -218,11 +226,9 @@
      la escala para llenar la pantalla; se vuelve a revisar al girar el teléfono. */
   var MEDIA_MOVIL = '(max-width: 768px), (max-height: 500px) and (max-width: 1024px)';
   var ANCHO_MAX = 768, NORMAL = IOS ? IOS.viewport : 'width=device-width, initial-scale=1.0';
-  /* Tableta: el lado corto de la pantalla mide 600 px o más. */
-  var esTableta = function () {
-    var s = window.screen || {};
-    return Math.min(s.width || window.innerWidth, s.height || window.innerHeight) >= 600;
-  };
+  /* Tableta parada angosta (768 px o menos): se fija en 820 px para que siga el diseño de
+     computadora (debajo de 769 px el Monitor cambia al de teléfono). */
+  var ANCHO_TABLETA = 820;
   function ajustarAncho() {
     var m = document.querySelector('meta[name="viewport"]');
     if (!m || !window.matchMedia) return;
@@ -231,35 +237,14 @@
       setTimeout(ajustarAncho, 250);   /* medir con el ancho real del dispositivo */
       return;
     }
+    /* Tableta: tamaño real de la pantalla y diseño de computadora en todos los apartados. */
+    if (esTableta) {
+      if (window.matchMedia('(max-width: 768px)').matches)
+        m.setAttribute('content', 'width=' + ANCHO_TABLETA + (IOS ? ', viewport-fit=cover' : ''));
+      return;
+    }
     if (window.matchMedia(MEDIA_MOVIL).matches) return;
-    /* En tabletas ya no se escala a 768 px (acostada se veía todo enorme y apretado de alto):
-       se usa el tamaño real de la pantalla con el diseño de teléfono aplicado a todo el ancho. */
-    if (esTableta()) { disenoTableta(); return; }
     m.setAttribute('content', 'width=' + ANCHO_MAX + (IOS ? ', viewport-fit=cover' : ''));
-  }
-  /* Copia las reglas "de teléfono" de css/main.css y css/movil.css para que apliquen en la tableta
-     a cualquier ancho (sin tocar el navegador normal). El inicio de sesión se queda con el diseño
-     de computadora (panel lateral + tarjeta centrada), que en tableta se ve mejor. */
-  function disenoTableta() {
-    if (html.classList.contains('gk-tab')) return;
-    html.classList.add('gk-tab');
-    Array.prototype.forEach.call(document.styleSheets, function (sh) {
-      if (!/css\/(main|movil)\.css/.test(sh.href || '')) return;
-      var reglas;
-      try { reglas = Array.prototype.slice.call(sh.cssRules); } catch (e) { return; }
-      reglas.forEach(function (r) {
-        if (!r.media || !r.cssRules) return;
-        var c = (r.conditionText || r.media.mediaText || '').replace(/\s+/g, ' ');
-        var dest = /min-width: 600px/.test(c) ? '(min-width: 600px)' : /^\(max-width: 768px\)/.test(c) ? 'all' : null;
-        if (!dest) return;
-        var dentro = Array.prototype.filter.call(r.cssRules, function (x) {
-          return !/lp-|login-page/.test(x.selectorText || x.cssText || '');
-        }).map(function (x) { return x.cssText; }).join('\n');
-        if (!dentro) return;
-        try { sh.insertRule('@media ' + dest + ' {\n' + dentro + '\n}', sh.cssRules.length); } catch (e) {}
-      });
-    });
-    window.dispatchEvent(new Event('resize'));
   }
   function vigilarGiro() {
     ajustarAncho();
