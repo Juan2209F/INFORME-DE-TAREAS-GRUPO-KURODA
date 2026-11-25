@@ -146,16 +146,96 @@ html.emb .pg{color:#111}
 .fov canvas{display:block;width:100%;height:200px;background:#fff;border:2px dashed #94a3b8;border-radius:8px;touch-action:none;cursor:crosshair}
 .fov .bt{display:flex;gap:8px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap}
 .hfi{display:inline-block;font-size:11px;margin-left:4px;padding:1px 6px;border-radius:9px;background:var(--acbg,#eef);white-space:nowrap}
+nav .tabs,nav .acts{display:contents}
+input.t.nm{min-width:230px}input.t.wc{min-width:220px}
+.fov .fdat{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px}.fov .fdat input{width:100%}.fov .fins{margin:0 0 6px}
+.mob,#mbar{display:none}html.fmodal,html.fmodal body{overflow:hidden}
+.pg.meas{zoom:1!important}
+@media print{#mbar,#hdtog{display:none!important}#repbody .pg{zoom:1!important}}
+/* ===== Teléfono: todo en una columna, encabezado plegable, pestañas deslizables, tablas como
+   tarjetas, barra inferior con la diferencia y firma a pantalla completa ===== */
+@media screen and (max-width:640px){
+ body{font-size:15px}main,html.emb main{padding:0 0 86px}
+ header,html.emb header{display:block;padding:10px 14px;border-radius:14px;margin-bottom:8px}
+ header .ttl{display:none}
+ #hdtog{display:flex;width:100%;align-items:center;justify-content:space-between;gap:8px;background:transparent!important;border:0;color:#fff;padding:2px 0;text-align:left;box-shadow:none!important;min-height:0}
+ #hdres{font-size:15px;line-height:1.25}#hdres small{display:block;font-size:12px;opacity:.85;font-weight:400}
+ #hdtog .chev{font-size:18px;transition:transform .2s}header.abierto #hdtog .chev{transform:rotate(180deg)}
+ header:not(.abierto) .meta{display:none}
+ header .meta{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;margin-top:10px}
+ header .meta label.f{min-width:0}header .meta input,header .meta select{width:100%;padding:9px 10px}
+ header .meta input.auto{padding:4px 2px;color:inherit}
+ input,select,textarea{font-size:16px}
+ nav,html.emb nav{position:sticky;top:0;z-index:30;background:var(--bg);flex-direction:column;align-items:stretch;gap:6px;margin:0 0 10px;padding:6px 0}
+ nav .tabs,nav .acts{min-width:0;width:100%;max-width:100%}
+ .wk{align-items:stretch!important}
+ nav .tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:2px}
+ nav .tabs::-webkit-scrollbar{display:none}
+ nav .tabs button{flex:0 0 auto;white-space:nowrap;padding:8px 14px}
+ nav .acts{display:flex;gap:6px;align-items:center}nav .acts>span:first-child{display:none}
+ nav .acts .cldst{flex:1;min-width:0;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ nav .acts button{flex:0 0 auto;padding:8px 12px}
+ button{min-height:40px}.x{min-height:0;font-size:20px;padding:4px 8px}
+ .sec,html.emb .sec{padding:12px 10px;border-radius:14px}
+ h2{font-size:16px}h3{font-size:13px}h3.nb,html.emb h3.nb{font-size:12.5px;line-height:1.3}
+ .wk{display:flex;flex-direction:column;gap:12px}
+ .side{display:contents}
+ .side .g{order:-1;grid-template-columns:1fr 1fr;gap:6px;margin:0}
+ .side .g .c.t,.side .g .c.r{grid-column:auto}.side .g .c[id$=-bp],.side .g .c[id$=-mp]{display:none}
+ .side .g .c.r b{font-size:13.5px}
+ p.hint.mob{display:block}p.hint.lg{display:none}
+ .side>p.hint{display:none}
+ .side .meta{order:2;display:grid;grid-template-columns:1fr 1fr;gap:8px}.side .meta button{grid-column:1/-1}
+ .c{padding:6px 9px}.c b,.c.t b{font-size:15px}.c small{font-size:11px}
+ input.q{min-width:0;padding:9px 8px}
+ th,td{padding:4px}
+ .cnt{grid-template-columns:1fr;gap:8px}
+ table.den td.dl{width:auto;font-size:15px}table.den td:nth-child(2){width:38%}table.den td.n.im{min-width:0;width:34%;font-size:13px}
+ /* Corte del sistema: cada forma de pago es una tarjeta (nombre completo arriba, Pesos | Dólares abajo). */
+ table.sys tbody tr{padding:4px 34px 6px 10px;gap:0 8px;margin-bottom:6px}table.sys tbody input.q{padding:6px 8px}
+ table.sys tbody td[data-l]::before{font-size:10px;margin:0}
+ table.sys td.snm input{font-size:13px;font-weight:600;border-color:transparent!important;background:transparent!important;padding:4px 0}
+ table.sys tfoot{margin-top:4px}
+ table.sys tfoot tr{display:grid!important;grid-template-columns:1.15fr 1fr 1fr;gap:6px;align-items:center;margin-bottom:6px}
+ table.sys tfoot td{display:block;white-space:normal;font-size:12.5px;padding:0;background:none!important;text-align:right}
+ table.sys tfoot td:first-child{text-align:left;font-weight:700}
+ table.sys tfoot td[data-l]::before{content:attr(data-l);display:block;font-size:10px;color:var(--mu);font-weight:400}
+ table.sys tfoot tr.vu{background:var(--acbg)}
+ table.sys tfoot input.q{padding:6px;font-size:15px;border:1px solid var(--bd)!important;background:var(--card)!important}
+ table.cards,table.cards tbody,table.cards tfoot{display:block}table.cards thead{display:none}
+ table.cards tbody tr{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px;border:1px solid var(--bd);border-radius:12px;padding:8px 38px 8px 10px;margin-bottom:8px;position:relative;background:var(--card)}
+ table.cards tbody tr:focus-within{border-color:var(--ac)}
+ table.cards tbody tr td{display:block;border:0;padding:0;background:none!important;white-space:normal;min-width:0}
+ table.cards td.w2{grid-column:1/-1}
+ table.cards td[data-l]::before{content:attr(data-l);display:block;font-size:11px;color:var(--mu);margin-bottom:1px}
+ table.cards td.xc{position:absolute;top:4px;right:2px}
+ table.cards td input{width:100%;min-width:0!important;border:1px solid var(--bd)!important;background:var(--bg)!important}
+ table.cards tfoot tr{display:flex;justify-content:space-between;padding:8px 10px;border-radius:10px;background:var(--hd)}
+ table.cards tfoot td{border:0;background:none}table.cards tfoot td:empty{display:none}
+ table.hcards tbody tr{padding:10px}table.hcards td.hf,table.hcards td.hs{font-size:14px}
+ table.hcards td.ha{grid-column:1/-1;display:flex!important;gap:6px;flex-wrap:wrap;margin-top:4px}table.hcards td.ha button{flex:1 1 auto}
+ #mbar.on{display:grid;grid-template-columns:1fr 1fr 1.25fr;gap:6px;position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--card);border-top:1px solid var(--bd);padding:8px 12px calc(8px + env(safe-area-inset-bottom,0px));box-shadow:0 -6px 18px rgba(20,30,60,.12)}
+ #mbar small{display:block;font-size:10.5px;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#mbar b{font-size:14.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+ #mbar .md{border-left:3px solid var(--bd);padding-left:8px}#mbar.ok .md{border-color:var(--ok)}#mbar.ok .md b{color:var(--ok)}#mbar.bad .md{border-color:var(--bad)}#mbar.bad .md b{color:var(--bad)}
+ #repbody .pg{width:780px;max-width:none;zoom:var(--mz,1);margin:0 0 14px}
+ label.ck{margin:0 10px 8px 0}
+ .fov{padding:0;align-items:stretch}
+ .fov .fcard{width:100%;height:100%;border-radius:0;display:flex;flex-direction:column;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px))}
+ .fov .fcard{justify-content:center}.fov canvas{flex:1 1 auto;height:auto;min-height:160px;max-height:340px}
+ .fov .bt{display:grid;grid-template-columns:1fr 1fr 1.4fr}.fov .bt button{min-height:48px}
+}
 </style>
 </head>
 <body>
 <main>
 <header>
- <div><h1>Arqueo de caja</h1><small style="color:var(--mu)">Captura las cantidades. Todo se suma solo.</small></div>
+ <div class="ttl"><h1>Arqueo de caja</h1><small style="color:var(--mu)">Captura las cantidades. Todo se suma solo.</small></div>
+ <button type="button" id="hdtog" class="mob" data-a="hdtog"><span id="hdres"></span><span class="chev">▾</span></button>
  <div class="meta" id="meta"></div>
 </header>
 <nav id="nav"></nav>
 <div id="app"></div>
+<div id="mbar" class="mob"></div>
 <datalist id="cl"><option value="Vale"><option value="Faltante"><option value="NC"><option value="Morralla"><option value="Cheque"><option value="Tarjeta"><option value="Depósito"></datalist>
 </main>
 <script>
@@ -244,50 +324,67 @@ if(EMB)try{th=window.parent.document.documentElement.getAttribute('data-theme')=
 const applyTh=()=>{document.documentElement.dataset.theme=th=='auto'?'':th};applyTh();
 if(EMB)window.addEventListener('message',e=>{if(e.origin===location.origin&&e.data&&e.data.type==='theme'){th=e.data.dark?'dark':'light';applyTh()}});
 let sel={res:1,caja:1,fondon:1,usd:1,chica:1};
+let HDO=null; /* teléfono: encabezado abierto/cerrado (null = automático: abierto si el arqueo está vacío) */
 /* Dentro del Monitor, "Elaboró" es siempre el auditor que hace el arqueo (usuario con sesión) y su
    puesto es Auditor. "Confirmó" se sigue capturando a mano (nombre y puesto). */
 const YO=EMB?String(((SES()||{}).nombre||(SES()||{}).username)||'').trim():'';
 const autor=()=>{if(!EMB)return;if(!RO&&YO&&!String(M.e||'').trim())M.e=YO;M.ep='Auditor'};
 const nm=(k,f)=>EMB&&f=='e'?M.e:(S[k]&&S[k][f])||M[f];
 /* Puesto: el del apartado; si no tiene, el general, pero solo cuando firma la misma persona del general. */
-/* Firmas electrónicas: M.firmas = {e:{png,n,p,at}, v:{...}}. Se guardan dentro del mismo arqueo
-   (datos jsonb en Supabase) como PNG pequeño en blanco y negro. Solo salen en una hoja si el nombre
-   de esa hoja es el de quien firmó (si se cambia el nombre, la firma ya no aplica). */
+/* Firmas electrónicas por hoja: M.firmas = {res:{e,v}, caja:{e,v}, fondon:{…}, usd:{…}, chica:{…}}
+   (res = informe / resumen general; las demás, cada apartado). Cada firma = {png,n,p,at,por}. Se
+   guardan dentro del mismo arqueo (datos jsonb en Supabase) como PNG pequeño en blanco y negro.
+   Solo sale en la hoja si el nombre de esa hoja es el de quien firmó. */
 const FQ={e:'Elaboró (auditor)',v:'Confirmó / verificó'};
-const firmaDe=(q,nom)=>{const f=(M.firmas||{})[q];return f&&f.png&&String(f.n||'').trim()===String(nom||'').trim()?f:null};
-const fimg=(q,nom)=>{const f=firmaDe(q,nom);return f?`<img class="fi" src="${f.png}" alt="Firma">`:''};
+const FPG=()=>['res',...Object.keys(S)];
+const pgNom=(pg,q)=>pg=='res'?M[q]:nm(pg,q);
+const pgPto=(pg,q)=>q=='e'?(EMB?'Auditor':pg=='res'?M.ep:np(pg,'e')):pg=='res'?M.vp:np(pg,'v');
+/* Firmas guardadas con la versión anterior (una sola para todo): se copian a cada hoja. */
+const migFirmas=()=>{const F=M.firmas;if(!F||!((F.e&&F.e.png)||(F.v&&F.v.png)))return;const N={};FPG().forEach(p=>{N[p]={};['e','v'].forEach(q=>{if(F[q]&&F[q].png)N[p][q]=F[q]})});M.firmas=N};
+const firmaDe=(pg,q,nom)=>{const f=((M.firmas||{})[pg]||{})[q];return f&&f.png&&String(f.n||'').trim()===String(nom||'').trim()?f:null};
+const fimg=(pg,q,nom)=>{const f=firmaDe(pg,q,nom);return f?`<img class="fi" src="${f.png}" alt="Firma">`:''};
 const fFecha=f=>new Date(f.at).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
-function firmasHTML(){
- const box=q=>{const nom=q=='e'?M.e:M.v,f=firmaDe(q,nom),vieja=!f&&(M.firmas||{})[q];
-  return`<div class="fbox"><small>${FQ[q]}</small><b>${esc(nom)||'<span style="color:var(--mu)">Sin nombre</span>'}</b>${f?`<img src="${f.png}" alt="Firma"><small>Firmado ${esc(fFecha(f))}</small>`:`<span class="sin">${vieja?'La firma guardada era de '+esc(vieja.n)+'; firma de nuevo':'Sin firma'}</span>`}${RO?'':`<div class="bt" style="justify-content:center"><button class="pri" data-a="firma" data-q="${q}">✍ ${f?'Firmar de nuevo':'Firmar'}</button>${f||vieja?` <button class="x" data-a="fdel" data-q="${q}">Quitar</button>`:''}</div>`}</div>`};
- return`<div class="fpan"><h3>Firmas</h3><p class="hint">Se firman con el dedo desde el teléfono (o con el mouse). Quedan guardadas en este mismo arqueo y salen sobre la línea de firma del documento. Para la firma de quien confirma, primero escribe su nombre y puesto en el encabezado.</p><div class="frow">${box('e')}${box('v')}</div></div>`}
-function firmar(q){
- if(RO)return;
- const nom=String((q=='e'?M.e:M.v)||'').trim();
- if(!nom){alert(q=='e'?'Falta el nombre de quien elaboró.':'Primero escribe en el encabezado el nombre (y puesto) de quien confirma.');return}
+const fCuenta=Mx=>{const F=(Mx&&Mx.firmas)||{};if((F.e&&F.e.png)||(F.v&&F.v.png))return((F.e&&F.e.png?1:0)+(F.v&&F.v.png?1:0))*5;let n=0;for(const p in F)if(F[p]&&typeof F[p]==='object')['e','v'].forEach(q=>{if(F[p][q]&&F[p][q].png)n++});return n};
+function firmasHTML(pg){
+ const box=q=>{const nom=pgNom(pg,q),pto=pgPto(pg,q),f=firmaDe(pg,q,nom),vieja=!f&&((M.firmas||{})[pg]||{})[q];
+  return`<div class="fbox"><small>${FQ[q]}</small><b>${esc(nom)||'<span style="color:var(--mu)">Sin nombre</span>'}</b>${pto?`<small>${esc(pto)}</small>`:''}${f?`<img src="${f.png}" alt="Firma"><small>Firmado ${esc(fFecha(f))}</small>`:`<span class="sin">${vieja?'La firma guardada era de '+esc(vieja.n)+'; firma de nuevo':'Sin firma'}</span>`}${RO?'':`<div class="bt" style="justify-content:center"><button class="pri" data-a="firma" data-q="${q}" data-pg="${pg}">✍ ${f?'Firmar de nuevo':'Firmar'}</button>${f||vieja?` <button class="x" data-a="fdel" data-q="${q}" data-pg="${pg}">Quitar</button>`:''}</div>`}</div>`};
+ const ttl=pg=='res'?'Firmas del informe (resumen general)':'Firmas de este apartado · '+NAMES[pg];
+ const txt=pg=='res'?'Estas firmas salen en la hoja del resumen general. Cada apartado se firma al final de su propia pestaña.':'Estas firmas salen solo en la hoja de '+NAMES[pg]+'.';
+ return`<div class="fpan noprint"><h3>✍ ${ttl}</h3><p class="hint">${txt} Se firma con el dedo desde el teléfono (o con el mouse); quien confirma escribe su nombre y puesto al firmar.</p><div class="frow">${box('e')}${box('v')}</div></div>`}
+function firmar(q,pg){
+ if(RO)return;pg=pg||'res';
+ let nom=String(pgNom(pg,q)||'').trim();
+ if(q=='e'&&!nom){alert('Falta el nombre de quien elaboró.');return}
  const ov=document.createElement('div');ov.className='fov';
- ov.innerHTML=`<div class="fcard"><h3 style="margin:0 0 2px">Firma · ${FQ[q]}</h3><p class="hint" style="margin:0 0 8px"><b>${esc(nom)}</b>${(q=='e'?(EMB?'Auditor':M.ep):M.vp)?' · '+esc(q=='e'?(EMB?'Auditor':M.ep):M.vp):''} — firma dentro del recuadro.</p><canvas></canvas><div class="bt"><button data-f="lim">Limpiar</button><button data-f="can">Cancelar</button><button class="pri" data-f="ok">Guardar firma</button></div></div>`;
+ /* Quien confirma escribe su nombre y puesto aquí mismo (fácil en el teléfono). */
+ const quien=q=='v'?`<div class="fdat"><label class="f">Nombre de quien confirma<input id="fvn" value="${esc(nom)}" placeholder="Nombre completo" autocomplete="off"></label><label class="f">Puesto<input id="fvp" value="${esc(pgPto(pg,'v'))}" placeholder="Ej. Gerente de sucursal" autocomplete="off"></label></div>`:`<p class="hint" style="margin:0 0 8px"><b>${esc(nom)}</b> · ${esc(pgPto(pg,'e')||'')}</p>`;
+ ov.innerHTML=`<div class="fcard"><h3 style="margin:0 0 4px">Firma · ${FQ[q]}</h3><p class="hint" style="margin:0 0 6px">Hoja: <b>${pg=='res'?'Informe (resumen general)':esc(NAMES[pg])}</b></p>${quien}<p class="hint fins">Firma con el dedo dentro del recuadro blanco.</p><canvas></canvas><div class="bt"><button data-f="lim">Limpiar</button><button data-f="can">Cancelar</button><button class="pri" data-f="ok">Guardar firma</button></div></div>`;
  document.body.appendChild(ov);
  const cv=ov.querySelector('canvas'),dpr=Math.min(2,window.devicePixelRatio||1);
- cv.width=Math.round(cv.clientWidth*dpr);cv.height=Math.round(cv.clientHeight*dpr);
- const cx=cv.getContext('2d');cx.scale(dpr,dpr);cx.lineWidth=2.6;cx.lineCap=cx.lineJoin='round';cx.strokeStyle='#000';
+ const cx=cv.getContext('2d');
+ const medir=()=>{cv.width=Math.round(cv.clientWidth*dpr);cv.height=Math.round(cv.clientHeight*dpr);cx.setTransform(dpr,0,0,dpr,0,0);cx.lineWidth=2.6;cx.lineCap=cx.lineJoin='round';cx.strokeStyle='#000'};
+ medir();document.documentElement.classList.add('fmodal');
  let dib=false,traz=0,bb=null,last=null;
+ /* Si se gira el teléfono antes de firmar, el recuadro se ajusta al nuevo tamaño. */
+ const rz=()=>{if(!traz){medir();bb=null}};addEventListener('resize',rz);
  const pt=e=>{const r=cv.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}};
  const amp=p=>{bb=bb?{x0:Math.min(bb.x0,p.x),y0:Math.min(bb.y0,p.y),x1:Math.max(bb.x1,p.x),y1:Math.max(bb.y1,p.y)}:{x0:p.x,y0:p.y,x1:p.x,y1:p.y}};
  cv.addEventListener('pointerdown',e=>{e.preventDefault();cv.setPointerCapture(e.pointerId);dib=true;last=pt(e);amp(last);cx.beginPath();cx.arc(last.x,last.y,1.3,0,7);cx.fillStyle='#000';cx.fill()});
  cv.addEventListener('pointermove',e=>{if(!dib)return;e.preventDefault();const p=pt(e);cx.beginPath();cx.moveTo(last.x,last.y);cx.lineTo(p.x,p.y);cx.stroke();last=p;amp(p);traz++});
  const fin=()=>{dib=false};cv.addEventListener('pointerup',fin);cv.addEventListener('pointercancel',fin);
- const cerrar=()=>ov.remove();
+ const cerrar=()=>{removeEventListener('resize',rz);document.documentElement.classList.remove('fmodal');ov.remove()};
  ov.addEventListener('click',e=>{const a=e.target.dataset.f;if(!a)return;
-  if(a=='lim'){cx.clearRect(0,0,cv.width,cv.height);traz=0;bb=null;return}
+  if(a=='lim'){medir();traz=0;bb=null;return}
   if(a=='can')return cerrar();
+  if(q=='v'){const vn=ov.querySelector('#fvn').value.trim(),vp=ov.querySelector('#fvp').value.trim();if(!vn){alert('Escribe el nombre de quien confirma.');ov.querySelector('#fvn').focus();return}
+   if(pg=='res'){M.v=vn;M.vp=vp}else{S[pg].v=vn;S[pg].vp=vp;if(!String(M.v||'').trim()){M.v=vn;M.vp=vp}}nom=vn}
   if(!bb||traz<3){alert('Dibuja la firma en el recuadro.');return}
   /* Recorta al trazo, reduce a máx. 240×80 px y deja solo negro / transparente: PNG de pocos KB. */
   const m=4,sx=Math.max(0,(bb.x0-m)*dpr),sy=Math.max(0,(bb.y0-m)*dpr),sw=Math.min(cv.width-sx,(bb.x1-bb.x0+2*m)*dpr),sh=Math.min(cv.height-sy,(bb.y1-bb.y0+2*m)*dpr);
   const k=Math.min(1,240/sw,80/sh),o=document.createElement('canvas');o.width=Math.max(1,Math.round(sw*k));o.height=Math.max(1,Math.round(sh*k));
   const ox=o.getContext('2d');ox.drawImage(cv,sx,sy,sw,sh,0,0,o.width,o.height);
   const im=ox.getImageData(0,0,o.width,o.height),px=im.data;for(let i=0;i<px.length;i+=4){const on=px[i+3]>90;px[i]=px[i+1]=px[i+2]=0;px[i+3]=on?255:0}ox.putImageData(im,0,0);
-  M.firmas=M.firmas||{};M.firmas[q]={png:o.toDataURL('image/png'),n:nom,p:q=='e'?(EMB?'Auditor':M.ep||''):M.vp||'',at:new Date().toISOString(),por:String((SES()||{}).username||'')};
+  M.firmas=M.firmas||{};M.firmas[pg]=M.firmas[pg]||{};M.firmas[pg][q]={png:o.toDataURL('image/png'),n:nom,p:pgPto(pg,q)||'',at:new Date().toISOString(),por:String((SES()||{}).username||'')};
   cerrar();guardarFirma();
  });
 }
@@ -333,7 +430,7 @@ if(EMB){addEventListener('pagehide',()=>{if(AUTO.sucio)autoGuardar()});document.
 const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
 const EFR=['FONDO DE CAJA','EFECTIVO','CAMBIO EFECTIVO','RETIRO RESGUARDO','DEVOLUCION EFECTIVO A CLIENTE','RETIRO POR FALLA DE CAJERO','CAMBIO DE TRANSFERENCIA','CAMBIO DE CHEQUE','VALE DE FALTANTE EN CAJA','SOBRANTE DE CAJA'];
 const sys0=()=>({ef:EFR.map(n=>({n,p:'',u:''})),tj:[{n:'TPV SANTANDER - EXPRESS - ECOM',p:'',c:''}],tr:[{n:'SANTANDER-TRANSFERENCIA / DEPO',p:'',c:''}],inf:[{n:'SALDO A FAVOR CREADO',p:'',u:''},{n:'CAJERO - TARJETA',p:'',u:''}]});
-const norm=()=>{if(S.caja&&!S.caja.sys)S.caja.sys=sys0();if(S.caja&&!S.caja.ru)S.caja.ru={};if(S.caja&&S.caja.tol==null)S.caja.tol=''};
+const norm=()=>{if(S.caja&&!S.caja.sys)S.caja.sys=sys0();if(S.caja&&!S.caja.ru)S.caja.ru={};if(S.caja&&S.caja.tol==null)S.caja.tol='';migFirmas()};
 const SYG={ef:['Efectivo','Forma de pago','Pesos','Dólares'],tj:['Tarjetas','Terminal','Sistema','Comprobado (vouchers / cierre de lote)'],tr:['Transferencias','Cuenta','Sistema','Comprobado (comprobantes / estado de cuenta)'],inf:['Informativos (no se cuadran)','Concepto','Pesos','Dólares']};
 const f2=g=>g=='tj'||g=='tr'?'c':'u';
 const pev=s=>{let x=String(s??'').trim();if(/^\(.*\)$/.test(x))x='-'+x.slice(1,-1);if(/^[\d,.\s$]+-$/.test(x))x='-'+x.replace(/-\s*$/,'');return ev(x)};
@@ -351,8 +448,8 @@ const set=(id,t)=>{const e=$('#'+id);if(e)e.querySelector('b').textContent=t};
 const FMIN=10;const TOLK=['caja','fondon','chica'];const okD=(k,d)=>d===0||(TOLK.includes(k)&&Math.abs(d)<=FMIN+1e-9);
 function setR(id,v){const e=$('#'+id);if(!e)return;const kk=id.split('-')[0];if(v!=null&&v!==0&&okD(kk,v)){e.className='c r ok';e.querySelector('small').textContent='Diferencia: '+dl(v)+' permitido (hasta $'+FMIN+')';e.querySelector('b').textContent=fmt(Math.abs(v));return}if(v==null){e.className='c r';e.querySelector('small').textContent='Diferencia';e.querySelector('b').textContent='Captura lo que debe tener';return}e.className='c r '+(v===0?'ok':'bad');e.querySelector('small').textContent='Diferencia: '+dl(v);e.querySelector('b').textContent=fmt(Math.abs(v),id.split('-')[0])}
 
-const conHTML=k=>`<h3>${CONL[k]}</h3><div class="sc"><table><thead><tr><th>Concepto<th>Referencia<th class="n">Monto<th></tr></thead><tbody id="cn-${k}" data-grow="c" data-k="${k}">${S[k].con.map((c,i)=>`<tr data-con><td><input class="t" list="cl" data-cc="c" data-k="${k}" data-i="${i}" value="${esc(c.c)}" placeholder="Concepto"><td><input class="t" data-cc="r" data-k="${k}" data-i="${i}" value="${esc(c.r)}" placeholder="Factura / nota"><td><input class="q" inputmode="decimal" data-q data-cc="m" data-k="${k}" data-i="${i}" value="${esc(c.m)}" placeholder="0"><td><button class="x" data-a="dc" data-k="${k}" data-i="${i}" title="Quitar">×</button></tr>`).join('')}</tbody></table></div><div class="bt"><button data-a="ac" data-k="${k}">+ Agregar concepto</button></div>`;
-const vt=(key,title,nb)=>`<h3${nb?' class="nb"':''}>${title}</h3><div class="sc"><table><thead><tr><th>Fecha<th>Factura<th>Nombre<th>Concepto<th class="n">Importe<th></tr></thead><tbody id="${key}-chica" data-grow="v" data-key="${key}">${S.chica[key].map((c,i)=>`<tr><td><input type="date" class="dt" data-vv="f" data-key="${key}" data-i="${i}" value="${esc(c.f)}"><td><input class="t" data-vv="r" data-key="${key}" data-i="${i}" value="${esc(c.r)}"><td><input class="t" data-vv="n" data-key="${key}" data-i="${i}" value="${esc(c.n)}"><td><input class="t" style="min-width:220px" data-vv="c" data-key="${key}" data-i="${i}" value="${esc(c.c)}"><td><input class="q" inputmode="decimal" placeholder="0" data-q data-vv="m" data-key="${key}" data-i="${i}" value="${esc(c.m)}"><td><button class="x" data-a="dv" data-key="${key}" data-i="${i}" title="Quitar">×</button></tr>`).join('')}</tbody><tfoot><tr><td colspan="4">Subtotal<td class="n" id="sub-${key}"><td></tr></tfoot></table></div><div class="bt"><button data-a="av" data-key="${key}">+ Agregar renglón</button></div>`;
+const conHTML=k=>`<h3>${CONL[k]}</h3><div class="sc"><table class="cards"><thead><tr><th>Concepto<th>Referencia<th class="n">Monto<th></tr></thead><tbody id="cn-${k}" data-grow="c" data-k="${k}">${S[k].con.map((c,i)=>`<tr data-con><td class="w2" data-l="Concepto"><input class="t" list="cl" data-cc="c" data-k="${k}" data-i="${i}" value="${esc(c.c)}" placeholder="Concepto"><td data-l="Referencia"><input class="t" data-cc="r" data-k="${k}" data-i="${i}" value="${esc(c.r)}" placeholder="Factura / nota"><td data-l="Monto"><input class="q" inputmode="decimal" data-q data-cc="m" data-k="${k}" data-i="${i}" value="${esc(c.m)}" placeholder="0"><td class="xc"><button class="x" data-a="dc" data-k="${k}" data-i="${i}" title="Quitar">×</button></tr>`).join('')}</tbody></table></div><div class="bt"><button data-a="ac" data-k="${k}">+ Agregar concepto</button></div>`;
+const vt=(key,title,nb)=>`<h3${nb?' class="nb"':''}>${title}</h3><div class="sc"><table class="cards"><thead><tr><th>Fecha<th>Factura<th>Nombre<th>Concepto<th class="n">Importe<th></tr></thead><tbody id="${key}-chica" data-grow="v" data-key="${key}">${S.chica[key].map((c,i)=>`<tr><td data-l="Fecha"><input type="date" class="dt" data-vv="f" data-key="${key}" data-i="${i}" value="${esc(c.f)}"><td data-l="Factura"><input class="t" data-vv="r" data-key="${key}" data-i="${i}" value="${esc(c.r)}" placeholder="Factura / ticket"><td class="w2" data-l="Nombre"><input class="t" data-vv="n" data-key="${key}" data-i="${i}" value="${esc(c.n)}" placeholder="Proveedor"><td class="w2" data-l="Concepto"><input class="t wc" data-vv="c" data-key="${key}" data-i="${i}" value="${esc(c.c)}" placeholder="Concepto"><td data-l="Importe"><input class="q" inputmode="decimal" placeholder="0" data-q data-vv="m" data-key="${key}" data-i="${i}" value="${esc(c.m)}"><td class="xc"><button class="x" data-a="dv" data-key="${key}" data-i="${i}" title="Quitar">×</button></tr>`).join('')}</tbody><tfoot><tr><td colspan="4">Subtotal<td class="n" id="sub-${key}"><td></tr></tfoot></table></div><div class="bt"><button data-a="av" data-key="${key}">+ Agregar renglón</button></div>`;
 const valesHTML=()=>vt('con','Comprobables')+vt('nc','No comprobables',1);
 const B=x=>x?`<div class="blk">${x}</div>`:'';
 const cg=(...w)=>'<colgroup>'+w.map(x=>`<col style="width:${x}%">`).join('')+'</colgroup>';
@@ -367,14 +464,14 @@ function usdCntHTML(){const s=S.caja;return`<h3>Dólares en caja (USD)</h3><div 
 const repUsd=()=>{const u=(CU.uRows||[]).filter(x=>x.pz);if(!u.length)return'';return B(`<div class="sh">Conteo de dólares en caja</div><table class="rt">${cg(50,20,30)}<thead><tr><th>Denominación<th class="n">Cantidad<th class="n">Importe</tr></thead><tbody>${u.map(x=>`<tr><td>${lab(x.d)} USD<td class="n">${x.pz}<td class="n">${fmt(x.im,'usd')}`).join('')}</tbody><tfoot><tr><td colspan="2">Total dólares<td class="n">${fmt(CU.uEf,'usd')}</tfoot></table>`)};
 function sysHTML(cnt){
  const y=S.caja.sys;
- const t=g=>{const[ti,c1,c2,c3]=SYG[g],f=f2(g);return`<h3 class="sy">${ti}</h3><div class="sc"><table><thead><tr><th>${c1}<th class="n">${c2}<th class="n">${c3}<th></tr></thead><tbody id="sy-${g}" data-grow="s" data-g="${g}">${y[g].map((c,i)=>`<tr><td><input class="t" style="min-width:230px" data-sy="n" data-g="${g}" data-i="${i}" value="${esc(c.n)}"><td><input class="q" inputmode="decimal" placeholder="0.00" data-q data-sy="p" data-g="${g}" data-i="${i}" value="${esc(c.p)}"><td><input class="q" inputmode="decimal" placeholder="0.00" data-q data-sy="${f}" data-g="${g}" data-i="${i}" value="${esc(c[f])}"><td><button class="x" data-a="dsy" data-g="${g}" data-i="${i}" title="Quitar">×</button></tr>`).join('')}</tbody><tfoot><tr><td>TOTALES<td class="n" id="syt-${g}-p"><td class="n" id="syt-${g}-${f}"><td></tr>${g=='ef'?`<tr class="vu"><td>CONTADO EN CAJA<td class="n" id="ef-cp"><td><input class="q" inputmode="decimal" placeholder="Dólares contados" data-usdc value="${esc(S.caja.usdc)}"><td></tr><tr class="vu"><td>DIFERENCIA<td class="n" id="ef-dp"><td class="n" id="ef-du"><td></tr>`:''}</tfoot></table></div><div class="bt"><button data-a="asy" data-g="${g}">+ Agregar renglón</button></div>`};
- return`<h3 class="nb">Paso 1 · Corte del sistema (formas de pago)</h3><p class="hint">Primero copia los importes tal como vienen en el reporte del sistema (se aceptan negativos con el signo al final: 1,424.67-). El <b>TOTAL de efectivo en pesos</b> de este corte es lo que debe haber en caja: se pasa solo a <b>Total según sistema</b> y se compara contra el <b>CONTADO EN CAJA</b> (los billetes y monedas que cuentas en el paso 2). La <b>DIFERENCIA</b> es contado menos sistema. <b>Regla:</b> en pesos, un faltante o sobrante de hasta $10.00 se considera permitido (cumple); de más de $10.00 no cumple. Los dólares deben estar exactos: escribe en <b>CONTADO EN CAJA</b> (columna Dólares) los dólares que hay físicamente en la caja. Si no capturas corte, escribe a mano el Total según sistema.</p>${t('ef')}${cnt}<h3 class="nb">Paso 3 · Otras formas de pago del corte</h3>${t('tj')}${t('tr')}${t('inf')}`}
+ const t=g=>{const[ti,c1,c2,c3]=SYG[g],f=f2(g);return`<h3 class="sy">${ti}</h3><div class="sc"><table class="sys cards"><thead><tr><th>${c1}<th class="n">${c2}<th class="n">${c3}<th></tr></thead><tbody id="sy-${g}" data-grow="s" data-g="${g}">${y[g].map((c,i)=>`<tr><td class="w2 snm"><input class="t nm" data-sy="n" data-g="${g}" data-i="${i}" value="${esc(c.n)}" placeholder="${esc(c1)}"><td data-l="${c2}"><input class="q" inputmode="decimal" placeholder="0.00" data-q data-sy="p" data-g="${g}" data-i="${i}" value="${esc(c.p)}"><td data-l="${c3.replace(/ \(.*/,'')}"><input class="q" inputmode="decimal" placeholder="0.00" data-q data-sy="${f}" data-g="${g}" data-i="${i}" value="${esc(c[f])}"><td class="xc"><button class="x" data-a="dsy" data-g="${g}" data-i="${i}" title="Quitar">×</button></tr>`).join('')}</tbody><tfoot><tr><td>TOTALES<td class="n" data-l="${c2}" id="syt-${g}-p"><td class="n" data-l="${c3.replace(/ \(.*/,'')}" id="syt-${g}-${f}"><td></tr>${g=='ef'?`<tr class="vu"><td>CONTADO EN CAJA<td class="n" data-l="Pesos (billetes y monedas)" id="ef-cp"><td data-l="Dólares contados"><input class="q" inputmode="decimal" placeholder="USD" data-usdc value="${esc(S.caja.usdc)}"><td></tr><tr class="vu"><td>DIFERENCIA<td class="n" data-l="Pesos" id="ef-dp"><td class="n" data-l="Dólares" id="ef-du"><td></tr>`:''}</tfoot></table></div><div class="bt"><button data-a="asy" data-g="${g}">+ Agregar renglón</button></div>`};
+ return`<h3 class="nb">Paso 1 · Corte del sistema (formas de pago)</h3><p class="hint mob">Copia los importes del reporte del sistema. Lo contado en caja (paso 2) debe cuadrar con el TOTAL: tolerancia ±$10 en pesos; dólares exactos.</p><p class="hint lg">Primero copia los importes tal como vienen en el reporte del sistema (se aceptan negativos con el signo al final: 1,424.67-). El <b>TOTAL de efectivo en pesos</b> de este corte es lo que debe haber en caja: se pasa solo a <b>Total según sistema</b> y se compara contra el <b>CONTADO EN CAJA</b> (los billetes y monedas que cuentas en el paso 2). La <b>DIFERENCIA</b> es contado menos sistema. <b>Regla:</b> en pesos, un faltante o sobrante de hasta $10.00 se considera permitido (cumple); de más de $10.00 no cumple. Los dólares deben estar exactos: escribe en <b>CONTADO EN CAJA</b> (columna Dólares) los dólares que hay físicamente en la caja. Si no capturas corte, escribe a mano el Total según sistema.</p>${t('ef')}${cnt}<h3 class="nb">Paso 3 · Otras formas de pago del corte</h3>${t('tj')}${t('tr')}${t('inf')}`}
 function secHTML(k){
  const s=S[k];
  const cnt=`<h3${k=='caja'?' class="nb"':''}>${k=='caja'?'Paso 2 · Conteo de billetes y monedas (contado en caja)':'Conteo de efectivo'}</h3><div class="cnt">${DEN[k].map(g=>`<div class="sc"><table class="den"><thead><tr><th>${g.g}<th class="n">Cantidad<th class="n">Importe</tr></thead><tbody>${g.v.map(d=>`<tr data-d="${d}"><td class="dl">${lab(d)}<td><input class="q" inputmode="decimal" enterkeyhint="next" placeholder="0" data-q data-k="${k}" data-d="${d}" data-c="0" value="${esc((s.r[d]||[])[0])}"><small class="ev"></small><td class="n im">`).join('')}</tbody></table></div>`).join('')}</div>`;
  return`<div class="wk"><div class="mn">${k=='caja'?sysHTML(cnt):cnt}
  ${k=='chica'?valesHTML():conHTML(k)}${k=='caja'?'<h3>Cuadre contra sistema</h3><div class="sc" id="cuadre"></div>':''}
- <h3>Observaciones</h3><textarea rows="3" data-obs data-k="${k}" placeholder="Escribe aquí las observaciones de este apartado (salen arriba de las firmas)">${esc(s.o)}</textarea></div>
+ <h3>Observaciones</h3><textarea rows="3" data-obs data-k="${k}" placeholder="Escribe aquí las observaciones de este apartado (salen arriba de las firmas)">${esc(s.o)}</textarea>${firmasHTML(k)}</div>
  <aside class="side"><div class="g"><label class="f c">${REFL[k]}<input class="q" inputmode="decimal" data-ref data-k="${k}" value="${esc(s.ref)}" placeholder="0"></label>${card(k+'-ef','Efectivo contado')}${card(k+'-co',k=='chica'?'Vales (comp. + no)':'Conceptos (+/-)')}${card(k+'-tt','Total','t')}${card(k+'-d','Diferencia')}${k=='caja'?card('caja-dict','Dictamen contra corte','r'):''}${card(k+'-bp','Billetes (pzas)')}${card(k+'-mp','Monedas (pzas)')}</div>
  <p class="hint"><b>Enter</b> baja al siguiente renglón · <b>Shift+Enter</b> sube · <b>Tab</b> avanza a la derecha. En el último renglón de conceptos/vales, Enter agrega uno nuevo. Puedes sumar y restar: 100+50-20.</p>
  <div class="meta noprint">${EMB?`<label class="f">Elaboró (auditor)<input class="auto" value="${esc(M.e)}" readonly title="Se toma del usuario que hace el arqueo"></label>`:`<label class="f">Elaboró (este apartado)<input data-sp="e" data-k="${k}" value="${esc(s.e)}" placeholder="${esc(M.e)||'Nombre'}"></label><label class="f">Puesto de quien elaboró<input data-sp="ep" data-k="${k}" value="${esc(s.ep)}" placeholder="${esc(M.ep)||'Puesto'}"></label>`}<label class="f">Confirmó / verificó (este apartado)<input data-sp="v" data-k="${k}" value="${esc(s.v)}" placeholder="${esc(M.v)||'Nombre de quien confirma'}"></label><label class="f">Puesto de quien confirmó<input data-sp="vp" data-k="${k}" value="${esc(s.vp)}" placeholder="${esc(M.vp)||'Puesto'}"></label><button data-a="psec" data-k="${k}">Imprimir solo este apartado</button></div></aside></div>`}
@@ -382,8 +479,10 @@ function secHTML(k){
 function render(){
  norm();autor();
  $('#meta').innerHTML=`<label class="f">Fecha<input type="date" data-m="f" value="${esc(M.f)}"></label><label class="f">Sucursal<select data-m="s">${SUC.map(x=>`<option value="${x}"${M.s==x?' selected':''}>${esc(sucTxt(x))}</option>`).join('')}${SUC.includes(M.s)?'':`<option selected>${esc(M.s)}</option>`}</select></label>${EMB?`<label class="f">Elaboró (auditor)<input class="auto" value="${esc(M.e)}" readonly title="Se toma del usuario que hace el arqueo"></label><label class="f">Puesto<input class="auto" value="Auditor" readonly></label>`:`<label class="f">Elaboró (general)<input data-m="e" value="${esc(M.e)}" placeholder="Nombre"></label><label class="f">Puesto<input data-m="ep" value="${esc(M.ep)}" placeholder="Puesto"></label>`}<label class="f">Confirmó / verificó<input data-m="v" value="${esc(M.v)}" placeholder="Nombre de quien confirma"></label><label class="f">Puesto de quien confirma<input data-m="vp" value="${esc(M.vp)}" placeholder="Ej. Gerente de sucursal"></label>`;
- $('#nav').innerHTML=Object.entries(NAMES).map(([k,n])=>`<button data-a="tab" data-k="${k}" class="${tab==k?'on':''}">${n}</button>`).join('')+`<span style="flex:1"></span>${EMB?`<span class="cldst${CLD.bad?' bad':(CLD.msg||'').startsWith('☁')?' auto':''}" id="cldst">${esc(CLD.msg||'')}</span>`:`<button data-a="theme">${TL[th]}</button>`}${RO?'':`<button class="pri" data-a="hsave">💾 Guardar${EMB?'':' en historial'}</button>`}<button data-a="new">Nuevo arqueo</button>`;
- $('#app').innerHTML=Object.keys(S).map(k=>`<section class="sec ${tab==k?'on':''}" id="sec-${k}"><h2>${NAMES[k]}</h2>${secHTML(k)}</section>`).join('')+`<section class="sec rep ${tab=='rep'?'on':''}" id="rep"><div class="noprint" id="repsel"><h2>Reporte formal</h2><p class="hint">Elige qué apartados imprimir. Cada uno sale en su propia hoja con sus propias firmas. Si no abre la impresión, usa Ctrl+P.</p>${[['res','Resumen'],...Object.keys(S).map(k=>[k,NAMES[k]])].map(([k,n])=>`<label class="ck"><input type="checkbox" data-sel="${k}" ${sel[k]?'checked':''}> ${n}</label>`).join('')}<label class="f" style="margin:6px 0 10px">Observaciones del resumen<textarea rows="2" data-m="o" placeholder="Salen arriba de las firmas del resumen">${esc(M.o)}</textarea></label><div class="bt"><button class="pri" data-a="print">Imprimir selección</button> <button data-a="all">Seleccionar todo</button></div>${firmasHTML()}</div><div id="repbody"></div></section><section class="sec ${tab=='hist'?'on':''}" id="hist">${histHTML()}</section>`;
+ $('#nav').innerHTML=`<div class="tabs">${Object.entries(NAMES).map(([k,n])=>`<button data-a="tab" data-k="${k}" class="${tab==k?'on':''}">${n}</button>`).join('')}</div><div class="acts"><span style="flex:1"></span>${EMB?`<span class="cldst${CLD.bad?' bad':(CLD.msg||'').startsWith('☁')?' auto':''}" id="cldst">${esc(CLD.msg||'')}</span>`:`<button data-a="theme">${TL[th]}</button>`}${RO?'':`<button class="pri" data-a="hsave">💾 Guardar${EMB?'':' en historial'}</button>`}<button data-a="new">Nuevo arqueo</button></div>`;
+ {const tb=$('#nav .tabs'),t=tb&&tb.querySelector('.on');if(t)tb.scrollLeft=t.offsetLeft-tb.clientWidth/2+t.offsetWidth/2}
+ const ht=$('#hdtog');if(ht){if(HDO==null)HDO=!hasData();$('header').classList.toggle('abierto',HDO)}
+ $('#app').innerHTML=Object.keys(S).map(k=>`<section class="sec ${tab==k?'on':''}" id="sec-${k}"><h2>${NAMES[k]}</h2>${secHTML(k)}</section>`).join('')+`<section class="sec rep ${tab=='rep'?'on':''}" id="rep"><div class="noprint" id="repsel"><h2>Reporte formal</h2><p class="hint">Elige qué apartados imprimir. Cada uno sale en su propia hoja con sus propias firmas. Si no abre la impresión, usa Ctrl+P.</p>${[['res','Resumen'],...Object.keys(S).map(k=>[k,NAMES[k]])].map(([k,n])=>`<label class="ck"><input type="checkbox" data-sel="${k}" ${sel[k]?'checked':''}> ${n}</label>`).join('')}<label class="f" style="margin:6px 0 10px">Observaciones del resumen<textarea rows="2" data-m="o" placeholder="Salen arriba de las firmas del resumen">${esc(M.o)}</textarea></label><div class="bt"><button class="pri" data-a="print">Imprimir selección</button> <button data-a="all">Seleccionar todo</button></div>${firmasHTML('res')}</div><div id="repbody"></div></section><section class="sec ${tab=='hist'?'on':''}" id="hist">${histHTML()}</section>`;
  calc();
 }
 const snap=()=>{calc();const tot={};for(const k in R)tot[k]={tot:R[k].tot,ref:R[k].ref,dif:R[k].dif};return{id:M.s+'|'+M.f,f:M.f,s:M.s,e:M.e,v:M.v,at:new Date().toISOString(),tot,S:cl(S),M:cl(M)}};
@@ -392,11 +491,11 @@ const hasData=()=>{calc();return Object.values(R).some(r=>r.tot||r.ref)};
 function histHTML(){
  const ks=['caja','fondon','usd','chica'],n=s=>H.filter(h=>h.s==s).length,cur=M.s+'|'+M.f;
  const L=H.filter(h=>!hf||h.s==hf).sort((a,b)=>(b.f||'').localeCompare(a.f||'')||(a.s||'').localeCompare(b.s||''));
- const cell=(t,k)=>!t?'<td class="n">—':`<td class="n ${t.dif==null?'':t.dif===0?'hok':'hbad'}" title="Total: ${fmt(t.tot,k)}${t.ref==null?'':' · Debe tener: '+fmt(t.ref,k)}">${t.dif==null?(t.tot?fmt(t.tot,k):'—'):t.dif===0?'Cuadra':dl(t.dif)+' '+fmt(Math.abs(t.dif),k)}`;
+ const cell=(t,k)=>!t?`<td class="n" data-l="${NAMES[k]}">—`:`<td class="n ${t.dif==null?'':t.dif===0?'hok':'hbad'}" data-l="${NAMES[k]}" title="Total: ${fmt(t.tot,k)}${t.ref==null?'':' · Debe tener: '+fmt(t.ref,k)}">${t.dif==null?(t.tot?fmt(t.tot,k):'—'):t.dif===0?'Cuadra':dl(t.dif)+' '+fmt(Math.abs(t.dif),k)}`;
  return`<h2>Historial de arqueos</h2><div class="meta" style="margin-bottom:8px;align-items:end"><label class="f">Sucursal<select data-hf>${['',...SUC].map(s=>`<option value="${s}"${hf==s?' selected':''}>${s?esc(sucTxt(s))+' ('+n(s)+')':'Todas ('+H.length+')'}</option>`).join('')}</select></label><button data-a="hexp">Exportar respaldo</button>${RO?'':'<button data-a="himp">Importar respaldo</button>'}${EMB?'<button data-a="hrel">↻ Actualizar</button>':''}<input type="file" id="himp" accept=".json,application/json" data-imp hidden></div>
  ${EMB&&CLD.err?`<p class="hint" style="color:var(--bad)"><b>⚠ ${esc(CLD.err)}</b></p>`:''}
  <p class="hint">Se guarda uno por <b>sucursal y fecha</b>: si vuelves a guardar el mismo día, se actualiza. Al abrir otro arqueo o hacer uno nuevo, el actual se guarda solo. ${EMB?'El historial se guarda en <b>Supabase</b> y lo ven todos los usuarios con acceso a Arqueo.'+(RO?' Tu cuenta es de solo consulta.':''):'El historial vive en este navegador: exporta un respaldo de vez en cuando (también sirve para pasarlo a otra computadora).'}</p>
- <div class="sc"><table><thead><tr><th>Fecha<th>Sucursal<th class="n">Caja<th class="n">Fondo revolvente<th class="n">Dólares<th class="n">Caja chica<th>Elaboró<th>Guardado<th></tr></thead><tbody>${L.map(h=>`<tr${h.id==cur?' class="cur"':''}><td>${esc((h.f||'').split('-').reverse().join('/'))}<td><b>${esc(h.s)}</b>${SUCN[h.s]?`<br><small>${esc(SUCN[h.s])}</small>`:''}${ks.map(k=>cell(h.tot&&h.tot[k],k)).join('')}<td>${esc(h.e)}${(()=>{const F=(h.M&&h.M.firmas)||{},n=['e','v'].filter(q=>F[q]).length;return n?`<span class="hfi" title="Firmas guardadas en este arqueo">✍ ${n}/2</span>`:''})()}<td>${h.at?new Date(h.at).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'}):''}<td><button data-a="hopen" data-id="${esc(h.id)}">Abrir</button>${RO?'':` <button data-a="hfirma" data-id="${esc(h.id)}" title="Abrir el documento para firmarlo">✍ Firmar</button>`}${RO?'':` <button class="x" data-a="hdel" data-id="${esc(h.id)}">Eliminar</button>`}`).join('')||`<tr><td colspan="9" class="hint">Aún no hay arqueos guardados${hf?' de '+hf:''}.`}</tbody></table></div>`}
+ <div class="sc"><table class="cards hcards"><thead><tr><th>Fecha<th>Sucursal<th class="n">Caja<th class="n">Fondo revolvente<th class="n">Dólares<th class="n">Caja chica<th>Elaboró<th>Guardado<th></tr></thead><tbody>${L.map(h=>`<tr${h.id==cur?' class="cur"':''}><td class="hf"><b>${esc((h.f||'').split('-').reverse().join('/'))}</b><td class="hs"><b>${esc(h.s)}</b>${SUCN[h.s]?`<br><small>${esc(SUCN[h.s])}</small>`:''}${ks.map(k=>cell(h.tot&&h.tot[k],k)).join('')}<td data-l="Elaboró">${esc(h.e)}${(()=>{const n=fCuenta(h.M);return n?`<span class="hfi" title="Firmas guardadas: informe + 4 apartados, 2 firmas cada hoja">✍ ${n}/10</span>`:''})()}<td data-l="Guardado">${h.at?new Date(h.at).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'}):''}<td class="ha"><button data-a="hopen" data-id="${esc(h.id)}">Abrir</button>${RO?'':` <button data-a="hfirma" data-id="${esc(h.id)}" title="Abrir el documento para firmarlo">✍ Firmar</button>`}${RO?'':` <button class="x" data-a="hdel" data-id="${esc(h.id)}">Eliminar</button>`}`).join('')||`<tr><td colspan="9" class="hint">Aún no hay arqueos guardados${hf?' de '+hf:''}.`}</tbody></table></div>`}
 function repSec(k,r){
  const used=r.rows.filter(x=>x.pz);
  const cnt=`<div class="sh">Conteo de efectivo</div><table class="rt">${cg(50,20,30)}<thead><tr><th>Denominación<th class="n">Cantidad<th class="n">Importe</tr></thead><tbody>${used.map(x=>`<tr><td>${lab(x.d)}<td class="n">${x.pz}<td class="n">${fmt(x.im,k)}`).join('')||'<tr><td colspan="3" class="mu">Sin conteo capturado'}</tbody><tfoot><tr><td>Billetes: ${r.bp} pzas · Monedas: ${r.mp} pzas<td class="n">${r2(r.bp+r.mp)}<td class="n">${fmt(r.ef,k)}</tfoot></table>`;
@@ -441,16 +540,21 @@ function calc(){
   for(const g in SYG){const f=f2(g),a=$(`#syt-${g}-p`),b=$(`#syt-${g}-${f}`);if(a)a.textContent=fmt(sm(y[g],'p'));if(b)b.textContent=fmt(sm(y[g],f),f=='u'?'usd':'')}
   const cu=$('#cuadre');if(cu)cu.innerHTML=rows.length?`<table><thead><tr><th>Concepto<th class="n">Sistema<th class="n">Contado / comprobado<th class="n">Diferencia<th>Resultado</tr></thead><tbody>${rows.map(x=>`<tr><td>${esc(x.n)}<td class="n">${fmt(x.s,x.k)}<td class="n">${x.pend?'—':fmt(x.c,x.k)}<td class="n">${x.pend?'—':fmt(x.d,x.k)}<td class="${x.pend?'hpend':x.ok?'hok':'hbad'}">${resTxt(x)}`).join('')}</tbody></table>${CU.pend?`<p class="hint">Los renglones "Pendiente de comprobar" no cuentan para el dictamen hasta que captures lo comprobado.</p>`:''}`:'<p class="hint">Captura el corte para ver el cuadre.</p>';
   const dc=$('#caja-dict');if(dc){dc.className='c r'+(CU.dict==null?'':CU.dict?' ok':' bad');dc.querySelector('b').textContent=CU.dict==null?'Captura el corte':CU.dict?'CUMPLE':'NO CUMPLE';dc.querySelector('small').textContent='Dictamen contra corte'+(CU.pend?' · '+CU.pend+' pendiente'+(CU.pend>1?'s':'')+' de comprobar':'')}}
+ /* Teléfono: resumen del encabezado plegado y barra inferior con la diferencia del apartado. */
+ {const hr=$('#hdres');if(hr)hr.innerHTML=`<b>${esc(M.s)}</b> · ${esc((M.f||'').split('-').reverse().join('/'))}<small>${M.v?'Confirma: '+esc(M.v):'Falta quién confirma'}</small>`;
+  const mb=$('#mbar');if(mb){const r=R[tab];if(!r){mb.classList.remove('on')}else{const okk=r.dif==null?null:okD(tab,r.dif),dv=tab=='caja'&&CU.dict!=null?CU.dict:okk;
+   mb.className='mob on '+(dv==null?'':dv?'ok':'bad');
+   mb.innerHTML=`<div><small>Total contado</small><b>${fmt(r.tot,tab)}</b></div><div><small>${tab=='caja'?'Sistema':'Debe tener'}</small><b>${r.ref==null?'—':fmt(r.ref,tab)}</b></div><div class="md"><small>${r.dif==null?'Diferencia':r.dif===0?'Cuadra':dl(r.dif)+(okk?' permitido':'')}</small><b>${r.dif==null?'—':fmt(Math.abs(r.dif),tab)}</b></div>`}}}
  const rp=$('#repbody');if(!rp)return;
  const ks=Object.keys(S),fd=M.f.split('-').reverse().join('/');
  const hd=(t,cur)=>`<div class="lh"><div><h2>ARQUEO DE CAJA</h2><small>${t}</small></div><div style="text-align:right"><small>Fecha de arqueo</small><br><b>${esc(fd)}</b></div></div><div class="ib"><div><small>Sucursal</small>${esc(sucTxt(M.s))||'—'}</div><div><small>Apartado</small>${t}</div><div><small>Moneda</small>${cur}</div></div>`;
- const sg=(e,v,o,ep,vp)=>`<div class="blk"><div class="ob"><small>Observaciones</small>${o?'<div>'+esc(o).replace(/\n/g,'<br>')+'</div>':''}</div><div class="sg"><div>${fimg('e',e)}<b>${esc(e)||'&nbsp;'}</b>${ep?`<span class="pu">${esc(ep)}</span>`:''}<small>${e?'Elaboró (auditor) · Firma':'Elaboró (auditor) · Nombre y firma'}</small></div><div>${fimg('v',v)}<b>${esc(v)||'&nbsp;'}</b>${vp?`<span class="pu">${esc(vp)}</span>`:''}<small>${v&&vp?'Confirmó / verificó · Firma':'Confirmó / verificó · Nombre, puesto y firma'}</small></div></div><div class="ft">Documento generado el ${new Date().toLocaleDateString('es-MX')} · Sucursal ${esc(M.s)}</div></div>`;
+ const sg=(e,v,o,ep,vp,pg)=>`<div class="blk"><div class="ob"><small>Observaciones</small>${o?'<div>'+esc(o).replace(/\n/g,'<br>')+'</div>':''}</div><div class="sg"><div>${fimg(pg,'e',e)}<b>${esc(e)||'&nbsp;'}</b>${ep?`<span class="pu">${esc(ep)}</span>`:''}<small>${e?'Elaboró (auditor) · Firma':'Elaboró (auditor) · Nombre y firma'}</small></div><div>${fimg(pg,'v',v)}<b>${esc(v)||'&nbsp;'}</b>${vp?`<span class="pu">${esc(vp)}</span>`:''}<small>${v&&vp?'Confirmó / verificó · Firma':'Confirmó / verificó · Nombre, puesto y firma'}</small></div></div><div class="ft">Documento generado el ${new Date().toLocaleDateString('es-MX')} · Sucursal ${esc(M.s)}</div></div>`;
  const pw=h=>`<div class="pg"><table class="pw"><thead><tr><td><div class="spt"></div></td></tr></thead><tfoot><tr><td><div class="spb"></div></td></tr></tfoot><tbody><tr><td><div class="fit">${h}</div></td></tr></tbody></table></div>`;
  const dic=k=>{const r=R[k];if(k=='caja'&&CU.dict!=null)return CU.dict;return r.dif==null?null:okD(k,r.dif)};
- const res=pw(`${hd('RESUMEN GENERAL','MXN / USD')}<div class="sh">Resumen por apartado</div><table class="rt">${cg(20,12,17,17,20,14)}<thead><tr><th>Apartado<th>Moneda<th class="n">Total contado<th class="n">Debe tener<th class="n">Diferencia<th>Dictamen</tr></thead><tbody>${ks.map(k=>{const r=R[k],v=dic(k);return`<tr><td>${NAMES[k]}<td>${k=='usd'?'USD':'MXN'}<td class="n">${fmt(r.tot,k)}<td class="n">${r.ref==null?'—':fmt(r.ref,k)}<td class="n ${r.dif==null?'':okD(k,r.dif)?'okc':'badc'}">${r.dif==null?'—':r.dif===0?'Cuadra':dl(r.dif)+' '+fmt(Math.abs(r.dif),k)}<td class="${v==null?'':v?'okc':'badc'}">${v==null?'—':v?'Cumple':'No cumple'}`}).join('')}</tbody></table>${sg(M.e,M.v,M.o,M.ep,M.vp)}`);
- const pages=(sel.res?res:'')+ks.filter(k=>sel[k]).map(k=>pw(`${hd(NAMES[k].toUpperCase(),k=='usd'?'USD':'MXN')}${repSec(k,R[k])}${sg(nm(k,'e'),nm(k,'v'),S[k].o,np(k,'e'),np(k,'v'))}`)).join('');
+ const res=pw(`${hd('RESUMEN GENERAL','MXN / USD')}<div class="sh">Resumen por apartado</div><table class="rt">${cg(20,12,17,17,20,14)}<thead><tr><th>Apartado<th>Moneda<th class="n">Total contado<th class="n">Debe tener<th class="n">Diferencia<th>Dictamen</tr></thead><tbody>${ks.map(k=>{const r=R[k],v=dic(k);return`<tr><td>${NAMES[k]}<td>${k=='usd'?'USD':'MXN'}<td class="n">${fmt(r.tot,k)}<td class="n">${r.ref==null?'—':fmt(r.ref,k)}<td class="n ${r.dif==null?'':okD(k,r.dif)?'okc':'badc'}">${r.dif==null?'—':r.dif===0?'Cuadra':dl(r.dif)+' '+fmt(Math.abs(r.dif),k)}<td class="${v==null?'':v?'okc':'badc'}">${v==null?'—':v?'Cumple':'No cumple'}`}).join('')}</tbody></table>${sg(M.e,M.v,M.o,M.ep,M.vp,'res')}`);
+ const pages=(sel.res?res:'')+ks.filter(k=>sel[k]).map(k=>pw(`${hd(NAMES[k].toUpperCase(),k=='usd'?'USD':'MXN')}${repSec(k,R[k])}${sg(nm(k,'e'),nm(k,'v'),S[k].o,np(k,'e'),np(k,'v'),k)}`)).join('');
  rp.innerHTML=pages||'<p class="hint">Selecciona al menos un apartado.</p>';
- if(tab=='rep')requestAnimationFrame(fitPages);
+ if(tab=='rep')requestAnimationFrame(()=>{fitPages();mZoom()});
 }
 /* Una hoja por apartado: se mide cada hoja al ancho real de impresión (carta, márgenes de 12 mm)
    y, si no cabe, se reduce todo su contenido lo necesario (mínimo 55%) para que entre en una sola. */
@@ -466,6 +570,9 @@ function fitPages(){
   if(z<1)f.style.setProperty('--z',z);
  });
 }
+/* Teléfono: la hoja del reporte se ve completa, a escala del ancho de la pantalla. */
+function mZoom(){const rp=$('#repbody');if(!rp||!rp.clientWidth)return;rp.style.setProperty('--mz',innerWidth<=640?Math.min(1,rp.clientWidth/780).toFixed(3):1)}
+addEventListener('resize',()=>{if(tab=='rep')mZoom()});
 addEventListener('beforeprint',()=>{if(tab=='rep')fitPages()});
 document.addEventListener('input',e=>{
  const t=e.target,d=t.dataset;
@@ -518,12 +625,13 @@ document.addEventListener('click',e=>{
  else if(a=='psec'){sel={res:0,caja:0,fondon:0,usd:0,chica:0};sel[k]=1;tab='rep';render();setTimeout(()=>{try{window.print()}catch(x){}},80);return}
  else if(a=='all')sel={res:1,caja:1,fondon:1,usd:1,chica:1};
  else if(a=='print'){tab='rep';render();setTimeout(()=>{try{window.print()}catch(x){}},80);return}
- else if(a=='new'){if(!window.cf){window.cf=1;b.textContent='¿Seguro? Toca otra vez';setTimeout(()=>{window.cf=0;b.textContent='Nuevo arqueo'},3000);return}window.cf=0;if(hasData()&&!choca())upsert();const n=fresh(false);n.M.s=M.s;S=n.S;M=n.M;fijar();ABIERTO=null;render();save(1);return}
+ else if(a=='new'){if(!window.cf){window.cf=1;b.textContent='¿Seguro? Toca otra vez';setTimeout(()=>{window.cf=0;b.textContent='Nuevo arqueo'},3000);return}window.cf=0;if(hasData()&&!choca())upsert();const n=fresh(false);n.M.s=M.s;S=n.S;M=n.M;fijar();ABIERTO=null;HDO=null;render();save(1);return}
  else if(a=='hsave'){if(EMB&&choca()&&!confirm('Ya hay un arqueo guardado de '+sucTxt(M.s)+' con fecha '+M.f.split('-').reverse().join('/')+'.\n¿Reemplazarlo con este?'))return;fijar();ABIERTO=M.s+'|'+M.f;const nw=upsert();render();save(1);const nb=$('[data-a=hsave]');if(nb){nb.textContent=nw?'✓ Guardado':'✓ Actualizado';setTimeout(()=>{nb.textContent=EMB?'💾 Guardar':'💾 Guardar en historial'},2000)}return}
  else if(a=='asy'){const g=d.g;S.caja.sys[g].push({n:'',p:'',[f2(g)]:''});render();save();const l=$(`#sy-${g} tr:last-child input`);if(l)l.focus();return}
  else if(a=='dsy')S.caja.sys[d.g].splice(i,1);
- else if(a=='firma'){firmar(d.q);return}
- else if(a=='fdel'){if(!confirm('¿Quitar la firma de '+FQ[d.q]+'?'))return;if(M.firmas)delete M.firmas[d.q];guardarFirma();return}
+ else if(a=='hdtog'){HDO=!$('header').classList.contains('abierto');$('header').classList.toggle('abierto',HDO);return}
+ else if(a=='firma'){firmar(d.q,d.pg);return}
+ else if(a=='fdel'){if(!confirm('¿Quitar la firma de '+FQ[d.q]+' en '+(d.pg=='res'?'el informe':NAMES[d.pg])+'?'))return;if(M.firmas&&M.firmas[d.pg])delete M.firmas[d.pg][d.q];guardarFirma();return}
  else if(a=='hfirma'){if(hasData()&&!choca())upsert();const h=H.find(x=>x.id==d.id);if(!h)return;S=cl(h.S);M=cl(h.M);norm();tab='rep';fijar();ABIERTO=h.id;render();save(1);const fp=$('.fpan');if(fp)fp.scrollIntoView({block:'start'});return}
  else if(a=='hopen'){if(hasData()&&!choca())upsert();const h=H.find(x=>x.id==d.id);if(!h)return;S=cl(h.S);M=cl(h.M);norm();tab='caja';fijar();ABIERTO=h.id;render();save(1);return}
  else if(a=='hdel'){const id=d.id;if(window.cfd!==id){window.cfd=id;b.textContent='¿Seguro? Toca otra vez';setTimeout(()=>{if(window.cfd===id){window.cfd=0;b.textContent='Eliminar'}},3000);return}window.cfd=0;const hx=H.find(h=>h.id===id);H=H.filter(h=>h.id!==id);saveH();if(EMB&&hx)cldDel(hx)}
