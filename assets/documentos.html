@@ -125,9 +125,8 @@ textarea{resize:vertical;min-height:46px}
   /* margin:0 evita que el navegador imprima URL y fecha; los márgenes los da cada documento */
   @page{size:letter;margin:0}
   html,body{margin:0;padding:0;background:#fff!important}
-  /* Formato de descuento: si el navegador usa hoja horizontal, se reduce para caber en una hoja */
-  .des-hoja{width:100%;max-width:21.59cm;margin:0 auto}
-  @media (orientation:landscape){.des-hoja{zoom:.7}}
+  /* Formato de descuento: hoja carta vertical (el alto ya viene ajustado a una sola hoja) */
+  .des-hoja{box-sizing:border-box;width:21.59cm;max-width:100%;margin:0 auto}
   .pp-page{page-break-after:always;padding:1.5cm;box-sizing:border-box}
   .pp-page:last-child{page-break-after:avoid}
   .pp-p{margin:0 0 5pt 0;font-size:10pt;text-align:justify;line-height:1.3}
@@ -1387,73 +1386,74 @@ function desNombreArchivo(d,ext){
 function desPDF(){
   var d=desValida(); if(!d) return;
   var COLOR='-webkit-print-color-adjust:exact;print-color-adjust:exact;';
-  var caja=function(x){return '<span style="display:inline-block;width:34px;height:15px;border:1px solid #000;vertical-align:middle;'+(x?'background:#000;'+COLOR:'')+'"></span>';};
-  var ETQ='width:205px;padding:0 4px;font-weight:bold;vertical-align:middle';
-  var VAL='padding:2px 4px;border:1px solid #000;font-weight:bold;vertical-align:middle;line-height:1.15';
-  var firma=function(t,ancho){return '<div style="width:'+ancho+';height:46px;border:1px solid #000;display:flex;align-items:flex-end;justify-content:center;text-align:center;font-weight:bold;font-size:7.5pt;padding-bottom:2px">'+t+'</div>';};
-  var renglon=function(etq,caj,extra){return '<tr><td style="padding:3px 4px;width:205px">'+etq+'</td><td style="padding:3px 4px">'+caj+(extra?'<span style="margin-left:14px">'+extra+'</span>':'')+'</td></tr>';};
-  var h='<div class="pp-page des-hoja" style="font-family:Tahoma,Verdana,Arial,sans-serif;font-size:8.5pt;color:#000;padding:0.7cm 0.9cm 0.4cm;line-height:1.2">'+
+  /* Tamaño pensado para llenar una hoja carta vertical (letra de 10.5 pt). */
+  var caja=function(x){return '<span style="display:inline-block;width:42px;height:18px;border:1.3px solid #000;vertical-align:middle;'+(x?'background:#000;'+COLOR:'')+'"></span>';};
+  var ETQ='width:235px;padding:0 6px;font-weight:bold;vertical-align:middle';
+  var VAL='padding:4px 6px;border:1.3px solid #000;font-weight:bold;vertical-align:middle;line-height:1.2';
+  var firma=function(t,ancho){return '<div style="width:'+ancho+';height:58px;border:1.3px solid #000;display:flex;align-items:flex-end;justify-content:center;text-align:center;font-weight:bold;font-size:9pt;padding-bottom:4px">'+t+'</div>';};
+  var renglon=function(etq,caj,extra){return '<tr><td style="padding:4px 6px;width:235px">'+etq+'</td><td style="padding:4px 6px">'+caj+(extra?'<span style="margin-left:16px">'+extra+'</span>':'')+'</td></tr>';};
+  var h='<div class="pp-page des-hoja" style="font-family:Tahoma,Verdana,Arial,sans-serif;font-size:10pt;color:#000;background:#fff;padding:0.9cm 1.1cm 0.6cm;line-height:1.25">'+
     /* Encabezado: datos de identificación, barra roja y título con la fecha */
     '<table style="width:100%;border-collapse:collapse"><tr>'+
-      '<td style="width:47%;vertical-align:bottom;padding:0 0 4px 62px;font-weight:bold">DATOS DE IDENTIFICACIÓN</td>'+
-      '<td style="width:5%;vertical-align:top"><div style="width:9px;height:60px;background:#ff0000;border-radius:3px;'+COLOR+'"></div></td>'+
-      '<td style="vertical-align:top"><div style="text-align:center;font-weight:bold;font-size:9pt;margin-left:120px">FORMATO DE<br>DESCUENTO</div>'+
-        '<div style="margin-top:12px;white-space:nowrap"><b>FECHA:</b> <span style="display:inline-block;width:72%;border:1px solid #000;text-align:center">'+esc(d.fecha)+'</span></div></td>'+
+      '<td style="width:45%;vertical-align:bottom;padding:0 0 6px 70px;font-weight:bold">DATOS DE IDENTIFICACIÓN</td>'+
+      '<td style="width:5%;vertical-align:top"><div style="width:11px;height:74px;background:#ff0000;border-radius:3px;'+COLOR+'"></div></td>'+
+      '<td style="vertical-align:top"><div style="text-align:center;font-weight:bold;font-size:12pt;margin-left:110px">FORMATO DE<br>DESCUENTO</div>'+
+        '<div style="margin-top:16px;white-space:nowrap"><b>FECHA:</b> <span style="display:inline-block;width:72%;border:1.3px solid #000;text-align:center;padding:1px 0">'+esc(d.fecha)+'</span></div></td>'+
     '</tr></table>'+
     /* Datos de identificación */
-    '<table style="width:100%;table-layout:fixed;border-collapse:collapse;margin-top:8px;overflow-wrap:anywhere">'+
-      '<tr><td style="'+ETQ+'">RAZON SOCIAL</td><td style="border:1px solid #000;padding:7px 6px 8px">'+
+    '<table style="width:100%;table-layout:fixed;border-collapse:collapse;margin-top:14px;overflow-wrap:anywhere">'+
+      '<tr><td style="'+ETQ+'">RAZON SOCIAL</td><td style="border:1.3px solid #000;padding:10px 8px 11px">'+
         '<div style="display:flex;justify-content:space-between;font-weight:bold">'+DES_RAZONES.map(function(r){return '<span style="white-space:nowrap">'+r+' '+caja(r===d.razon)+'</span>';}).join('')+'</div></td></tr>'+
       '<tr><td style="'+ETQ+'">SUCURSAL</td><td style="'+VAL+'">'+esc(d.suc)+'</td></tr>'+
       '<tr><td style="'+ETQ+'">NOMBRE EMPLEADO</td><td style="'+VAL+'">'+esc(d.nombre)+'</td></tr>'+
-      '<tr><td style="'+ETQ+'">PUESTO</td><td style="padding:0;border:1px solid #000"><table style="width:100%;border-collapse:collapse"><tr>'+
-        '<td style="width:50%;padding:2px 4px;font-weight:bold;border-right:1px solid #000">'+esc(d.puesto)+'</td>'+
-        '<td style="padding:2px 4px;font-weight:bold">Número de Empleado: &nbsp; '+esc(d.num)+'</td></tr></table></td></tr>'+
+      '<tr><td style="'+ETQ+'">PUESTO</td><td style="padding:0;border:1.3px solid #000"><table style="width:100%;border-collapse:collapse"><tr>'+
+        '<td style="width:50%;padding:4px 6px;font-weight:bold;border-right:1.3px solid #000">'+esc(d.puesto)+'</td>'+
+        '<td style="padding:4px 6px;font-weight:bold">Número de Empleado: &nbsp; '+esc(d.num)+'</td></tr></table></td></tr>'+
       '<tr><td style="'+ETQ+'">NÚMERO DE RECIBO</td><td style="'+VAL+'">'+(esc(d.recibo)||'&nbsp;')+'</td></tr>'+
     '</table>'+
     /* Motivo */
-    '<p style="font-weight:bold;margin:10px 0 2px">MOTIVO DE DESCUENTO:</p>'+
+    '<p style="font-weight:bold;margin:12px 0 3px">MOTIVO DE DESCUENTO:</p>'+
     '<table style="border-collapse:collapse">'+
       DES_MOTIVOS.map(function(m,i){return renglon(esc(m)+':',caja(d.mot[i]),i===5&&d.mot[i]&&d.otros?esc(d.otros):'');}).join('')+
     '</table>'+
     /* Importe y pagos */
-    '<table style="width:100%;border-collapse:collapse;margin-top:4px">'+
-      '<tr><td style="width:205px;padding:3px 4px;text-align:right;font-weight:bold">TOTAL A DESCONTAR:</td>'+
-        '<td style="padding:3px 4px"><b>$</b> <span style="display:inline-block;min-width:96px;border-bottom:1px solid #000;text-align:right;font-weight:bold;padding-right:6px">'+money(d.total)+'</span> M.N.</td></tr>'+
-      '<tr><td style="padding:5px 4px 3px;font-weight:bold;white-space:nowrap">EL DESCUENTO SE APLICARÁ EN:</td>'+
-        '<td style="padding:5px 4px 3px"><span style="display:inline-block;width:52px;border:1px solid #000;text-align:center;font-weight:bold">'+d.n+'</span> <b>PAGO'+(d.n===1?'':'S')+'</b>'+
-        '<span style="margin-left:90px;font-weight:bold">DE:</span><span style="margin-left:56px;font-weight:bold">'+money(d.base)+'</span>'+
-        (d.n>1&&d.ultimo!==d.base?'<span style="margin-left:8px;font-size:7.5pt">(el último de '+money(d.ultimo)+')</span>':'')+'</td></tr>'+
-      '<tr><td></td><td style="padding:3px 4px 2px 100px">(SON: '+esc(d.letraTotal)+')</td></tr>'+
+    '<table style="width:100%;border-collapse:collapse;margin-top:8px">'+
+      '<tr><td style="width:235px;padding:5px 6px;text-align:right;font-weight:bold">TOTAL A DESCONTAR:</td>'+
+        '<td style="padding:5px 6px"><b>$</b> <span style="display:inline-block;min-width:110px;border-bottom:1.3px solid #000;text-align:right;font-weight:bold;padding-right:6px">'+money(d.total)+'</span> M.N.</td></tr>'+
+      '<tr><td style="padding:8px 6px 5px;font-weight:bold;white-space:nowrap">EL DESCUENTO SE APLICARÁ EN:</td>'+
+        '<td style="padding:8px 6px 5px"><span style="display:inline-block;width:58px;border:1.3px solid #000;text-align:center;font-weight:bold">'+d.n+'</span> <b>PAGO'+(d.n===1?'':'S')+'</b>'+
+        '<span style="margin-left:70px;font-weight:bold">DE:</span><span style="margin-left:46px;font-weight:bold">'+money(d.base)+'</span>'+
+        (d.n>1&&d.ultimo!==d.base?'<span style="margin-left:8px;font-size:8.5pt">(el último de '+money(d.ultimo)+')</span>':'')+'</td></tr>'+
+      '<tr><td></td><td style="padding:4px 6px 4px 90px">(SON: '+esc(d.letraTotal)+')</td></tr>'+
     '</table>'+
-    '<table style="border-collapse:collapse;margin-top:2px">'+
-      ['SEMANALES','QUINCENALES','MENSUALES'].map(function(p){return '<tr><td style="width:205px;padding:3px 4px;text-align:right;font-weight:bold">'+p+'</td><td style="padding:3px 4px">'+caja(d.per===p)+'</td></tr>';}).join('')+
+    '<table style="border-collapse:collapse;margin-top:4px">'+
+      ['SEMANALES','QUINCENALES','MENSUALES'].map(function(p){return '<tr><td style="width:235px;padding:4px 6px;text-align:right;font-weight:bold">'+p+'</td><td style="padding:4px 6px">'+caja(d.per===p)+'</td></tr>';}).join('')+
     '</table>'+
     /* Detalle, pagaré y firmas */
-    '<p style="font-weight:bold;margin:8px 0 5px">DETALLAR MOTIVO DE DESCUENTO:</p>'+
-    '<div style="border:1.3px solid #000;min-height:48px;padding:7px 4px 6px;white-space:pre-wrap">'+esc(d.detalle)+'</div>'+
-    '<p style="margin:16px 0 0;line-height:1.3">'+desPagare(d,true)+'</p>'+
-    '<p style="margin:12px 0 0"><b>Firma:</b><span style="display:inline-block;width:52%;border-bottom:1px solid #000">&nbsp;</span></p>'+
-    '<div style="page-break-inside:avoid;margin-top:14px">'+
-      '<div style="display:flex;justify-content:flex-end;padding-right:22px">'+firma('FIRMA DEL EMPLEADO','30%')+'</div>'+
-      '<div style="display:flex;justify-content:space-between;margin-top:10px;padding-right:22px">'+
+    '<p style="font-weight:bold;margin:14px 0 8px">DETALLAR MOTIVO DE DESCUENTO:</p>'+
+    '<div style="border:1.5px solid #000;min-height:56px;padding:8px 6px 7px;white-space:pre-wrap">'+esc(d.detalle)+'</div>'+
+    '<p style="margin:18px 0 0;line-height:1.35">'+desPagare(d,true)+'</p>'+
+    '<p style="margin:16px 0 0"><b>Firma:</b><span style="display:inline-block;width:52%;border-bottom:1.3px solid #000">&nbsp;</span></p>'+
+    '<div style="page-break-inside:avoid;margin-top:18px">'+
+      '<div style="display:flex;justify-content:flex-end;padding-right:10px">'+firma('FIRMA DEL EMPLEADO','30%')+'</div>'+
+      '<div style="display:flex;justify-content:space-between;margin-top:14px;padding-right:10px">'+
         firma('FIRMA JEFE INMEDIATO','24%')+firma('FIRMA GERENTE','28.5%')+firma('RECURSOS HUMANOS','30%')+'</div>'+
     '</div>'+
   '</div>';
   desImprimir(desAjustarHoja(h),d);
 }
-/* Seguro de una sola hoja: se mide el formato al ancho de una hoja carta y, si un detalle largo
-   lo hace crecer de más, se reduce (zoom) para que quepa aunque la impresora o Android agreguen
-   márgenes o usen A4. Alto máximo: 23.5 cm de los 27.9 cm de la hoja carta. */
+/* Una sola hoja: el formato se mide al ancho de la hoja carta (21.59 cm) y, si un detalle largo
+   lo hace crecer de más, se reduce lo justo para que no pase de 26.6 cm de los 27.94 cm. */
+var DES_ALTO_MAX=26.6*96/2.54;
 function desAjustarHoja(h){
   try{
     var caja=document.createElement('div');
     caja.style.cssText='position:absolute;left:-9999px;top:0;width:21.59cm;visibility:hidden';
     caja.innerHTML=h;
     document.body.appendChild(caja);
-    var hoja=caja.firstElementChild, alto=hoja.getBoundingClientRect().height, max=23.5*96/2.54;
-    if(alto>max){
-      var z=Math.max(.6,Math.floor(max/alto*1000)/1000);
+    var hoja=caja.firstElementChild, alto=hoja.getBoundingClientRect().height;
+    if(alto>DES_ALTO_MAX){
+      var z=Math.max(.6,Math.floor(DES_ALTO_MAX/alto*1000)/1000);
       hoja.style.zoom=z;
       h=caja.innerHTML;
     }
@@ -1461,23 +1461,28 @@ function desAjustarHoja(h){
   }catch(e){}
   return h;
 }
-/* Al imprimir desde dentro de la app, el navegador ignora el tamaño de hoja que pide el
-   formato y puede usar A4 horizontal (sale en 2 hojas). Por eso se imprime en una ventana
-   propia con hoja carta vertical. Si el navegador bloquea la ventana, se imprime como antes,
-   y en ambos casos una hoja horizontal reduce el contenido para que quepa en una sola. */
+/* En la computadora se imprime en una ventana propia con hoja carta vertical (el navegador
+   respeta el tamaño de hoja). Si el navegador bloquea la ventana, se imprime como antes. */
 var DES_CSS_HOJA='@page{size:letter portrait;margin:0}'+
   'html,body{margin:0;padding:0;background:#fff}'+
-  '.des-hoja{box-sizing:border-box;width:100%;max-width:21.59cm;margin:0 auto}'+
-  '@media print and (orientation:landscape){.des-hoja{zoom:.7}}';
+  '.des-hoja{box-sizing:border-box;width:21.59cm;max-width:100%;margin:0 auto}';
 /* Dentro de la app (Android/iPhone) no hay ventanas nuevas: window.open('') devolvía la misma
-   ventana y el formato se escribía encima de Documentos (pantalla en blanco). Ahí se imprime
-   como los demás documentos; la app abre el diálogo de impresión / Guardar PDF. */
+   ventana y el formato se escribía encima de Documentos (pantalla en blanco). */
 function desEnApp(){
   try{ if(window.GKAndroid||window.GKIos) return true; }catch(e){}
   try{ var p=window.parent; if(p&&p!==window&&(p.GKAndroid||p.GKIos||p.document.documentElement.classList.contains('gk-apk'))) return true; }catch(e){}
   return / GKApp\//.test(navigator.userAgent);
 }
+function desEnAndroid(){
+  try{ if(window.GKAndroid) return true; }catch(e){}
+  try{ var p=window.parent; if(p&&p!==window&&p.GKAndroid) return true; }catch(e){}
+  return / GKApp\//.test(navigator.userAgent);
+}
 function desImprimir(cuerpo,d){
+  /* Android imprime la página como si la hoja fuera horizontal (la achica y manda las firmas a
+     una segunda hoja). Ahí se genera un PDF de UNA hoja carta exacta; la app lo guarda en
+     Descargas y ofrece "Abrir" para imprimirlo desde el visor. */
+  if(desEnAndroid()){ desPDFHoja(cuerpo,d); return; }
   if(desEnApp()){ imprimir(cuerpo); return; }
   var w=null;
   try{ w=window.open('','_blank'); }catch(e){ w=null; }
@@ -1488,6 +1493,40 @@ function desImprimir(cuerpo,d){
   w.document.close();
   w.onafterprint=function(){ try{ w.close(); }catch(e){} };
   setTimeout(function(){ try{ w.focus(); w.print(); }catch(e){} },350);
+}
+function desScript(src,listo){
+  return new Promise(function(ok,mal){
+    if(listo()) return ok();
+    var s=document.createElement('script'); s.src=src;
+    s.onload=function(){ listo()?ok():mal(); }; s.onerror=mal;
+    document.head.appendChild(s);
+  });
+}
+async function desPDFHoja(cuerpo,d){
+  st('d_status','Generando PDF de una hoja…');
+  try{
+    await desScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',function(){return !!window.html2canvas;});
+    await desScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',function(){return !!(window.jspdf&&window.jspdf.jsPDF);});
+  }catch(e){ st('d_status','Sin conexión para generar el PDF; se usa la impresión normal.'); imprimir(cuerpo); return; }
+  var caja=document.createElement('div');
+  caja.style.cssText='position:absolute;left:-10000px;top:0;width:816px;background:#fff';
+  caja.innerHTML=cuerpo;
+  document.body.appendChild(caja);
+  try{
+    var hoja=caja.firstElementChild;
+    hoja.style.width='816px'; hoja.style.boxSizing='border-box'; hoja.style.zoom='';  /* html2canvas no entiende zoom: el alto se ajusta abajo */
+    var cv=await window.html2canvas(hoja,{scale:3,backgroundColor:'#ffffff',useCORS:true,windowWidth:816});
+    var pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'pt',format:'letter'});
+    var W=612,H=792,ih=W*cv.height/cv.width,iw=W;
+    if(ih>H){ iw=W*H/ih; ih=H; }
+    pdf.addImage(cv.toDataURL('image/jpeg',0.92),'JPEG',(W-iw)/2,0,iw,ih);
+    var nombre=desNombreArchivo(d,'pdf');
+    dl(pdf.output('blob'),nombre);
+    st('d_status','✓ PDF listo: '+nombre+'. Toca «Abrir» y luego imprime desde el visor.');
+  }catch(e){
+    st('d_status','No se pudo generar el PDF ('+e.message+'); se usa la impresión normal.');
+    imprimir(cuerpo);
+  }finally{ caja.remove(); }
 }
 function desCargarExcelJS(){
   return new Promise(function(ok,mal){
