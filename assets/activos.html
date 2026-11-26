@@ -12,6 +12,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <script src="hojas-pdf.js?v=2026-11-26"></script>
     <script src="https://cdn.jsdelivr.net/npm/html-docx-js@0.3.1/dist/html-docx.js"></script>
     <style>
         /* ========== VARIABLES ==========
@@ -5226,6 +5227,27 @@
             f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
             document.body.appendChild(f);
             const d = f.contentDocument;
+            // App de Android: PDF con cada hoja de etiquetas a su tamaño exacto (assets/hojas-pdf.js);
+            // al imprimir la página, Android cambiaba la escala y se desacomodaban.
+            if (window.HojasPDF && HojasPDF.enAndroid()) {
+                const formato = (config && config.formato) || leerConfigEtiquetas().formato;
+                const rollo = formato === 'rollo', fijo = formato === 'fijo';
+                const anchoMm = rollo ? 50 : fijo ? HOJA.ancho : HOJA.ancho - 2 * HOJA.margen;
+                f.style.cssText = `position:fixed;left:-12000px;top:0;border:0;width:${anchoMm}mm;height:300mm`;
+                d.open(); d.write(htmlEtiquetas(lista, config)); d.close();
+                const st = d.createElement('style');
+                st.textContent = 'body{padding:0!important;background:#fff!important}.hoja{margin:0!important}';
+                d.head.appendChild(st);
+                await new Promise(r => setTimeout(r, 250));
+                const hoy = new Date().toISOString().slice(0, 10);
+                HojasPDF.generar(d.querySelectorAll('.hoja'), {
+                    formato: rollo ? [50, 25] : 'letter', margen: rollo || fijo ? 0 : HOJA.margen * 72 / 25.4,
+                    ventana: f.offsetWidth, escala: 3, nombre: `Etiquetas_QR_${hoy}.pdf`,
+                    aviso: t => showNotification(t, 'success')
+                }).catch(e => showNotification('No se pudo generar el PDF de etiquetas: ' + e.message, 'danger'))
+                  .then(() => f.remove());
+                return;
+            }
             d.open(); d.write(htmlEtiquetas(lista, config)); d.close();
             setTimeout(() => { f.contentWindow.focus(); f.contentWindow.print(); }, 250);
             showNotification(`🖨️ ${lista.length} etiqueta(s) enviadas a imprimir`, 'success');

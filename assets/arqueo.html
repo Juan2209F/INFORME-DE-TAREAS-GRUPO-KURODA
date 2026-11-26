@@ -227,6 +227,7 @@ input.t.nm{min-width:230px}input.t.wc{min-width:220px}
 </style>
 </head>
 <body>
+<script src="hojas-pdf.js?v=2026-11-26"></script>
 <main>
 <header>
  <div class="ttl"><h1>Arqueo de caja</h1><small style="color:var(--mu)">Captura las cantidades. Todo se suma solo.</small></div>
@@ -559,7 +560,21 @@ function calc(){
 /* Una hoja por apartado: se mide cada hoja al ancho real de impresión (carta, márgenes de 12 mm)
    y, si no cabe, se reduce todo su contenido lo necesario (mínimo 55%) para que entre en una sola. */
 const PW_MM=215.9-24,PH_MM=279.4-19-3,MM=96/25.4;
-function fitPages(){
+/* Imprimir el reporte. En la app de Android (assets/hojas-pdf.js) se arma un PDF con una hoja por
+   apartado; si un apartado es más largo que la hoja se reduce para caber o sigue en otra hoja. */
+const PDF_CSS='.hpdf-raiz{--tx:#000;--mu:#444;--bd:#999;--hd:#eee;--acbg:#eee;--ok:#000;--bad:#000;font:15px/1.4 Arial,sans-serif;color:#000}'+
+ '.hpdf-raiz .pg{width:816px!important;max-width:none!important;zoom:1!important;border:0!important;border-radius:0!important;box-shadow:none!important;margin:0!important;padding:0!important}'+
+ '.hpdf-raiz table.pw>*>tr>td{padding:0 12mm}.hpdf-raiz .pw .spt{display:block;height:10mm}.hpdf-raiz .pw .spb{display:block;height:9mm}'+
+ '.hpdf-raiz .pg .lh h2{font-size:20px}.hpdf-raiz .pg .fit{zoom:1!important}';
+function imprimirRep(){
+ if(!(window.HojasPDF&&HojasPDF.enAndroid())){try{window.print()}catch(x){}return}
+ const pgs=[...document.querySelectorAll('#repbody .pg')];if(!pgs.length)return;
+ const m=HojasPDF.montar(pgs.map(p=>p.outerHTML).join(''),{ancho:816,css:PDF_CSS});
+ const nom=('Arqueo_'+(M.s||'')+'_'+(M.f||today())).replace(/[^\w\-]+/g,'_')+'.pdf';
+ HojasPDF.generar(m.cuerpo.querySelectorAll('.pg'),{formato:'letter',nombre:nom,aviso:t=>cldMsg(t)})
+  .catch(e=>{cldMsg('No se pudo generar el PDF ('+e.message+')',1);try{window.print()}catch(x){}})
+  .then(()=>m.quitar());
+}function fitPages(){
  document.querySelectorAll('#repbody .pg').forEach(pg=>{
   const f=pg.querySelector('.fit');if(!f)return;
   pg.classList.add('meas');f.style.removeProperty('--z');
@@ -622,9 +637,9 @@ document.addEventListener('click',e=>{
  else if(a=='dv')S.chica[d.key].splice(i,1);
  else if(a=='av'){S.chica[d.key].push({f:today(),r:'',n:'',c:'',m:''});render();save();const l=$(`#${d.key}-chica tr:last-child td:nth-child(2) input`);if(l)l.focus();return}
  else if(a=='theme'){th={auto:'light',light:'dark',dark:'auto'}[th];applyTh();try{localStorage.setItem('arqueo_th',th)}catch(x){}}
- else if(a=='psec'){sel={res:0,caja:0,fondon:0,usd:0,chica:0};sel[k]=1;tab='rep';render();setTimeout(()=>{try{window.print()}catch(x){}},80);return}
+ else if(a=='psec'){sel={res:0,caja:0,fondon:0,usd:0,chica:0};sel[k]=1;tab='rep';render();setTimeout(imprimirRep,80);return}
  else if(a=='all')sel={res:1,caja:1,fondon:1,usd:1,chica:1};
- else if(a=='print'){tab='rep';render();setTimeout(()=>{try{window.print()}catch(x){}},80);return}
+ else if(a=='print'){tab='rep';render();setTimeout(imprimirRep,80);return}
  else if(a=='new'){if(!window.cf){window.cf=1;b.textContent='¿Seguro? Toca otra vez';setTimeout(()=>{window.cf=0;b.textContent='Nuevo arqueo'},3000);return}window.cf=0;if(hasData()&&!choca())upsert();const n=fresh(false);n.M.s=M.s;S=n.S;M=n.M;fijar();ABIERTO=null;HDO=null;render();save(1);return}
  else if(a=='hsave'){if(EMB&&choca()&&!confirm('Ya hay un arqueo guardado de '+sucTxt(M.s)+' con fecha '+M.f.split('-').reverse().join('/')+'.\n¿Reemplazarlo con este?'))return;fijar();ABIERTO=M.s+'|'+M.f;const nw=upsert();render();save(1);const nb=$('[data-a=hsave]');if(nb){nb.textContent=nw?'✓ Guardado':'✓ Actualizado';setTimeout(()=>{nb.textContent=EMB?'💾 Guardar':'💾 Guardar en historial'},2000)}return}
  else if(a=='asy'){const g=d.g;S.caja.sys[g].push({n:'',p:'',[f2(g)]:''});render();save();const l=$(`#sy-${g} tr:last-child input`);if(l)l.focus();return}

@@ -566,7 +566,20 @@
     }
     btn.disabled = false; btn.textContent = t0;
   }
-  function imprimir() { document.body.classList.add('ie-printing'); window.print(); setTimeout(function () { document.body.classList.remove('ie-printing'); }, 500); }
+  function imprimir() {
+    /* App de Android: PDF A4 horizontal (assets/hojas-pdf.js); si es más largo que la hoja se
+       reduce para caber o sigue en otra hoja sin partir renglones. */
+    if (window.HojasPDF && window.HojasPDF.enAndroid()) {
+      var paper = $('ie-paper'); if (!paper) return;
+      paper.classList.add('ier-export');
+      var nombre = 'Informe_ejecutivo_' + (v('ie-periodo') || 'cumplimiento').replace(/[^\wáéíóúñÁÉÍÓÚÑ]+/g, '_') + '.pdf';
+      window.HojasPDF.generar([paper], { formato: 'a4', orientacion: 'landscape', margen: 20, nombre: nombre,
+        aviso: function (t) { estadoMsg('ie-out-msg', t, 'ok'); } })
+        .catch(function (e) { estadoMsg('ie-out-msg', '⚠ No se pudo generar el PDF: ' + e.message, 'err'); })
+        .then(function () { paper.classList.remove('ier-export'); });
+      return;
+    }
+    document.body.classList.add('ie-printing'); window.print(); setTimeout(function () { document.body.classList.remove('ie-printing'); }, 500); }
 
   /* ───────────────────────── interfaz ───────────────────────── */
   var CSS = [
