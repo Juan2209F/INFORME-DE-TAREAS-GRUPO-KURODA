@@ -118,8 +118,10 @@ textarea{resize:vertical;min-height:46px}
 @media (max-width:560px){.tipo-selector{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}}
 #print-preview{display:none}
 @media print{
-  body > *:not(#print-preview){display:none!important}
-  #print-preview{display:block!important;font-family:Tahoma,Geneva,Verdana,sans-serif;font-size:10pt;color:#000;margin:0;padding:0}
+  /* Informe ejecutivo (assets/informe-ejecutivo.js, body.ie-printing): se imprime la página con
+     sus propias reglas; antes esta regla lo ocultaba y la hoja salía en blanco. */
+  body:not(.ie-printing) > *:not(#print-preview){display:none!important}
+  body:not(.ie-printing) #print-preview{display:block!important;font-family:Tahoma,Geneva,Verdana,sans-serif;font-size:10pt;color:#000;margin:0;padding:0}
   /* margin:0 evita que el navegador imprima URL y fecha; los márgenes los da cada documento */
   @page{size:letter;margin:0}
   html,body{margin:0;padding:0;background:#fff!important}
@@ -1388,19 +1390,19 @@ function desPDF(){
   var caja=function(x){return '<span style="display:inline-block;width:34px;height:15px;border:1px solid #000;vertical-align:middle;'+(x?'background:#000;'+COLOR:'')+'"></span>';};
   var ETQ='width:205px;padding:0 4px;font-weight:bold;vertical-align:middle';
   var VAL='padding:2px 4px;border:1px solid #000;font-weight:bold;vertical-align:middle;line-height:1.15';
-  var firma=function(t,ancho){return '<div style="width:'+ancho+';height:52px;border:1px solid #000;display:flex;align-items:flex-end;justify-content:center;text-align:center;font-weight:bold;font-size:7.5pt;padding-bottom:2px">'+t+'</div>';};
-  var renglon=function(etq,caj,extra){return '<tr><td style="padding:5px 4px;width:205px">'+etq+'</td><td style="padding:5px 4px">'+caj+(extra?'<span style="margin-left:14px">'+extra+'</span>':'')+'</td></tr>';};
-  var h='<div class="pp-page des-hoja" style="font-family:Tahoma,Verdana,Arial,sans-serif;font-size:8.5pt;color:#000;padding:0.9cm 1cm 0.6cm;line-height:1.25">'+
+  var firma=function(t,ancho){return '<div style="width:'+ancho+';height:46px;border:1px solid #000;display:flex;align-items:flex-end;justify-content:center;text-align:center;font-weight:bold;font-size:7.5pt;padding-bottom:2px">'+t+'</div>';};
+  var renglon=function(etq,caj,extra){return '<tr><td style="padding:3px 4px;width:205px">'+etq+'</td><td style="padding:3px 4px">'+caj+(extra?'<span style="margin-left:14px">'+extra+'</span>':'')+'</td></tr>';};
+  var h='<div class="pp-page des-hoja" style="font-family:Tahoma,Verdana,Arial,sans-serif;font-size:8.5pt;color:#000;padding:0.7cm 0.9cm 0.4cm;line-height:1.2">'+
     /* Encabezado: datos de identificación, barra roja y título con la fecha */
     '<table style="width:100%;border-collapse:collapse"><tr>'+
       '<td style="width:47%;vertical-align:bottom;padding:0 0 4px 62px;font-weight:bold">DATOS DE IDENTIFICACIÓN</td>'+
-      '<td style="width:5%;vertical-align:top"><div style="width:9px;height:76px;background:#ff0000;border-radius:3px;'+COLOR+'"></div></td>'+
+      '<td style="width:5%;vertical-align:top"><div style="width:9px;height:60px;background:#ff0000;border-radius:3px;'+COLOR+'"></div></td>'+
       '<td style="vertical-align:top"><div style="text-align:center;font-weight:bold;font-size:9pt;margin-left:120px">FORMATO DE<br>DESCUENTO</div>'+
-        '<div style="margin-top:20px;white-space:nowrap"><b>FECHA:</b> <span style="display:inline-block;width:72%;border:1px solid #000;text-align:center">'+esc(d.fecha)+'</span></div></td>'+
+        '<div style="margin-top:12px;white-space:nowrap"><b>FECHA:</b> <span style="display:inline-block;width:72%;border:1px solid #000;text-align:center">'+esc(d.fecha)+'</span></div></td>'+
     '</tr></table>'+
     /* Datos de identificación */
-    '<table style="width:100%;table-layout:fixed;border-collapse:collapse;margin-top:14px;overflow-wrap:anywhere">'+
-      '<tr><td style="'+ETQ+'">RAZON SOCIAL</td><td style="border:1px solid #000;padding:12px 6px 14px">'+
+    '<table style="width:100%;table-layout:fixed;border-collapse:collapse;margin-top:8px;overflow-wrap:anywhere">'+
+      '<tr><td style="'+ETQ+'">RAZON SOCIAL</td><td style="border:1px solid #000;padding:7px 6px 8px">'+
         '<div style="display:flex;justify-content:space-between;font-weight:bold">'+DES_RAZONES.map(function(r){return '<span style="white-space:nowrap">'+r+' '+caja(r===d.razon)+'</span>';}).join('')+'</div></td></tr>'+
       '<tr><td style="'+ETQ+'">SUCURSAL</td><td style="'+VAL+'">'+esc(d.suc)+'</td></tr>'+
       '<tr><td style="'+ETQ+'">NOMBRE EMPLEADO</td><td style="'+VAL+'">'+esc(d.nombre)+'</td></tr>'+
@@ -1410,35 +1412,54 @@ function desPDF(){
       '<tr><td style="'+ETQ+'">NÚMERO DE RECIBO</td><td style="'+VAL+'">'+(esc(d.recibo)||'&nbsp;')+'</td></tr>'+
     '</table>'+
     /* Motivo */
-    '<p style="font-weight:bold;margin:16px 0 4px">MOTIVO DE DESCUENTO:</p>'+
+    '<p style="font-weight:bold;margin:10px 0 2px">MOTIVO DE DESCUENTO:</p>'+
     '<table style="border-collapse:collapse">'+
       DES_MOTIVOS.map(function(m,i){return renglon(esc(m)+':',caja(d.mot[i]),i===5&&d.mot[i]&&d.otros?esc(d.otros):'');}).join('')+
     '</table>'+
     /* Importe y pagos */
-    '<table style="width:100%;border-collapse:collapse;margin-top:6px">'+
-      '<tr><td style="width:205px;padding:5px 4px;text-align:right;font-weight:bold">TOTAL A DESCONTAR:</td>'+
-        '<td style="padding:5px 4px"><b>$</b> <span style="display:inline-block;min-width:96px;border-bottom:1px solid #000;text-align:right;font-weight:bold;padding-right:6px">'+money(d.total)+'</span> M.N.</td></tr>'+
-      '<tr><td style="padding:8px 4px 4px;font-weight:bold;white-space:nowrap">EL DESCUENTO SE APLICARÁ EN:</td>'+
-        '<td style="padding:8px 4px 4px"><span style="display:inline-block;width:52px;border:1px solid #000;text-align:center;font-weight:bold">'+d.n+'</span> <b>PAGO'+(d.n===1?'':'S')+'</b>'+
+    '<table style="width:100%;border-collapse:collapse;margin-top:4px">'+
+      '<tr><td style="width:205px;padding:3px 4px;text-align:right;font-weight:bold">TOTAL A DESCONTAR:</td>'+
+        '<td style="padding:3px 4px"><b>$</b> <span style="display:inline-block;min-width:96px;border-bottom:1px solid #000;text-align:right;font-weight:bold;padding-right:6px">'+money(d.total)+'</span> M.N.</td></tr>'+
+      '<tr><td style="padding:5px 4px 3px;font-weight:bold;white-space:nowrap">EL DESCUENTO SE APLICARÁ EN:</td>'+
+        '<td style="padding:5px 4px 3px"><span style="display:inline-block;width:52px;border:1px solid #000;text-align:center;font-weight:bold">'+d.n+'</span> <b>PAGO'+(d.n===1?'':'S')+'</b>'+
         '<span style="margin-left:90px;font-weight:bold">DE:</span><span style="margin-left:56px;font-weight:bold">'+money(d.base)+'</span>'+
         (d.n>1&&d.ultimo!==d.base?'<span style="margin-left:8px;font-size:7.5pt">(el último de '+money(d.ultimo)+')</span>':'')+'</td></tr>'+
-      '<tr><td></td><td style="padding:6px 4px 4px 100px">(SON: '+esc(d.letraTotal)+')</td></tr>'+
+      '<tr><td></td><td style="padding:3px 4px 2px 100px">(SON: '+esc(d.letraTotal)+')</td></tr>'+
     '</table>'+
     '<table style="border-collapse:collapse;margin-top:2px">'+
-      ['SEMANALES','QUINCENALES','MENSUALES'].map(function(p){return '<tr><td style="width:205px;padding:6px 4px;text-align:right;font-weight:bold">'+p+'</td><td style="padding:6px 4px">'+caja(d.per===p)+'</td></tr>';}).join('')+
+      ['SEMANALES','QUINCENALES','MENSUALES'].map(function(p){return '<tr><td style="width:205px;padding:3px 4px;text-align:right;font-weight:bold">'+p+'</td><td style="padding:3px 4px">'+caja(d.per===p)+'</td></tr>';}).join('')+
     '</table>'+
     /* Detalle, pagaré y firmas */
-    '<p style="font-weight:bold;margin:12px 0 10px">DETALLAR MOTIVO DE DESCUENTO:</p>'+
-    '<div style="border:1.3px solid #000;min-height:64px;padding:12px 4px 8px;white-space:pre-wrap">'+esc(d.detalle)+'</div>'+
-    '<p style="margin:30px 0 0;line-height:1.3">'+desPagare(d,true)+'</p>'+
-    '<p style="margin:16px 0 0"><b>Firma:</b><span style="display:inline-block;width:52%;border-bottom:1px solid #000">&nbsp;</span></p>'+
-    '<div style="page-break-inside:avoid;margin-top:22px">'+
+    '<p style="font-weight:bold;margin:8px 0 5px">DETALLAR MOTIVO DE DESCUENTO:</p>'+
+    '<div style="border:1.3px solid #000;min-height:48px;padding:7px 4px 6px;white-space:pre-wrap">'+esc(d.detalle)+'</div>'+
+    '<p style="margin:16px 0 0;line-height:1.3">'+desPagare(d,true)+'</p>'+
+    '<p style="margin:12px 0 0"><b>Firma:</b><span style="display:inline-block;width:52%;border-bottom:1px solid #000">&nbsp;</span></p>'+
+    '<div style="page-break-inside:avoid;margin-top:14px">'+
       '<div style="display:flex;justify-content:flex-end;padding-right:22px">'+firma('FIRMA DEL EMPLEADO','30%')+'</div>'+
-      '<div style="display:flex;justify-content:space-between;margin-top:12px;padding-right:22px">'+
+      '<div style="display:flex;justify-content:space-between;margin-top:10px;padding-right:22px">'+
         firma('FIRMA JEFE INMEDIATO','24%')+firma('FIRMA GERENTE','28.5%')+firma('RECURSOS HUMANOS','30%')+'</div>'+
     '</div>'+
   '</div>';
-  desImprimir(h,d);
+  desImprimir(desAjustarHoja(h),d);
+}
+/* Seguro de una sola hoja: se mide el formato al ancho de una hoja carta y, si un detalle largo
+   lo hace crecer de más, se reduce (zoom) para que quepa aunque la impresora o Android agreguen
+   márgenes o usen A4. Alto máximo: 23.5 cm de los 27.9 cm de la hoja carta. */
+function desAjustarHoja(h){
+  try{
+    var caja=document.createElement('div');
+    caja.style.cssText='position:absolute;left:-9999px;top:0;width:21.59cm;visibility:hidden';
+    caja.innerHTML=h;
+    document.body.appendChild(caja);
+    var hoja=caja.firstElementChild, alto=hoja.getBoundingClientRect().height, max=23.5*96/2.54;
+    if(alto>max){
+      var z=Math.max(.6,Math.floor(max/alto*1000)/1000);
+      hoja.style.zoom=z;
+      h=caja.innerHTML;
+    }
+    caja.remove();
+  }catch(e){}
+  return h;
 }
 /* Al imprimir desde dentro de la app, el navegador ignora el tamaño de hoja que pide el
    formato y puede usar A4 horizontal (sale en 2 hojas). Por eso se imprime en una ventana
