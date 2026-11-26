@@ -1448,7 +1448,16 @@ var DES_CSS_HOJA='@page{size:letter portrait;margin:0}'+
   'html,body{margin:0;padding:0;background:#fff}'+
   '.des-hoja{box-sizing:border-box;width:100%;max-width:21.59cm;margin:0 auto}'+
   '@media print and (orientation:landscape){.des-hoja{zoom:.7}}';
+/* Dentro de la app (Android/iPhone) no hay ventanas nuevas: window.open('') devolvía la misma
+   ventana y el formato se escribía encima de Documentos (pantalla en blanco). Ahí se imprime
+   como los demás documentos; la app abre el diálogo de impresión / Guardar PDF. */
+function desEnApp(){
+  try{ if(window.GKAndroid||window.GKIos) return true; }catch(e){}
+  try{ var p=window.parent; if(p&&p!==window&&(p.GKAndroid||p.GKIos||p.document.documentElement.classList.contains('gk-apk'))) return true; }catch(e){}
+  return / GKApp\//.test(navigator.userAgent);
+}
 function desImprimir(cuerpo,d){
+  if(desEnApp()){ imprimir(cuerpo); return; }
   var w=null;
   try{ w=window.open('','_blank'); }catch(e){ w=null; }
   if(!w||!w.document){ imprimir(cuerpo); return; }
