@@ -434,11 +434,13 @@ const sys0=()=>({ef:EFR.map(n=>({n,p:'',u:''})),tj:[{n:'TPV SANTANDER - EXPRESS 
 const norm=()=>{if(S.caja&&!S.caja.sys)S.caja.sys=sys0();if(S.caja&&!S.caja.ru)S.caja.ru={};if(S.caja&&S.caja.tol==null)S.caja.tol='';migFirmas()};
 const SYG={ef:['Efectivo','Forma de pago','Pesos','Dólares'],tj:['Tarjetas','Terminal','Sistema','Comprobado (vouchers / cierre de lote)'],tr:['Transferencias','Cuenta','Sistema','Comprobado (comprobantes / estado de cuenta)'],inf:['Informativos (no se cuadran)','Concepto','Pesos','Dólares']};
 const f2=g=>g=='tj'||g=='tr'?'c':'u';
-const pev=s=>{let x=String(s??'').trim();if(/^\(.*\)$/.test(x))x='-'+x.slice(1,-1);if(/^[\d,.\s$]+-$/.test(x))x='-'+x.replace(/-\s*$/,'');return ev(x)};
+/* Importes del corte: un espacio entre cifras o junto al punto ("-5963. 15", "98 457.63") es parte
+   del mismo número, no una suma (antes "-5963. 15" se leía como -5963 + 15). */
+const pev=s=>{let x=String(s??'').trim().replace(/(\d)\s+(?=[\d.])/g,'$1').replace(/\.\s+(?=\d)/g,'.');if(/^\(.*\)$/.test(x))x='-'+x.slice(1,-1);if(/^[\d,.\s$]+-$/.test(x))x='-'+x.replace(/-\s*$/,'');return ev(x)};
 const sm=(a,f)=>r2(a.reduce((x,c)=>x+pev(c[f]),0));
 const filled=(c,f)=>String(c.p??'').trim()!==''||String(c[f]??'').trim()!=='';
 let CU={rows:[],dict:null,has:false,efP:0,efU:0,tol:0};
-const ev=s=>{const m=String(s??'').replace(/,/g,'').match(/[+-]?\s*\d*\.?\d+/g);return m?m.reduce((a,x)=>a+parseFloat(x.replace(/\s/g,'')),0):0};
+const ev=s=>{const m=String(s??'').replace(/,/g,'').replace(/(\d)\s*\.\s*(?=\d)/g,'$1.').match(/[+-]?\s*\d*\.?\d+/g);return m?m.reduce((a,x)=>a+parseFloat(x.replace(/\s/g,'')),0):0};
 const r2=x=>Math.round(x*100)/100;
 const fmt=(n,k)=>(n||0).toLocaleString('es-MX',{style:'currency',currency:k=='usd'?'USD':'MXN'});
 const lab=d=>'$'+(d>=1?d.toLocaleString('es-MX'):d.toFixed(2));
